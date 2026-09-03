@@ -1,0 +1,1 @@
+"""Workflow artifact contracts."""
