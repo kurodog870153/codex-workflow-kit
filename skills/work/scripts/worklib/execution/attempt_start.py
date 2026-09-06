@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -9,7 +8,6 @@ from typing import Any
 
 from ..contracts.attempt import (
     ATTEMPT_PATTERN,
-    RECORD_PATTERN,
     canonicalize_attempt_contract,
     render_attempt_contract,
     validate_attempt_file,
@@ -17,23 +15,27 @@ from ..contracts.attempt import (
 from ..foundation.errors import ExitCode, WorkError
 from .preflight import execute_preflight
 from .worktree import (
-    collect_git_status,
     inspect_execute_worktree,
-    worktree_snapshot_sha256,
 )
 from ..contracts.execution_index import (
     derive_overall_status,
-    render_execution_index,
     validate_execution_index,
 )
 from ..foundation.fingerprint import read_raw
-from ..foundation.markdown import parse_json_contract, parse_markdown_json_contract
+from ..foundation.markdown import parse_markdown_json_contract
 from ..foundation.paths import resolve_project_relative_path
 from ..skills.catalog import SkillRoot
+from .attempt_start_request import parse_attempt_start_request
+from .attempt_start_transactions import (
+    raise_transaction_error as _raise_transaction_error,
+    read_index as _read_index,
+    replace_index as _replace_index,
+    transaction_path as _transaction_path,
+    validate_snapshot as _validate_snapshot,
+    write_exclusive as _write_exclusive,
+)
 
 
-REQUEST_SCHEMA = "work-attempt-start-request/v1"
-SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 TRANSACTION_PATTERN = re.compile(
     r"^\.work-attempt-start-(TASK-\d{3})-(ATTEMPT-\d{3})-(lock|started)\.tmp$"
 )
@@ -46,146 +48,6 @@ def _error(
     **details: object,
 ) -> None:
     raise WorkError(exit_code, code, message, details or None)
-
-
-def _strict_object(
-    value: object,
-    *,
-    location: str,
-    required: set[str],
-    optional: set[str] | None = None,
-) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        _error(
-            ExitCode.CONTRACT,
-            "attempt_start_expected_object",
-            "A JSON object is required.",
-            location=location,
-        )
-    allowed = required | (optional or set())
-    missing = sorted(required - set(value))
-    unknown = sorted(set(value) - allowed)
-    if missing or unknown:
-        _error(
-            ExitCode.CONTRACT,
-            "attempt_start_invalid_object_fields",
-            "The JSON object has missing or unknown fields.",
-            location=location,
-            missing=missing,
-            unknown=unknown,
-        )
-    return value
-
-
-def _nonempty(value: object, *, location: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        _error(
-            ExitCode.CONTRACT,
-            "attempt_start_empty_text_value",
-            "A non-empty string is required.",
-            location=location,
-        )
-    return value
-
-
-def parse_attempt_start_request(raw: bytes, *, source: str) -> dict[str, Any]:
-    request = parse_json_contract(raw, source=source)
-    request = _strict_object(
-        request,
-        location="attempt_start_request",
-        required={"schema", "worktree_snapshot_sha256"},
-        optional={"continuation"},
-    )
-    if request["schema"] != REQUEST_SCHEMA:
-        _error(
-            ExitCode.CONTRACT,
-            "attempt_start_invalid_schema",
-            "The Attempt-start request schema is invalid.",
-        )
-    snapshot = request["worktree_snapshot_sha256"]
-    if not isinstance(snapshot, str) or not SHA256_PATTERN.fullmatch(snapshot):
-        _error(
-            ExitCode.CONTRACT,
-            "attempt_start_invalid_worktree_snapshot",
-            "A lowercase worktree snapshot SHA-256 is required.",
-        )
-    canonical: dict[str, Any] = {
-        "schema": REQUEST_SCHEMA,
-        "worktree_snapshot_sha256": snapshot,
-    }
-    if "continuation" in request:
-        continuation = _strict_object(
-            request["continuation"],
-            location="continuation",
-            required={"source_attempt_id", "carried_records"},
-        )
-        source_attempt = _nonempty(
-            continuation["source_attempt_id"],
-            location="continuation.source_attempt_id",
-        )
-        if not ATTEMPT_PATTERN.fullmatch(source_attempt):
-            _error(
-                ExitCode.CONTRACT,
-                "attempt_start_invalid_source_attempt",
-                "The continuation source Attempt ID is invalid.",
-            )
-        raw_records = continuation["carried_records"]
-        if not isinstance(raw_records, list):
-            _error(
-                ExitCode.CONTRACT,
-                "attempt_start_invalid_carried_records",
-                "carried_records must be an array.",
-            )
-        carried_records: list[dict[str, str]] = []
-        seen: set[str] = set()
-        for position, raw_record in enumerate(raw_records):
-            record = _strict_object(
-                raw_record,
-                location=f"continuation.carried_records[{position}]",
-                required={"record_id", "evidence"},
-            )
-            record_id = _nonempty(
-                record["record_id"],
-                location=f"continuation.carried_records[{position}].record_id",
-            )
-            if not RECORD_PATTERN.fullmatch(record_id):
-                _error(
-                    ExitCode.CONTRACT,
-                    "attempt_start_invalid_carried_record_id",
-                    "A carried record ID is invalid.",
-                    record_id=record_id,
-                )
-            if record_id in seen:
-                _error(
-                    ExitCode.CONTRACT,
-                    "attempt_start_duplicate_carried_record",
-                    "A carried record ID cannot be repeated.",
-                    record_id=record_id,
-                )
-            seen.add(record_id)
-            carried_records.append(
-                {
-                    "record_id": record_id,
-                    "evidence": _nonempty(
-                        record["evidence"],
-                        location=(
-                            f"continuation.carried_records[{position}].evidence"
-                        ),
-                    ),
-                }
-            )
-        canonical["continuation"] = {
-            "source_attempt_id": source_attempt,
-            "carried_records": carried_records,
-        }
-    return canonical
-
-
-def _read_index(index_path: Path) -> tuple[bytes, dict[str, Any]]:
-    raw = read_raw(index_path)
-    validate_execution_index(raw, source=str(index_path))
-    _, contract = parse_markdown_json_contract(raw, source=str(index_path))
-    return raw, contract
 
 
 def _task_row(index: dict[str, Any], task_id: str) -> dict[str, Any]:
@@ -441,156 +303,6 @@ def _started_index(
         [item["status"] for item in result["tasks"]]
     )
     return result
-
-
-def _transaction_path(
-    execution_path: Path,
-    *,
-    task_id: str,
-    attempt_id: str,
-    stage: str,
-) -> Path:
-    return execution_path / (
-        f".work-attempt-start-{task_id}-{attempt_id}-{stage}.tmp"
-    )
-
-
-def _write_exclusive(path: Path, content: bytes, *, label: str) -> None:
-    try:
-        with path.open("xb") as output:
-            output.write(content)
-            output.flush()
-            os.fsync(output.fileno())
-    except FileExistsError as error:
-        raise WorkError(
-            ExitCode.LOCK_CONFLICT,
-            "attempt_start_target_exists",
-            f"The {label} already exists.",
-            {"path": str(path)},
-        ) from error
-    except OSError as error:
-        raise WorkError(
-            ExitCode.IO_FAILURE,
-            "attempt_start_write_failed",
-            f"The {label} could not be written.",
-            {"path": str(path)},
-        ) from error
-
-
-def _replace_index(
-    *,
-    index_path: Path,
-    expected_current: bytes,
-    target: dict[str, Any],
-    temporary_path: Path,
-    allow_existing_temporary: bool,
-) -> bytes:
-    rendered = render_execution_index(target)
-    validate_execution_index(
-        rendered, source="generated attempt-start execution index"
-    )
-    if temporary_path.exists():
-        if not allow_existing_temporary or read_raw(temporary_path) != rendered:
-            _error(
-                ExitCode.ARTIFACT_INTEGRITY,
-                "attempt_start_temporary_conflict",
-                "An Attempt-start temporary index conflicts with the expected state.",
-                path=str(temporary_path),
-            )
-    else:
-        _write_exclusive(temporary_path, rendered, label="temporary execution index")
-    if read_raw(index_path) != expected_current:
-        _error(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "attempt_start_index_changed",
-            "The execution index changed during Attempt start.",
-        )
-    try:
-        os.replace(temporary_path, index_path)
-    except OSError as error:
-        raise WorkError(
-            ExitCode.IO_FAILURE,
-            "attempt_start_index_replace_failed",
-            "The prepared execution index could not be installed.",
-            {"temporary_path": str(temporary_path), "index_path": str(index_path)},
-        ) from error
-    stored = read_raw(index_path)
-    validate_execution_index(stored, source=str(index_path))
-    if stored != rendered:
-        _error(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "attempt_start_index_write_mismatch",
-            "The stored execution index does not match the prepared bytes.",
-        )
-    return stored
-
-
-def _transaction_stage(
-    *,
-    index_path: Path,
-    attempt_path: Path,
-    lock_temporary: Path,
-    started_temporary: Path,
-    attempt_id: str,
-) -> str:
-    if started_temporary.exists():
-        return "started_index_prepared"
-    if attempt_path.exists():
-        return "attempt_created"
-    try:
-        _, index = _read_index(index_path)
-    except WorkError:
-        return "index_unreadable"
-    if index.get("lock", {}).get("attempt_id") == attempt_id:
-        return "lock_installed"
-    if lock_temporary.exists():
-        return "lock_index_prepared"
-    return "not_started"
-
-
-def _raise_transaction_error(
-    error: WorkError,
-    *,
-    index_path: Path,
-    attempt_path: Path,
-    lock_temporary: Path,
-    started_temporary: Path,
-    attempt_id: str,
-) -> None:
-    stage = _transaction_stage(
-        index_path=index_path,
-        attempt_path=attempt_path,
-        lock_temporary=lock_temporary,
-        started_temporary=started_temporary,
-        attempt_id=attempt_id,
-    )
-    if stage == "not_started":
-        raise error
-    details = dict(error.details)
-    details.update(
-        {
-            "attempt_id": attempt_id,
-            "recovery_required": True,
-            "transaction_stage": stage,
-        }
-    )
-    raise WorkError(error.exit_code, error.code, error.message, details) from error
-
-
-def _validate_snapshot(
-    *, project_root: Path, execution_dir: str, expected: str
-) -> None:
-    actual = worktree_snapshot_sha256(
-        collect_git_status(project_root), execution_dir=execution_dir
-    )
-    if actual != expected:
-        _error(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "attempt_start_worktree_snapshot_changed",
-            "The Git worktree snapshot changed after review.",
-            expected=expected,
-            actual=actual,
-        )
 
 
 def _complete_transaction(

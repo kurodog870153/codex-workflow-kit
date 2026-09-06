@@ -10,13 +10,13 @@ from ..foundation.fingerprint import read_raw
 from ..instructions.selection import build_instruction_selection
 from ..foundation.markdown import parse_markdown_json_contract
 from ..foundation.paths import portable_path_identity, resolve_project_relative_path
+from ..foundation.runtime import installed_work_root
 from ..skills.catalog import SkillRoot
 from ..skills.selection import selection_sha256
 from ..contracts.task import validate_task_contract
+from .instructions import BASE_EXECUTE_REFERENCES, RECOVERY_REFERENCE
 
 
-BASE_EXECUTE_REFERENCES = ["execute.general.execution-records"]
-RECOVERY_REFERENCE = "execute.general.execution-recovery"
 ELIGIBLE_NEW_ATTEMPT_STATUSES = {"pending", "pending_retry"}
 CONFIRMED_INPUT_PATTERN = re.compile(r"^TASK-\d{3}/INPUT-\d{3}$")
 ATTEMPT_START_TRANSACTION_PATTERN = re.compile(
@@ -457,7 +457,7 @@ def execute_preflight(
     if rule_status == "pending_retry":
         execute_references.append(RECOVERY_REFERENCE)
     execute_selection = build_instruction_selection(
-        skill_root=Path(__file__).resolve().parents[3],
+        skill_root=installed_work_root(),
         mode="execute",
         selected_paths=task_selection["selected_paths"],
         reference_names=execute_references,

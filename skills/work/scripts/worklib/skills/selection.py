@@ -5,9 +5,8 @@ import re
 from typing import Any
 
 from ..foundation.errors import ExitCode, WorkError
-from ..foundation.fingerprint import decode_utf8
+from ..foundation.fingerprint import canonical_json_sha256, decode_utf8
 from .catalog import SkillRoot, snapshot_catalog_skill
-from .fingerprint import canonical_json_sha256
 
 
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")

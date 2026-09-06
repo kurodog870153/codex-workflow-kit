@@ -1,0 +1,118 @@
+from __future__ import annotations
+
+import io
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+
+SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
+sys.path.insert(0, str(SCRIPT_ROOT))
+
+from worklib.cli import build_parser, main
+from worklib.foundation.errors import ExitCode
+
+
+class TaskCliTests(unittest.TestCase):
+    def test_create_arguments_parse(self) -> None:
+        arguments = build_parser().parse_args(
+            [
+                "--project-root",
+                "/project",
+                "task",
+                "create",
+                "--user-config-root",
+                "/config",
+                "--skill-root",
+                "repo:.agents/skills=/skills",
+                "--stdin",
+                "--plan-path",
+                "outputs/work/plans/example.md",
+                "--task-path",
+                "outputs/work/tasks/example.md",
+                "--execution-dir",
+                "outputs/work/executions/example",
+            ]
+        )
+
+        self.assertEqual(arguments.command, "task")
+        self.assertEqual(arguments.task_command, "create")
+        self.assertEqual(arguments.project_root, "/project")
+        self.assertEqual(arguments.user_config_root, "/config")
+        self.assertEqual(
+            arguments.skill_root,
+            ["repo:.agents/skills=/skills"],
+        )
+        self.assertTrue(arguments.stdin)
+        self.assertEqual(
+            arguments.plan_path,
+            "outputs/work/plans/example.md",
+        )
+        self.assertEqual(
+            arguments.task_path,
+            "outputs/work/tasks/example.md",
+        )
+        self.assertEqual(
+            arguments.execution_dir,
+            "outputs/work/executions/example",
+        )
+
+    def test_validate_stdin_requires_task_path(self) -> None:
+        with tempfile.TemporaryDirectory() as project_directory:
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            exit_code = main(
+                [
+                    "--project-root",
+                    project_directory,
+                    "task",
+                    "validate",
+                    "--user-config-root",
+                    project_directory,
+                    "--stdin",
+                ],
+                stdin=io.StringIO("{}"),
+                stdout=stdout,
+                stderr=stderr,
+            )
+
+        self.assertEqual(exit_code, ExitCode.CLI_USAGE)
+        self.assertEqual(stdout.getvalue(), "")
+        error = json.loads(stderr.getvalue())
+        self.assertEqual(error["schema"], "work-error/v1")
+        self.assertEqual(error["code"], "task_path_required")
+
+    def test_validate_file_rejects_task_path(self) -> None:
+        with tempfile.TemporaryDirectory() as project_directory:
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            exit_code = main(
+                [
+                    "--project-root",
+                    project_directory,
+                    "task",
+                    "validate",
+                    "--user-config-root",
+                    project_directory,
+                    "--path",
+                    "outputs/work/tasks/example.md",
+                    "--task-path",
+                    "outputs/work/tasks/other.md",
+                ],
+                stdout=stdout,
+                stderr=stderr,
+            )
+
+        self.assertEqual(exit_code, ExitCode.CLI_USAGE)
+        self.assertEqual(stdout.getvalue(), "")
+        error = json.loads(stderr.getvalue())
+        self.assertEqual(error["schema"], "work-error/v1")
+        self.assertEqual(error["code"], "unexpected_task_path")
+
+
+if __name__ == "__main__":
+    unittest.main()

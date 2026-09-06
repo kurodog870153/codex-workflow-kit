@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -15,20 +14,26 @@ from ..contracts.correction import (
     validate_correction_file,
 )
 from ..foundation.errors import ExitCode, WorkError
-from .record_begin import _read_contract, _task_row, _validate_identity
+from .context import read_contract, find_task_row, validate_execution_identity
 from ..contracts.execution_index import (
     derive_overall_status,
     render_execution_index,
     validate_execution_index,
 )
 from ..foundation.fingerprint import read_raw
-from ..foundation.markdown import parse_json_contract, parse_markdown_json_contract
+from ..foundation.markdown import parse_markdown_json_contract
 from ..foundation.paths import resolve_project_relative_path
 from ..skills.catalog import SkillRoot
 from ..contracts.task import validate_task_contract
+from .correction_request import parse_correction_create_request
+from .correction_transactions import (
+    consume_temporary,
+    install_exclusive,
+    prepare_file,
+    replace_file,
+)
 
 
-REQUEST_SCHEMA = "work-correction-create-request/v1"
 TRANSACTION_PATTERN = re.compile(
     r"^\.work-correction-(TASK-\d{3})-"
     r"(ATTEMPT-\d{3}-CORRECTION-\d{3})-(artifact|lock|index)\.tmp$"
@@ -42,61 +47,6 @@ def _error(
     **details: object,
 ) -> None:
     raise WorkError(exit_code, code, message, details or None)
-
-
-def parse_correction_create_request(raw: bytes, *, source: str) -> dict[str, Any]:
-    request = parse_json_contract(raw, source=source)
-    if not isinstance(request, dict):
-        _error(
-            ExitCode.CONTRACT,
-            "correction_create_expected_object",
-            "A JSON object is required.",
-        )
-    required = {
-        "schema",
-        "target_attempt_id",
-        "field",
-        "correct_value",
-        "reason",
-        "invalidates_completion",
-    }
-    missing = sorted(required - set(request))
-    unknown = sorted(set(request) - required)
-    if missing or unknown:
-        _error(
-            ExitCode.CONTRACT,
-            "correction_create_invalid_fields",
-            "The Correction create request has missing or unknown fields.",
-            missing=missing,
-            unknown=unknown,
-        )
-    if request["schema"] != REQUEST_SCHEMA:
-        _error(
-            ExitCode.CONTRACT,
-            "correction_create_invalid_schema",
-            "The Correction create request schema is invalid.",
-        )
-    if not re.fullmatch(r"ATTEMPT-\d{3}", str(request["target_attempt_id"])):
-        _error(
-            ExitCode.CONTRACT,
-            "correction_create_invalid_attempt_id",
-            "target_attempt_id must use ATTEMPT-nnn.",
-        )
-    for field in ("field", "correct_value", "reason"):
-        if not isinstance(request[field], str) or not request[field].strip():
-            _error(
-                ExitCode.CONTRACT,
-                "correction_create_empty_text",
-                "Correction text fields must be non-empty strings.",
-                field=field,
-            )
-    if not isinstance(request["invalidates_completion"], bool):
-        _error(
-            ExitCode.CONTRACT,
-            "correction_create_invalid_invalidation_flag",
-            "invalidates_completion must be a boolean.",
-        )
-    return request
 
 
 def _timestamp(now: datetime | None) -> str:
@@ -155,7 +105,7 @@ def correction_affected_task_ids(
 ) -> list[str]:
     if not invalidates_completion:
         return []
-    row = _task_row(index, task_id)
+    row = find_task_row(index, task_id)
     if row["status"] != "completed":
         _error(
             ExitCode.WORKFLOW_STATE,
@@ -179,7 +129,7 @@ def build_corrected_index(
 ) -> dict[str, Any]:
     target = copy.deepcopy(index)
     target.pop("lock", None)
-    target_row = _task_row(target, task_id)
+    target_row = find_task_row(target, task_id)
     target_row["latest_correction"] = correction_id
     affected = set(affected_task_ids)
     for row in target["tasks"]:
@@ -210,171 +160,6 @@ def _build_lock(
         "invalidates_completion": invalidates_completion,
         "affected_task_ids": affected_task_ids,
     }
-
-
-def _prepare(path: Path, expected: bytes, *, stage: str) -> None:
-    try:
-        with path.open("xb") as output:
-            output.write(expected)
-            output.flush()
-            os.fsync(output.fileno())
-    except FileExistsError as error:
-        raise WorkError(
-            ExitCode.LOCK_CONFLICT,
-            "correction_create_transaction_present",
-            "A Correction transaction already requires recovery.",
-            {
-                "path": str(path),
-                "recovery_required": True,
-                "transaction_stage": stage,
-            },
-        ) from error
-    except OSError as error:
-        details: dict[str, object] = {"path": str(path)}
-        if path.exists():
-            details.update(
-                {"recovery_required": True, "transaction_stage": stage}
-            )
-        raise WorkError(
-            ExitCode.IO_FAILURE,
-            "correction_create_prepare_failed",
-            "The Correction transaction target could not be prepared.",
-            details,
-        ) from error
-    if read_raw(path) != expected:
-        _error(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "correction_create_prepared_bytes_mismatch",
-            "The prepared Correction transaction bytes are not canonical.",
-            path=str(path),
-            recovery_required=True,
-            transaction_stage=stage,
-        )
-
-
-def _replace(
-    temporary: Path,
-    target: Path,
-    *,
-    expected: bytes,
-    source_bytes: bytes | None,
-    stage: str,
-) -> None:
-    if read_raw(temporary) != expected:
-        _error(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "correction_create_prepared_bytes_mismatch",
-            "The prepared Correction transaction bytes changed.",
-            path=str(temporary),
-        )
-    if source_bytes is None:
-        if target.exists():
-            _error(
-                ExitCode.ARTIFACT_INTEGRITY,
-                "correction_create_target_exists",
-                "An immutable Correction target already exists.",
-                path=str(target),
-            )
-    elif read_raw(target) != source_bytes:
-        _error(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "correction_create_source_changed",
-            "A Correction transaction source changed before replacement.",
-            path=str(target),
-        )
-    try:
-        os.replace(temporary, target)
-    except OSError as error:
-        raise WorkError(
-            ExitCode.IO_FAILURE,
-            "correction_create_replace_failed",
-            "The prepared Correction transaction target could not be installed.",
-            {
-                "path": str(temporary),
-                "recovery_required": True,
-                "transaction_stage": stage,
-            },
-        ) from error
-    if read_raw(target) != expected:
-        _error(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "correction_create_stored_bytes_mismatch",
-            "The installed Correction transaction bytes do not match the target.",
-            path=str(target),
-            recovery_required=True,
-            transaction_stage=stage,
-        )
-
-
-def _install_exclusive(
-    temporary: Path,
-    target: Path,
-    *,
-    expected: bytes,
-    stage: str,
-) -> None:
-    if read_raw(temporary) != expected:
-        _error(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "correction_create_prepared_bytes_mismatch",
-            "The prepared immutable Correction bytes changed.",
-            path=str(temporary),
-        )
-    if target.exists():
-        _error(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "correction_create_target_exists",
-            "An immutable Correction target already exists.",
-            path=str(target),
-        )
-    try:
-        os.link(temporary, target)
-    except FileExistsError as error:
-        raise WorkError(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "correction_create_target_exists",
-            "An immutable Correction target already exists.",
-            {"path": str(target)},
-        ) from error
-    except OSError as error:
-        raise WorkError(
-            ExitCode.IO_FAILURE,
-            "correction_create_exclusive_install_failed",
-            "The immutable Correction could not be exclusively installed.",
-            {
-                "path": str(temporary),
-                "recovery_required": True,
-                "transaction_stage": stage,
-            },
-        ) from error
-    if read_raw(target) != expected:
-        _error(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "correction_create_stored_bytes_mismatch",
-            "The installed immutable Correction bytes do not match the target.",
-            path=str(target),
-            recovery_required=True,
-            transaction_stage=stage,
-        )
-    _consume_artifact_temporary(temporary, stage=stage)
-
-
-def _consume_artifact_temporary(temporary: Path, *, stage: str) -> None:
-    if not temporary.exists():
-        return
-    try:
-        os.unlink(temporary)
-    except OSError as error:
-        raise WorkError(
-            ExitCode.IO_FAILURE,
-            "correction_create_temporary_consume_failed",
-            "The installed Correction transaction file could not be consumed.",
-            {
-                "path": str(temporary),
-                "recovery_required": True,
-                "transaction_stage": stage,
-            },
-        ) from error
 
 
 def _load_context(
@@ -416,9 +201,9 @@ def _load_context(
     _, index_path = resolve_project_relative_path(
         project_root, index_relative, field="execution_index"
     )
-    index_raw, index = _read_contract(index_path)
+    index_raw, index = read_contract(index_path)
     validate_execution_index(index_raw, source=str(index_path))
-    _task_row(index, task_id)
+    find_task_row(index, task_id)
     return {
         "normalized_execution": normalized_execution,
         "execution_path": execution_path,
@@ -481,8 +266,8 @@ def create_correction(
     _, attempt_path = resolve_project_relative_path(
         project_root, attempt_relative, field="attempt_path"
     )
-    _, attempt = _read_contract(attempt_path)
-    row = _validate_identity(
+    _, attempt = read_contract(attempt_path)
+    row = validate_execution_identity(
         task_contract=context["task_contract"],
         task_validation=context["task_validation"],
         index=index,
@@ -549,23 +334,23 @@ def create_correction(
     _, correction_path = resolve_project_relative_path(
         project_root, correction_relative, field="correction_path"
     )
-    _prepare(artifact_temporary, correction_raw, stage="artifact_prepared")
-    _prepare(lock_temporary, locked_raw, stage="lock_prepared")
-    _prepare(index_temporary, final_raw, stage="index_prepared")
-    _replace(
+    prepare_file(artifact_temporary, correction_raw, stage="artifact_prepared")
+    prepare_file(lock_temporary, locked_raw, stage="lock_prepared")
+    prepare_file(index_temporary, final_raw, stage="index_prepared")
+    replace_file(
         lock_temporary,
         context["index_path"],
         expected=locked_raw,
         source_bytes=context["index_raw"],
         stage="lock_installed",
     )
-    _install_exclusive(
+    install_exclusive(
         artifact_temporary,
         correction_path,
         expected=correction_raw,
         stage="correction_installed",
     )
-    _replace(
+    replace_file(
         index_temporary,
         context["index_path"],
         expected=final_raw,
@@ -707,8 +492,8 @@ def recover_correction(
     _, attempt_path = resolve_project_relative_path(
         project_root, attempt_relative, field="attempt_path"
     )
-    _, attempt = _read_contract(attempt_path)
-    _validate_identity(
+    _, attempt = read_contract(attempt_path)
+    validate_execution_identity(
         task_contract=context["task_contract"],
         task_validation=context["task_validation"],
         index=index,
@@ -844,7 +629,7 @@ def recover_correction(
             "The canonical final index target is not preserved.",
         )
     if not current_has_lock:
-        _replace(
+        replace_file(
             lock_temporary,
             context["index_path"],
             expected=locked_raw,
@@ -852,17 +637,17 @@ def recover_correction(
             stage="recovery_lock_installed",
         )
     if correction_path.is_file():
-        _consume_artifact_temporary(
+        consume_temporary(
             artifact_temporary, stage="recovery_correction_installed"
         )
     else:
-        _install_exclusive(
+        install_exclusive(
             artifact_temporary,
             correction_path,
             expected=correction_raw,
             stage="recovery_correction_installed",
         )
-    _replace(
+    replace_file(
         index_temporary,
         context["index_path"],
         expected=final_raw,

@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
-from typing import Any
 
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import INSTRUCTION_SOURCE_KINDS
 from .sources import InstructionSourceSet, load_instruction_sources
+from .validation import SOURCE_FIELDS, sha256, strict_object, string_array
 
 
-SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 SELECTION_FIELDS = {
     "selected_paths",
     "resolved_paths",
@@ -17,7 +15,6 @@ SELECTION_FIELDS = {
     "references",
     "instructions_sha256",
 }
-SOURCE_FIELDS = {"kind", "logical_name", "canonical_sha256"}
 
 
 def build_instruction_selection(
@@ -42,68 +39,6 @@ def build_instruction_selection(
     }
 
 
-def _strict_object(
-    value: object,
-    *,
-    location: str,
-    required: set[str],
-) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        raise WorkError(
-            ExitCode.CONTRACT,
-            "expected_object",
-            "A JSON object is required.",
-            {"location": location},
-        )
-    missing = sorted(required - set(value))
-    unknown = sorted(set(value) - required)
-    if missing or unknown:
-        raise WorkError(
-            ExitCode.CONTRACT,
-            "invalid_object_fields",
-            "The JSON object has missing or unknown fields.",
-            {"location": location, "missing": missing, "unknown": unknown},
-        )
-    return value
-
-
-def _string_array(
-    value: object,
-    *,
-    location: str,
-    allow_empty: bool,
-) -> list[str]:
-    if not isinstance(value, list) or (not allow_empty and not value):
-        raise WorkError(
-            ExitCode.CONTRACT,
-            "invalid_string_array",
-            "A string array with the required cardinality is required.",
-            {"location": location},
-        )
-    result: list[str] = []
-    for index, item in enumerate(value):
-        if not isinstance(item, str) or not item:
-            raise WorkError(
-                ExitCode.CONTRACT,
-                "invalid_string_array",
-                "Every array item must be a non-empty string.",
-                {"location": f"{location}[{index}]"},
-            )
-        result.append(item)
-    return result
-
-
-def _sha256(value: object, *, location: str) -> str:
-    if not isinstance(value, str) or not SHA256_PATTERN.fullmatch(value):
-        raise WorkError(
-            ExitCode.CONTRACT,
-            "invalid_sha256",
-            "A SHA-256 value must contain 64 lowercase hexadecimal characters.",
-            {"location": location},
-        )
-    return value
-
-
 def validate_instruction_selection(
     value: object,
     *,
@@ -111,22 +46,22 @@ def validate_instruction_selection(
     mode: str,
     location: str = "instruction_selection",
 ) -> InstructionSourceSet:
-    selection = _strict_object(
+    selection = strict_object(
         value,
         location=location,
         required=SELECTION_FIELDS,
     )
-    selected_paths = _string_array(
+    selected_paths = string_array(
         selection["selected_paths"],
         location=f"{location}.selected_paths",
         allow_empty=True,
     )
-    resolved_paths = _string_array(
+    resolved_paths = string_array(
         selection["resolved_paths"],
         location=f"{location}.resolved_paths",
         allow_empty=False,
     )
-    references = _string_array(
+    references = string_array(
         selection["references"],
         location=f"{location}.references",
         allow_empty=True,
@@ -150,7 +85,7 @@ def validate_instruction_selection(
     sources: list[dict[str, str]] = []
     for index, raw_source in enumerate(raw_sources):
         source_location = f"{location}.sources[{index}]"
-        source = _strict_object(
+        source = strict_object(
             raw_source,
             location=source_location,
             required=SOURCE_FIELDS,
@@ -171,7 +106,7 @@ def validate_instruction_selection(
                 "The instruction source logical name must be a non-empty string.",
                 {"location": f"{source_location}.logical_name"},
             )
-        canonical_sha256 = _sha256(
+        canonical_sha256 = sha256(
             source["canonical_sha256"],
             location=f"{source_location}.canonical_sha256",
         )
@@ -183,7 +118,7 @@ def validate_instruction_selection(
             }
         )
 
-    stored_fingerprint = _sha256(
+    stored_fingerprint = sha256(
         selection["instructions_sha256"],
         location=f"{location}.instructions_sha256",
     )

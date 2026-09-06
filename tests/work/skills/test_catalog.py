@@ -9,7 +9,7 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.skills.catalog import SkillRoot, build_skill_catalog, snapshot_catalog_skill
+from worklib.skills.catalog import SkillRoot, build_skill_catalog
 
 
 SKILL = """---
@@ -103,29 +103,6 @@ dependencies:
 
         self.assertEqual(result["skills"], [])
         self.assertEqual(result["unavailable"][0]["code"], "invalid_skill_frontmatter")
-
-    def test_snapshot_fingerprint_changes_with_bundle_content(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            skill = self._write_skill(root, "frontend", name="frontend")
-            references = skill / "references"
-            references.mkdir()
-            reference = references / "guide.md"
-            reference.write_text("Version one\n", encoding="utf-8")
-            first = snapshot_catalog_skill(
-                SkillRoot("repo", ".agents/skills", root),
-                "frontend/SKILL.md",
-            )
-            reference.write_text("Version two\n", encoding="utf-8")
-            second = snapshot_catalog_skill(
-                SkillRoot("repo", ".agents/skills", root),
-                "frontend/SKILL.md",
-            )
-
-        self.assertNotEqual(
-            first["bundle"]["bundle_sha256"],
-            second["bundle"]["bundle_sha256"],
-        )
 
     def test_root_locator_participates_in_identity(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

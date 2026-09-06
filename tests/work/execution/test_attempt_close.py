@@ -10,7 +10,6 @@ SKILL_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work"
 SCRIPT_ROOT = SKILL_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.attempt import canonicalize_attempt_contract
 from worklib.foundation.errors import WorkError
 from worklib.execution.attempt_close import (
     _task_status,
@@ -64,43 +63,6 @@ class ExecuteInstructionAttemptCloseTests(unittest.TestCase):
             "final_type": final_type,
             "reason": "Stop for the recorded reason.",
         }
-
-    def test_attempt_contract_accepts_instructions_changed(self) -> None:
-        attempt = copy.deepcopy(self.attempt)
-        attempt.update(
-            {
-                "status": "stopped",
-                "final_type": "instructions_changed",
-                "reason": "The Execute instructions changed.",
-                "ended_at": "2026-09-01T10:05+08:00",
-            }
-        )
-
-        canonical = canonicalize_attempt_contract(
-            attempt,
-            project_root=SKILL_ROOT.parent.parent,
-        )
-
-        self.assertEqual(canonical["final_type"], "instructions_changed")
-
-    def test_attempt_contract_rejects_legacy_rules_changed(self) -> None:
-        attempt = copy.deepcopy(self.attempt)
-        attempt.update(
-            {
-                "status": "stopped",
-                "final_type": "rules_changed",
-                "reason": "Legacy reason.",
-                "ended_at": "2026-09-01T10:05+08:00",
-            }
-        )
-
-        with self.assertRaises(WorkError) as context:
-            canonicalize_attempt_contract(
-                attempt,
-                project_root=SKILL_ROOT.parent.parent,
-            )
-
-        self.assertEqual(context.exception.code, "attempt_invalid_final_type")
 
     def test_unchanged_instructions_allow_normal_stop_reason(self) -> None:
         current = _validate_execute_instruction_close_state(

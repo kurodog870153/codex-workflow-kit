@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from pathlib import Path
 
 from ..foundation.errors import ExitCode, WorkError
@@ -14,16 +13,6 @@ TEXT_SUFFIXES = frozenset(
 BUNDLE_DIRECTORIES = ("agents", "assets", "references", "scripts")
 IGNORED_NAMES = frozenset({".DS_Store"})
 IGNORED_SUFFIXES = frozenset({".pyc"})
-
-
-def canonical_json_sha256(value: object) -> str:
-    encoded = json.dumps(
-        value,
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    ).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
 
 
 def _is_ignored(path: Path) -> bool:

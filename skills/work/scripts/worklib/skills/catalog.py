@@ -8,7 +8,8 @@ from typing import Any
 import yaml
 
 from ..foundation.errors import ExitCode, WorkError
-from .fingerprint import canonical_json_sha256, snapshot_skill_bundle
+from ..foundation.fingerprint import canonical_json_sha256
+from .fingerprint import snapshot_skill_bundle
 
 
 VALID_SCOPES = frozenset({"repo", "user", "admin", "system"})
