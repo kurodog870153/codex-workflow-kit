@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import unicodedata
 from collections.abc import Iterable
 from pathlib import Path
@@ -43,6 +44,16 @@ def canonical_sha256(raw: bytes, *, source: str) -> str:
 
 def raw_sha256(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
+
+
+def canonical_json_sha256(value: object) -> str:
+    encoded = json.dumps(
+        value,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def rules_sha256(

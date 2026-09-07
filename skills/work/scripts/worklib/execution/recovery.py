@@ -6,25 +6,17 @@ import re
 from pathlib import Path
 from typing import Any
 
-from ..contracts.attempt import (
-    canonicalize_command_correction,
-    render_attempt_contract,
-    validate_attempt_file,
-)
+from ..contracts.attempt import render_attempt_contract, validate_attempt_file
+from ..contracts.command_correction import canonicalize_command_correction
 from ..foundation.errors import ExitCode, WorkError
 from .attempt_close import (
-    _validate_completed_coverage,
     build_closed_attempt,
     build_closed_index,
 )
-from .command_correction import _formal_command
-from .record_begin import (
-    _formal_record,
-    _read_contract,
-    _task_row,
-    _validate_identity,
-    next_record_id,
-)
+from .commands import formal_command
+from .completion import validate_completed_coverage
+from .context import read_contract, find_task_row, validate_execution_identity
+from .records import next_record_id, formal_record_kind
 from .record_finish import build_finished_attempt
 from ..contracts.execution_index import render_execution_index, validate_execution_index
 from ..foundation.fingerprint import read_raw
@@ -291,7 +283,7 @@ def _record_begin_recovery(
             actual=temporary.name,
         )
     base_record_id = record_id.split("#", 1)[0]
-    _formal_record(task, base_record_id)
+    formal_record_kind(task, base_record_id)
     if record_id != next_record_id(base_record_id, attempt):
         _error(
             ExitCode.ARTIFACT_INTEGRITY,
@@ -365,7 +357,7 @@ def _command_correction_recovery(
         correction, location="lock.command_correction"
     )
     base_record_id = record_id.split("#", 1)[0]
-    if correction["original_command"] != _formal_command(task, base_record_id):
+    if correction["original_command"] != formal_command(task, base_record_id):
         _error(
             ExitCode.ARTIFACT_INTEGRITY,
             "execution_recovery_original_command_mismatch",
@@ -422,7 +414,7 @@ def _record_finish_recovery(
             "record_finish recovery requires a reserved record.",
         )
     base_record_id = record_id.split("#", 1)[0]
-    record_kind = _formal_record(task, base_record_id)
+    record_kind = formal_record_kind(task, base_record_id)
     safe_record = _safe_record_id(record_id)
     attempt_temporary = execution_path / (
         f".work-record-finish-{task_id}-{attempt_id}-{safe_record}-attempt.tmp"
@@ -551,7 +543,7 @@ def _attempt_close_recovery(
         )
         request = _close_request(prepared)
         if prepared["status"] == "completed":
-            _validate_completed_coverage(task=task, attempt=attempt)
+            validate_completed_coverage(task=task, attempt=attempt)
         expected_attempt = build_closed_attempt(
             attempt,
             request,
@@ -702,9 +694,9 @@ def recover_execution(
     _, index_path = resolve_project_relative_path(
         project_root, index_relative, field="execution_index"
     )
-    index_raw, index = _read_contract(index_path)
+    index_raw, index = read_contract(index_path)
     validate_execution_index(index_raw, source=str(index_path))
-    row = _task_row(index, task_id)
+    row = find_task_row(index, task_id)
     attempt_id = request["attempt_id"]
     if row.get("latest_attempt") != attempt_id or row["status"] != "in_progress":
         _error(
@@ -719,8 +711,8 @@ def recover_execution(
     _, attempt_path = resolve_project_relative_path(
         project_root, attempt_relative, field="attempt_path"
     )
-    attempt_raw, attempt = _read_contract(attempt_path)
-    _validate_identity(
+    attempt_raw, attempt = read_contract(attempt_path)
+    validate_execution_identity(
         task_contract=task_contract,
         task_validation=task_validation,
         index=index,

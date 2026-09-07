@@ -1,17 +1,10 @@
 from __future__ import annotations
 
-import os
 import re
-from datetime import date
 from pathlib import Path
 from typing import Any
 
 from ..foundation.errors import ExitCode, WorkError
-from .execution_index import (
-    build_initial_execution_index,
-    render_execution_index,
-    validate_execution_index,
-)
 from ..foundation.fingerprint import canonical_sha256, read_raw
 from ..foundation.markdown import (
     parse_json_contract,
@@ -25,13 +18,21 @@ from ..foundation.paths import (
     resolve_project_relative_path,
     validate_artifact_paths,
 )
+from ..foundation.runtime import installed_work_root
 from .plan import validate_plan_file
 from ..skills.catalog import SkillRoot
 from ..hierarchy.selection import validate_task_hierarchy_paths
 from ..instructions.task_selection import validate_task_document_instruction_selection
+from .task_changes import validate_task_changes
+from .task_dependencies import resolve_task_dependencies
+from .task_ordering import order_task_contract
+from .validation import (
+    nonempty_string as _nonempty_string,
+    sha256 as _sha256,
+    strict_keys as _strict_keys,
+)
 
 
-SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 TASK_ID_PATTERN = re.compile(r"^TASK-(\d{3})$")
 SPEC_ID_PATTERN = re.compile(r"^TASK-SPEC-(\d{3})$")
 QUALIFIED_FILE_PATTERN = re.compile(r"^(TASK-\d{3})/(FILE-\d{3})$")
@@ -49,79 +50,8 @@ TOP_REQUIRED = {
     "readiness",
 }
 TOP_OPTIONAL = {"execution_defaults", "decisions", "changes"}
-TOP_FIELD_ORDER = (
-    "schema",
-    "requirement_id",
-    "spec_id",
-    "status",
-    "title",
-    "summary",
-    "artifacts",
-    "source_plan",
-    "instruction_selection",
-    "execution_defaults",
-    "decisions",
-    "tasks",
-    "changes",
-    "readiness",
-)
-TASK_FIELD_ORDER = (
-    "id",
-    "title",
-    "skill_id",
-    "instruction_selection",
-    "traceability",
-    "dependencies",
-    "inputs",
-    "decisions",
-    "goal",
-    "files",
-    "risks",
-    "steps",
-    "commands",
-    "operations",
-    "validations",
-)
 OS_VALUES = {"windows", "macos", "linux"}
 SHELL_VALUES = {"powershell", "pwsh", "cmd", "bash", "zsh", "sh"}
-
-
-def _strict_keys(
-    value: object,
-    *,
-    location: str,
-    required: set[str],
-    optional: set[str] | None = None,
-) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        raise WorkError(
-            ExitCode.CONTRACT,
-            "expected_object",
-            "A JSON object is required.",
-            {"location": location},
-        )
-    allowed = required | (optional or set())
-    missing = sorted(required - set(value))
-    unknown = sorted(set(value) - allowed)
-    if missing or unknown:
-        raise WorkError(
-            ExitCode.CONTRACT,
-            "invalid_object_fields",
-            "The JSON object has missing or unknown fields.",
-            {"location": location, "missing": missing, "unknown": unknown},
-        )
-    return value
-
-
-def _nonempty_string(value: object, *, location: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise WorkError(
-            ExitCode.CONTRACT,
-            "empty_text_value",
-            "A non-empty string is required.",
-            {"location": location},
-        )
-    return value
 
 
 def _string_array(value: object, *, location: str, allow_empty: bool = False) -> list[str]:
@@ -141,158 +71,6 @@ def _string_array(value: object, *, location: str, allow_empty: bool = False) ->
             {"location": location},
         )
     return result
-
-
-def _sha256(value: object, *, location: str) -> str:
-    if not isinstance(value, str) or not SHA256_PATTERN.fullmatch(value):
-        raise WorkError(
-            ExitCode.CONTRACT,
-            "invalid_sha256",
-            "A SHA-256 value must contain 64 lowercase hexadecimal characters.",
-            {"location": location},
-        )
-    return value
-
-
-def _ordered_object(value: object, order: tuple[str, ...]) -> object:
-    if not isinstance(value, dict):
-        return value
-    result = {key: value[key] for key in order if key in value}
-    for key in sorted(set(value) - set(order)):
-        result[key] = value[key]
-    return result
-
-
-def _order_array(value: object, order: tuple[str, ...]) -> object:
-    if not isinstance(value, list):
-        return value
-    return [_ordered_object(item, order) for item in value]
-
-
-def order_task_contract(contract: dict[str, Any]) -> dict[str, Any]:
-    ordered = _ordered_object(contract, TOP_FIELD_ORDER)
-    assert isinstance(ordered, dict)
-    if "artifacts" in ordered:
-        ordered["artifacts"] = _ordered_object(
-            ordered["artifacts"], ("plan", "task", "execution")
-        )
-    if "source_plan" in ordered:
-        ordered["source_plan"] = _ordered_object(
-            ordered["source_plan"],
-            ("canonical_sha256", "hierarchy_selection_sha256"),
-        )
-    if "instruction_selection" in ordered:
-        selection = _ordered_object(
-            ordered["instruction_selection"],
-            ("sources", "references", "instructions_sha256"),
-        )
-        if isinstance(selection, dict):
-            selection["sources"] = _order_array(
-                selection.get("sources"),
-                ("kind", "logical_name", "canonical_sha256"),
-            )
-        ordered["instruction_selection"] = selection
-    if "execution_defaults" in ordered:
-        ordered["execution_defaults"] = _ordered_object(
-            ordered["execution_defaults"], ("working_directory", "os", "shell")
-        )
-    if "decisions" in ordered:
-        ordered["decisions"] = _order_array(
-            ordered["decisions"], ("id", "statement", "rationale", "task_ids")
-        )
-    if isinstance(ordered.get("tasks"), list):
-        tasks: list[object] = []
-        for raw_task in ordered["tasks"]:
-            task = _ordered_object(raw_task, TASK_FIELD_ORDER)
-            if not isinstance(task, dict):
-                tasks.append(task)
-                continue
-            if "instruction_selection" in task:
-                selection = _ordered_object(
-                    task["instruction_selection"],
-                    (
-                        "selected_paths",
-                        "resolved_paths",
-                        "sources",
-                        "references",
-                        "instructions_sha256",
-                    ),
-                )
-                if isinstance(selection, dict):
-                    selection["sources"] = _order_array(
-                        selection.get("sources"),
-                        ("kind", "logical_name", "canonical_sha256"),
-                    )
-                task["instruction_selection"] = selection
-            if "traceability" in task:
-                task["traceability"] = _ordered_object(
-                    task["traceability"],
-                    ("goal_ids", "deliverable_ids", "acceptance_ids", "milestone_ids"),
-                )
-            if "inputs" in task:
-                task["inputs"] = _order_array(
-                    task["inputs"], ("id", "kind", "source", "precondition")
-                )
-            if "decisions" in task:
-                task["decisions"] = _order_array(
-                    task["decisions"], ("id", "statement", "rationale")
-                )
-            if "files" in task:
-                task["files"] = _order_array(
-                    task["files"], ("id", "action", "path", "source", "destination")
-                )
-            if "risks" in task:
-                task["risks"] = _order_array(
-                    task["risks"], ("id", "condition", "impact", "mitigation")
-                )
-            task["steps"] = _order_array(
-                task.get("steps"), ("id", "action", "references")
-            )
-            if "commands" in task:
-                task["commands"] = _order_array(
-                    task["commands"], ("id", "mode", "argv", "script", "execution")
-                )
-            if isinstance(task.get("commands"), list):
-                for command in task["commands"]:
-                    if isinstance(command, dict) and "execution" in command:
-                        command["execution"] = _ordered_object(
-                            command["execution"], ("working_directory", "os", "shell")
-                        )
-            if "operations" in task:
-                task["operations"] = _order_array(
-                    task["operations"],
-                    ("id", "kind", "action", "target", "command_id", "validation_id"),
-                )
-            task["validations"] = _order_array(
-                task.get("validations"),
-                (
-                    "id",
-                    "kind",
-                    "command_ids",
-                    "pass_condition",
-                    "confirmer",
-                    "criteria",
-                    "acceptance_ids",
-                ),
-            )
-            tasks.append(task)
-        ordered["tasks"] = tasks
-    if "changes" in ordered:
-        ordered["changes"] = _order_array(
-            ordered["changes"],
-            ("id", "spec_id", "date", "reason", "affected_ids", "plan_change_ids", "edits"),
-        )
-    if isinstance(ordered.get("changes"), list):
-        for change in ordered["changes"]:
-            if isinstance(change, dict):
-                change["edits"] = _order_array(
-                    change.get("edits"), ("operation", "path", "before", "after")
-                )
-    if "readiness" in ordered:
-        ordered["readiness"] = _ordered_object(
-            ordered["readiness"], ("status", "spec_id")
-        )
-    return ordered
 
 
 def render_task_contract(contract: dict[str, Any]) -> bytes:
@@ -390,115 +168,6 @@ def _plan_id_array(
             {"location": location},
         )
     return ids
-
-
-def _topological_order(
-    task_ids: list[str], dependencies: dict[str, list[str]]
-) -> tuple[list[str], dict[str, set[str]]]:
-    visiting: set[str] = set()
-    visited: set[str] = set()
-    ancestors: dict[str, set[str]] = {}
-
-    def visit(task_id: str) -> set[str]:
-        if task_id in visiting:
-            raise WorkError(
-                ExitCode.CONTRACT,
-                "cyclic_task_dependency",
-                "TASK dependencies must not contain a cycle.",
-                {"task_id": task_id},
-            )
-        if task_id in visited:
-            return ancestors[task_id]
-        visiting.add(task_id)
-        result: set[str] = set()
-        for dependency in dependencies[task_id]:
-            result.add(dependency)
-            result.update(visit(dependency))
-        visiting.remove(task_id)
-        visited.add(task_id)
-        ancestors[task_id] = result
-        return result
-
-    for task_id in task_ids:
-        visit(task_id)
-    for task_id, direct in dependencies.items():
-        for dependency in direct:
-            if any(
-                dependency in ancestors[other]
-                for other in direct
-                if other != dependency
-            ):
-                raise WorkError(
-                    ExitCode.CONTRACT,
-                    "indirect_task_dependency",
-                    "Only direct TASK dependencies may be listed.",
-                    {"task_id": task_id, "dependency": dependency},
-                )
-    order: list[str] = []
-    pending = set(task_ids)
-    while pending:
-        ready = [
-            task_id
-            for task_id in task_ids
-            if task_id in pending and all(dep in order for dep in dependencies[task_id])
-        ]
-        if not ready:
-            raise WorkError(ExitCode.CONTRACT, "cyclic_task_dependency", "TASK dependency cycle.")
-        order.extend(ready)
-        pending.difference_update(ready)
-    return order, ancestors
-
-
-def _validate_changes(value: object, spec_id: str, known_ids: set[str]) -> None:
-    if not isinstance(value, list) or not value:
-        raise WorkError(ExitCode.CONTRACT, "invalid_item_array", "changes must be non-empty.")
-    previous = 0
-    for index, raw_change in enumerate(value):
-        change = _strict_keys(
-            raw_change,
-            location=f"changes[{index}]",
-            required={"id", "spec_id", "date", "reason", "affected_ids", "edits"},
-            optional={"plan_change_ids"},
-        )
-        match = re.fullmatch(r"TASK-CHANGE-(\d{3})", str(change["id"]))
-        if not match or int(match.group(1)) <= previous:
-            raise WorkError(ExitCode.CONTRACT, "invalid_or_unsorted_id", "Invalid TASK change ID.")
-        previous = int(match.group(1))
-        if change["spec_id"] != spec_id:
-            raise WorkError(ExitCode.CONTRACT, "change_spec_mismatch", "Change spec_id mismatch.")
-        try:
-            date.fromisoformat(_nonempty_string(change["date"], location="change.date"))
-        except ValueError as error:
-            raise WorkError(ExitCode.CONTRACT, "invalid_change_date", "Use YYYY-MM-DD.") from error
-        _nonempty_string(change["reason"], location="change.reason")
-        affected = _string_array(change["affected_ids"], location="change.affected_ids")
-        if any(item_id.split("/", 1)[0] not in known_ids for item_id in affected):
-            raise WorkError(ExitCode.CONTRACT, "invalid_reference", "Unknown affected ID.")
-        if "plan_change_ids" in change:
-            for item_id in _string_array(change["plan_change_ids"], location="change.plan_change_ids"):
-                if not re.fullmatch(r"PLAN-CHANGE-\d{3}", item_id):
-                    raise WorkError(ExitCode.CONTRACT, "invalid_reference", "Invalid Plan change ID.")
-        edits = change["edits"]
-        if not isinstance(edits, list) or not edits:
-            raise WorkError(ExitCode.CONTRACT, "invalid_item_array", "Change edits must be non-empty.")
-        for edit_index, raw_edit in enumerate(edits):
-            edit = _strict_keys(
-                raw_edit,
-                location=f"changes[{index}].edits[{edit_index}]",
-                required={"operation", "path"},
-                optional={"before", "after"},
-            )
-            operation = edit["operation"]
-            expected = {
-                "add": {"operation", "path", "after"},
-                "replace": {"operation", "path", "before", "after"},
-                "remove": {"operation", "path", "before"},
-            }
-            if operation not in expected or set(edit) != expected[operation]:
-                raise WorkError(ExitCode.CONTRACT, "invalid_change_edit", "Invalid change edit fields.")
-            path = _nonempty_string(edit["path"], location="change.edit.path")
-            if not path.startswith("/"):
-                raise WorkError(ExitCode.CONTRACT, "invalid_json_pointer", "Change path must be a JSON Pointer.")
 
 
 def _validate_task_contract_object(
@@ -632,7 +301,7 @@ def _validate_task_contract_object(
     document_selection = validate_task_document_instruction_selection(
         contract["instruction_selection"],
         [task["instruction_selection"] for task in tasks],
-        skill_root=Path(__file__).resolve().parents[3],
+        skill_root=installed_work_root(),
     )
     plan_hierarchy_selection = plan_contract["hierarchy_selection"]
     for task in tasks:
@@ -641,7 +310,7 @@ def _validate_task_contract_object(
         validate_task_hierarchy_paths(
             task_selection["selected_paths"],
             confirmed_selection=plan_hierarchy_selection,
-            skill_root=Path(__file__).resolve().parents[3],
+            skill_root=installed_work_root(),
             location=f"{task['id']}.instruction_selection.selected_paths",
         )
 
@@ -656,7 +325,7 @@ def _validate_task_contract_object(
         if any(dep not in task_id_set or dep == task_id for dep in direct):
             raise WorkError(ExitCode.CONTRACT, "invalid_task_dependency", "A TASK dependency is invalid.")
         dependencies[task_id] = direct
-    topo_order, ancestors = _topological_order(task_ids, dependencies)
+    topo_order, ancestors = resolve_task_dependencies(task_ids, dependencies)
     if spec_match.group(1) == "001":
         positions = {task_id: index for index, task_id in enumerate(task_ids)}
         if any(positions[dep] >= positions[task_id] for task_id, deps in dependencies.items() for dep in deps):
@@ -981,7 +650,7 @@ def _validate_task_contract_object(
         raise WorkError(ExitCode.CONTRACT, "task_changes_required", "A revised TASK must contain changes.")
     known_ids = task_id_set | shared_decisions
     if "changes" in contract:
-        _validate_changes(contract["changes"], spec_id, known_ids)
+        validate_task_changes(contract["changes"], spec_id, known_ids)
 
     return {
         "schema": "work-task-validation/v1",
@@ -1089,331 +758,3 @@ def validate_task_file(
         user_config_root=user_config_root,
         skill_roots=skill_roots,
     )
-
-
-def _task_create_inputs(
-    raw: bytes,
-    *,
-    source: str,
-    raw_plan_path: str,
-    raw_task_path: str,
-    raw_execution_dir: str,
-    project_root: Path,
-    user_config_root: str,
-    skill_roots: list[SkillRoot] | None = None,
-) -> tuple[
-    dict[str, Any],
-    dict[str, object],
-    bytes,
-    dict[str, Any],
-    bytes,
-    str,
-    Path,
-    str,
-    Path,
-]:
-    contract = parse_json_contract(raw, source=source)
-    validation, rendered_task = prepare_task_json_contract(
-        raw,
-        source=source,
-        actual_task_path=raw_task_path,
-        project_root=project_root,
-        user_config_root=user_config_root,
-        skill_roots=skill_roots,
-    )
-    artifacts = contract["artifacts"]
-    normalized_plan, _ = resolve_project_relative_path(
-        project_root, raw_plan_path, field="plan_path"
-    )
-    normalized_task, task_path = resolve_project_relative_path(
-        project_root, raw_task_path, field="task_path"
-    )
-    normalized_execution, execution_path = resolve_project_relative_path(
-        project_root, raw_execution_dir, field="execution_dir"
-    )
-    if (
-        normalized_plan != artifacts["plan"]
-        or normalized_task != artifacts["task"]
-        or normalized_execution != artifacts["execution"]
-    ):
-        raise WorkError(
-            ExitCode.CONTRACT,
-            "task_create_path_mismatch",
-            "The explicit create paths must match the TASK artifact paths.",
-        )
-    initial_index = build_initial_execution_index(contract, validation)
-    rendered_index = render_execution_index(initial_index)
-    validate_execution_index(
-        rendered_index,
-        source="generated execution index",
-        expected=initial_index,
-    )
-    return (
-        contract,
-        validation,
-        rendered_task,
-        initial_index,
-        rendered_index,
-        normalized_task,
-        task_path,
-        normalized_execution,
-        execution_path,
-    )
-
-
-def _write_exclusive(path: Path, content: bytes, *, code: str, label: str) -> None:
-    try:
-        with path.open("xb") as output:
-            output.write(content)
-            output.flush()
-            os.fsync(output.fileno())
-    except FileExistsError as error:
-        raise WorkError(
-            ExitCode.WORKFLOW_STATE,
-            code,
-            f"The {label} target already exists.",
-            {"path": str(path)},
-        ) from error
-    except OSError as error:
-        raise WorkError(
-            ExitCode.IO_FAILURE,
-            f"{code}_write_failed",
-            f"The {label} could not be created.",
-            {"path": str(path)},
-        ) from error
-
-
-def _validate_created_pair(
-    *,
-    project_root: Path,
-    user_config_root: str,
-    normalized_task: str,
-    task_validation: dict[str, object],
-    index_path: Path,
-    initial_index: dict[str, Any],
-    skill_roots: list[SkillRoot] | None = None,
-) -> tuple[dict[str, object], dict[str, object]]:
-    stored_task = validate_task_file(
-        project_root,
-        user_config_root,
-        normalized_task,
-        skill_roots=skill_roots,
-    )
-    if stored_task != task_validation:
-        raise WorkError(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "task_post_write_mismatch",
-            "The stored TASK does not match the validated canonical TASK.",
-        )
-    stored_index = validate_execution_index(
-        read_raw(index_path),
-        source=str(index_path),
-        expected=initial_index,
-    )
-    return stored_task, stored_index
-
-
-def create_task_artifacts(
-    raw: bytes,
-    *,
-    source: str,
-    raw_plan_path: str,
-    raw_task_path: str,
-    raw_execution_dir: str,
-    project_root: Path,
-    user_config_root: str,
-    skill_roots: list[SkillRoot] | None = None,
-) -> dict[str, object]:
-    (
-        _,
-        task_validation,
-        rendered_task,
-        initial_index,
-        rendered_index,
-        normalized_task,
-        task_path,
-        normalized_execution,
-        execution_path,
-    ) = _task_create_inputs(
-        raw,
-        source=source,
-        raw_plan_path=raw_plan_path,
-        raw_task_path=raw_task_path,
-        raw_execution_dir=raw_execution_dir,
-        project_root=project_root,
-        user_config_root=user_config_root,
-        skill_roots=skill_roots,
-    )
-    if task_path.exists() or execution_path.exists():
-        raise WorkError(
-            ExitCode.WORKFLOW_STATE,
-            "task_create_target_exists",
-            "TASK create requires both the TASK and execution directory to be absent.",
-            {
-                "task_exists": task_path.exists(),
-                "execution_exists": execution_path.exists(),
-            },
-        )
-    try:
-        task_path.parent.mkdir(parents=True, exist_ok=True)
-        execution_path.parent.mkdir(parents=True, exist_ok=True)
-    except OSError as error:
-        raise WorkError(
-            ExitCode.IO_FAILURE,
-            "task_create_parent_failed",
-            "A TASK create parent directory could not be created.",
-        ) from error
-    _write_exclusive(
-        task_path,
-        rendered_task,
-        code="task_already_exists",
-        label="TASK",
-    )
-    try:
-        execution_path.mkdir()
-    except FileExistsError as error:
-        raise WorkError(
-            ExitCode.WORKFLOW_STATE,
-            "execution_directory_already_exists",
-            "The execution directory appeared after the TASK was created.",
-            {"path": normalized_execution},
-        ) from error
-    except OSError as error:
-        raise WorkError(
-            ExitCode.IO_FAILURE,
-            "execution_directory_create_failed",
-            "The execution directory could not be created after the TASK was created.",
-            {"path": normalized_execution},
-        ) from error
-    index_path = execution_path / "index.md"
-    _write_exclusive(
-        index_path,
-        rendered_index,
-        code="execution_index_already_exists",
-        label="execution index",
-    )
-    stored_task, stored_index = _validate_created_pair(
-        project_root=project_root,
-        user_config_root=user_config_root,
-        normalized_task=normalized_task,
-        task_validation=task_validation,
-        index_path=index_path,
-        initial_index=initial_index,
-        skill_roots=skill_roots,
-    )
-    return {
-        "schema": "work-task-create/v1",
-        "requirement_id": stored_task["requirement_id"],
-        "spec_id": stored_task["spec_id"],
-        "task_path": normalized_task,
-        "execution_dir": normalized_execution,
-        "task_sha256": stored_task["task_sha256"],
-        "index_sha256": stored_index["index_sha256"],
-        "status": "created",
-    }
-
-
-def recover_task_create(
-    raw: bytes,
-    *,
-    source: str,
-    raw_plan_path: str,
-    raw_task_path: str,
-    raw_execution_dir: str,
-    project_root: Path,
-    user_config_root: str,
-    skill_roots: list[SkillRoot] | None = None,
-) -> dict[str, object]:
-    (
-        _,
-        task_validation,
-        rendered_task,
-        initial_index,
-        rendered_index,
-        normalized_task,
-        task_path,
-        normalized_execution,
-        execution_path,
-    ) = _task_create_inputs(
-        raw,
-        source=source,
-        raw_plan_path=raw_plan_path,
-        raw_task_path=raw_task_path,
-        raw_execution_dir=raw_execution_dir,
-        project_root=project_root,
-        user_config_root=user_config_root,
-        skill_roots=skill_roots,
-    )
-    if not task_path.is_file() or read_raw(task_path) != rendered_task:
-        raise WorkError(
-            ExitCode.WORKFLOW_STATE,
-            "unrecoverable_task_create_state",
-            "Recovery requires the same canonical TASK to already exist.",
-            {"task_path": normalized_task},
-        )
-    if execution_path.exists() and not execution_path.is_dir():
-        raise WorkError(
-            ExitCode.WORKFLOW_STATE,
-            "unrecoverable_task_create_state",
-            "The execution target exists but is not a directory.",
-            {"execution_dir": normalized_execution},
-        )
-    if not execution_path.exists():
-        try:
-            execution_path.parent.mkdir(parents=True, exist_ok=True)
-            execution_path.mkdir()
-        except OSError as error:
-            raise WorkError(
-                ExitCode.IO_FAILURE,
-                "execution_directory_create_failed",
-                "The missing execution directory could not be created during recovery.",
-                {"execution_dir": normalized_execution},
-            ) from error
-    entries = list(execution_path.iterdir())
-    index_path = execution_path / "index.md"
-    if not entries:
-        _write_exclusive(
-            index_path,
-            rendered_index,
-            code="execution_index_already_exists",
-            label="execution index",
-        )
-        recovered = True
-        status = "recovered"
-    elif len(entries) == 1 and entries[0] == index_path and index_path.is_file():
-        if read_raw(index_path) != rendered_index:
-            raise WorkError(
-                ExitCode.WORKFLOW_STATE,
-                "unrecoverable_task_create_state",
-                "The existing execution index is not the expected initial index.",
-                {"execution_dir": normalized_execution},
-            )
-        recovered = False
-        status = "already_completed"
-    else:
-        raise WorkError(
-            ExitCode.WORKFLOW_STATE,
-            "unrecoverable_task_create_state",
-            "The execution directory contains unknown or non-initial content.",
-            {"execution_dir": normalized_execution},
-        )
-    stored_task, stored_index = _validate_created_pair(
-        project_root=project_root,
-        user_config_root=user_config_root,
-        normalized_task=normalized_task,
-        task_validation=task_validation,
-        index_path=index_path,
-        initial_index=initial_index,
-        skill_roots=skill_roots,
-    )
-    return {
-        "schema": "work-task-create-recovery/v1",
-        "requirement_id": stored_task["requirement_id"],
-        "spec_id": stored_task["spec_id"],
-        "task_path": normalized_task,
-        "execution_dir": normalized_execution,
-        "task_sha256": stored_task["task_sha256"],
-        "index_sha256": stored_index["index_sha256"],
-        "recovered": recovered,
-        "status": status,
-    }

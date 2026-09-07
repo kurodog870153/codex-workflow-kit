@@ -3,9 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..foundation.errors import ExitCode, WorkError
-from .selection import SOURCE_FIELDS, _sha256, _strict_object, _string_array
-from .sources import InstructionSourceSet, load_instruction_sources
 from ..foundation.fingerprint import INSTRUCTION_SOURCE_KINDS
+from .sources import InstructionSourceSet, load_instruction_sources
+from .validation import SOURCE_FIELDS, sha256, strict_object, string_array
 
 
 SELECTION_FIELDS = {
@@ -47,13 +47,13 @@ def validate_work_instruction_selection(
     selected_paths: list[str],
     location: str = "work_instruction_selection",
 ) -> InstructionSourceSet:
-    selection = _strict_object(value, location=location, required=SELECTION_FIELDS)
-    stored_selected_paths = _string_array(
+    selection = strict_object(value, location=location, required=SELECTION_FIELDS)
+    stored_selected_paths = string_array(
         selection["selected_paths"],
         location=f"{location}.selected_paths",
         allow_empty=True,
     )
-    stored_resolved_paths = _string_array(
+    stored_resolved_paths = string_array(
         selection["resolved_paths"],
         location=f"{location}.resolved_paths",
         allow_empty=False,
@@ -65,7 +65,7 @@ def validate_work_instruction_selection(
             "The stored Work selected paths do not match the confirmed hierarchy selection.",
             {"location": f"{location}.selected_paths"},
         )
-    references = _string_array(
+    references = string_array(
         selection["references"], location=f"{location}.references", allow_empty=True
     )
     if len(references) != len(set(references)):
@@ -86,7 +86,7 @@ def validate_work_instruction_selection(
     sources: list[dict[str, str]] = []
     for index, raw_source in enumerate(raw_sources):
         source_location = f"{location}.sources[{index}]"
-        source = _strict_object(raw_source, location=source_location, required=SOURCE_FIELDS)
+        source = strict_object(raw_source, location=source_location, required=SOURCE_FIELDS)
         kind = source["kind"]
         if kind not in INSTRUCTION_SOURCE_KINDS:
             raise WorkError(
@@ -107,13 +107,13 @@ def validate_work_instruction_selection(
             {
                 "kind": kind,
                 "logical_name": logical_name,
-                "canonical_sha256": _sha256(
+                "canonical_sha256": sha256(
                     source["canonical_sha256"],
                     location=f"{source_location}.canonical_sha256",
                 ),
             }
         )
-    stored_fingerprint = _sha256(
+    stored_fingerprint = sha256(
         selection["instructions_sha256"],
         location=f"{location}.instructions_sha256",
     )

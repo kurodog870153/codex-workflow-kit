@@ -7,14 +7,13 @@ from typing import Any
 import yaml
 
 from ..foundation.errors import ExitCode, WorkError
-from ..foundation.fingerprint import decode_utf8, read_raw
+from ..foundation.fingerprint import canonical_json_sha256, decode_utf8, read_raw
 from ..foundation.hierarchy import (
     NAME_PATTERN,
     WORK_DIRECTORIES,
     Hierarchy,
     build_hierarchy,
 )
-from ..skills.fingerprint import canonical_json_sha256
 
 
 MODES = ("plan", "task", "execute")

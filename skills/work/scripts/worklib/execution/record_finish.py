@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import os
 from pathlib import Path
 from typing import Any
 
@@ -11,23 +10,41 @@ from ..contracts.attempt import (
     validate_attempt_file,
 )
 from ..foundation.errors import ExitCode, WorkError
-from .record_begin import (
-    _formal_record,
-    _read_contract,
-    _task_row,
-    _validate_execute_instructions,
-    _validate_identity,
-    next_record_id,
-)
+from .context import read_contract, find_task_row, validate_execution_identity
+from .instructions import validate_execute_instructions
+from .records import next_record_id, formal_record_kind
 from ..contracts.execution_index import render_execution_index, validate_execution_index
 from ..foundation.fingerprint import read_raw
-from ..foundation.markdown import parse_json_contract, parse_markdown_json_contract
+from ..foundation.markdown import parse_markdown_json_contract
 from ..foundation.paths import resolve_project_relative_path
 from ..skills.catalog import SkillRoot
 from ..contracts.task import validate_task_contract
+from .record_finish_request import parse_record_finish_request
+from .transactions import TransactionErrors, prepare_and_replace
 
 
-REQUEST_SCHEMA = "work-record-finish-request/v1"
+TRANSACTION_ERRORS = TransactionErrors(
+    transaction_present=(
+        "record_finish_transaction_present",
+        "A record-finish transaction already requires recovery.",
+    ),
+    prepare_failed=(
+        "record_finish_prepare_failed",
+        "The record-finish update could not be prepared.",
+    ),
+    source_changed=(
+        "record_finish_source_changed",
+        "A transaction source changed before replacement.",
+    ),
+    replace_failed=(
+        "record_finish_replace_failed",
+        "The prepared record-finish update could not be installed.",
+    ),
+    write_mismatch=(
+        "record_finish_write_mismatch",
+        "The installed record-finish bytes do not match the prepared bytes.",
+    ),
+)
 
 
 def _error(
@@ -37,55 +54,6 @@ def _error(
     **details: object,
 ) -> None:
     raise WorkError(exit_code, code, message, details or None)
-
-
-def parse_record_finish_request(raw: bytes, *, source: str) -> dict[str, Any]:
-    request = parse_json_contract(raw, source=source)
-    if not isinstance(request, dict):
-        _error(
-            ExitCode.CONTRACT,
-            "record_finish_expected_object",
-            "A JSON object is required.",
-        )
-    required = {"schema", "record"}
-    optional = {"modified_files"}
-    missing = sorted(required - set(request))
-    unknown = sorted(set(request) - required - optional)
-    if missing or unknown:
-        _error(
-            ExitCode.CONTRACT,
-            "record_finish_invalid_fields",
-            "The record-finish request has missing or unknown fields.",
-            missing=missing,
-            unknown=unknown,
-        )
-    if request["schema"] != REQUEST_SCHEMA:
-        _error(
-            ExitCode.CONTRACT,
-            "record_finish_invalid_schema",
-            "The record-finish request schema is invalid.",
-        )
-    if not isinstance(request["record"], dict):
-        _error(
-            ExitCode.CONTRACT,
-            "record_finish_invalid_record",
-            "record must be a JSON object.",
-        )
-    if "modified_files" in request:
-        files = request["modified_files"]
-        if not isinstance(files, list) or not files:
-            _error(
-                ExitCode.CONTRACT,
-                "record_finish_invalid_modified_files",
-                "modified_files must be a non-empty array when present.",
-            )
-        if any(not isinstance(item, str) or not item for item in files):
-            _error(
-                ExitCode.CONTRACT,
-                "record_finish_invalid_modified_file",
-                "Every modified file must be a non-empty string.",
-            )
-    return request
 
 
 def _overall_result(records: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -170,74 +138,6 @@ def build_finished_attempt(
     else:
         candidate["overall_result"] = overall
     return canonicalize_attempt_contract(candidate, project_root=project_root)
-
-
-def _prepare_and_replace(
-    *,
-    source_path: Path,
-    source_bytes: bytes,
-    target_bytes: bytes,
-    temporary_path: Path,
-    stage: str,
-) -> None:
-    try:
-        with temporary_path.open("xb") as output:
-            output.write(target_bytes)
-            output.flush()
-            os.fsync(output.fileno())
-    except FileExistsError as error:
-        raise WorkError(
-            ExitCode.LOCK_CONFLICT,
-            "record_finish_transaction_present",
-            "A record-finish transaction already requires recovery.",
-            {
-                "path": str(temporary_path),
-                "recovery_required": True,
-                "transaction_stage": stage,
-            },
-        ) from error
-    except OSError as error:
-        details: dict[str, object] = {"path": str(temporary_path)}
-        if temporary_path.exists():
-            details.update(
-                {"recovery_required": True, "transaction_stage": stage}
-            )
-        raise WorkError(
-            ExitCode.IO_FAILURE,
-            "record_finish_prepare_failed",
-            "The record-finish update could not be prepared.",
-            details,
-        ) from error
-    if read_raw(source_path) != source_bytes:
-        _error(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "record_finish_source_changed",
-            "A transaction source changed before replacement.",
-            path=str(temporary_path),
-            recovery_required=True,
-            transaction_stage=stage,
-        )
-    try:
-        os.replace(temporary_path, source_path)
-    except OSError as error:
-        raise WorkError(
-            ExitCode.IO_FAILURE,
-            "record_finish_replace_failed",
-            "The prepared record-finish update could not be installed.",
-            {
-                "path": str(temporary_path),
-                "recovery_required": True,
-                "transaction_stage": stage,
-            },
-        ) from error
-    if read_raw(source_path) != target_bytes:
-        _error(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "record_finish_write_mismatch",
-            "The installed record-finish bytes do not match the prepared bytes.",
-            recovery_required=True,
-            transaction_stage=stage,
-        )
 
 
 def _transaction_error(
@@ -336,9 +236,9 @@ def finish_record(
     _, index_path = resolve_project_relative_path(
         project_root, index_relative, field="execution_index"
     )
-    index_raw, index = _read_contract(index_path)
+    index_raw, index = read_contract(index_path)
     validate_execution_index(index_raw, source=str(index_path))
-    row = _task_row(index, task_id)
+    row = find_task_row(index, task_id)
     if row["status"] != "in_progress" or "latest_attempt" not in row:
         _error(
             ExitCode.WORKFLOW_STATE,
@@ -352,14 +252,14 @@ def finish_record(
     _, attempt_path = resolve_project_relative_path(
         project_root, attempt_relative, field="attempt_path"
     )
-    attempt_raw, attempt = _read_contract(attempt_path)
+    attempt_raw, attempt = read_contract(attempt_path)
     if attempt["status"] != "in_progress":
         _error(
             ExitCode.WORKFLOW_STATE,
             "record_finish_attempt_not_in_progress",
             "The latest Attempt is not in progress.",
         )
-    _validate_identity(
+    validate_execution_identity(
         task_contract=task_contract,
         task_validation=task_validation,
         index=index,
@@ -396,7 +296,7 @@ def finish_record(
             "The execution lock does not reserve a record.",
         )
     base_record_id = record_id.split("#", 1)[0]
-    record_kind = _formal_record(task, base_record_id)
+    record_kind = formal_record_kind(task, base_record_id)
     expected_record_id = next_record_id(base_record_id, attempt)
     if record_id != expected_record_id:
         _error(
@@ -407,7 +307,7 @@ def finish_record(
             actual=record_id,
         )
 
-    _validate_execute_instructions(task, attempt, operation="record_finish")
+    validate_execute_instructions(task, attempt, operation="record_finish")
 
     finished_attempt = build_finished_attempt(
         attempt,
@@ -434,20 +334,22 @@ def finish_record(
         f".work-record-finish-{task_id}-{attempt_id}-{safe_record}-index.tmp"
     )
     try:
-        _prepare_and_replace(
+        prepare_and_replace(
             source_path=attempt_path,
             source_bytes=attempt_raw,
             target_bytes=rendered_attempt,
             temporary_path=attempt_temporary,
             stage="attempt_update_prepared",
+            errors=TRANSACTION_ERRORS,
         )
         validate_attempt_file(project_root, attempt_relative)
-        _prepare_and_replace(
+        prepare_and_replace(
             source_path=index_path,
             source_bytes=index_raw,
             target_bytes=rendered_index,
             temporary_path=index_temporary,
             stage="lock_update_prepared",
+            errors=TRANSACTION_ERRORS,
         )
         validate_execution_index(read_raw(index_path), source=str(index_path))
     except WorkError as error:

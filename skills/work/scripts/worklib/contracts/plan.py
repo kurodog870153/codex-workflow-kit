@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import re
 from datetime import date
 from pathlib import Path
@@ -11,7 +10,6 @@ from ..foundation.fingerprint import canonical_sha256, read_raw
 from ..skills.catalog import SkillRoot
 from ..skills.selection import validate_skill_selection
 from ..hierarchy.selection import (
-    order_hierarchy_selection,
     validate_hierarchy_selection,
 )
 from ..instructions.work_selection import validate_work_instruction_selection
@@ -22,6 +20,12 @@ from ..foundation.markdown import (
     require_canonical_markdown_json_contract,
 )
 from ..foundation.paths import resolve_project_relative_path, validate_artifact_paths
+from ..foundation.runtime import installed_work_root
+from .plan_ordering import order_plan_contract
+from .validation import (
+    nonempty_string as _nonempty_string,
+    strict_keys as _strict_keys,
+)
 
 
 ID_PREFIXES = {
@@ -59,109 +63,6 @@ TOP_OPTIONAL = {
     "decisions",
     "changes",
 }
-TOP_FIELD_ORDER = (
-    "schema",
-    "requirement_id",
-    "status",
-    "title",
-    "summary",
-    "artifacts",
-    "hierarchy_selection",
-    "work_instruction_selection",
-    "skill_selection",
-    "goals",
-    "scope",
-    "constraints",
-    "dependencies",
-    "risks",
-    "milestones",
-    "deliverables",
-    "acceptance_criteria",
-    "decisions",
-    "changes",
-)
-ITEM_FIELD_ORDER = {
-    "goals": ("id", "statement"),
-    "scope": ("id", "kind", "statement", "goal_ids"),
-    "constraints": ("id", "statement", "applies_to"),
-    "dependencies": ("id", "statement", "applies_to"),
-    "risks": ("id", "condition", "impact", "mitigation", "applies_to"),
-    "milestones": ("id", "statement", "deliverable_ids"),
-    "deliverables": ("id", "statement", "goal_ids", "acceptance_ids"),
-    "acceptance_criteria": ("id", "statement", "deliverable_ids"),
-    "decisions": ("id", "statement", "rationale", "applies_to"),
-    "changes": ("id", "date", "location", "before", "after", "reason", "affected_ids"),
-}
-
-
-def _ordered_object(value: object, order: tuple[str, ...]) -> object:
-    if not isinstance(value, dict):
-        return value
-    result = {key: value[key] for key in order if key in value}
-    for key in sorted(set(value) - set(order)):
-        result[key] = value[key]
-    return result
-
-
-def order_plan_contract(contract: dict[str, Any]) -> dict[str, Any]:
-    ordered = _ordered_object(contract, TOP_FIELD_ORDER)
-    assert isinstance(ordered, dict)
-    if "artifacts" in ordered:
-        ordered["artifacts"] = _ordered_object(
-            ordered["artifacts"], ("plan", "task", "execution")
-        )
-    if "hierarchy_selection" in ordered:
-        ordered["hierarchy_selection"] = order_hierarchy_selection(
-            ordered["hierarchy_selection"]
-        )
-    if "work_instruction_selection" in ordered:
-        instruction_selection = _ordered_object(
-            ordered["work_instruction_selection"],
-            (
-                "selected_paths",
-                "resolved_paths",
-                "sources",
-                "references",
-                "instructions_sha256",
-            ),
-        )
-        if isinstance(instruction_selection, dict) and isinstance(
-            instruction_selection.get("sources"), list
-        ):
-            instruction_selection["sources"] = [
-                _ordered_object(
-                    source,
-                    ("kind", "logical_name", "canonical_sha256"),
-                )
-                for source in instruction_selection["sources"]
-            ]
-        ordered["work_instruction_selection"] = instruction_selection
-    if "skill_selection" in ordered:
-        skill_selection = _ordered_object(
-            ordered["skill_selection"],
-            ("schema", "decision", "skills", "selection_sha256"),
-        )
-        if isinstance(skill_selection, dict) and isinstance(skill_selection.get("skills"), list):
-            skill_selection["skills"] = [
-                _ordered_object(
-                    skill,
-                    (
-                        "id", "name", "scope", "root", "source", "description",
-                        "mode_support", "allow_implicit_invocation", "dependency_status",
-                        "summary_sha256", "bundle_sha256", "recommendation_reason",
-                    ),
-                )
-                for skill in skill_selection["skills"]
-            ]
-        ordered["skill_selection"] = skill_selection
-    for key, field_order in ITEM_FIELD_ORDER.items():
-        if isinstance(ordered.get(key), list):
-            ordered[key] = [
-                _ordered_object(item, field_order) for item in ordered[key]
-            ]
-    return ordered
-
-
 def render_plan_contract(contract: dict[str, Any]) -> bytes:
     ordered = order_plan_contract(contract)
     title = ordered.get("title")
@@ -169,44 +70,6 @@ def render_plan_contract(contract: dict[str, Any]) -> bytes:
         title if isinstance(title, str) else str(title),
         ordered,
     )
-
-
-def _strict_keys(
-    value: object,
-    *,
-    location: str,
-    required: set[str],
-    optional: set[str] | None = None,
-) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        raise WorkError(
-            ExitCode.CONTRACT,
-            "expected_object",
-            "A JSON object is required.",
-            {"location": location},
-        )
-    allowed = required | (optional or set())
-    missing = sorted(required - set(value))
-    unknown = sorted(set(value) - allowed)
-    if missing or unknown:
-        raise WorkError(
-            ExitCode.CONTRACT,
-            "invalid_object_fields",
-            "The JSON object has missing or unknown fields.",
-            {"location": location, "missing": missing, "unknown": unknown},
-        )
-    return value
-
-
-def _nonempty_string(value: object, *, location: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise WorkError(
-            ExitCode.CONTRACT,
-            "empty_text_value",
-            "A non-empty string is required.",
-            {"location": location},
-        )
-    return value
 
 
 def _string_array(value: object, *, location: str, allow_empty: bool = False) -> list[str]:
@@ -431,7 +294,7 @@ def validate_plan_contract(
     )
     hierarchy_validation = validate_hierarchy_selection(
         contract["hierarchy_selection"],
-        skill_root=Path(__file__).resolve().parents[3],
+        skill_root=installed_work_root(),
     )
     hierarchy_selection = hierarchy_validation["hierarchy_selection"]
     assert isinstance(hierarchy_selection, dict)
@@ -439,7 +302,7 @@ def validate_plan_contract(
     assert isinstance(confirmed_paths, list)
     instruction_sources = validate_work_instruction_selection(
         contract["work_instruction_selection"],
-        skill_root=Path(__file__).resolve().parents[3],
+        skill_root=installed_work_root(),
         mode="plan",
         selected_paths=confirmed_paths,
     )
@@ -585,72 +448,6 @@ def validate_plan_json_contract(
         skill_roots=skill_roots,
     )
     return validation
-
-
-def create_plan_file(
-    raw: bytes,
-    *,
-    source: str,
-    raw_plan_path: str,
-    project_root: Path,
-    user_config_root: str,
-    skill_roots: list[SkillRoot] | None = None,
-) -> dict[str, object]:
-    normalized, path = resolve_project_relative_path(
-        project_root,
-        raw_plan_path,
-        field="plan_path",
-    )
-    validation, rendered = prepare_plan_json_contract(
-        raw,
-        source=source,
-        actual_plan_path=normalized,
-        project_root=project_root,
-        user_config_root=user_config_root,
-        skill_roots=skill_roots,
-    )
-    if path.exists():
-        raise WorkError(
-            ExitCode.WORKFLOW_STATE,
-            "plan_already_exists",
-            "The Plan target already exists; plan create never overwrites it.",
-            {"path": normalized},
-        )
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("xb") as output:
-            output.write(rendered)
-            output.flush()
-            os.fsync(output.fileno())
-    except FileExistsError as error:
-        raise WorkError(
-            ExitCode.WORKFLOW_STATE,
-            "plan_already_exists",
-            "The Plan target already exists; plan create never overwrites it.",
-            {"path": normalized},
-        ) from error
-    except OSError as error:
-        raise WorkError(
-            ExitCode.IO_FAILURE,
-            "plan_create_failed",
-            "The canonical Plan could not be created.",
-            {"path": normalized},
-        ) from error
-
-    stored = validate_plan_file(
-        project_root, user_config_root, normalized, skill_roots=skill_roots
-    )
-    if stored != validation:
-        raise WorkError(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "plan_post_write_mismatch",
-            "The stored Plan does not match the validated canonical Plan.",
-            {"path": normalized},
-        )
-    result = dict(stored)
-    result["schema"] = "work-plan-create/v1"
-    result["path"] = normalized
-    return result
 
 
 def _validate_applies_to(

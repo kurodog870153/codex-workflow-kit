@@ -5,25 +5,19 @@ import os
 from pathlib import Path
 from typing import Any
 
-from ..contracts.attempt import (
-    canonicalize_command_correction,
-    validate_attempt_file,
-)
+from ..contracts.attempt import validate_attempt_file
+from ..contracts.command_correction import canonicalize_command_correction
 from ..foundation.errors import ExitCode, WorkError
-from .record_begin import (
-    _formal_record,
-    _read_contract,
-    _task_row,
-    _validate_execute_instructions,
-    _validate_identity,
-    next_record_id,
-)
+from .context import read_contract, find_task_row, validate_execution_identity
+from .instructions import validate_execute_instructions
+from .records import next_record_id, formal_record_kind
 from ..contracts.execution_index import render_execution_index, validate_execution_index
 from ..foundation.fingerprint import read_raw
 from ..foundation.markdown import parse_json_contract, parse_markdown_json_contract
 from ..foundation.paths import resolve_project_relative_path
 from ..skills.catalog import SkillRoot
 from ..contracts.task import validate_task_contract
+from .commands import formal_command
 
 
 REQUEST_SCHEMA = "work-command-correction-request/v1"
@@ -86,22 +80,6 @@ def parse_command_correction_request(raw: bytes, *, source: str) -> dict[str, An
         "record_id": record_id,
         "correction": correction,
     }
-
-
-def _formal_command(task: dict[str, Any], base_record_id: str) -> dict[str, Any]:
-    try:
-        command = next(
-            item for item in task.get("commands", []) if item["id"] == base_record_id
-        )
-    except StopIteration as error:
-        raise WorkError(
-            ExitCode.CONTRACT,
-            "command_correction_command_not_found",
-            "The reserved command is not defined by the target TASK.",
-            {"record_id": base_record_id},
-        ) from error
-    field = "argv" if command.get("mode") == "argv" else "script"
-    return {"mode": command.get("mode"), field: copy.deepcopy(command.get(field))}
 
 
 def _write_index_update(
@@ -249,9 +227,9 @@ def record_command_correction(
     _, index_path = resolve_project_relative_path(
         project_root, index_relative, field="execution_index"
     )
-    index_raw, index = _read_contract(index_path)
+    index_raw, index = read_contract(index_path)
     validate_execution_index(index_raw, source=str(index_path))
-    row = _task_row(index, task_id)
+    row = find_task_row(index, task_id)
     if row["status"] != "in_progress" or "latest_attempt" not in row:
         _error(
             ExitCode.WORKFLOW_STATE,
@@ -265,14 +243,14 @@ def record_command_correction(
     _, attempt_path = resolve_project_relative_path(
         project_root, attempt_relative, field="attempt_path"
     )
-    _, attempt = _read_contract(attempt_path)
+    _, attempt = read_contract(attempt_path)
     if attempt["status"] != "in_progress":
         _error(
             ExitCode.WORKFLOW_STATE,
             "command_correction_attempt_not_in_progress",
             "The latest Attempt is not in progress.",
         )
-    _validate_identity(
+    validate_execution_identity(
         task_contract=task_contract,
         task_validation=task_validation,
         index=index,
@@ -306,7 +284,7 @@ def record_command_correction(
         )
     record_id = request["record_id"]
     base_record_id = record_id.split("#", 1)[0]
-    if _formal_record(task, base_record_id) != "command":
+    if formal_record_kind(task, base_record_id) != "command":
         _error(
             ExitCode.CONTRACT,
             "command_correction_non_command_record",
@@ -323,7 +301,7 @@ def record_command_correction(
         )
     formal_command = canonicalize_command_correction(
         {
-            "original_command": _formal_command(task, base_record_id),
+            "original_command": formal_command(task, base_record_id),
             "actual_command": request["correction"]["actual_command"],
             "reason": request["correction"]["reason"],
             "authorization_evidence": request["correction"]["authorization_evidence"],
@@ -339,7 +317,7 @@ def record_command_correction(
             actual=request["correction"]["original_command"],
         )
 
-    _validate_execute_instructions(
+    validate_execute_instructions(
         task,
         attempt,
         operation="command_correction",

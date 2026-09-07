@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from .attempt import canonicalize_command_correction
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_sha256
 from ..foundation.markdown import (
@@ -11,9 +10,14 @@ from ..foundation.markdown import (
     render_markdown_json_contract,
     require_canonical_markdown_json_contract,
 )
+from .execution_index_ordering import order_execution_index
+from .validation import (
+    nonempty_string as _nonempty_string,
+    sha256 as _sha256,
+    strict_keys as _strict_keys,
+)
 
 
-SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 TASK_ID_PATTERN = re.compile(r"^TASK-\d{3}$")
 ATTEMPT_ID_PATTERN = re.compile(r"^ATTEMPT-\d{3}$")
 CORRECTION_ID_PATTERN = re.compile(
@@ -31,71 +35,6 @@ TASK_STATUSES = {
     "completed",
     "cancelled",
 }
-TOP_FIELD_ORDER = (
-    "schema",
-    "requirement_id",
-    "title",
-    "task_spec_id",
-    "task_sha256",
-    "task_instructions_sha256",
-    "hierarchy_selection_sha256",
-    "skill_selection_sha256",
-    "latest_task_instruction_audit",
-    "lock",
-    "overall_status",
-    "tasks",
-)
-
-
-def _strict_keys(
-    value: object,
-    *,
-    location: str,
-    required: set[str],
-    optional: set[str] | None = None,
-) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        raise WorkError(
-            ExitCode.CONTRACT,
-            "expected_object",
-            "A JSON object is required.",
-            {"location": location},
-        )
-    allowed = required | (optional or set())
-    missing = sorted(required - set(value))
-    unknown = sorted(set(value) - allowed)
-    if missing or unknown:
-        raise WorkError(
-            ExitCode.CONTRACT,
-            "invalid_object_fields",
-            "The JSON object has missing or unknown fields.",
-            {"location": location, "missing": missing, "unknown": unknown},
-        )
-    return value
-
-
-def _nonempty_string(value: object, *, location: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise WorkError(
-            ExitCode.CONTRACT,
-            "empty_text_value",
-            "A non-empty string is required.",
-            {"location": location},
-        )
-    return value
-
-
-def _sha256(value: object, *, location: str) -> str:
-    if not isinstance(value, str) or not SHA256_PATTERN.fullmatch(value):
-        raise WorkError(
-            ExitCode.CONTRACT,
-            "invalid_sha256",
-            "A SHA-256 value must contain 64 lowercase hexadecimal characters.",
-            {"location": location},
-        )
-    return value
-
-
 def derive_overall_status(statuses: list[str]) -> str:
     active = [status for status in statuses if status != "cancelled"]
     if not active:
@@ -108,63 +47,6 @@ def derive_overall_status(statuses: list[str]) -> str:
     if unfinished and all(status == "blocked" for status in unfinished):
         return "blocked"
     return "pending"
-
-
-def _ordered_object(value: object, order: tuple[str, ...]) -> object:
-    if not isinstance(value, dict):
-        return value
-    result = {key: value[key] for key in order if key in value}
-    for key in sorted(set(value) - set(order)):
-        result[key] = value[key]
-    return result
-
-
-def order_execution_index(contract: dict[str, Any]) -> dict[str, Any]:
-    ordered = _ordered_object(contract, TOP_FIELD_ORDER)
-    assert isinstance(ordered, dict)
-    if "lock" in ordered:
-        ordered["lock"] = _ordered_object(
-            ordered["lock"],
-            (
-                "kind",
-                "record",
-                "task_id",
-                "attempt_id",
-                "correction_id",
-                "record_id",
-                "command_correction",
-                "execute_instructions_sha256",
-                "invalidates_completion",
-                "affected_task_ids",
-            ),
-        )
-        if isinstance(ordered["lock"], dict) and "command_correction" in ordered["lock"]:
-            ordered["lock"]["command_correction"] = canonicalize_command_correction(
-                ordered["lock"]["command_correction"],
-                location="lock.command_correction",
-            )
-    if isinstance(ordered.get("tasks"), list):
-        tasks: list[object] = []
-        for raw_task in ordered["tasks"]:
-            task = _ordered_object(
-                raw_task,
-                (
-                    "id",
-                    "status",
-                    "skill_id",
-                    "instructions_sha256",
-                    "latest_attempt",
-                    "latest_correction",
-                    "status_reason",
-                ),
-            )
-            if isinstance(task, dict) and "status_reason" in task:
-                task["status_reason"] = _ordered_object(
-                    task["status_reason"], ("kind", "ref")
-                )
-            tasks.append(task)
-        ordered["tasks"] = tasks
-    return ordered
 
 
 def render_execution_index(contract: dict[str, Any]) -> bytes:
