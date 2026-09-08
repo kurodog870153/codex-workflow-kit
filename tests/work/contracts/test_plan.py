@@ -36,7 +36,7 @@ class PlanInstructionContractTests(unittest.TestCase):
             "summary": "需求摘要",
             "artifacts": {
                 "plan": "outputs/work/plans/example.md",
-                "task": "outputs/work/tasks/example.md",
+                "task": "outputs/work/tasks/example/task.md",
                 "execution": "outputs/work/executions/example",
             },
             "hierarchy_selection": hierarchy_selection,

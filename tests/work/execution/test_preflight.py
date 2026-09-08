@@ -37,7 +37,7 @@ class ExecuteInstructionPreflightTests(unittest.TestCase):
         (self.project_root / "src.txt").write_text("source\n", encoding="utf-8")
         self.artifacts = {
             "plan": "outputs/work/plans/example.md",
-            "task": "outputs/work/tasks/example.md",
+            "task": "outputs/work/tasks/example/task.md",
             "execution": "outputs/work/executions/example",
         }
         skill_root_path = self.project_root / ".agents" / "skills"

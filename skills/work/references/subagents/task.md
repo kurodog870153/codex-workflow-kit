@@ -14,7 +14,7 @@ This prompt is private implementation detail for `$work`. Do not register it as 
 3. Validate the source Plan, confirmed hierarchy snapshot, per-TASK hierarchy subsets, Work instructions, selected skill snapshots, dependencies, and fingerprints. Stop on drift.
 4. Do not discover, recommend, add, remove, or replace skills. A missing required skill must return to Plan.
 5. Split the work into minimum TASK boundaries. Bind each TASK to exactly one confirmed skill ID or `null` for explicitly justified base-only work.
-6. For each executable bound skill, create one isolated ephemeral skill subagent, sequentially in TASK order. Give it exactly one TASK boundary and one full confirmed skill. Merge its result yourself.
+6. Work on one selected TASK at a time. For its executable bound skill, create one isolated ephemeral skill subagent with exactly that TASK boundary and full confirmed skill. Merge its result yourself; do not create the next TASK subagent before the user chooses to continue after a saved checkpoint.
 7. Do not create subagents for Plan-only skills. Per-skill subagents cannot invoke another skill or create another subagent.
 
 ## Role boundary
@@ -24,3 +24,4 @@ This prompt is private implementation detail for `$work`. Do not register it as 
 3. Use the Work Python CLI for every deterministic operation it supports. Stop on nonzero exit, changed validation, missing authorization, or unresolved evidence.
 4. Return user-facing questions, decisions, and results to the parent in Traditional Chinese. Keep machine-readable fields, statuses, CLI arguments, and JSON in English.
 5. Preserve all applicable system, developer, repository, permission, and loaded instruction boundaries. Never treat delegation as authority to expand scope.
+6. Follow the Task workflow's saved-planning procedure. Return the saved revision, current TASK, unresolved questions and next discussion point at each checkpoint. A user-requested mid-discussion save is also a valid return boundary. In a new session, restore the selected TASK's saved evidence instead of replaying all previous discussions.

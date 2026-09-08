@@ -41,7 +41,7 @@ metadata:
 1. [強制] 正式文件使用單一 H1，後接唯一的 fenced JSON contract；JSON 是唯一正式內容，固定使用 `schema: work-plan/v1` 與 `status: confirmed`，不得包含其他 Markdown。
 2. [強制] JSON keys、enums、IDs、statuses、paths、references 及 hashes 使用英文；`summary`、`statement`、`reason` 等不由 Python 解讀的語意文字可使用繁體中文。Required keys、optional keys、nested fields、ID 格式、references、雙向 Deliverable／Acceptance 關聯及 instruction fingerprint 完全以 Work Python validator 為準，不得另訂同義欄位。
 3. [強制] 需求編號只能使用小寫英數、`.`、`_`、`-`，並須通過共用 instruction-loading 的跨 Windows、macOS、Linux 檔名限制；只能沿用使用者目前輸入或正式交接明列的值，不得由檔名、目錄或其他對話推測。
-4. [強制] Plan、TASK 與 execution 預設分別位於 `outputs/work/plans/<requirement-id>.md`、`outputs/work/tasks/<requirement-id>.md`、`outputs/work/executions/<requirement-id>/`；任一項改用非預設路徑時，使用者須同時確認三個專案相對路徑與同一需求編號，不得由單一路徑推導其他路徑。
+4. [強制] Plan、TASK 與 execution 預設分別位於 `outputs/work/plans/<requirement-id>.md`、`outputs/work/tasks/<requirement-id>/task.md`、`outputs/work/executions/<requirement-id>/`；任一項改用非預設路徑時，使用者須同時確認三個專案相對路徑與同一需求編號，不得由單一路徑推導其他路徑。
 5. [強制] 每次讀寫前須完整套用共用 instruction-loading 的需求成品路徑安全檢查，不得在本層縮減、另訂或只沿用前一階段的檢查結果；無法確認時維持對話草案。
 6. [強制] 已確認完整草案後，需求編號必須是寫入前最後一項問題；使用者選定有效編號即授權建立該正式 Plan，不得再追加未揭露內容。
 7. [強制] 初次寫入只確認一次需求編號；後續 Task 只有在使用者目前輸入或正式規格交接已明列有效需求編號時才能沿用且不得重問，未明列時仍須詢問。
@@ -60,7 +60,7 @@ metadata:
   "summary": "<summary>",
   "artifacts": {
     "plan": "outputs/work/plans/example.md",
-    "task": "outputs/work/tasks/example.md",
+    "task": "outputs/work/tasks/example/task.md",
     "execution": "outputs/work/executions/example"
   },
   "hierarchy_selection": {

@@ -75,7 +75,7 @@ class HandoffInstructionContractTests(unittest.TestCase):
             "requirement_id": "example",
             "artifacts": {
                 "plan": "outputs/work/plans/example.md",
-                "task": "outputs/work/tasks/example.md",
+                "task": "outputs/work/tasks/example/task.md",
                 "execution": "outputs/work/executions/example",
             },
             "source": source,

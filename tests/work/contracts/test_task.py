@@ -32,7 +32,7 @@ class TaskInstructionContractTests(unittest.TestCase):
         (self.project_root / "src.txt").write_text("source\n", encoding="utf-8")
         self.artifacts = {
             "plan": "outputs/work/plans/example.md",
-            "task": "outputs/work/tasks/example.md",
+            "task": "outputs/work/tasks/example/task.md",
             "execution": "outputs/work/executions/example",
         }
         hierarchy_selection = build_hierarchy_selection(

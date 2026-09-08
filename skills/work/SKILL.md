@@ -14,6 +14,7 @@ Provide one explicit entry point for Plan, Task, and Execute workflows without e
 3. For Plan, inspect the cross-mode instruction catalog metadata, recommend the smallest suitable leaf-path set, show each description and recommendation reason, and ask the user to confirm it. Confirm `general_only` explicitly when no specialized path applies.
 4. Discover enabled skills from configured roots using summary metadata only, recommend the smallest suitable set, and confirm it separately. Let the user accept, add, remove, or cancel either selection. Do not load specialized Work instructions or full external skill instructions before confirmation.
 5. The parent owns mode, request, catalog discovery, recommendation, dependency checks, and selection confirmation. It delegates the selected workflow when the required subagent runtime is available and performs it only under the fallback defined below.
+6. For `$work task -- <requirement-id>`, use the Task workflow's saved-planning entry point. A saved checkpoint is a valid end of the current run; do not continue to another TASK until the user chooses to continue in this session or resume in a new one.
 
 ## Run the selected workflow
 
@@ -46,4 +47,4 @@ Provide one explicit entry point for Plan, Task, and Execute workflows without e
 2. When the user answers a subagent question, send the answer back to the same subagent and continue that delegated workflow. If that subagent becomes unavailable, continue the same workflow directly under parent fallback. Do not create a replacement subagent unless the user authorizes restarting the delegated workflow.
 3. Never treat skill invocation, hierarchy selection, delegation, or a handoff as authorization for file changes, commands with side effects, external operations, installation, or state transitions.
 4. Do not delegate work beyond the selected role. Plan and Execute subagents cannot spawn subagents. Only the Task coordinator may create its specified per-skill subagents; those subagents cannot delegate further. Under parent fallback, the parent performs the selected role without further delegation, and handles Task skill work sequentially.
-5. End only after the selected workflow returns a completed result or a genuine stop condition that has been reported to the user.
+5. End only after the selected workflow returns a completed result, an authorized saved Task checkpoint, or a genuine stop condition that has been reported to the user. A checkpoint is planning progress, never formal TASK approval or Execute authorization.
