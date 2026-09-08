@@ -55,12 +55,12 @@ class PathTests(unittest.TestCase):
 
     def test_normalizes_relative_separators_and_rejects_unsafe_paths(self) -> None:
         self.assertEqual(
-            normalize_relative_path(r".\outputs\work\task.md"),
-            "outputs/work/task.md",
+            normalize_relative_path(r".\outputs\work\task.json"),
+            "outputs/work/task.json",
         )
         cases = (
-            ("../task.md", "unsafe_path_segment"),
-            ("C:/task.md", "absolute_path_rejected"),
+            ("../task.json", "unsafe_path_segment"),
+            ("C:/task.json", "absolute_path_rejected"),
             ("outputs/NUL.txt", "windows_device_name"),
         )
         for value, expected_code in cases:
@@ -73,18 +73,18 @@ class PathTests(unittest.TestCase):
     def test_resolves_nonexistent_project_relative_path(self) -> None:
         normalized, resolved = resolve_project_relative_path(
             self.project_root,
-            "outputs/work/task.md",
+            "outputs/work/task.json",
         )
 
-        self.assertEqual(normalized, "outputs/work/task.md")
+        self.assertEqual(normalized, "outputs/work/task.json")
         self.assertEqual(
             resolved,
-            self.project_root / "outputs" / "work" / "task.md",
+            self.project_root / "outputs" / "work" / "task.json",
         )
 
     def test_portable_identity_normalizes_case_and_unicode(self) -> None:
-        composed = self.project_root / "CAFÉ.md"
-        decomposed = self.project_root / "cafe\N{COMBINING ACUTE ACCENT}.md"
+        composed = self.project_root / "CAFÉ.json"
+        decomposed = self.project_root / "cafe\N{COMBINING ACUTE ACCENT}.json"
 
         self.assertEqual(
             portable_path_identity(composed),
@@ -94,7 +94,7 @@ class PathTests(unittest.TestCase):
     def test_default_and_validated_artifact_paths_match(self) -> None:
         artifacts = default_artifact_paths(self.project_root, "feature-1")
 
-        self.assertEqual(artifacts["task"], "outputs/work/tasks/feature-1/task.md")
+        self.assertEqual(artifacts["task"], "outputs/work/tasks/feature-1/task.json")
         self.assertEqual(
             validate_artifact_paths(
                 self.project_root,
@@ -108,11 +108,12 @@ class PathTests(unittest.TestCase):
     def test_rejects_old_task_layout_and_wrong_requirement_directory(self) -> None:
         artifacts = default_artifact_paths(self.project_root, "feature-1")
         for path in (
-            "outputs/work/tasks/feature-1.md",
-            "custom/feature-1.md",
-            "outputs/work/tasks/other/task.md",
-            "outputs/work/tasks/feature-1/other.md",
-            "outputs/work/tasks/feature-1/drafts/task.md",
+            "outputs/work/tasks/feature-1/task.md",
+            "outputs/work/tasks/feature-1.json",
+            "custom/feature-1.json",
+            "outputs/work/tasks/other/task.json",
+            "outputs/work/tasks/feature-1/other.json",
+            "outputs/work/tasks/feature-1/drafts/task.json",
         ):
             with self.subTest(path=path):
                 with self.assertRaises(WorkError) as context:
@@ -124,9 +125,19 @@ class PathTests(unittest.TestCase):
                     )
                 self.assertEqual(context.exception.code, "task_path_requirement_mismatch")
 
+    def test_rejects_legacy_plan_extension(self) -> None:
+        artifacts = default_artifact_paths(self.project_root, "feature-1")
+        artifacts["plan"] = "outputs/work/plans/feature-1.md"
+        with self.assertRaises(WorkError) as context:
+            validate_artifact_paths(
+                self.project_root, "feature-1", artifacts,
+                actual_plan_path=artifacts["plan"],
+            )
+        self.assertEqual(context.exception.code, "plan_path_requirement_mismatch")
+
     def test_nondefault_task_route_requires_new_layout(self) -> None:
         artifacts = default_artifact_paths(self.project_root, "feature-1")
-        artifacts["task"] = "custom/feature-1/task.md"
+        artifacts["task"] = "custom/feature-1/task.json"
         self.assertEqual(
             validate_artifact_paths(
                 self.project_root,
@@ -139,8 +150,8 @@ class PathTests(unittest.TestCase):
 
     def test_rejects_artifact_path_aliases(self) -> None:
         artifacts = {
-            "plan": "outputs/task/task.md",
-            "task": "outputs/task/task.md",
+            "plan": "outputs/task/task.json",
+            "task": "outputs/task/task.json",
             "execution": "outputs/executions/task",
         }
 

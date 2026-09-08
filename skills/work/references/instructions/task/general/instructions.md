@@ -31,7 +31,7 @@ metadata:
 
 ## 3. 正式 TASK contract
 
-1. [強制] 正式文件只包含單一 H1 與唯一 fenced JSON，固定使用 `schema: work-task/v1`、`status: confirmed` 與 `TASK-SPEC-nnn`。
+1. [強制] 正式文件只包含單一純 JSON object，固定使用 `schema: work-task/v1`、`status: confirmed` 與 `TASK-SPEC-nnn`。
 2. [強制] keys、enums、IDs、statuses、paths、references 及 hashes 使用英文；語意字串可使用繁體中文。所有欄位、條件結構與引用規則以 Work Python validator 為唯一機器規格。
 3. [強制] 正式候選使用預計正式化的 `confirmed` JSON；規劃進度另以 `work-task-planning-index/v1` 與 `work-task-draft/v1` 保存，依 Task workflow 的 checkpoint 程序執行。草稿、`refined` 與保存確認都不是正式核准，不得使用 `TASK-SPEC-DRAFT` 或交給 Execute。
 4. [強制] 每個 TASK 的 `instruction_selection.selected_paths` 只能是來源 Plan 已確認葉節點、其祖先或空子集，且非空路徑必須完整存在於 Task 與 Execute catalog；`sources` 只保存 `kind`、`logical_name`、`canonical_sha256`，不得保存來源 layer 或絕對路徑。
@@ -41,7 +41,7 @@ metadata:
 
 ## 4. 決定性驗證
 
-1. [強制] stdin 只接受純 JSON；path 模式只接受由共用 renderer 產生的 canonical H1＋JSON 文件。
+1. [強制] stdin 只接受純 JSON；path 模式只接受由共用 renderer 產生的 canonical 純 JSON 文件。
 2. [強制] validator 每次重新驗證來源 Plan、`hierarchy_selection_sha256`、TASK hierarchy 子集與雙模式可用性、技能選擇與 bundle 漂移、三個 artifact paths、Plan SHA、每 TASK 的單一技能綁定、Work references、DAG、ID、引用、檔案生命週期與 acceptance coverage。
 3. [強制] Python 不執行任意 CMD 或 OP；Task agent 必須在對話展示命令入口、語法、專案現況及驗證分類等唯讀證據。
 4. [強制] 同一路徑由多個 TASK 處理時必須有明確相依順序；`create`、`modify` 與 `move` 的生命週期必須符合目前專案狀態。

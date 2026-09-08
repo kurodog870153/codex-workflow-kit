@@ -28,7 +28,7 @@ class TaskCheckpointFlowTests(unittest.TestCase):
         hierarchy = build_hierarchy_selection({"decision": "general_only", "selections": []}, skill_root=work_root)
         self.plan = {
             "schema": "work-plan/v1", "requirement_id": "example", "status": "confirmed", "title": "Plan", "summary": "Result",
-            "artifacts": {"plan": "outputs/work/plans/example.md", "task": "outputs/work/tasks/example/task.md", "execution": "outputs/work/executions/example"},
+            "artifacts": {"plan": "outputs/work/plans/example.json", "task": "outputs/work/tasks/example/task.json", "execution": "outputs/work/executions/example"},
             "hierarchy_selection": hierarchy,
             "work_instruction_selection": build_work_instruction_selection(skill_root=work_root, mode="plan", selected_paths=[]),
             "skill_selection": {"schema": "work-skill-selection/v1", "decision": "base_only", "skills": [], "selection_sha256": selection_sha256("base_only", [])},
@@ -170,7 +170,7 @@ class TaskCheckpointFlowTests(unittest.TestCase):
         validated = self.cli("task", "validate", "--path", self.plan["artifacts"]["task"], "--user-config-root", str(self.root))
         self.assertEqual(validated["task_count"], 2)
         self.assertEqual(validated["task_sha256"], final["task_sha256"])
-        self.assertTrue((self.root / self.plan["artifacts"]["execution"] / "index.md").is_file())
+        self.assertTrue((self.root / self.plan["artifacts"]["execution"] / "index.json").is_file())
         self.assertIn("TASK-001 private discussion evidence", self.read_draft("TASK-001")["notes"])
 
 

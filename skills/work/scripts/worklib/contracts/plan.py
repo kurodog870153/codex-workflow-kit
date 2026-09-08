@@ -15,9 +15,8 @@ from ..hierarchy.selection import (
 from ..instructions.work_selection import validate_work_instruction_selection
 from ..foundation.markdown import (
     parse_json_contract,
-    parse_markdown_json_contract,
-    render_markdown_json_contract,
-    require_canonical_markdown_json_contract,
+    render_json_contract,
+    require_canonical_json_contract,
 )
 from ..foundation.paths import resolve_project_relative_path, validate_artifact_paths
 from ..foundation.runtime import installed_work_root
@@ -65,11 +64,7 @@ TOP_OPTIONAL = {
 }
 def render_plan_contract(contract: dict[str, Any]) -> bytes:
     ordered = order_plan_contract(contract)
-    title = ordered.get("title")
-    return render_markdown_json_contract(
-        title if isinstance(title, str) else str(title),
-        ordered,
-    )
+    return render_json_contract(ordered)
 
 
 def _string_array(value: object, *, location: str, allow_empty: bool = False) -> list[str]:
@@ -256,7 +251,7 @@ def validate_plan_contract(
     user_config_root: str,
     skill_roots: list[SkillRoot] | None = None,
 ) -> dict[str, object]:
-    markdown_title, contract = parse_markdown_json_contract(raw, source=source)
+    contract = parse_json_contract(raw, source=source)
     _strict_keys(
         contract,
         location="plan",
@@ -279,12 +274,6 @@ def validate_plan_contract(
             "The Plan title must fit on one line.",
         )
     _nonempty_string(contract["summary"], location="summary")
-    if title != markdown_title:
-        raise WorkError(
-            ExitCode.CONTRACT,
-            "plan_title_mismatch",
-            "The Markdown H1 and Plan title must match.",
-        )
 
     validate_artifact_paths(
         project_root,
@@ -390,9 +379,8 @@ def validate_plan_contract(
             )
 
     ordered_contract = order_plan_contract(contract)
-    require_canonical_markdown_json_contract(
+    require_canonical_json_contract(
         raw,
-        title=title,
         contract=ordered_contract,
         source=source,
     )

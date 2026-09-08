@@ -30,7 +30,7 @@ class TaskDraftSourceUpdateTests(unittest.TestCase):
         self.plan = {
             "schema": "work-plan/v1", "requirement_id": "example", "status": "confirmed",
             "title": "Plan", "summary": "Result",
-            "artifacts": {"plan": "outputs/work/plans/example.md", "task": "outputs/work/tasks/example/task.md", "execution": "outputs/work/executions/example"},
+            "artifacts": {"plan": "outputs/work/plans/example.json", "task": "outputs/work/tasks/example/task.json", "execution": "outputs/work/executions/example"},
             "hierarchy_selection": hierarchy,
             "work_instruction_selection": build_work_instruction_selection(skill_root=work_root, mode="plan", selected_paths=[]),
             "skill_selection": {"schema": "work-skill-selection/v1", "decision": "base_only", "skills": [], "selection_sha256": selection_sha256("base_only", [])},

@@ -7,7 +7,7 @@ from typing import Any
 from ..contracts.execution_index import render_execution_index, validate_execution_index
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import read_raw
-from ..foundation.markdown import parse_markdown_json_contract
+from ..foundation.markdown import parse_json_contract
 from .worktree import collect_git_status, worktree_snapshot_sha256
 
 
@@ -23,7 +23,7 @@ def _error(
 def read_index(index_path: Path) -> tuple[bytes, dict[str, Any]]:
     raw = read_raw(index_path)
     validate_execution_index(raw, source=str(index_path))
-    _, contract = parse_markdown_json_contract(raw, source=str(index_path))
+    contract = parse_json_contract(raw, source=str(index_path))
     return raw, contract
 
 

@@ -41,7 +41,7 @@ class CorrectionCliTests(unittest.TestCase):
                     "correction",
                     "validate",
                     "--path",
-                    "correction.md",
+                    "correction.json",
                     "--stdin",
                 ]
             )

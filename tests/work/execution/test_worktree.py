@@ -17,7 +17,7 @@ class ExecuteWorktreeTests(unittest.TestCase):
     @patch("worklib.execution.worktree.collect_git_status", return_value=[])
     @patch("worklib.execution.worktree.canonical_sha256", return_value="a" * 64)
     @patch("worklib.execution.worktree.read_raw", return_value=b"task")
-    @patch("worklib.execution.worktree.parse_markdown_json_contract")
+    @patch("worklib.execution.worktree.parse_json_contract")
     @patch("worklib.execution.worktree.execute_preflight")
     def test_forwards_instruction_fingerprints(
         self,
@@ -37,20 +37,17 @@ class ExecuteWorktreeTests(unittest.TestCase):
             "execute_instructions_sha256": "c" * 64,
             "execute_skill_selection": {"selection_sha256": "e" * 64},
             "task_status": "pending",
-            "task_path": "outputs/work/tasks/example/task.md",
+            "task_path": "outputs/work/tasks/example/task.json",
             "index_sha256": "d" * 64,
             "execution_dir": "outputs/work/executions/example",
             "dependencies": [],
         }
-        mocked_parse.return_value = (
-            "Example TASK",
-            {"tasks": [{"id": "TASK-001"}]},
-        )
+        mocked_parse.return_value = {"tasks": [{"id": "TASK-001"}]}
 
         result = inspect_execute_worktree(
             project_root=REPO_ROOT,
             user_config_root=str(REPO_ROOT),
-            raw_task_path="outputs/work/tasks/example/task.md",
+            raw_task_path="outputs/work/tasks/example/task.json",
             raw_execution_dir="outputs/work/executions/example",
             task_id="TASK-001",
         )

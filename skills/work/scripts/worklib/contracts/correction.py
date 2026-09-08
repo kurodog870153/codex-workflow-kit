@@ -9,9 +9,8 @@ from .attempt import validate_attempt_file
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.markdown import (
     parse_json_contract,
-    parse_markdown_json_contract,
-    render_markdown_json_contract,
-    require_canonical_markdown_json_contract,
+    render_json_contract,
+    require_canonical_json_contract,
 )
 from ..foundation.paths import resolve_project_relative_path
 
@@ -135,7 +134,7 @@ def validate_correction_contract(contract: object) -> dict[str, object]:
 
 def render_correction_contract(contract: object) -> bytes:
     canonical = canonicalize_correction_contract(contract)
-    return render_markdown_json_contract(canonical["correction_id"], canonical)
+    return render_json_contract(canonical)
 
 
 def validate_correction_json_contract(raw: bytes, *, source: str) -> dict[str, object]:
@@ -161,20 +160,15 @@ def validate_correction_file(
             "The Correction document could not be read.",
             {"path": normalized},
         ) from error
-    title, contract = parse_markdown_json_contract(raw, source=normalized)
+    contract = parse_json_contract(raw, source=normalized)
     canonical = canonicalize_correction_contract(contract)
-    if title != canonical["correction_id"]:
-        _fail(
-            "correction_title_mismatch",
-            "The Correction title does not match correction_id.",
-        )
-    if path.name != f"{canonical['correction_id']}.md":
+    if path.name != f"{canonical['correction_id']}.json":
         _fail(
             "correction_filename_mismatch",
             "The Correction filename does not match correction_id.",
         )
     attempt_relative = str(
-        (Path(normalized).parent / f"{canonical['target_attempt_id']}.md").as_posix()
+        (Path(normalized).parent / f"{canonical['target_attempt_id']}.json").as_posix()
     )
     attempt_validation = validate_attempt_file(project_root, attempt_relative)
     if attempt_validation["status"] == "in_progress":
@@ -182,9 +176,8 @@ def validate_correction_file(
             "correction_target_not_closed",
             "A Correction must target a closed Attempt.",
         )
-    require_canonical_markdown_json_contract(
+    require_canonical_json_contract(
         raw,
-        title=canonical["correction_id"],
         contract=canonical,
         source=normalized,
     )

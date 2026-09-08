@@ -46,9 +46,9 @@
 
 ## 6. Index 與交易邊界
 
-1. [強制] execution index 使用 `work-execution-index/v1` canonical H1＋JSON，保存 TASK spec、TASK SHA、Plan `hierarchy_selection_sha256` 與 `skill_selection_sha256`、文件與每 TASK instructions SHA、每 TASK `skill_id`、狀態及選用 lock／audit reference；不得複製 TASK 規格或技能全文。
+1. [強制] execution index 使用 `work-execution-index/v1` canonical 純 JSON，保存 TASK spec、TASK SHA、Plan `hierarchy_selection_sha256` 與 `skill_selection_sha256`、文件與每 TASK instructions SHA、每 TASK `skill_id`、狀態及選用 lock／audit reference；不得複製 TASK 規格或技能全文。
 2. [強制] TASK 狀態只使用 `pending`、`in_progress`、`pending_retry`、`blocked`、`completed`、`cancelled`；`overall_status` 必須由 Python 推導。
-3. [強制] 初版 TASK 與 index 由 `task create` 使用同一已核准 JSON 建立；create 要求 TASK 與 requirement-specific execution 目錄都不存在，先 exclusive create TASK，再建立 execution 目錄與 canonical `index.md`。
+3. [強制] 初版 TASK 與 index 由 `task create` 使用同一已核准 JSON 建立；create 要求 TASK 與 requirement-specific execution 目錄都不存在，先 exclusive create TASK，再建立 execution 目錄與 canonical `index.json`。
 4. [強制] 規格鎖與 execution lock 互斥；部分失敗時保留現況與 lock，不自動回復或覆寫。
 5. [強制] 初版 index 的所有 TASK 狀態與 `overall_status` 均為 `pending`，不建立 `latest_attempt`、`status_reason`、lock、audit 或其他 execution record。
 6. [強制] create 部分失敗時不刪除或覆寫已完成內容；`task recover-create` 只有在相同 canonical TASK 已存在且 execution 目錄不存在、為空或只含完全相同初始 index 時可使用，且須先取得使用者授權。

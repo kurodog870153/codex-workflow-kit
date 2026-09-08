@@ -9,9 +9,8 @@ from .command_correction import canonicalize_command_correction
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.markdown import (
     parse_json_contract,
-    parse_markdown_json_contract,
-    render_markdown_json_contract,
-    require_canonical_markdown_json_contract,
+    render_json_contract,
+    require_canonical_json_contract,
 )
 from ..foundation.paths import (
     normalize_relative_path,
@@ -664,7 +663,7 @@ def render_attempt_contract(
     contract: dict[str, Any], *, project_root: Path
 ) -> bytes:
     canonical = canonicalize_attempt_contract(contract, project_root=project_root)
-    return render_markdown_json_contract(canonical["attempt_id"], canonical)
+    return render_json_contract(canonical)
 
 
 def validate_attempt_json_contract(
@@ -696,14 +695,9 @@ def validate_attempt_file(
             "The Attempt document could not be read.",
             {"path": normalized_path},
         ) from error
-    title, contract = parse_markdown_json_contract(raw, source=normalized_path)
+    contract = parse_json_contract(raw, source=normalized_path)
     canonical = canonicalize_attempt_contract(contract, project_root=project_root)
-    if title != canonical["attempt_id"]:
-        _fail(
-            "attempt_title_mismatch",
-            "The Attempt title does not match attempt_id.",
-        )
-    if attempt_path.name != f"{canonical['attempt_id']}.md":
+    if attempt_path.name != f"{canonical['attempt_id']}.json":
         _fail(
             "attempt_filename_mismatch",
             "The Attempt filename does not match attempt_id.",
@@ -713,9 +707,8 @@ def validate_attempt_file(
             "attempt_parent_task_mismatch",
             "The Attempt parent directory does not match task_id.",
         )
-    require_canonical_markdown_json_contract(
+    require_canonical_json_contract(
         raw,
-        title=canonical["attempt_id"],
         contract=canonical,
         source=normalized_path,
     )

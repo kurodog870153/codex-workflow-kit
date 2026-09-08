@@ -14,7 +14,7 @@ from ..contracts.task import prepare_task_json_contract
 from ..contracts.validation import sha256, strict_keys
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import read_raw
-from ..foundation.markdown import parse_markdown_json_contract
+from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path
 from ..foundation.runtime import installed_work_root
 from ..instructions.task_selection import build_task_document_instruction_selection
@@ -39,7 +39,7 @@ def assemble_task_drafts(
     )
     if plan_validation["requirement_id"] != requirement_id or any(plan_validation[key] != value for key, value in index["source"].items()):
         raise WorkError(ExitCode.ARTIFACT_INTEGRITY, "draft_source_drift", "The planning source differs from the current validated Plan.")
-    _, plan = parse_markdown_json_contract(raw_plan, source=str(resolved))
+    plan = parse_json_contract(raw_plan, source=str(resolved))
     tasks = []
     for entry in sorted(index["tasks"], key=lambda item: item["id"]):
         if entry["status"] != "refined":

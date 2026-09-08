@@ -40,7 +40,7 @@ class AttemptStartTransactionTests(unittest.TestCase):
         )
 
     def test_exclusive_write_preserves_existing_target(self) -> None:
-        path = self.directory / "attempt.md"
+        path = self.directory / "attempt.json"
         write_exclusive(path, b"first", label="Attempt document")
 
         with self.assertRaises(WorkError) as context:
@@ -55,7 +55,7 @@ class AttemptStartTransactionTests(unittest.TestCase):
         return_value=b"new",
     )
     def test_replaces_unchanged_index(self, _mocked_render, mocked_validate) -> None:
-        index_path = self.directory / "index.md"
+        index_path = self.directory / "index.json"
         temporary_path = self.directory / "index.tmp"
         index_path.write_bytes(b"old")
 
@@ -74,8 +74,8 @@ class AttemptStartTransactionTests(unittest.TestCase):
 
     @patch("worklib.execution.attempt_start_transactions.read_index")
     def test_transaction_stage_uses_recovery_precedence(self, mocked_read) -> None:
-        index_path = self.directory / "index.md"
-        attempt_path = self.directory / "attempt.md"
+        index_path = self.directory / "index.json"
+        attempt_path = self.directory / "attempt.json"
         lock_temporary = self.directory / "lock.tmp"
         started_temporary = self.directory / "started.tmp"
         mocked_read.return_value = (b"index", {"lock": {"attempt_id": "ATTEMPT-001"}})
@@ -123,8 +123,8 @@ class AttemptStartTransactionTests(unittest.TestCase):
         with self.assertRaises(WorkError) as context:
             raise_transaction_error(
                 original,
-                index_path=self.directory / "index.md",
-                attempt_path=self.directory / "attempt.md",
+                index_path=self.directory / "index.json",
+                attempt_path=self.directory / "attempt.json",
                 lock_temporary=self.directory / "lock.tmp",
                 started_temporary=self.directory / "started.tmp",
                 attempt_id="ATTEMPT-001",

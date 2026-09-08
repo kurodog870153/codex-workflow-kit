@@ -21,7 +21,7 @@ from ..contracts.execution_index import (
     validate_execution_index,
 )
 from ..foundation.fingerprint import read_raw
-from ..foundation.markdown import parse_markdown_json_contract
+from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path
 from ..skills.catalog import SkillRoot
 from ..contracts.task import validate_task_contract
@@ -62,7 +62,7 @@ def _timestamp(now: datetime | None) -> str:
 
 def _next_correction_id(task_path: Path, attempt_id: str) -> str:
     numbers: list[int] = []
-    for path in task_path.glob(f"{attempt_id}-CORRECTION-*.md"):
+    for path in task_path.glob(f"{attempt_id}-CORRECTION-*.json"):
         match = CORRECTION_PATTERN.fullmatch(path.stem)
         if not match or match.group(1) != attempt_id:
             _error(
@@ -187,7 +187,7 @@ def _load_context(
         validate_file_state=False,
         skill_roots=skill_roots,
     )
-    _, task_contract = parse_markdown_json_contract(task_raw, source=str(task_path))
+    task_contract = parse_json_contract(task_raw, source=str(task_path))
     if (
         task_contract["artifacts"]["task"] != normalized_task
         or task_contract["artifacts"]["execution"] != normalized_execution
@@ -197,7 +197,7 @@ def _load_context(
             "correction_create_artifact_path_mismatch",
             "The explicit TASK and execution paths do not match formal artifacts.",
         )
-    index_relative = f"{normalized_execution}/index.md"
+    index_relative = f"{normalized_execution}/index.json"
     _, index_path = resolve_project_relative_path(
         project_root, index_relative, field="execution_index"
     )
@@ -254,7 +254,7 @@ def create_correction(
         )
     attempt_id = request["target_attempt_id"]
     attempt_relative = (
-        f"{context['normalized_execution']}/{task_id}/{attempt_id}.md"
+        f"{context['normalized_execution']}/{task_id}/{attempt_id}.json"
     )
     validation = validate_attempt_file(project_root, attempt_relative)
     if validation["status"] == "in_progress":
@@ -329,7 +329,7 @@ def create_correction(
     lock_temporary = execution_path / f"{prefix}-lock.tmp"
     index_temporary = execution_path / f"{prefix}-index.tmp"
     correction_relative = (
-        f"{context['normalized_execution']}/{task_id}/{correction_id}.md"
+        f"{context['normalized_execution']}/{task_id}/{correction_id}.json"
     )
     _, correction_path = resolve_project_relative_path(
         project_root, correction_relative, field="correction_path"
@@ -448,7 +448,7 @@ def recover_correction(
     lock_temporary = execution_path / f"{prefix}-lock.tmp"
     index_temporary = execution_path / f"{prefix}-index.tmp"
     correction_relative = (
-        f"{context['normalized_execution']}/{task_id}/{correction_id}.md"
+        f"{context['normalized_execution']}/{task_id}/{correction_id}.json"
     )
     _, correction_path = resolve_project_relative_path(
         project_root, correction_relative, field="correction_path"
@@ -463,7 +463,7 @@ def recover_correction(
             "correction_recovery_artifact_missing",
             "The approved Correction content is not preserved.",
         )
-    _, raw_correction = parse_markdown_json_contract(
+    raw_correction = parse_json_contract(
         correction_raw, source="preserved Correction"
     )
     correction = canonicalize_correction_contract(raw_correction)
@@ -480,7 +480,7 @@ def recover_correction(
             "The preserved Correction content has another identity.",
         )
     attempt_relative = (
-        f"{context['normalized_execution']}/{task_id}/{attempt_id}.md"
+        f"{context['normalized_execution']}/{task_id}/{attempt_id}.json"
     )
     attempt_validation = validate_attempt_file(project_root, attempt_relative)
     if attempt_validation["status"] == "in_progress":
@@ -524,7 +524,7 @@ def recover_correction(
             )
         lock_raw = read_raw(lock_temporary)
         validate_execution_index(lock_raw, source=str(lock_temporary))
-        _, locked_contract = parse_markdown_json_contract(
+        locked_contract = parse_json_contract(
             lock_raw, source=str(lock_temporary)
         )
         transaction_lock = locked_contract.get("lock")

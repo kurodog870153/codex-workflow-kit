@@ -59,7 +59,7 @@ class ExecutionInstructionIndexTests(unittest.TestCase):
     def test_render_orders_instruction_fields_canonically(self) -> None:
         raw = render_execution_index(dict(reversed(self.index().items())))
         payload = json.loads(
-            raw.decode("utf-8").split("```json\n", 1)[1].rsplit("\n```", 1)[0]
+            raw.decode("utf-8")
         )
 
         self.assertEqual(list(payload)[5], "task_instructions_sha256")
@@ -156,7 +156,7 @@ class ExecutionInstructionAuditTests(unittest.TestCase):
     def test_renders_instruction_audit_field_canonically(self) -> None:
         raw = render_execution_index(dict(reversed(self.index().items())))
         payload = json.loads(
-            raw.decode("utf-8").split("```json\n", 1)[1].rsplit("\n```", 1)[0]
+            raw.decode("utf-8")
         )
 
         self.assertEqual(

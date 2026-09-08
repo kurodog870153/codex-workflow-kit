@@ -29,7 +29,7 @@ class PlanCliTests(unittest.TestCase):
                 "repo:.agents/skills=/skills",
                 "--stdin",
                 "--plan-path",
-                "outputs/work/plans/example.md",
+                "outputs/work/plans/example.json",
             ]
         )
 
@@ -45,7 +45,7 @@ class PlanCliTests(unittest.TestCase):
         self.assertIsNone(arguments.path)
         self.assertEqual(
             arguments.plan_path,
-            "outputs/work/plans/example.md",
+            "outputs/work/plans/example.json",
         )
 
     def test_validate_stdin_requires_plan_path(self) -> None:
@@ -88,9 +88,9 @@ class PlanCliTests(unittest.TestCase):
                     "--user-config-root",
                     project_directory,
                     "--path",
-                    "outputs/work/plans/example.md",
+                    "outputs/work/plans/example.json",
                     "--plan-path",
-                    "outputs/work/plans/other.md",
+                    "outputs/work/plans/other.json",
                 ],
                 stdout=stdout,
                 stderr=stderr,

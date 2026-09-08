@@ -36,8 +36,8 @@ class ExecuteInstructionPreflightTests(unittest.TestCase):
         self.project_root = Path(self.temporary_directory.name).resolve()
         (self.project_root / "src.txt").write_text("source\n", encoding="utf-8")
         self.artifacts = {
-            "plan": "outputs/work/plans/example.md",
-            "task": "outputs/work/tasks/example/task.md",
+            "plan": "outputs/work/plans/example.json",
+            "task": "outputs/work/tasks/example/task.json",
             "execution": "outputs/work/executions/example",
         }
         skill_root_path = self.project_root / ".agents" / "skills"
@@ -223,7 +223,7 @@ Instructions
         )
         execution_path = self.project_root / self.artifacts["execution"]
         execution_path.mkdir(parents=True)
-        self.index_path = execution_path / "index.md"
+        self.index_path = execution_path / "index.json"
         self.write_index(self.index)
 
     def write_index(self, index: dict[str, object]) -> None:

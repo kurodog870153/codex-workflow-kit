@@ -8,9 +8,8 @@ from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_sha256, read_raw
 from ..foundation.markdown import (
     parse_json_contract,
-    parse_markdown_json_contract,
-    render_markdown_json_contract,
-    require_canonical_markdown_json_contract,
+    render_json_contract,
+    require_canonical_json_contract,
 )
 from ..foundation.paths import (
     normalize_relative_path,
@@ -75,10 +74,7 @@ def _string_array(value: object, *, location: str, allow_empty: bool = False) ->
 
 def render_task_contract(contract: dict[str, Any]) -> bytes:
     ordered = order_task_contract(contract)
-    title = ordered.get("title")
-    return render_markdown_json_contract(
-        title if isinstance(title, str) else str(title), ordered
-    )
+    return render_json_contract(ordered)
 
 
 def _execution(value: object, *, location: str) -> dict[str, Any]:
@@ -236,7 +232,7 @@ def _validate_task_contract_object(
             "The TASK hierarchy selection fingerprint does not match the formal Plan.",
         )
     _, plan_path = resolve_project_relative_path(project_root, artifacts["plan"], field="plan_path")
-    _, plan_contract = parse_markdown_json_contract(read_raw(plan_path), source=str(plan_path))
+    plan_contract = parse_json_contract(read_raw(plan_path), source=str(plan_path))
     if plan_contract["requirement_id"] != requirement_id or plan_contract["artifacts"] != artifacts:
         raise WorkError(
             ExitCode.ARTIFACT_INTEGRITY,
@@ -677,7 +673,7 @@ def validate_task_contract(
     validate_file_state: bool = True,
     skill_roots: list[SkillRoot] | None = None,
 ) -> dict[str, object]:
-    markdown_title, contract = parse_markdown_json_contract(raw, source=source)
+    contract = parse_json_contract(raw, source=source)
     result = _validate_task_contract_object(
         contract,
         actual_task_path=actual_task_path,
@@ -686,13 +682,9 @@ def validate_task_contract(
         validate_file_state=validate_file_state,
         skill_roots=skill_roots,
     )
-    title = _nonempty_string(contract["title"], location="title")
-    if markdown_title != title:
-        raise WorkError(ExitCode.CONTRACT, "task_title_mismatch", "Markdown H1 and TASK title must match.")
     ordered = order_task_contract(contract)
-    require_canonical_markdown_json_contract(
+    require_canonical_json_contract(
         raw,
-        title=title,
         contract=ordered,
         source=source,
     )

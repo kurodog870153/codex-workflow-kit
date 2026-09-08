@@ -19,8 +19,8 @@ class PlanOrderingTests(unittest.TestCase):
                 "goals": [{"statement": "Goal", "id": "GOAL-001"}],
                 "artifacts": {
                     "execution": "execution/example",
-                    "task": "tasks/example/task.md",
-                    "plan": "plans/example.md",
+                    "task": "tasks/example/task.json",
+                    "plan": "plans/example.json",
                 },
                 "schema": "work-plan/v1",
                 "aaa": 1,

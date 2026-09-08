@@ -14,7 +14,7 @@ from ..contracts.task_draft import validate_task_draft, validate_task_planning_i
 from ..contracts.validation import nonempty_string, strict_keys
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import read_raw
-from ..foundation.markdown import parse_markdown_json_contract
+from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path
 from ..foundation.runtime import installed_work_root
 from ..hierarchy.selection import validate_task_hierarchy_paths
@@ -50,7 +50,7 @@ every active TASK. It cannot supply fingerprints or upgrade a stale Plan.
                                         project_root=project_root, user_config_root=user_config_root, skill_roots=skill_roots)
     if validation["requirement_id"] != requirement_id:
         raise _error("draft_source_requirement_mismatch", "The validated Plan belongs to another requirement.")
-    _, plan = parse_markdown_json_contract(raw_plan, source=str(resolved))
+    plan = parse_json_contract(raw_plan, source=str(resolved))
     new_source = {field: validation[field] for field in previous["source"]}
     skills = {skill["id"]: skill for skill in plan["skill_selection"]["skills"]}
     instruction_hashes = {}

@@ -16,27 +16,38 @@
 
 ## 2. Index
 
-1. [強制] index 固定位於 execution 目錄的 `index.md`，保存 TASK spec、TASK SHA、Plan `hierarchy_selection_sha256` 與 `skill_selection_sha256`、文件層 Task instructions SHA、選用 audit／lock、整體狀態及 TASK rows；不保存技能全文。
+1. [強制] index 固定位於 execution 目錄的 `index.json`，保存 TASK spec、TASK SHA、Plan `hierarchy_selection_sha256` 與 `skill_selection_sha256`、文件層 Task instructions SHA、選用 audit／lock、整體狀態及 TASK rows；不保存技能全文。
 2. [強制] TASK row 固定包含 TASK ID、狀態、`skill_id` 與該 TASK 的 instructions SHA；最新 Attempt、Correction 或狀態原因只在存在時加入。
 3. [強制] TASK 狀態只使用「待執行」、「進行中」、「待重新執行」、「受阻」、「已完成」及「已取消」；全部取消時整體為已取消，否則忽略已取消 TASK 後精確判定待執行、已完成、受阻或進行中。
 4. [強制] 初始 Attempt execution lock 使用 `kind: execution`、`task_id`、`attempt_id`、`execute_instructions_sha256`；開始執行 CMD／OP／VAL 前才由後續紀錄交易加入 `record_id`。規格鎖與執行鎖互斥，任一執行鎖存在時不得建立其他 Attempt、Correction 或規格鎖。恢復與結案必須使用鎖所存原始 Execute 雜湊解讀該操作。
 5. [強制] 整體狀態算法固定為：全部 TASK 已取消時為已取消；否則忽略已取消 TASK，全部待執行時為待執行，全部必要 TASK 已完成時為已完成，沒有進行中或可執行 TASK 且未完成項目均受直接或相依阻礙時為受阻，其餘為進行中。已取消 TASK 不視為完成或驗收證據。
 6. [強制] 規格鎖存在時不得執行，Execute 不得解除規格鎖；Attempt 鎖從建立 Attempt 前持續至結案紀錄與 index 同步完成，Correction 鎖持續至 Correction、TASK、下游及 index 全部同步完成。
 
-```markdown
-# Execution
-
-TASK-SPEC：TASK-SPEC-001
-TASK-SHA-256：<task-sha>
-TASK-INSTRUCTIONS-SHA-256：<task-instructions-sha>
-整體狀態：待執行
-
-TASK-001：待執行；TASK-INSTRUCTIONS-SHA-256：<task-001-instructions-sha>
+```json
+{
+  "schema": "work-execution-index/v1",
+  "requirement_id": "example",
+  "title": "Execution",
+  "task_spec_id": "TASK-SPEC-001",
+  "task_sha256": "<task-sha>",
+  "task_instructions_sha256": "<task-instructions-sha>",
+  "hierarchy_selection_sha256": "<hierarchy-selection-sha>",
+  "skill_selection_sha256": "<skill-selection-sha>",
+  "overall_status": "pending",
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "status": "pending",
+      "skill_id": null,
+      "instructions_sha256": "<task-001-instructions-sha>"
+    }
+  ]
+}
 ```
 
 ## 3. Attempt 建立與內容
 
-1. [強制] Attempt 位於 `<execution-dir>/<TASK-ID>/<ATTEMPT-ID>.md`，每個 TASK 由 `ATTEMPT-001` 遞增；同一 TASK 只能有一個進行中 Attempt，鎖寫入成功後才能建立檔案。
+1. [強制] Attempt 位於 `<execution-dir>/<TASK-ID>/<ATTEMPT-ID>.json`，每個 TASK 由 `ATTEMPT-001` 遞增；同一 TASK 只能有一個進行中 Attempt，鎖寫入成功後才能建立檔案。
 2. [強制] 新 Attempt 使用 canonical `work-attempt/v1`，依序保存 schema、Attempt ID、TASK spec、TASK ID、`skill_id`、狀態、TASK SHA、Task instructions SHA、Execute instructions SHA、`hierarchy_selection_sha256`、`execute_skill_selection_sha256`、開始時間、選用承接資料及 records。
 3. [強制] 執行紀錄依實際順序追加；同一 ID 首次使用原 ID，重複執行才依序使用 `#1`、`#2`。CMD 記退出碼與一行關鍵結果或最小錯誤，OP 記成功／失敗及必要外部狀態且不保存完整回應，VAL 記通過／失敗與最小證據或足夠的前項 ID。
 4. [強制] 有檔案修改或承接成果時維護「本 Attempt 累積修改檔案」，保存有效承接與目前 Attempt 的路徑聯集，不保存 diff 或檔案雜湊。
@@ -73,15 +84,12 @@ TASK-001：待執行；TASK-INSTRUCTIONS-SHA-256：<task-001-instructions-sha>
 
 ## 5. 固定紀錄格式
 
-1. [強制] Index 的 TASK 行依 TASK 文件順序排列，固定為 `TASK-001：<狀態>；TASK-INSTRUCTIONS-SHA-256：<hash>；最新 Attempt：<ATTEMPT-ID>；最新 Correction：<CORRECTION-ID>；阻礙：<ID>；狀態差異原因：<ID>`，選用欄位只在存在時依此順序加入，不輸出空值或占位符。
+1. [強制] Index 使用單一 canonical 純 JSON object；`tasks` 依 TASK 文件順序排列，欄位與順序完全依 Work Python renderer，選用欄位只在存在時加入，不額外輸出文字行或占位符。
 2. [強制] `records` 依序保存 discriminated object：CMD 使用 `id`、`kind: command`、選用 `correction`、整數 `exit_code`、單行 `result`；OP 使用 `id`、`kind: operation`、`outcome: success|failure|unknown`、最小 `state`；VAL 使用 `id`、`kind: validation`、`outcome: passed|failed`、最小 `evidence`。累積修改檔案使用 normalized project-relative `modified_files`，不保存 diff 或雜湊。CMD `correction` 固定保存 canonical `original_command`、`actual_command`、`reason` 與 `authorization_evidence`，兩個命令須維持相同 `argv|shell` mode 且不得相同。
 3. [強制] `completed` 加入 `ended_at`；`stopped` 或 `blocked` 依序加入 `final_type`、`reason`、`ended_at`。有 OP 的已關閉 Attempt 必須加入 `overall_result`，其 `effective`、`not_effective`、`unknown` 精確列出對應 OP ID；`partial_success`、`failure`、`uncertain_result` 不得搭配 `completed`。
 4. [強制] 承接 Attempt 使用 `continued_from`，選用 `carried_records` 依原 TASK ID 順序保存 `source_attempt_id`、`record_id` 與目前仍有效的最小 `evidence`；未承接的 ID 省略，不得以摘要取代來源、ID 或有效性證據。重跑已承接 ID 時接續 `#1`、`#2` 序號。
-5. [強制] 在任何 Attempt 寫入前，純 JSON 必須通過 Work Python CLI `attempt validate --stdin`；`attempt render --stdin` 回傳 canonical 欄位順序，既有檔案使用 `attempt validate --path <attempt-path>` 驗證 H1、檔名、TASK 父目錄與 canonical bytes。這些指令唯讀，不建立 Attempt、lock 或 index 狀態。
-6. [強制] Correction 使用 canonical `work-correction/v1` fenced JSON，固定使用下列英文欄位與順序，沒有額外摘要或同義欄位；`correction validate` 驗證純 JSON 或既有檔案，`correction render` 只回傳 canonical JSON：
-
-````markdown
-# ATTEMPT-001-CORRECTION-001
+5. [強制] 在任何 Attempt 寫入前，純 JSON 必須通過 Work Python CLI `attempt validate --stdin`；`attempt render --stdin` 回傳 canonical 欄位順序，既有檔案使用 `attempt validate --path <attempt-path>` 驗證純 JSON、.json 檔名、TASK 父目錄與 canonical bytes。這些指令唯讀，不建立 Attempt、lock 或 index 狀態。
+6. [強制] Correction 使用 canonical `work-correction/v1` 純 JSON，固定使用下列英文欄位與順序，沒有額外摘要或同義欄位；`correction validate` 驗證純 JSON 或既有檔案，`correction render` 只回傳 canonical JSON：
 
 ```json
 {
@@ -96,7 +104,6 @@ TASK-001：待執行；TASK-INSTRUCTIONS-SHA-256：<task-001-instructions-sha>
   "reason": "<reason-and-required-evidence>"
 }
 ```
-````
 
 7. [強制] Correction 建立使用 `work-correction-create-request/v1` 純 JSON及 `execute correction-create --stdin`；`invalidates_completion` 是必填 boolean 交易判定，不寫入 immutable Correction。Python 自動推導下一個 ID、目前含偏移分鐘時間與原 Attempt fingerprints，依序 atomic replacement Correction lock、exclusive canonical Correction 與最終 index；需要失效完成狀態時只把目標及已完成下游改為 `pending_retry`，已取消 TASK 不變。
 
