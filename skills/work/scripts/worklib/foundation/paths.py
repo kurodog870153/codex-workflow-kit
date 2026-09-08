@@ -170,7 +170,7 @@ def default_artifact_paths(project_root: Path, requirement_id: str) -> dict[str,
     requirement_id = validate_requirement_id(requirement_id)
     paths = {
         "plan": f"outputs/work/plans/{requirement_id}.md",
-        "task": f"outputs/work/tasks/{requirement_id}.md",
+        "task": f"outputs/work/tasks/{requirement_id}/task.md",
         "execution": f"outputs/work/executions/{requirement_id}",
     }
     for field, value in paths.items():
@@ -219,11 +219,11 @@ def validate_artifact_paths(
             "plan_path_requirement_mismatch",
             "The Plan artifact path must end with the requirement ID and .md.",
         )
-    if task_path.suffix != ".md" or task_path.stem != requirement_id:
+    if task_path.name != "task.md" or task_path.parent.name != requirement_id:
         raise WorkError(
             ExitCode.CONTRACT,
             "task_path_requirement_mismatch",
-            "The TASK artifact path must end with the requirement ID and .md.",
+            "The TASK artifact path must end with <requirement-id>/task.md.",
         )
     if execution_path.name != requirement_id:
         raise WorkError(

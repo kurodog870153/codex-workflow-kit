@@ -19,7 +19,7 @@ metadata:
 4. [強制] 新增、移動、拆分、合併或分類 Work instruction／reference 時載入 `task.general.instruction-maintenance`（`references/instruction-maintenance.md`）。
 5. [強制] Reference 只在觸發條件成立時載入；正式 TASK 只保存 globally unique logical name，不保存絕對路徑。
 6. [強制] 每個 TASK 綁定一個 `skill_id`；不需要外部技能時使用 `null`。同一 TASK 不得組合多個外部技能。
-7. [強制] 每個可執行技能使用一個隔離短暫 subagent 並依 TASK 順序處理；Plan-only 技能不得建立執行型 TASK，skill subagent 不得再委派。
+7. [強制] 每次只為目前 TASK 的可執行技能使用一個隔離短暫 subagent；保存檢查點後，使用者選擇繼續才處理下一項。Plan-only 技能不得建立執行型 TASK，skill subagent 不得再委派。
 
 ## 2. 需求確認與最小 TASK
 
@@ -27,13 +27,13 @@ metadata:
 2. [強制] 每個 `TASK-*` 產生一個可獨立驗收的單一成果；可分割成果須拆分，不可分割多檔修改可保留在同一 TASK。
 3. [強制] Execute 所需的所有檔案、順序、`CMD-*`、`OP-*`、`VAL-*` 與授權邊界必須在 Task 階段確定。
 4. [強制] 新決策改變已確認內容、references 或副作用時，列出影響並重新取得使用者確認。
-5. [強制] 全部決策完成後展示完整候選 JSON；使用者核准及 Python 驗證前不得建立正式檔案。
+5. [強制] 全部決策完成後，由草稿組裝工具驗證完整候選，向使用者展示成果、範圍、檔案操作、命令與驗證並提供完整契約供審閱；正式核准須綁定組裝指紋。既有正式規格修訂沿用完整候選 JSON 程序；使用者核准及 Python 驗證前不得建立正式檔案。
 
 ## 3. 正式 TASK contract
 
 1. [強制] 正式文件只包含單一 H1 與唯一 fenced JSON，固定使用 `schema: work-task/v1`、`status: confirmed` 與 `TASK-SPEC-nnn`。
 2. [強制] keys、enums、IDs、statuses、paths、references 及 hashes 使用英文；語意字串可使用繁體中文。所有欄位、條件結構與引用規則以 Work Python validator 為唯一機器規格。
-3. [強制] 對話候選直接呈現預計正式化的 `confirmed` JSON；不存在 `draft` schema、`TASK-SPEC-DRAFT` 或草案檔。
+3. [強制] 正式候選使用預計正式化的 `confirmed` JSON；規劃進度另以 `work-task-planning-index/v1` 與 `work-task-draft/v1` 保存，依 Task workflow 的 checkpoint 程序執行。草稿、`refined` 與保存確認都不是正式核准，不得使用 `TASK-SPEC-DRAFT` 或交給 Execute。
 4. [強制] 每個 TASK 的 `instruction_selection.selected_paths` 只能是來源 Plan 已確認葉節點、其祖先或空子集，且非空路徑必須完整存在於 Task 與 Execute catalog；`sources` 只保存 `kind`、`logical_name`、`canonical_sha256`，不得保存來源 layer 或絕對路徑。
 5. [強制] 每個 TASK 保存 `skill_id`、`instruction_selection`、`traceability`、單一 `goal`、有序 `steps` 與至少一個 `VAL-*`；只有 `skill_id` 可用 `null` 表示 base-only，沒有內容的選用欄位省略。
 6. [強制] TASK 集合完整覆蓋來源 Plan 的 `GOAL-*`、`DELIVERABLE-*`、`ACCEPTANCE-*` 與存在的 `MILESTONE-*`；每個 acceptance 至少由一個最終 VAL 覆蓋。

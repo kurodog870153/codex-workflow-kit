@@ -37,7 +37,7 @@ class ExecuteWorktreeTests(unittest.TestCase):
             "execute_instructions_sha256": "c" * 64,
             "execute_skill_selection": {"selection_sha256": "e" * 64},
             "task_status": "pending",
-            "task_path": "outputs/work/tasks/example.md",
+            "task_path": "outputs/work/tasks/example/task.md",
             "index_sha256": "d" * 64,
             "execution_dir": "outputs/work/executions/example",
             "dependencies": [],
@@ -50,7 +50,7 @@ class ExecuteWorktreeTests(unittest.TestCase):
         result = inspect_execute_worktree(
             project_root=REPO_ROOT,
             user_config_root=str(REPO_ROOT),
-            raw_task_path="outputs/work/tasks/example.md",
+            raw_task_path="outputs/work/tasks/example/task.md",
             raw_execution_dir="outputs/work/executions/example",
             task_id="TASK-001",
         )

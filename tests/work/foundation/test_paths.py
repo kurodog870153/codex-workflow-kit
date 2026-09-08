@@ -94,6 +94,39 @@ class PathTests(unittest.TestCase):
     def test_default_and_validated_artifact_paths_match(self) -> None:
         artifacts = default_artifact_paths(self.project_root, "feature-1")
 
+        self.assertEqual(artifacts["task"], "outputs/work/tasks/feature-1/task.md")
+        self.assertEqual(
+            validate_artifact_paths(
+                self.project_root,
+                "feature-1",
+                artifacts,
+                actual_plan_path=artifacts["plan"],
+            ),
+            artifacts,
+        )
+
+    def test_rejects_old_task_layout_and_wrong_requirement_directory(self) -> None:
+        artifacts = default_artifact_paths(self.project_root, "feature-1")
+        for path in (
+            "outputs/work/tasks/feature-1.md",
+            "custom/feature-1.md",
+            "outputs/work/tasks/other/task.md",
+            "outputs/work/tasks/feature-1/other.md",
+            "outputs/work/tasks/feature-1/drafts/task.md",
+        ):
+            with self.subTest(path=path):
+                with self.assertRaises(WorkError) as context:
+                    validate_artifact_paths(
+                        self.project_root,
+                        "feature-1",
+                        {**artifacts, "task": path},
+                        actual_plan_path=artifacts["plan"],
+                    )
+                self.assertEqual(context.exception.code, "task_path_requirement_mismatch")
+
+    def test_nondefault_task_route_requires_new_layout(self) -> None:
+        artifacts = default_artifact_paths(self.project_root, "feature-1")
+        artifacts["task"] = "custom/feature-1/task.md"
         self.assertEqual(
             validate_artifact_paths(
                 self.project_root,
@@ -106,15 +139,15 @@ class PathTests(unittest.TestCase):
 
     def test_rejects_artifact_path_aliases(self) -> None:
         artifacts = {
-            "plan": "outputs/feature-1.md",
-            "task": "outputs/feature-1.md",
-            "execution": "outputs/feature-1",
+            "plan": "outputs/task/task.md",
+            "task": "outputs/task/task.md",
+            "execution": "outputs/executions/task",
         }
 
         with self.assertRaises(WorkError) as context:
             validate_artifact_paths(
                 self.project_root,
-                "feature-1",
+                "task",
                 artifacts,
                 actual_plan_path=artifacts["plan"],
             )
