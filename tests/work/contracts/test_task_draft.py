@@ -169,7 +169,7 @@ class TaskDraftContractTests(unittest.TestCase):
         self.assert_rejected(
             lambda: validate_task_json_contract(
                 json.dumps(self.draft).encode("utf-8"), source="test",
-                actual_task_path="outputs/work/tasks/example/task.md",
+                actual_task_path="outputs/work/tasks/example/task.json",
                 project_root=Path.cwd(), user_config_root=str(Path.cwd()),
             ),
             "invalid_object_fields",

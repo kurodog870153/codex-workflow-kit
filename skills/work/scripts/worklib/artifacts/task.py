@@ -214,7 +214,7 @@ def create_task_artifacts(
             "The execution directory could not be created after the TASK was created.",
             {"path": normalized_execution},
         ) from error
-    index_path = execution_path / "index.md"
+    index_path = execution_path / "index.json"
     _write_exclusive(
         index_path,
         rendered_index,
@@ -299,7 +299,7 @@ def recover_task_create(
                 {"execution_dir": normalized_execution},
             ) from error
     entries = list(execution_path.iterdir())
-    index_path = execution_path / "index.md"
+    index_path = execution_path / "index.json"
     if not entries:
         _write_exclusive(
             index_path,

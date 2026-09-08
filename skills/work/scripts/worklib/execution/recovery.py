@@ -20,7 +20,7 @@ from .records import next_record_id, formal_record_kind
 from .record_finish import build_finished_attempt
 from ..contracts.execution_index import render_execution_index, validate_execution_index
 from ..foundation.fingerprint import read_raw
-from ..foundation.markdown import parse_json_contract, parse_markdown_json_contract
+from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path
 from ..skills.catalog import SkillRoot
 from ..contracts.task import validate_task_contract
@@ -115,14 +115,14 @@ def parse_execution_recovery_request(raw: bytes, *, source: str) -> dict[str, An
     return request
 
 
-def _read_markdown_contract(path: Path) -> tuple[bytes, dict[str, Any]]:
+def _read_json_contract(path: Path) -> tuple[bytes, dict[str, Any]]:
     raw = read_raw(path)
-    _, contract = parse_markdown_json_contract(raw, source=str(path))
+    contract = parse_json_contract(raw, source=str(path))
     return raw, contract
 
 
 def _validate_attempt_bytes(raw: bytes, *, project_root: Path, source: str) -> dict[str, Any]:
-    _, contract = parse_markdown_json_contract(raw, source=source)
+    contract = parse_json_contract(raw, source=source)
     if render_attempt_contract(contract, project_root=project_root) != raw:
         _error(
             ExitCode.ARTIFACT_INTEGRITY,
@@ -135,7 +135,7 @@ def _validate_attempt_bytes(raw: bytes, *, project_root: Path, source: str) -> d
 
 def _validate_index_bytes(raw: bytes, *, source: str) -> dict[str, Any]:
     validate_execution_index(raw, source=source)
-    _, contract = parse_markdown_json_contract(raw, source=source)
+    contract = parse_json_contract(raw, source=source)
     return contract
 
 
@@ -261,7 +261,7 @@ def _record_begin_recovery(
             files=sorted(path.name for path in candidates),
         )
     temporary = candidates[0]
-    temporary_raw, target_index = _read_markdown_contract(temporary)
+    temporary_raw, target_index = _read_json_contract(temporary)
     validate_execution_index(temporary_raw, source=str(temporary))
     target_lock = target_index.get("lock")
     record_id = target_lock.get("record_id") if isinstance(target_lock, dict) else None
@@ -345,7 +345,7 @@ def _command_correction_recovery(
             "command_correction recovery requires its prepared index file.",
             expected=expected_name,
         )
-    temporary_raw, target_index = _read_markdown_contract(temporary)
+    temporary_raw, target_index = _read_json_contract(temporary)
     validate_execution_index(temporary_raw, source=str(temporary))
     target_lock = target_index.get("lock")
     correction = (
@@ -670,7 +670,7 @@ def recover_execution(
         validate_file_state=False,
         skill_roots=skill_roots,
     )
-    _, task_contract = parse_markdown_json_contract(task_raw, source=str(task_path))
+    task_contract = parse_json_contract(task_raw, source=str(task_path))
     if (
         task_contract["artifacts"]["task"] != normalized_task
         or task_contract["artifacts"]["execution"] != normalized_execution
@@ -690,7 +690,7 @@ def recover_execution(
             {"task_id": task_id},
         ) from error
 
-    index_relative = f"{normalized_execution}/index.md"
+    index_relative = f"{normalized_execution}/index.json"
     _, index_path = resolve_project_relative_path(
         project_root, index_relative, field="execution_index"
     )
@@ -706,7 +706,7 @@ def recover_execution(
             latest_attempt=row.get("latest_attempt"),
             status=row["status"],
         )
-    attempt_relative = f"{normalized_execution}/{task_id}/{attempt_id}.md"
+    attempt_relative = f"{normalized_execution}/{task_id}/{attempt_id}.json"
     validate_attempt_file(project_root, attempt_relative)
     _, attempt_path = resolve_project_relative_path(
         project_root, attempt_relative, field="attempt_path"

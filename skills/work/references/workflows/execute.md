@@ -13,7 +13,7 @@ Use this workflow only after the formal target TASK and its single external skil
 
 1. Loading Execute instructions alone does not execute or authorize a TASK.
 2. Require the user to identify one formal TASK document and one `TASK-*` from that document before eligibility checks. Do not select either on the user's behalf.
-3. Use the default TASK path `outputs/work/tasks/<requirement-id>/task.md` unless the user explicitly supplies and confirms a permitted project-relative path.
+3. Use the default TASK path `outputs/work/tasks/<requirement-id>/task.json` unless the user explicitly supplies and confirms a permitted project-relative path.
 4. When Plan, TASK, or execution uses a non-default path, require the same requirement ID and all three confirmed project-relative paths. Never infer one path from another.
 5. After the target is complete, perform only authorized read-only eligibility checks. Obtain every required authorization before changing state, modifying files, running side-effecting commands, or performing external operations.
 

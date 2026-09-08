@@ -35,8 +35,8 @@ class PlanInstructionContractTests(unittest.TestCase):
             "title": "Example Plan",
             "summary": "需求摘要",
             "artifacts": {
-                "plan": "outputs/work/plans/example.md",
-                "task": "outputs/work/tasks/example/task.md",
+                "plan": "outputs/work/plans/example.json",
+                "task": "outputs/work/tasks/example/task.json",
                 "execution": "outputs/work/executions/example",
             },
             "hierarchy_selection": hierarchy_selection,
@@ -82,7 +82,7 @@ class PlanInstructionContractTests(unittest.TestCase):
         return validate_plan_contract(
             render_plan_contract(value),
             source="test",
-            actual_plan_path="outputs/work/plans/example.md",
+            actual_plan_path="outputs/work/plans/example.json",
             project_root=self.project_root,
             user_config_root=str(self.project_root),
         )
@@ -104,7 +104,7 @@ class PlanInstructionContractTests(unittest.TestCase):
 
     def test_render_uses_canonical_instruction_field_order(self) -> None:
         raw = render_plan_contract(dict(reversed(self.contract.items())))
-        payload = json.loads(raw.decode("utf-8").split("```json\n", 1)[1].rsplit("\n```", 1)[0])
+        payload = json.loads(raw.decode("utf-8"))
 
         self.assertEqual(list(payload)[6], "hierarchy_selection")
         self.assertEqual(list(payload)[7], "work_instruction_selection")

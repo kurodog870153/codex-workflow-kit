@@ -57,7 +57,7 @@ class TaskDraftArtifactTests(unittest.TestCase):
         self.assertEqual(self.save()["mirror_status"], "updated")
         self.assertEqual(read_task_draft(self.root, "example", "TASK-001"), self.draft)
         self.assertEqual((self.storage / "TASK-001.json").read_bytes(), (self.storage / "history/2/TASK-001.json").read_bytes())
-        self.assertFalse((self.storage.parent / "task.md").exists())
+        self.assertFalse((self.storage.parent / "task.json").exists())
         self.assertFalse((self.root / "outputs/work/executions").exists())
 
     def test_updates_preserve_immutable_history(self) -> None:

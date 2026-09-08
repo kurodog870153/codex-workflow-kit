@@ -20,7 +20,7 @@ class RecordBeginTests(unittest.TestCase):
             begin_record(
                 project_root=Path.cwd(),
                 user_config_root=str(Path.cwd()),
-                raw_task_path="task.md",
+                raw_task_path="task.json",
                 raw_execution_dir="execution",
                 task_id="TASK-001",
                 base_record_id="CMD-1",
@@ -41,7 +41,7 @@ class RecordBeginTests(unittest.TestCase):
     ) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            index_path = directory / "index.md"
+            index_path = directory / "index.json"
             temporary_path = directory / ".work-record-begin.tmp"
             index_path.write_bytes(b"old")
 

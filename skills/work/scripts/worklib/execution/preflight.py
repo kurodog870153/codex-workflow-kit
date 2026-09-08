@@ -8,7 +8,7 @@ from ..foundation.errors import ExitCode, WorkError
 from ..contracts.execution_index import validate_execution_index
 from ..foundation.fingerprint import read_raw
 from ..instructions.selection import build_instruction_selection
-from ..foundation.markdown import parse_markdown_json_contract
+from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import portable_path_identity, resolve_project_relative_path
 from ..foundation.runtime import installed_work_root
 from ..skills.catalog import SkillRoot
@@ -36,7 +36,7 @@ def _require_file(path: Path, *, code: str, message: str) -> None:
 
 def _index_contract(raw: bytes, *, source: str) -> dict[str, Any]:
     validate_execution_index(raw, source=source)
-    _, contract = parse_markdown_json_contract(raw, source=source)
+    contract = parse_json_contract(raw, source=source)
     return contract
 
 
@@ -227,7 +227,7 @@ def _task_contract(
         validate_file_state=False,
         skill_roots=skill_roots,
     )
-    _, contract = parse_markdown_json_contract(raw, source=source)
+    contract = parse_json_contract(raw, source=source)
     return contract, validation
 
 
@@ -352,7 +352,7 @@ def execute_preflight(
 
     normalized_index, index_path = resolve_project_relative_path(
         project_root,
-        f"{normalized_execution}/index.md",
+        f"{normalized_execution}/index.json",
         field="execution_index",
     )
     _require_file(
@@ -362,7 +362,7 @@ def execute_preflight(
     )
     index_raw = read_raw(index_path)
     index_validation = validate_execution_index(index_raw, source=str(index_path))
-    _, index_contract = parse_markdown_json_contract(index_raw, source=str(index_path))
+    index_contract = parse_json_contract(index_raw, source=str(index_path))
     index_rows = _require_index_identity(
         index_contract, task_contract, task_validation
     )
@@ -398,7 +398,7 @@ def execute_preflight(
     _, plan_path = resolve_project_relative_path(
         project_root, artifacts["plan"], field="plan_path"
     )
-    _, plan_contract = parse_markdown_json_contract(
+    plan_contract = parse_json_contract(
         read_raw(plan_path), source=str(plan_path)
     )
     plan_skill_selection = plan_contract["skill_selection"]

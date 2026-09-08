@@ -24,8 +24,8 @@ from worklib.execution.record_finish import finish_record
 from worklib.execution.recovery import recover_execution
 from worklib.foundation.errors import ExitCode, WorkError
 from worklib.foundation.markdown import (
-    parse_markdown_json_contract,
-    render_markdown_json_contract,
+    parse_json_contract,
+    render_json_contract,
 )
 from worklib.instructions.selection import build_instruction_selection
 
@@ -35,9 +35,9 @@ class ExecutionTransactionRecoveryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             project = Path(temporary)
             execution = project / "execution"
-            attempt_path = execution / "TASK-001" / "ATTEMPT-001.md"
+            attempt_path = execution / "TASK-001" / "ATTEMPT-001.json"
             attempt_path.parent.mkdir(parents=True)
-            index_path = execution / "index.md"
+            index_path = execution / "index.json"
             task_selection = build_instruction_selection(
                 skill_root=SKILL_ROOT,
                 mode="task",
@@ -59,7 +59,7 @@ class ExecutionTransactionRecoveryTests(unittest.TestCase):
             contract = {
                 "requirement_id": "example",
                 "spec_id": "TASK-SPEC-001",
-                "artifacts": {"task": "task.md", "execution": "execution"},
+                "artifacts": {"task": "task.json", "execution": "execution"},
                 "tasks": [task],
             }
             validation = {
@@ -118,8 +118,8 @@ class ExecutionTransactionRecoveryTests(unittest.TestCase):
                 }
                 operation = close_attempt
 
-            (project / "task.md").write_bytes(
-                render_markdown_json_contract("Task", contract)
+            (project / "task.json").write_bytes(
+                render_json_contract(contract)
             )
             original_attempt = render_attempt_contract(attempt, project_root=project)
             original_index = render_execution_index(index)
@@ -129,7 +129,7 @@ class ExecutionTransactionRecoveryTests(unittest.TestCase):
                 "source": "test",
                 "project_root": project,
                 "user_config_root": temporary,
-                "raw_task_path": "task.md",
+                "raw_task_path": "task.json",
                 "raw_execution_dir": "execution",
                 "task_id": "TASK-001",
             }
@@ -187,12 +187,12 @@ class ExecutionTransactionRecoveryTests(unittest.TestCase):
                 )
             self.assertEqual(result["status"], "recovered")
             self.assertEqual(list(execution.glob(".work-*.tmp")), [])
-            validate_attempt_file(project, "execution/TASK-001/ATTEMPT-001.md")
+            validate_attempt_file(project, "execution/TASK-001/ATTEMPT-001.json")
             validate_execution_index(index_path.read_bytes(), source=str(index_path))
-            _, recovered_attempt = parse_markdown_json_contract(
+            recovered_attempt = parse_json_contract(
                 attempt_path.read_bytes(), source=str(attempt_path)
             )
-            _, recovered_index = parse_markdown_json_contract(
+            recovered_index = parse_json_contract(
                 index_path.read_bytes(), source=str(index_path)
             )
             self.assertEqual(recovered_attempt["records"], [record])

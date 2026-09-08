@@ -29,7 +29,7 @@ class TransactionWriteTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
-        self.source = self.root / "artifact.md"
+        self.source = self.root / "artifact.json"
         self.temporary = self.root / ".work-test.tmp"
         self.source.write_bytes(b"original")
         self.arguments = {

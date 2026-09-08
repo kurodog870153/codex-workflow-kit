@@ -97,9 +97,9 @@ class ExecutionContextTests(unittest.TestCase):
         )
 
     def test_read_contract_preserves_original_bytes(self) -> None:
-        raw = b'# Example\r\n\r\n```json\r\n{"value": 1}\r\n```\r\n'
+        raw = b'{"value": 1}\r\n'
         with tempfile.TemporaryDirectory() as temporary:
-            path = Path(temporary) / "contract.md"
+            path = Path(temporary) / "contract.json"
             path.write_bytes(raw)
             self.assertEqual(read_contract(path), (raw, {"value": 1}))
 

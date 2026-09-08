@@ -169,8 +169,8 @@ def portable_path_identity(path: Path) -> str:
 def default_artifact_paths(project_root: Path, requirement_id: str) -> dict[str, str]:
     requirement_id = validate_requirement_id(requirement_id)
     paths = {
-        "plan": f"outputs/work/plans/{requirement_id}.md",
-        "task": f"outputs/work/tasks/{requirement_id}/task.md",
+        "plan": f"outputs/work/plans/{requirement_id}.json",
+        "task": f"outputs/work/tasks/{requirement_id}/task.json",
         "execution": f"outputs/work/executions/{requirement_id}",
     }
     for field, value in paths.items():
@@ -213,17 +213,17 @@ def validate_artifact_paths(
     plan_path = Path(normalized_paths["plan"])
     task_path = Path(normalized_paths["task"])
     execution_path = Path(normalized_paths["execution"])
-    if plan_path.suffix != ".md" or plan_path.stem != requirement_id:
+    if plan_path.suffix != ".json" or plan_path.stem != requirement_id:
         raise WorkError(
             ExitCode.CONTRACT,
             "plan_path_requirement_mismatch",
-            "The Plan artifact path must end with the requirement ID and .md.",
+            "The Plan artifact path must end with the requirement ID and .json.",
         )
-    if task_path.name != "task.md" or task_path.parent.name != requirement_id:
+    if task_path.name != "task.json" or task_path.parent.name != requirement_id:
         raise WorkError(
             ExitCode.CONTRACT,
             "task_path_requirement_mismatch",
-            "The TASK artifact path must end with <requirement-id>/task.md.",
+            "The TASK artifact path must end with <requirement-id>/task.json.",
         )
     if execution_path.name != requirement_id:
         raise WorkError(

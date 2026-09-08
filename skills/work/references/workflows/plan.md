@@ -21,7 +21,7 @@ Use this workflow only after the user-confirmed hierarchy and Plan skill selecti
 1. Build the complete proposed `work-plan/v1` JSON object in the conversation.
 2. Include validated `hierarchy_selection`, mode-resolved `work_instruction_selection`, and `skill_selection`. Before requesting authorization to create a formal Plan, pipe that object to `<python-command> <skill-root>/scripts/work.py --project-root <project-root> plan validate --stdin --plan-path <plan-path>` with every confirmed `--skill-root`.
 3. Require a successful validation result containing the canonical Plan and instruction fingerprints. Treat any nonzero exit code as a hard stop; do not repair, rewrite, retry, or reinterpret a rejected contract without new user direction.
-4. After the user authorizes creation, pipe the identical approved JSON object to the same `plan create` command with every confirmed `--skill-root`. Do not assemble or write the Markdown manually.
+4. After the user authorizes creation, pipe the identical approved JSON object to the same `plan create` command with every confirmed `--skill-root`. Do not assemble or write the JSON artifact manually.
 5. After creation, run `plan validate --path <plan-path>` with the same skill roots and require the same canonical Plan, hierarchy-selection, Work instruction, and skill-selection fingerprints as the pre-write validation.
 6. Never use `plan create` for an existing Plan. Keep an approved revision in the conversation and hand it to the Task workflow for the authorized Plan, TASK, and execution-index specification transaction.
 

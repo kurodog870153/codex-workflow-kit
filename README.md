@@ -34,6 +34,13 @@ $work execute -- 執行正式 TASK-001
 
 Plan 推薦技能後，你可以接受、加入、移除或取消。若沒有合適技能，也可以確認只使用 Work 的基本能力。
 
+## 產物格式
+
+1. Plan：`outputs/work/plans/<requirement-id>.json`。
+2. Task：`outputs/work/tasks/<requirement-id>/task.json`；草稿維持 JSON。
+3. Execute：`outputs/work/executions/<requirement-id>/index.json`，以及 TASK 子目錄下的 `ATTEMPT-*.json` 與 Correction JSON。
+4. 正式產物為純 JSON，保留既有 schema 與欄位順序；不接受舊 Markdown 產物，也不提供自動轉換。
+
 ## 必要環境
 
 1. Python 3.10 以上。

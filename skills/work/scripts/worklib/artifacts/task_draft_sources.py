@@ -8,7 +8,7 @@ from .task_draft import read_task_draft, read_task_planning_index
 from ..contracts.plan import validate_plan_contract
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import read_raw
-from ..foundation.markdown import parse_markdown_json_contract
+from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path
 from ..foundation.runtime import installed_work_root
 from ..hierarchy.selection import validate_task_hierarchy_paths
@@ -50,7 +50,7 @@ def check_task_draft_sources(
             ExitCode.ARTIFACT_INTEGRITY, "draft_source_drift", "The saved planning sources differ from the validated Plan.",
             {"fields": sorted(mismatches), "task_id": task_id},
         )
-    _, plan = parse_markdown_json_contract(raw, source=str(resolved))
+    plan = parse_json_contract(raw, source=str(resolved))
     skill_id = entry["skill_id"]
     if skill_id is not None:
         skill = next((item for item in plan["skill_selection"]["skills"] if item["id"] == skill_id), None)

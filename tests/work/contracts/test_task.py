@@ -31,8 +31,8 @@ class TaskInstructionContractTests(unittest.TestCase):
         self.project_root = Path(self.temporary_directory.name).resolve()
         (self.project_root / "src.txt").write_text("source\n", encoding="utf-8")
         self.artifacts = {
-            "plan": "outputs/work/plans/example.md",
-            "task": "outputs/work/tasks/example/task.md",
+            "plan": "outputs/work/plans/example.json",
+            "task": "outputs/work/tasks/example/task.json",
             "execution": "outputs/work/executions/example",
         }
         hierarchy_selection = build_hierarchy_selection(
@@ -204,7 +204,7 @@ class TaskInstructionContractTests(unittest.TestCase):
     def test_render_orders_instruction_selections_canonically(self) -> None:
         raw = render_task_contract(dict(reversed(self.contract.items())))
         payload = json.loads(
-            raw.decode("utf-8").split("```json\n", 1)[1].rsplit("\n```", 1)[0]
+            raw.decode("utf-8")
         )
 
         self.assertEqual(list(payload)[8], "instruction_selection")

@@ -22,7 +22,7 @@ from ..contracts.execution_index import (
     validate_execution_index,
 )
 from ..foundation.fingerprint import read_raw
-from ..foundation.markdown import parse_markdown_json_contract
+from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path
 from ..skills.catalog import SkillRoot
 from .attempt_start_request import parse_attempt_start_request
@@ -79,7 +79,7 @@ def _validate_attempt_namespace(
 ) -> None:
     existing = sorted(
         path.stem
-        for path in task_directory.glob("ATTEMPT-*.md")
+        for path in task_directory.glob("ATTEMPT-*.json")
         if ATTEMPT_PATTERN.fullmatch(path.stem)
     ) if task_directory.is_dir() else []
     if original_status == "pending" and existing:
@@ -122,7 +122,7 @@ def _load_source_attempt(
     task_id: str,
     source_attempt_id: str,
 ) -> dict[str, Any]:
-    raw_path = f"{execution_dir}/{task_id}/{source_attempt_id}.md"
+    raw_path = f"{execution_dir}/{task_id}/{source_attempt_id}.json"
     result = validate_attempt_file(project_root, raw_path)
     if result["status"] == "in_progress":
         _error(
@@ -133,7 +133,7 @@ def _load_source_attempt(
     _, path = resolve_project_relative_path(
         project_root, raw_path, field="source_attempt_path"
     )
-    _, contract = parse_markdown_json_contract(read_raw(path), source=str(path))
+    contract = parse_json_contract(read_raw(path), source=str(path))
     return contract
 
 
@@ -363,7 +363,7 @@ def _complete_transaction(
             "The TASK execution directory could not be created.",
             {"path": str(task_directory)},
         ) from error
-    attempt_path = task_directory / f"{attempt_id}.md"
+    attempt_path = task_directory / f"{attempt_id}.json"
     rendered_attempt = render_attempt_contract(attempt, project_root=project_root)
     if attempt_path.exists():
         if not allow_recovery or read_raw(attempt_path) != rendered_attempt:
@@ -406,7 +406,7 @@ def _paths(
     execution_dir, execution_path = resolve_project_relative_path(
         project_root, raw_execution_dir, field="execution_dir"
     )
-    index_relative = f"{execution_dir}/index.md"
+    index_relative = f"{execution_dir}/index.json"
     _, index_path = resolve_project_relative_path(
         project_root, index_relative, field="execution_index"
     )
@@ -469,7 +469,7 @@ def start_attempt(
         attempt_id=attempt_id,
         started_at=_timestamp(now),
     )
-    attempt_path = task_directory / f"{attempt_id}.md"
+    attempt_path = task_directory / f"{attempt_id}.json"
     lock_temporary = _transaction_path(
         execution_path, task_id=task_id, attempt_id=attempt_id, stage="lock"
     )
@@ -607,7 +607,7 @@ def recover_attempt_start(
         attempt_id=attempt_id,
         allow_current=True,
     )
-    attempt_path = task_directory / f"{attempt_id}.md"
+    attempt_path = task_directory / f"{attempt_id}.json"
     existing_started_at: str | None = None
     if attempt_path.exists():
         validation = validate_attempt_file(
@@ -619,7 +619,7 @@ def recover_attempt_start(
                 "attempt_start_recovery_attempt_mismatch",
                 "The existing Attempt does not match the recovery candidate.",
             )
-        _, existing = parse_markdown_json_contract(
+        existing = parse_json_contract(
             read_raw(attempt_path), source=str(attempt_path)
         )
         existing_started_at = existing["started_at"]

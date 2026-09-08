@@ -8,7 +8,7 @@ from typing import Any
 from ..foundation.errors import ExitCode, WorkError
 from .preflight import execute_preflight
 from ..foundation.fingerprint import canonical_sha256, read_raw
-from ..foundation.markdown import parse_markdown_json_contract
+from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path
 from ..skills.catalog import SkillRoot
 
@@ -259,7 +259,7 @@ def inspect_execute_worktree(
             "execute_worktree_task_changed",
             "The formal TASK changed after preflight.",
         )
-    _, task_contract = parse_markdown_json_contract(task_raw, source=str(task_path))
+    task_contract = parse_json_contract(task_raw, source=str(task_path))
     tasks = {item["id"]: item for item in task_contract["tasks"]}
     dependencies = list(preflight["dependencies"])
     records = collect_git_status(project_root)

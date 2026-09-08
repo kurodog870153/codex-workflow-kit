@@ -18,7 +18,7 @@ class TaskArtifactTests(unittest.TestCase):
     def test_create_writes_task_and_initial_index_as_one_workflow(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             project_root = Path(temporary).resolve()
-            task_path = project_root / "outputs" / "task.md"
+            task_path = project_root / "outputs" / "task.json"
             execution_path = project_root / "outputs" / "execution"
             validation = {
                 "requirement_id": "example",
@@ -32,7 +32,7 @@ class TaskArtifactTests(unittest.TestCase):
                 b"canonical task",
                 initial_index,
                 b"canonical index",
-                "outputs/task.md",
+                "outputs/task.json",
                 task_path,
                 "outputs/execution",
                 execution_path,
@@ -49,14 +49,14 @@ class TaskArtifactTests(unittest.TestCase):
                     b"request",
                     source="test",
                     raw_plan_path="outputs/plan.md",
-                    raw_task_path="outputs/task.md",
+                    raw_task_path="outputs/task.json",
                     raw_execution_dir="outputs/execution",
                     project_root=project_root,
                     user_config_root=temporary,
                 )
                 self.assertEqual(task_path.read_bytes(), b"canonical task")
                 self.assertEqual(
-                    (execution_path / "index.md").read_bytes(), b"canonical index"
+                    (execution_path / "index.json").read_bytes(), b"canonical index"
                 )
                 self.assertEqual(result["status"], "created")
 
@@ -65,7 +65,7 @@ class TaskArtifactTests(unittest.TestCase):
                         b"request",
                         source="test",
                         raw_plan_path="outputs/plan.md",
-                        raw_task_path="outputs/task.md",
+                        raw_task_path="outputs/task.json",
                         raw_execution_dir="outputs/execution",
                         project_root=project_root,
                         user_config_root=temporary,
@@ -74,7 +74,7 @@ class TaskArtifactTests(unittest.TestCase):
                 self.assertEqual(context.exception.code, "task_create_target_exists")
                 self.assertEqual(task_path.read_bytes(), b"canonical task")
                 self.assertEqual(
-                    (execution_path / "index.md").read_bytes(), b"canonical index"
+                    (execution_path / "index.json").read_bytes(), b"canonical index"
                 )
 
 

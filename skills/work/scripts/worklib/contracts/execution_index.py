@@ -6,9 +6,9 @@ from typing import Any
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_sha256
 from ..foundation.markdown import (
-    parse_markdown_json_contract,
-    render_markdown_json_contract,
-    require_canonical_markdown_json_contract,
+    parse_json_contract,
+    render_json_contract,
+    require_canonical_json_contract,
 )
 from .execution_index_ordering import order_execution_index
 from .validation import (
@@ -51,10 +51,7 @@ def derive_overall_status(statuses: list[str]) -> str:
 
 def render_execution_index(contract: dict[str, Any]) -> bytes:
     ordered = order_execution_index(contract)
-    title = ordered.get("title")
-    return render_markdown_json_contract(
-        title if isinstance(title, str) else str(title), ordered
-    )
+    return render_json_contract(ordered)
 
 
 def build_initial_execution_index(
@@ -95,7 +92,7 @@ def validate_execution_index(
     source: str,
     expected: dict[str, Any] | None = None,
 ) -> dict[str, object]:
-    markdown_title, contract = parse_markdown_json_contract(raw, source=source)
+    contract = parse_json_contract(raw, source=source)
     index = _strict_keys(
         contract,
         location="execution_index",
@@ -120,11 +117,11 @@ def validate_execution_index(
             "Invalid execution index schema.",
         )
     title = _nonempty_string(index["title"], location="title")
-    if title != markdown_title or "\n" in title or "\r" in title:
+    if "\n" in title or "\r" in title:
         raise WorkError(
             ExitCode.CONTRACT,
-            "execution_index_title_mismatch",
-            "The execution index H1 and title must match on one line.",
+            "invalid_execution_index_title",
+            "The execution index title must fit on one line.",
         )
     _nonempty_string(index["requirement_id"], location="requirement_id")
     if not re.fullmatch(r"TASK-SPEC-\d{3}", str(index["task_spec_id"])):
@@ -362,9 +359,8 @@ def validate_execution_index(
             "The execution index does not match the expected TASK state.",
         )
     ordered = order_execution_index(index)
-    require_canonical_markdown_json_contract(
+    require_canonical_json_contract(
         raw,
-        title=title,
         contract=ordered,
         source=source,
     )

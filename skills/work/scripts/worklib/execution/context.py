@@ -5,7 +5,7 @@ from typing import Any
 
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import read_raw
-from ..foundation.markdown import parse_markdown_json_contract
+from ..foundation.markdown import parse_json_contract
 
 
 def _error(
@@ -19,7 +19,7 @@ def _error(
 
 def read_contract(path: Path) -> tuple[bytes, dict[str, Any]]:
     raw = read_raw(path)
-    _, contract = parse_markdown_json_contract(raw, source=str(path))
+    contract = parse_json_contract(raw, source=str(path))
     return raw, contract
 
 

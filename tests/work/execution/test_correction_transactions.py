@@ -26,7 +26,7 @@ class CorrectionTransactionTests(unittest.TestCase):
         self.directory = Path(self.temporary_directory.name)
 
     def test_prepares_and_replaces_unchanged_source(self) -> None:
-        target = self.directory / "index.md"
+        target = self.directory / "index.json"
         temporary = self.directory / "index.tmp"
         target.write_bytes(b"old")
 
@@ -54,7 +54,7 @@ class CorrectionTransactionTests(unittest.TestCase):
         self.assertEqual(context.exception.details["transaction_stage"], "index_prepared")
 
     def test_replace_rejects_changed_source(self) -> None:
-        target = self.directory / "index.md"
+        target = self.directory / "index.json"
         temporary = self.directory / "index.tmp"
         target.write_bytes(b"changed")
         temporary.write_bytes(b"new")
@@ -73,7 +73,7 @@ class CorrectionTransactionTests(unittest.TestCase):
         self.assertEqual(target.read_bytes(), b"changed")
 
     def test_installs_immutable_target_and_consumes_temporary(self) -> None:
-        target = self.directory / "correction.md"
+        target = self.directory / "correction.json"
         temporary = self.directory / "correction.tmp"
         temporary.write_bytes(b"correction")
 
@@ -88,7 +88,7 @@ class CorrectionTransactionTests(unittest.TestCase):
         self.assertFalse(temporary.exists())
 
     def test_exclusive_install_rejects_existing_target(self) -> None:
-        target = self.directory / "correction.md"
+        target = self.directory / "correction.json"
         temporary = self.directory / "correction.tmp"
         target.write_bytes(b"existing")
         temporary.write_bytes(b"correction")

@@ -20,7 +20,7 @@ from ..contracts.execution_index import (
 )
 from ..foundation.fingerprint import read_raw
 from ..instructions.selection import build_instruction_selection
-from ..foundation.markdown import parse_markdown_json_contract
+from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path
 from ..foundation.runtime import installed_work_root
 from ..skills.catalog import SkillRoot
@@ -252,7 +252,7 @@ def close_attempt(
         validate_file_state=False,
         skill_roots=skill_roots,
     )
-    _, task_contract = parse_markdown_json_contract(task_raw, source=str(task_path))
+    task_contract = parse_json_contract(task_raw, source=str(task_path))
     if (
         task_contract["artifacts"]["task"] != normalized_task
         or task_contract["artifacts"]["execution"] != normalized_execution
@@ -272,7 +272,7 @@ def close_attempt(
             {"task_id": task_id},
         ) from error
 
-    index_relative = f"{normalized_execution}/index.md"
+    index_relative = f"{normalized_execution}/index.json"
     _, index_path = resolve_project_relative_path(
         project_root, index_relative, field="execution_index"
     )
@@ -287,7 +287,7 @@ def close_attempt(
             status=row["status"],
         )
     attempt_id = row["latest_attempt"]
-    attempt_relative = f"{normalized_execution}/{task_id}/{attempt_id}.md"
+    attempt_relative = f"{normalized_execution}/{task_id}/{attempt_id}.json"
     validate_attempt_file(project_root, attempt_relative)
     _, attempt_path = resolve_project_relative_path(
         project_root, attempt_relative, field="attempt_path"
