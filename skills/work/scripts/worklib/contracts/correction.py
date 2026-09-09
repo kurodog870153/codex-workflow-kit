@@ -167,9 +167,18 @@ def validate_correction_file(
             "correction_filename_mismatch",
             "The Correction filename does not match correction_id.",
         )
-    attempt_relative = str(
-        (Path(normalized).parent / f"{canonical['target_attempt_id']}.json").as_posix()
-    )
+    literal_path = Path(normalized)
+    if any(
+        candidate.parent.name != "corrections"
+        or candidate.parent.parent.name != canonical["target_attempt_id"]
+        for candidate in (literal_path, path)
+    ):
+        _fail(
+            "correction_parent_attempt_mismatch",
+            "Corrections must use <TASK-ID>/<ATTEMPT-ID>/corrections/<CORRECTION-ID>.json; "
+            "legacy flat paths are unsupported.",
+        )
+    attempt_relative = (literal_path.parent.parent / "attempt.json").as_posix()
     attempt_validation = validate_attempt_file(project_root, attempt_relative)
     if attempt_validation["status"] == "in_progress":
         _fail(

@@ -38,7 +38,7 @@ Plan 推薦技能後，你可以接受、加入、移除或取消。若沒有合
 
 1. Plan：`outputs/work/plans/<requirement-id>.json`。
 2. Task：`outputs/work/tasks/<requirement-id>/task.json`；草稿維持 JSON。
-3. Execute：`outputs/work/executions/<requirement-id>/index.json`，以及 TASK 子目錄下的 `ATTEMPT-*.json` 與 Correction JSON。
+3. Execute：`outputs/work/executions/<requirement-id>/index.json`，以及 `<TASK-ID>/<ATTEMPT-ID>/attempt.json`；修正紀錄放於該 Attempt 的 `corrections/<CORRECTION-ID>.json`。只支援此目錄結構，不相容舊式平放紀錄，也不自動搬移。
 4. 正式產物為純 JSON，保留既有 schema 與欄位順序；不接受舊 Markdown 產物，也不提供自動轉換。
 
 ## 必要環境

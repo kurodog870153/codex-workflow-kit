@@ -238,7 +238,7 @@ def record_command_correction(
             status=row["status"],
         )
     attempt_id = row["latest_attempt"]
-    attempt_relative = f"{normalized_execution}/{task_id}/{attempt_id}.json"
+    attempt_relative = f"{normalized_execution}/{task_id}/{attempt_id}/attempt.json"
     validate_attempt_file(project_root, attempt_relative)
     _, attempt_path = resolve_project_relative_path(
         project_root, attempt_relative, field="attempt_path"

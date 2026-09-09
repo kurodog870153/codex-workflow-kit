@@ -24,7 +24,7 @@ class AttemptCliTests(unittest.TestCase):
                 "attempt",
                 "validate",
                 "--path",
-                "outputs/work/executions/example/ATTEMPT-001.json",
+                "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
             ]
         )
 
@@ -32,7 +32,7 @@ class AttemptCliTests(unittest.TestCase):
         self.assertEqual(arguments.attempt_command, "validate")
         self.assertEqual(
             arguments.path,
-            "outputs/work/executions/example/ATTEMPT-001.json",
+            "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
         )
         self.assertFalse(arguments.stdin)
 

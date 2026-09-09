@@ -9,7 +9,11 @@ from ..contracts.execution_index import validate_execution_index
 from ..foundation.fingerprint import read_raw
 from ..instructions.selection import build_instruction_selection
 from ..foundation.markdown import parse_json_contract
-from ..foundation.paths import portable_path_identity, resolve_project_relative_path
+from ..foundation.paths import (
+    portable_path_identity,
+    resolve_project_relative_path,
+    validate_execution_task_layout,
+)
 from ..foundation.runtime import installed_work_root
 from ..skills.catalog import SkillRoot
 from ..skills.selection import selection_sha256
@@ -383,6 +387,9 @@ def execute_preflight(
             {"lock": index_contract["lock"]},
         )
 
+    validate_execution_task_layout(
+        project_root, f"{normalized_execution}/{task_id}"
+    )
     task_row = index_rows[task_id]
     status = task_row["status"]
     eligible_statuses = _eligible_statuses or ELIGIBLE_NEW_ATTEMPT_STATUSES
