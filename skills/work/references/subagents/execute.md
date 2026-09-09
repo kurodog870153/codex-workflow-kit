@@ -2,7 +2,7 @@
 
 Required runtime configuration:
 
-1. Model: `gpt-5.6-luna`
+1. Model: `gpt-5.6-terra`
 2. Reasoning effort: `medium`
 
 This prompt is private implementation detail for `$work`. Do not register it as a custom agent, expose it as a user command, or accept direct user invocation.

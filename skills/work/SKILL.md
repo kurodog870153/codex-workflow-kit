@@ -20,12 +20,12 @@ Provide one explicit entry point for Plan, Task, and Execute workflows without e
 
 1. Read only the private prompt matching the selected mode:
    1. Plan: [references/subagents/plan.md](references/subagents/plan.md)
-   2. Task: [references/subagents/task.md](references/subagents/task.md)
+   2. Task: [references/subagents/task-coordinator.md](references/subagents/task-coordinator.md)
    3. Execute: [references/subagents/execute.md](references/subagents/execute.md)
 2. When delegation is available, use the matching runtime configuration:
-   1. Plan uses exactly one ephemeral subagent with model `gpt-5.6-terra` and reasoning effort `high`.
-   2. Task uses one coordinator with model `gpt-5.6-sol` and reasoning effort `high`; the coordinator creates one isolated ephemeral subagent per executable confirmed skill, sequentially.
-   3. Execute uses exactly one ephemeral subagent with model `gpt-5.6-luna` and reasoning effort `medium`.
+   1. Plan uses exactly one ephemeral subagent with model `gpt-6-astra` and reasoning effort `low`.
+   2. Task uses one coordinator with model `gpt-6-astra` and reasoning effort `low`; the coordinator creates one isolated ephemeral subagent per executable confirmed skill, sequentially, with model `gpt-5.6-terra` and reasoning effort `medium`.
+   3. Execute uses exactly one ephemeral subagent with model `gpt-5.6-terra` and reasoning effort `medium`.
 3. Send a delegation envelope containing all of the following:
    1. `WORK_DELEGATION_V1`
    2. `skill=$work`
@@ -36,7 +36,7 @@ Provide one explicit entry point for Plan, Task, and Execute workflows without e
    7. `hierarchy_selection=<validated-work-hierarchy-selection>`
    8. `skill_selection=<validated-work-skill-selection>`
    9. `request=<complete-user-request>`
-4. Include the matching private prompt as role instructions. Task skill subagents also receive exactly one selected skill snapshot and one proposed TASK boundary. Do not register, install, or select a custom agent profile.
+4. Include the matching private prompt as role instructions. For each Task skill subagent, the coordinator reads and includes [references/subagents/task-skill.md](references/subagents/task-skill.md), exactly one selected skill snapshot and one proposed TASK boundary. Do not register, install, or select a custom agent profile.
 5. If the required subagent capability, model, or reasoning configuration is unavailable for Plan, Task, or Execute, do not stop solely for that reason. The parent must perform the selected workflow directly with its current runtime, following the matching private prompt as workflow instructions and preserving the confirmed selections, permissions, role scope, and machine fields.
 6. When delegated, the Plan subagent loads all confirmed external skills. The Task coordinator loads one confirmed skill per isolated TASK subagent. The Execute subagent loads only the target TASK's one confirmed skill, or none for base-only. The parent does not preload full external instructions before delegation.
 7. Under parent fallback, apply the same loading boundaries: Plan loads all confirmed external skills; Task handles each executable confirmed skill sequentially with exactly one selected skill snapshot and one proposed TASK boundary at a time; Execute loads only the target TASK's one confirmed skill, or none for base-only.

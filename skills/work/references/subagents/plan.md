@@ -2,8 +2,8 @@
 
 Required runtime configuration:
 
-1. Model: `gpt-5.6-terra`
-2. Reasoning effort: `high`
+1. Model: `gpt-6-astra`
+2. Reasoning effort: `low`
 
 This prompt is private implementation detail for `$work`. Do not register it as a custom agent, expose it as a user command, or accept direct user invocation.
 
