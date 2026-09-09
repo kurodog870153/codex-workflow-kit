@@ -35,7 +35,7 @@ class ExecutionTransactionRecoveryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             project = Path(temporary)
             execution = project / "execution"
-            attempt_path = execution / "TASK-001" / "ATTEMPT-001.json"
+            attempt_path = execution / "TASK-001" / "ATTEMPT-001" / "attempt.json"
             attempt_path.parent.mkdir(parents=True)
             index_path = execution / "index.json"
             task_selection = build_instruction_selection(
@@ -187,7 +187,7 @@ class ExecutionTransactionRecoveryTests(unittest.TestCase):
                 )
             self.assertEqual(result["status"], "recovered")
             self.assertEqual(list(execution.glob(".work-*.tmp")), [])
-            validate_attempt_file(project, "execution/TASK-001/ATTEMPT-001.json")
+            validate_attempt_file(project, "execution/TASK-001/ATTEMPT-001/attempt.json")
             validate_execution_index(index_path.read_bytes(), source=str(index_path))
             recovered_attempt = parse_json_contract(
                 attempt_path.read_bytes(), source=str(attempt_path)

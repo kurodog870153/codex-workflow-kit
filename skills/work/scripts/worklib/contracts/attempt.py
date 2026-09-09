@@ -16,6 +16,7 @@ from ..foundation.paths import (
     normalize_relative_path,
     portable_path_identity,
     resolve_project_relative_path,
+    validate_execution_task_layout,
 )
 
 
@@ -683,8 +684,19 @@ def render_attempt_json_contract(
 def validate_attempt_file(
     project_root: Path, raw_attempt_path: str
 ) -> dict[str, object]:
-    normalized_path, attempt_path = resolve_project_relative_path(
-        project_root, raw_attempt_path, field="attempt_path"
+    normalized_path = normalize_relative_path(raw_attempt_path, field="attempt_path")
+    literal_path = Path(normalized_path)
+    if literal_path.name != "attempt.json":
+        _fail(
+            "attempt_filename_mismatch",
+            "Attempt files must use <TASK-ID>/<ATTEMPT-ID>/attempt.json; "
+            "legacy flat paths are unsupported.",
+        )
+    validate_execution_task_layout(
+        project_root, literal_path.parent.parent.as_posix()
+    )
+    _, attempt_path = resolve_project_relative_path(
+        project_root, normalized_path, field="attempt_path"
     )
     try:
         raw = attempt_path.read_bytes()
@@ -697,15 +709,23 @@ def validate_attempt_file(
         ) from error
     contract = parse_json_contract(raw, source=normalized_path)
     canonical = canonicalize_attempt_contract(contract, project_root=project_root)
-    if attempt_path.name != f"{canonical['attempt_id']}.json":
+    if attempt_path.name != "attempt.json":
+        _fail("attempt_filename_mismatch", "The resolved Attempt filename must be attempt.json.")
+    if (
+        literal_path.parent.name != canonical["attempt_id"]
+        or attempt_path.parent.name != canonical["attempt_id"]
+    ):
         _fail(
-            "attempt_filename_mismatch",
-            "The Attempt filename does not match attempt_id.",
+            "attempt_parent_attempt_mismatch",
+            "The Attempt directory does not match attempt_id.",
         )
-    if attempt_path.parent.name != canonical["task_id"]:
+    if (
+        literal_path.parent.parent.name != canonical["task_id"]
+        or attempt_path.parent.parent.name != canonical["task_id"]
+    ):
         _fail(
             "attempt_parent_task_mismatch",
-            "The Attempt parent directory does not match task_id.",
+            "The Attempt grandparent directory does not match task_id.",
         )
     require_canonical_json_contract(
         raw,

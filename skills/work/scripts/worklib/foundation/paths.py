@@ -162,6 +162,25 @@ def resolve_project_relative_path(
     return normalized, resolved_candidate
 
 
+def validate_execution_task_layout(
+    project_root: Path, raw_task_directory: str
+) -> Path:
+    _, task_directory = resolve_project_relative_path(
+        project_root, raw_task_directory, field="execution_task_directory"
+    )
+    legacy_files = sorted(path.name for path in task_directory.glob("ATTEMPT-*.json"))
+    if legacy_files:
+        raise WorkError(
+            ExitCode.ARTIFACT_INTEGRITY,
+            "execution_legacy_layout_unsupported",
+            "Flat Attempt and Correction files are unsupported; use "
+            "<TASK-ID>/<ATTEMPT-ID>/attempt.json and its corrections/ directory. "
+            "No files were migrated.",
+            {"path": raw_task_directory, "files": legacy_files},
+        )
+    return task_directory
+
+
 def portable_path_identity(path: Path) -> str:
     return unicodedata.normalize("NFC", str(path)).casefold()
 

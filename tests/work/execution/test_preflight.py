@@ -239,6 +239,21 @@ Instructions
             skill_roots=[self.skill_root],
         )
 
+    def test_rejects_flat_execution_history_without_writing(self) -> None:
+        task_directory = self.index_path.parent / "TASK-001"
+        task_directory.mkdir()
+        legacy = task_directory / "ATTEMPT-001.json"
+        legacy.write_bytes(b"legacy")
+        original_index = self.index_path.read_bytes()
+
+        with self.assertRaises(WorkError) as context:
+            self.preflight()
+
+        self.assertEqual(context.exception.code, "execution_legacy_layout_unsupported")
+        self.assertEqual(self.index_path.read_bytes(), original_index)
+        self.assertEqual(legacy.read_bytes(), b"legacy")
+        self.assertEqual(sorted(path.name for path in task_directory.iterdir()), [legacy.name])
+
     def test_returns_execute_instruction_selection(self) -> None:
         result = self.preflight()
         selection = result["execute_instruction_selection"]

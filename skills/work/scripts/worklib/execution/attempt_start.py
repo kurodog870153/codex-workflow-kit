@@ -23,7 +23,7 @@ from ..contracts.execution_index import (
 )
 from ..foundation.fingerprint import read_raw
 from ..foundation.markdown import parse_json_contract
-from ..foundation.paths import resolve_project_relative_path
+from ..foundation.paths import resolve_project_relative_path, validate_execution_task_layout
 from ..skills.catalog import SkillRoot
 from .attempt_start_request import parse_attempt_start_request
 from .attempt_start_transactions import (
@@ -78,9 +78,9 @@ def _validate_attempt_namespace(
     allow_current: bool,
 ) -> None:
     existing = sorted(
-        path.stem
-        for path in task_directory.glob("ATTEMPT-*.json")
-        if ATTEMPT_PATTERN.fullmatch(path.stem)
+        path.name
+        for path in task_directory.glob("ATTEMPT-*")
+        if ATTEMPT_PATTERN.fullmatch(path.name)
     ) if task_directory.is_dir() else []
     if original_status == "pending" and existing:
         allowed = [attempt_id] if allow_current else []
@@ -122,7 +122,7 @@ def _load_source_attempt(
     task_id: str,
     source_attempt_id: str,
 ) -> dict[str, Any]:
-    raw_path = f"{execution_dir}/{task_id}/{source_attempt_id}.json"
+    raw_path = f"{execution_dir}/{task_id}/{source_attempt_id}/attempt.json"
     result = validate_attempt_file(project_root, raw_path)
     if result["status"] == "in_progress":
         _error(
@@ -334,6 +334,15 @@ def _complete_transaction(
         attempt_id=attempt_id,
         stage="started",
     )
+    execution_dir = execution_path.relative_to(project_root).as_posix()
+    validate_execution_task_layout(
+        project_root, f"{execution_dir}/{task_id}"
+    )
+    _, attempt_path = resolve_project_relative_path(
+        project_root,
+        f"{execution_dir}/{task_id}/{attempt_id}/attempt.json",
+        field="attempt_path",
+    )
     current_lock = index.get("lock")
     if current_lock is None:
         locked = _locked_index(index, lock=lock)
@@ -353,17 +362,15 @@ def _complete_transaction(
             lock=current_lock,
         )
 
-    task_directory = execution_path / task_id
     try:
-        task_directory.mkdir(exist_ok=True)
+        attempt_path.parent.mkdir(parents=True, exist_ok=True)
     except OSError as error:
         raise WorkError(
             ExitCode.IO_FAILURE,
-            "attempt_start_task_directory_failed",
-            "The TASK execution directory could not be created.",
-            {"path": str(task_directory)},
+            "attempt_start_attempt_directory_failed",
+            "The Attempt execution directory could not be created.",
+            {"path": str(attempt_path.parent)},
         ) from error
-    attempt_path = task_directory / f"{attempt_id}.json"
     rendered_attempt = render_attempt_contract(attempt, project_root=project_root)
     if attempt_path.exists():
         if not allow_recovery or read_raw(attempt_path) != rendered_attempt:
@@ -452,7 +459,9 @@ def start_attempt(
     original_status = row["status"]
     source_attempt = row.get("latest_attempt") if original_status == "pending_retry" else None
     attempt_id = _attempt_id_after(source_attempt)
-    task_directory = execution_path / task_id
+    task_directory = validate_execution_task_layout(
+        project_root, f"{execution_dir}/{task_id}"
+    )
     _validate_attempt_namespace(
         task_directory,
         original_status=original_status,
@@ -469,7 +478,7 @@ def start_attempt(
         attempt_id=attempt_id,
         started_at=_timestamp(now),
     )
-    attempt_path = task_directory / f"{attempt_id}.json"
+    attempt_path = task_directory / attempt_id / "attempt.json"
     lock_temporary = _transaction_path(
         execution_path, task_id=task_id, attempt_id=attempt_id, stage="lock"
     )
@@ -593,7 +602,9 @@ def recover_attempt_start(
         execution_dir=execution_dir,
         expected=request["worktree_snapshot_sha256"],
     )
-    task_directory = execution_path / task_id
+    task_directory = validate_execution_task_layout(
+        project_root, f"{execution_dir}/{task_id}"
+    )
     row = _task_row(index, task_id)
     latest_attempt = (
         request.get("continuation", {}).get("source_attempt_id")
@@ -607,7 +618,7 @@ def recover_attempt_start(
         attempt_id=attempt_id,
         allow_current=True,
     )
-    attempt_path = task_directory / f"{attempt_id}.json"
+    attempt_path = task_directory / attempt_id / "attempt.json"
     existing_started_at: str | None = None
     if attempt_path.exists():
         validation = validate_attempt_file(

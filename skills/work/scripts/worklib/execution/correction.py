@@ -60,9 +60,9 @@ def _timestamp(now: datetime | None) -> str:
     return value.replace(second=0, microsecond=0).isoformat(timespec="minutes")
 
 
-def _next_correction_id(task_path: Path, attempt_id: str) -> str:
+def _next_correction_id(correction_directory: Path, attempt_id: str) -> str:
     numbers: list[int] = []
-    for path in task_path.glob(f"{attempt_id}-CORRECTION-*.json"):
+    for path in correction_directory.glob(f"{attempt_id}-CORRECTION-*.json"):
         match = CORRECTION_PATTERN.fullmatch(path.stem)
         if not match or match.group(1) != attempt_id:
             _error(
@@ -80,6 +80,22 @@ def _next_correction_id(task_path: Path, attempt_id: str) -> str:
             "The Correction ID range is exhausted for this Attempt.",
         )
     return f"{attempt_id}-CORRECTION-{number:03d}"
+
+
+def _create_correction_directory(path: Path) -> None:
+    try:
+        path.mkdir(exist_ok=True)
+    except OSError as error:
+        raise WorkError(
+            ExitCode.IO_FAILURE,
+            "correction_create_directory_failed",
+            "The Correction directory could not be created.",
+            {
+                "path": str(path),
+                "recovery_required": True,
+                "transaction_stage": "correction_directory_prepared",
+            },
+        ) from error
 
 
 def _descendants(task_contract: dict[str, Any], task_id: str) -> set[str]:
@@ -254,7 +270,7 @@ def create_correction(
         )
     attempt_id = request["target_attempt_id"]
     attempt_relative = (
-        f"{context['normalized_execution']}/{task_id}/{attempt_id}.json"
+        f"{context['normalized_execution']}/{task_id}/{attempt_id}/attempt.json"
     )
     validation = validate_attempt_file(project_root, attempt_relative)
     if validation["status"] == "in_progress":
@@ -280,8 +296,12 @@ def create_correction(
             "correction_create_not_latest_attempt",
             "Only the latest Attempt can invalidate the current TASK completion.",
         )
-    task_directory = attempt_path.parent
-    correction_id = _next_correction_id(task_directory, attempt_id)
+    _, correction_directory = resolve_project_relative_path(
+        project_root,
+        f"{context['normalized_execution']}/{task_id}/{attempt_id}/corrections",
+        field="correction_directory",
+    )
+    correction_id = _next_correction_id(correction_directory, attempt_id)
     affected_task_ids = correction_affected_task_ids(
         index,
         context["task_contract"],
@@ -329,7 +349,7 @@ def create_correction(
     lock_temporary = execution_path / f"{prefix}-lock.tmp"
     index_temporary = execution_path / f"{prefix}-index.tmp"
     correction_relative = (
-        f"{context['normalized_execution']}/{task_id}/{correction_id}.json"
+        f"{context['normalized_execution']}/{task_id}/{attempt_id}/corrections/{correction_id}.json"
     )
     _, correction_path = resolve_project_relative_path(
         project_root, correction_relative, field="correction_path"
@@ -344,6 +364,7 @@ def create_correction(
         source_bytes=context["index_raw"],
         stage="lock_installed",
     )
+    _create_correction_directory(correction_path.parent)
     install_exclusive(
         artifact_temporary,
         correction_path,
@@ -448,7 +469,7 @@ def recover_correction(
     lock_temporary = execution_path / f"{prefix}-lock.tmp"
     index_temporary = execution_path / f"{prefix}-index.tmp"
     correction_relative = (
-        f"{context['normalized_execution']}/{task_id}/{correction_id}.json"
+        f"{context['normalized_execution']}/{task_id}/{attempt_id}/corrections/{correction_id}.json"
     )
     _, correction_path = resolve_project_relative_path(
         project_root, correction_relative, field="correction_path"
@@ -480,7 +501,7 @@ def recover_correction(
             "The preserved Correction content has another identity.",
         )
     attempt_relative = (
-        f"{context['normalized_execution']}/{task_id}/{attempt_id}.json"
+        f"{context['normalized_execution']}/{task_id}/{attempt_id}/attempt.json"
     )
     attempt_validation = validate_attempt_file(project_root, attempt_relative)
     if attempt_validation["status"] == "in_progress":
@@ -641,6 +662,7 @@ def recover_correction(
             artifact_temporary, stage="recovery_correction_installed"
         )
     else:
+        _create_correction_directory(correction_path.parent)
         install_exclusive(
             artifact_temporary,
             correction_path,
