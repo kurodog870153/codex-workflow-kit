@@ -66,6 +66,21 @@ def _decode(raw: bytes) -> dict[str, Any]:
     return value
 
 
+def read_task_planning_revision(
+    project_root: Path, requirement_id: str, revision: int,
+) -> dict[str, Any]:
+    """Read and validate one immutable index by its exact identity and revision."""
+    if type(revision) is not int or revision < 1:
+        raise _error("invalid_expected_revision", "An existing planning revision is required.")
+    index = _decode(_read(_path(project_root, requirement_id, f"history/{revision}/index.json")))
+    validate_task_planning_index(index)
+    if index["requirement_id"] != requirement_id:
+        raise _error("draft_requirement_mismatch", "The historical index belongs to another requirement.")
+    if index["revision"] != revision:
+        raise _error("draft_revision_conflict", "The historical index identifies another revision.")
+    return index
+
+
 def read_task_planning_index(project_root: Path, requirement_id: str) -> dict[str, Any]:
     """Read the committed index and its historical copy, without any drafts."""
     raw = _read(_path(project_root, requirement_id, "index.json"))
@@ -87,6 +102,15 @@ def read_task_draft(project_root: Path, requirement_id: str, task_id: str) -> di
     if not isinstance(task_id, str) or not re.fullmatch(r"TASK-[0-9]{3}", task_id):
         raise _error("invalid_draft_task_id", "A TASK-NNN identifier is required.")
     index = read_task_planning_index(project_root, requirement_id)
+    return read_task_draft_from_index(project_root, index, task_id)
+
+
+def read_task_draft_from_index(
+    project_root: Path, index: dict[str, Any], task_id: str,
+) -> dict[str, Any]:
+    """Verify one historical discussion against a caller's validated index snapshot."""
+    validate_task_planning_index(index)
+    requirement_id = index["requirement_id"]
     entry = next((task for task in index["tasks"] if task["id"] == task_id), None)
     if entry is None or "draft_ref" not in entry:
         raise _error("draft_not_saved", "The requested TASK has no committed draft.")
@@ -149,6 +173,8 @@ def _prepare_task_planning(
             if task["id"] != task_id and task != old_entries[task["id"]]:
                 raise _error("draft_scope_changed", "This save can change only the selected TASK.")
         old = old_entries[task_id]
+        if "instruction_selection" in old and target.get("instruction_selection") != old["instruction_selection"]:
+            raise _error("draft_selection_mismatch", "Changing a saved instruction selection requires the source-update workflow.")
         old_revision = old.get("draft_ref", {}).get("revision", 0)
         if candidate.get("revision") != old_revision + 1:
             raise _error("draft_revision_conflict", "The draft must immediately follow its previous revision.")
@@ -247,10 +273,7 @@ Incomplete history and display copies are left untouched.
     requirement_id = index["requirement_id"]
     previous = None
     if expected_revision:
-        previous = _decode(_read(_path(project_root, requirement_id, f"history/{expected_revision}/index.json")))
-        validate_task_planning_index(previous)
-        if previous["requirement_id"] != requirement_id:
-            raise _error("draft_requirement_mismatch", "The previous index belongs to another requirement.")
+        previous = read_task_planning_revision(project_root, requirement_id, expected_revision)
     proposed, draft_raw, task_id = _prepare_task_planning(
         index, expected_revision=expected_revision, previous=previous, draft=draft,
     )

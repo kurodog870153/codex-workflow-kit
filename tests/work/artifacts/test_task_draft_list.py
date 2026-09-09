@@ -86,6 +86,14 @@ class TaskDraftListTests(unittest.TestCase):
         self.assertEqual(context.exception.code, "draft_list_metadata_changed")
         self.assertEqual(read_task_planning_index(self.root, "example"), self.before)
 
+    def test_list_update_cannot_change_existing_selection(self):
+        self.proposed["tasks"][0]["goal"] = "Changed goal"
+        self.proposed["tasks"][0]["instruction_selection"] = {"selected_paths": [], "references": []}
+        with self.assertRaises(WorkError) as context:
+            self.update()
+        self.assertEqual(context.exception.code, "draft_selection_mismatch")
+        self.assertEqual(read_task_planning_index(self.root, "example"), self.before)
+
     def test_interrupted_update_recovers_exact_content(self):
         self.proposed["tasks"][0]["goal"] = "Changed"
         with patch("worklib.artifacts.task_draft_list.os.replace", side_effect=OSError("interrupted")):

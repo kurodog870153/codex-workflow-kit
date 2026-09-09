@@ -53,6 +53,7 @@ class TaskDraftSourceUpdateTests(unittest.TestCase):
         }
 
         self.request = {"reason": "Confirmed source change", "selections": {"TASK-001": {"selected_paths": [], "references": []}}}
+        self.index["tasks"][0]["instruction_selection"] = {"selected_paths": [], "references": []}
         self.options = {"expected_revision": 2, "plan_path": self.plan["artifacts"]["plan"], "user_config_root": str(self.root)}
 
     def initialize(self):
@@ -90,6 +91,15 @@ class TaskDraftSourceUpdateTests(unittest.TestCase):
         self.assertEqual(draft["confirmed_decisions"][0]["rationale"], "Reason")
         self.assertEqual(draft["source"], index["source"])
 
+    def test_source_update_records_selection_for_legacy_entry(self):
+        self.index["tasks"][0].pop("instruction_selection")
+        self.initialize()
+        self.change_plan()
+        self.update()
+        entry = read_task_planning_index(self.root, "example")["tasks"][0]
+        self.assertEqual(entry["instruction_selection"], self.request["selections"]["TASK-001"])
+        self.assertNotIn("instruction_selection", self.before["tasks"][0])
+
     def test_local_instruction_update_preserves_unaffected_reference(self):
         second = copy.deepcopy(self.index["tasks"][0])
         second["id"] = "TASK-002"
@@ -101,6 +111,7 @@ class TaskDraftSourceUpdateTests(unittest.TestCase):
         index = read_task_planning_index(self.root, "example")
         self.assertEqual(index["tasks"][1], self.before["tasks"][1])
         self.assertEqual(index["tasks"][0]["boundary_revision"], 2)
+        self.assertEqual(index["tasks"][0]["instruction_selection"]["references"], ["task.general.task-records"])
 
     def test_update_requires_current_revision(self):
         self.initialize()
@@ -138,6 +149,7 @@ class TaskDraftSourceUpdateTests(unittest.TestCase):
         self.assertEqual(read_task_planning_index(self.root, "example"), self.before)
         self.assertEqual(self.update(recover=True)["status"], "recovered")
         self.assertEqual(self.update(recover=True)["status"], "already_completed")
+        self.assertEqual(read_task_planning_index(self.root, "example")["tasks"][0]["instruction_selection"], self.request["selections"]["TASK-001"])
 
     def test_recovery_rejects_sources_changed_again(self):
         self.initialize()

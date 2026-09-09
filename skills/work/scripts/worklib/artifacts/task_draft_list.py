@@ -29,6 +29,9 @@ def _prepare_list(
         raise _error("draft_revision_conflict", "The list revision must immediately follow the previous index.")
     old = {task["id"]: task for task in previous["tasks"]}
     new = {task["id"]: task for task in result["tasks"]}
+    for task_id in set(old) & set(new):
+        if new[task_id].get("instruction_selection") != old[task_id].get("instruction_selection"):
+            raise _error("draft_selection_mismatch", "List updates must preserve existing instruction selections; use source-update to change them.")
     retired = set(previous.get("retired_task_ids", []))
     added, removed = set(new) - set(old), set(old) - set(new)
     highest = max(int(task_id[5:]) for task_id in set(old) | retired)

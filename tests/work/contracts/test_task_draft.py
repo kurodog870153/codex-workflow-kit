@@ -56,6 +56,13 @@ class TaskDraftContractTests(unittest.TestCase):
     def validate(self):
         return validate_task_draft(self.draft, index=self.index)
 
+    def test_optional_index_selection_preserves_legacy_drafts(self):
+        self.assertEqual(self.validate()["status"], "valid")
+        self.index["tasks"][0]["instruction_selection"] = {"selected_paths": [], "references": []}
+        self.assertEqual(self.validate()["status"], "valid")
+        self.index["tasks"][0]["instruction_selection"]["references"] = ["same", "same"]
+        self.assert_rejected(self.validate, "invalid_source_selection")
+
     def test_incomplete_discussion_is_valid_without_formal_readiness(self) -> None:
         before = copy.deepcopy((self.index, self.draft))
         result = self.validate()

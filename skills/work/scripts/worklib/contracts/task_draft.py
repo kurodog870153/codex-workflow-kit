@@ -12,6 +12,7 @@ from typing import Any
 
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.paths import validate_requirement_id
+from ..instructions.draft_selection import validate_draft_instruction_selection
 from .task_dependencies import resolve_task_dependencies
 from .validation import nonempty_string, sha256, strict_keys
 
@@ -81,7 +82,7 @@ def validate_task_planning_index(value: object) -> dict[str, object]:
                 "id", "title", "goal", "scope", "skill_id", "dependencies",
                 "status", "boundary_revision", "instructions_sha256",
             },
-            optional={"draft_ref"},
+            optional={"draft_ref", "instruction_selection"},
         )
         task_id = _task_id(task["id"], f"{location}.id")
         if task_id in task_ids:
@@ -96,6 +97,8 @@ def validate_task_planning_index(value: object) -> dict[str, object]:
             _reject("invalid_draft_status", "A planning status is required.", location)
         _revision(task["boundary_revision"], f"{location}.boundary_revision")
         sha256(task["instructions_sha256"], location=f"{location}.instructions_sha256")
+        if "instruction_selection" in task:
+            validate_draft_instruction_selection(task["instruction_selection"])
         if "draft_ref" in task:
             reference = strict_keys(
                 task["draft_ref"], location=f"{location}.draft_ref",

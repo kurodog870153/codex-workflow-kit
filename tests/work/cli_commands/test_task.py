@@ -18,6 +18,56 @@ from worklib.foundation.errors import ExitCode
 
 
 class TaskCliTests(unittest.TestCase):
+    def test_draft_status_dispatches_optional_explicit_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            for task_id in (None, "TASK-002"):
+                with self.subTest(task_id=task_id):
+                    output, error = io.StringIO(), io.StringIO()
+                    extra = [] if task_id is None else ["--task-id", task_id]
+                    with patch("worklib.cli_commands.task.task_draft_status", return_value={"next_action": "confirm_start"}) as operation:
+                        code = main(["--project-root", str(root), "task", "draft-status", "--requirement-id", "example", *extra], stdout=output, stderr=error)
+                    self.assertEqual((code, error.getvalue()), (ExitCode.SUCCESS, ""))
+                    self.assertEqual(json.loads(output.getvalue())["next_action"], "confirm_start")
+                    operation.assert_called_once_with(root, "example", task_id=task_id)
+
+    def test_single_draft_request_commands_dispatch(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            for command in ("draft-save-request", "draft-recover-request"):
+                for selection, paths in ((["--general-only"], []), (["--instruction-path", "web/backend"], ["web/backend"])):
+                    with self.subTest(command=command, selection=selection):
+                        output, error = io.StringIO(), io.StringIO()
+                        request = {"status": "in_progress", "notes": ["Discussion"]}
+                        with patch("worklib.cli_commands.task.save_task_draft_request", return_value={"status": "saved"}) as operation:
+                            code = main([
+                                "--project-root", str(root), "task", command, "--stdin",
+                                "--requirement-id", "example", "--task-id", "TASK-001",
+                                "--expected-revision", "2", "--plan-path", "outputs/work/plans/example.json",
+                                "--user-config-root", str(root), "--reference", "task.general.task-records",
+                                *selection,
+                            ], stdin=io.StringIO(json.dumps(request)), stdout=output, stderr=error)
+                        self.assertEqual((code, error.getvalue()), (ExitCode.SUCCESS, ""))
+                        operation.assert_called_once_with(
+                            root, "example", "TASK-001", request, expected_revision=2,
+                            plan_path="outputs/work/plans/example.json", user_config_root=str(root),
+                            skill_roots=[], selected_paths=paths, reference_names=["task.general.task-records"],
+                            recover=command == "draft-recover-request",
+                        )
+
+    def test_single_draft_request_requires_stdin_and_rejects_conflicting_selection(self) -> None:
+        for command in ("draft-save-request", "draft-recover-request"):
+            for extra in ([], ["--general-only"], ["--stdin", "--general-only", "--instruction-path", "web"]):
+                with self.subTest(command=command, extra=extra):
+                    with self.assertRaises(Exception) as context:
+                        build_parser().parse_args([
+                            "--project-root", "/project", "task", command,
+                            "--requirement-id", "example", "--task-id", "TASK-001",
+                            "--expected-revision", "1", "--plan-path", "outputs/work/plans/example.json",
+                            "--user-config-root", "/config", *extra,
+                        ])
+                    self.assertEqual(context.exception.code, "cli_usage_error")
+
     def test_source_update_commands_dispatch(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
@@ -94,15 +144,37 @@ class TaskCliTests(unittest.TestCase):
                         reference_names=["task.general.task-records"],
                     )
 
-    def test_draft_check_requires_explicit_instruction_selection(self) -> None:
-        with self.assertRaises(Exception) as context:
-            build_parser().parse_args([
-                "--project-root", "/project", "task", "draft-check",
-                "--requirement-id", "example", "--task-id", "TASK-001",
-                "--expected-revision", "1", "--plan-path", "outputs/work/plans/example.json",
-                "--user-config-root", "/config",
-            ])
-        self.assertEqual(context.exception.code, "cli_usage_error")
+    def test_draft_commands_dispatch_missing_flags_as_saved_selection(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            for command, function in (("draft-check", "check_task_draft_sources"), ("draft-save-request", "save_task_draft_request"), ("draft-recover-request", "save_task_draft_request")):
+                with self.subTest(command=command):
+                    output, error = io.StringIO(), io.StringIO()
+                    extra = [] if command == "draft-check" else ["--stdin"]
+                    with patch("worklib.cli_commands.task." + function, return_value={"status": "valid"}) as operation:
+                        code = main([
+                            "--project-root", str(root), "task", command,
+                            "--requirement-id", "example", "--task-id", "TASK-001",
+                            "--expected-revision", "1", "--plan-path", "outputs/work/plans/example.json",
+                            "--user-config-root", str(root), *extra,
+                        ], stdin=io.StringIO("{}"), stdout=output, stderr=error)
+                    self.assertEqual((code, error.getvalue()), (ExitCode.SUCCESS, ""))
+                    self.assertIsNone(operation.call_args.kwargs["selected_paths"])
+                    self.assertIsNone(operation.call_args.kwargs["reference_names"])
+
+    def test_draft_commands_reject_references_without_explicit_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            for command in ("draft-check", "draft-save-request", "draft-recover-request"):
+                output, error = io.StringIO(), io.StringIO()
+                extra = [] if command == "draft-check" else ["--stdin"]
+                code = main([
+                    "--project-root", temporary, "task", command,
+                    "--requirement-id", "example", "--task-id", "TASK-001",
+                    "--expected-revision", "1", "--plan-path", "outputs/work/plans/example.json",
+                    "--user-config-root", temporary, "--reference", "task.general.task-records", *extra,
+                ], stdin=io.StringIO("{}"), stdout=output, stderr=error)
+                self.assertEqual(code, ExitCode.CLI_USAGE)
+                self.assertEqual(json.loads(error.getvalue())["code"], "draft_selection_incomplete")
 
     def test_create_arguments_parse(self) -> None:
         arguments = build_parser().parse_args(
