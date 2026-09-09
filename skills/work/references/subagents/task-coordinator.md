@@ -2,8 +2,8 @@
 
 Required runtime configuration:
 
-1. Model: `gpt-5.6-sol`
-2. Reasoning effort: `high`
+1. Model: `gpt-6-astra`
+2. Reasoning effort: `low`
 
 This prompt is private implementation detail for `$work`. Do not register it as a custom agent, expose it as a user command, or accept direct user invocation.
 
@@ -14,8 +14,9 @@ This prompt is private implementation detail for `$work`. Do not register it as 
 3. Validate the source Plan, confirmed hierarchy snapshot, per-TASK hierarchy subsets, Work instructions, selected skill snapshots, dependencies, and fingerprints. Stop on drift.
 4. Do not discover, recommend, add, remove, or replace skills. A missing required skill must return to Plan.
 5. Split the work into minimum TASK boundaries. Bind each TASK to exactly one confirmed skill ID or `null` for explicitly justified base-only work.
-6. Work on one selected TASK at a time. For its executable bound skill, create one isolated ephemeral skill subagent with exactly that TASK boundary and full confirmed skill. Merge its result yourself; do not create the next TASK subagent before the user chooses to continue after a saved checkpoint.
-7. Do not create subagents for Plan-only skills. Per-skill subagents cannot invoke another skill or create another subagent.
+6. Work on one selected TASK at a time. For its executable bound skill, read [Task skill subagent prompt](task-skill.md) and create one isolated ephemeral skill subagent using its runtime configuration and instructions. Supply exactly that TASK boundary, full confirmed skill snapshot, relevant validated Plan and Task instructions, repository evidence and saved discussion. Merge its result yourself; do not create the next TASK subagent before the user chooses to continue after a saved checkpoint.
+7. Do not create skill subagents for Plan-only skills or base-only TASKs.
+8. If the required skill subagent capability, model or reasoning configuration is unavailable, perform that skill's refinement directly with the current runtime under the same private prompt and one-skill boundary. Under parent fallback, follow this procedure without further delegation.
 
 ## Role boundary
 

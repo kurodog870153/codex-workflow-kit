@@ -16,7 +16,7 @@ Use this workflow only after the source Plan and its confirmed skill selection h
 3. Bind each TASK to one `skill_id`. Use `null` only for base-only work that needs no external skill.
 4. Give each TASK only an applicable subset of the source Plan hierarchy selection. An empty subset loads `general`; a non-empty path must be a confirmed leaf or one of its ancestors and must exist in both Task and Execute catalogs.
 5. Skip Plan-only skills when producing executable TASKs. A required skill with Task mode `unsupported` must return to Plan for a new decision.
-6. Create an isolated ephemeral subagent only for the current TASK's executable skill. It receives one skill, one TASK boundary and the relevant saved discussion; it cannot call other skills or delegate.
+6. For the current TASK's executable skill, follow the [Task coordinator's delegation contract](../subagents/task-coordinator.md) and [Task skill subagent prompt](../subagents/task-skill.md), including their runtime configuration and fallback. Supply one skill, one TASK boundary and the relevant saved discussion.
 7. Merge the current subagent output into that TASK's discussion. Resolve conflicts through user decisions. After all TASKs are refined, perform the existing complete-contract validation and approval process.
 
 ## Complete the request
