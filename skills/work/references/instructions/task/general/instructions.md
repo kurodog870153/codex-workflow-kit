@@ -51,5 +51,5 @@ metadata:
 
 1. [強制] 正式 TASK 核准後才能建立或同步 execution index；Task 不建立 Attempt，也不執行成果。
 2. [強制] Plan 交入需求時使用 `plan_to_task`，Execute 發現正式 TASK 缺漏時使用 `execute_to_task`；兩者都必須是已由 Work Python CLI 驗證、含固定 `WORK-HANDOFF` marker 的純 JSON 交接，Task 不修改既有 Attempt。
-3. [強制] TASK 正式化後使用 `task_to_execute`，需要修改 Plan 時使用 `task_to_plan`；交接須由 Work Python CLI render，只存在於對話，且本身不授權修改 Plan、TASK、index 或 Attempt。
+3. [強制] TASK 正式化後使用 `task_to_execute`，同一對話需要同步修改既有 Plan、TASK 與 index 時，回傳父 agent 交由私人 artifact editor 處理；跨對話需要修改 Plan 時使用 `task_to_plan`；交接須由 Work Python CLI render，只存在於對話，且本身不授權修改 Plan、TASK、index 或 Attempt。
 4. [強制] 完成回報列出 TASK spec、每 TASK 的 `skill_id`、變更檔案、Work references、驗證結果及仍需 Execute 處理的事項。

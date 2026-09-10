@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 from typing import TextIO
 
+from ..artifacts.specification import update_specification
 from ..artifacts.task import create_task_artifacts, recover_task_create
 from ..artifacts.task_draft import (
     read_task_draft,
@@ -26,6 +27,14 @@ from . import SubparserRegistry
 def register_task_commands(commands: SubparserRegistry) -> None:
     task_parser = commands.add_parser("task")
     task_commands = task_parser.add_subparsers(dest="task_command", required=True)
+
+    for name in ("spec-validate", "spec-update", "spec-recover"):
+        spec = task_commands.add_parser(name, help="Internal coordinated specification revision.")
+        spec.add_argument("--stdin", action="store_true", required=True)
+        spec.add_argument("--user-config-root", required=True)
+        spec.add_argument("--skill-root", action="append", default=[])
+        if name != "spec-validate":
+            spec.add_argument("--approved-sha256", required=True)
 
     draft_init = task_commands.add_parser("draft-init", help="Save an initial planning index from stdin.")
     draft_init.add_argument("--stdin", action="store_true", required=True)
@@ -95,6 +104,14 @@ def run_task(
     project_root: Path,
     input_stream: TextIO,
 ) -> dict[str, object]:
+    if arguments.task_command in {"spec-validate", "spec-update", "spec-recover"}:
+        return update_specification(
+            input_stream.read().encode("utf-8"), project_root=project_root,
+            user_config_root=arguments.user_config_root,
+            skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
+            operation={"spec-validate": "validate", "spec-update": "apply", "spec-recover": "recover"}[arguments.task_command],
+            approved_sha256=getattr(arguments, "approved_sha256", None),
+        )
     if arguments.task_command in {"draft-list-update", "draft-list-recover"}:
         request = strict_keys(
             parse_json_contract(input_stream.read().encode("utf-8"), source="stdin"),

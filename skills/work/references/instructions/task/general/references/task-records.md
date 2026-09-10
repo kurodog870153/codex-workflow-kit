@@ -53,3 +53,7 @@
 5. [強制] 初版 index 的所有 TASK 狀態與 `overall_status` 均為 `pending`，不建立 `latest_attempt`、`status_reason`、lock、audit 或其他 execution record。
 6. [強制] create 部分失敗時不刪除或覆寫已完成內容；`task recover-create` 只有在相同 canonical TASK 已存在且 execution 目錄不存在、為空或只含完全相同初始 index 時可使用，且須先取得使用者授權。
 7. [強制] Validator 只驗證 contract；create／recover-create 都不執行 CMD 或 OP，也不建立 Attempt、execution lock、instruction audit 或規格升版交易。
+
+8. [強制] 已確認的既有規格同步修改由父 agent 呼叫私人 artifact editor，使用 `task spec-validate`、`task spec-update` 與另行授權的 `task spec-recover`；三者不新增公開 Work mode，且不得手寫正式 JSON 或執行 TASK。
+9. [強制] 同步修改先驗證整組候選與來源指紋，核准綁定 `approved_sha256`；交易保存前後規格、使用 `spec_update` 鎖，完成標記發布前阻擋 Execute。中斷保留現況，只能依相同候選與授權復原，不宣稱多檔案具檔案系統層級原子性。
+10. [強制] TASK `changes` 保存本次升版的單一變更與完整頂層 edits；舊版規格保存於不可改寫的規格交易紀錄。受影響 TASK 與下游完成狀態由 CLI 重新推導，保留 latest Attempt／Correction 指標及全部既有歷史檔案。

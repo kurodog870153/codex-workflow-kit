@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from ..foundation.spec_update import require_no_spec_update
 from ..foundation.errors import ExitCode, WorkError
 from ..contracts.execution_index import validate_execution_index
 from ..foundation.fingerprint import read_raw
@@ -303,6 +304,7 @@ def execute_preflight(
     _eligible_statuses: set[str] | None = None,
     _rule_status: str | None = None,
 ) -> dict[str, object]:
+    require_no_spec_update(project_root, raw_execution_dir)
     normalized_task, task_path = resolve_project_relative_path(
         project_root, raw_task_path, field="task_path"
     )

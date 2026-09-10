@@ -23,7 +23,13 @@ Use this workflow only after the user-confirmed hierarchy and Plan skill selecti
 3. Require a successful validation result containing the canonical Plan and instruction fingerprints. Treat any nonzero exit code as a hard stop; do not repair, rewrite, retry, or reinterpret a rejected contract without new user direction.
 4. After the user authorizes creation, pipe the identical approved JSON object to the same `plan create` command with every confirmed `--skill-root`. Do not assemble or write the JSON artifact manually.
 5. After creation, run `plan validate --path <plan-path>` with the same skill roots and require the same canonical Plan, hierarchy-selection, Work instruction, and skill-selection fingerprints as the pre-write validation.
-6. Never use `plan create` for an existing Plan. Keep an approved revision in the conversation and hand it to the Task workflow for the authorized Plan, TASK, and execution-index specification transaction.
+6. Never use `plan create` for an existing Plan. Keep the approved revision in the conversation and return it to the parent for the internal artifact editor's combined transaction when formal TASK and index exist.
+
+## Request coordinated revision
+
+1. After the request is confirmed, route changes to existing formal Plan, TASK and execution index through the parent's [private artifact editor](../subagents/artifact-editor.md). Return confirmed decisions, explicit artifact paths, affected IDs, evidence and the current continuation point; do not spawn the editor yourself or repeat already settled questions.
+2. The editor owns the combined preview and authorized specification transaction. This route replaces same-session specification handoffs only. Missing decisions, active locks, source drift and incomplete artifacts remain stops; normal cross-session handoffs and initial creation keep the procedure below.
+3. After the editor returns, reload and validate changed sources before continuing. Completion does not authorize implementation or a new Attempt.
 
 ## Use deterministic handoffs
 

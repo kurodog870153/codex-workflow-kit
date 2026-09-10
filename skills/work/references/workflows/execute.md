@@ -26,10 +26,16 @@ Use this workflow only after the formal target TASK and its single external skil
 5. Run the same arguments through `<work-cli> execute worktree`. Treat `path_classification` only as path-overlap evidence; `target_task`, `completed_dependency`, and `unrelated` never prove ownership.
 6. When `review_status` is `required`, explain every returned change using the approved TASK, a valid Attempt or Correction, or known prior results. Stop when any path or content may belong to the user or cannot be explained. The command excludes only the current execution directory and never modifies Git.
 
+## Request coordinated revision
+
+1. After the request is confirmed, route changes to existing formal Plan, TASK and execution index through the parent's [private artifact editor](../subagents/artifact-editor.md). Return confirmed decisions, explicit artifact paths, affected IDs, evidence and the current continuation point; do not spawn the editor yourself or repeat already settled questions.
+2. The editor owns the combined preview and authorized specification transaction. This route replaces same-session specification handoffs only. Missing decisions, active locks, source drift and incomplete artifacts remain stops; normal cross-session handoffs and initial creation keep the procedure below.
+3. After the editor returns, reload and validate changed sources before continuing. Completion does not authorize implementation or a new Attempt.
+
 ## Use deterministic handoffs
 
 1. Before using `task_to_execute`, pipe its pure JSON to `<work-cli> handoff validate --stdin` and require `work-handoff-validation/v1` with `status: valid`. This does not replace eligibility checks.
-2. For a specification defect, render `execute_to_task` or `execute_to_plan` with actual Attempt or preflight context, `skill_id`, `execute_skill_selection_sha256`, confirmed approach, requested changes, preserved scope, affected IDs, and validation requirements.
+2. For a specification defect requiring a cross-session handoff, render `execute_to_task` or `execute_to_plan` with actual Attempt or preflight context, `skill_id`, `execute_skill_selection_sha256`, confirmed approach, requested changes, preserved scope, affected IDs, and validation requirements.
 3. Place the rendered JSON in one conversation code block without edits. A handoff exists only in the conversation and never modifies Plan, TASK, index, Attempt, or lock state.
 
 ## Use the canonical Attempt contract

@@ -13,6 +13,7 @@ from ..execution.record_begin import begin_record
 from ..execution.record_finish import finish_record
 from ..execution.recovery import recover_execution
 from ..execution.worktree import inspect_execute_worktree
+from ..foundation.spec_update import require_no_spec_update, state_writer, storage_path
 from ..skills.catalog import parse_skill_root
 from . import SubparserRegistry
 
@@ -67,6 +68,21 @@ def run_execute(
     project_root: Path,
     input_stream: TextIO,
 ) -> dict[str, object]:
+    if arguments.execute_command not in {"preflight", "worktree"}:
+        directory = storage_path(project_root, arguments.execution_dir)
+        # Missing artifacts are reported by the existing command validator.
+        if directory.is_dir():
+            with state_writer(project_root, arguments.execution_dir):
+                return _run_execute(arguments, project_root, input_stream)
+    return _run_execute(arguments, project_root, input_stream)
+
+
+def _run_execute(
+    arguments: argparse.Namespace,
+    project_root: Path,
+    input_stream: TextIO,
+) -> dict[str, object]:
+    require_no_spec_update(project_root, arguments.execution_dir)
     common = {
         "project_root": project_root,
         "user_config_root": arguments.user_config_root,

@@ -38,9 +38,15 @@ Use this workflow only after the source Plan and its confirmed skill selection h
 7. Use `<python-command> <skill-root>/scripts/work.py --project-root <project-root> task recover-create --stdin --plan-path <plan-path> --task-path <task-path> --execution-dir <execution-dir>` only after the user explicitly authorizes recovery and only with the identical approved JSON and three paths.
 8. Neither validation, creation, nor recovery executes CMD or OP or creates an Attempt, execution lock, instruction audit, or specification-update transaction.
 
+## Request coordinated revision
+
+1. After the request is confirmed, route changes to existing formal Plan, TASK and execution index through the parent's [private artifact editor](../subagents/artifact-editor.md). Return confirmed decisions, explicit artifact paths, affected IDs, evidence and the current continuation point; do not spawn the editor yourself or repeat already settled questions.
+2. The editor owns the combined preview and authorized specification transaction. This route replaces same-session specification handoffs only. Missing decisions, active locks, source drift and incomplete artifacts remain stops; normal cross-session handoffs and initial creation keep the procedure below.
+3. After the editor returns, reload and validate changed sources before continuing. Completion does not authorize implementation or a new Attempt.
+
 ## Use deterministic handoffs
 
 1. Before accepting `plan_to_task` or `execute_to_task`, pipe its pure JSON to `<python-command> <skill-root>/scripts/work.py --project-root <project-root> handoff validate --stdin` and require `work-handoff-validation/v1` with `status: valid`.
-2. After TASK formalization, use `<python-command> <skill-root>/scripts/work.py --project-root <project-root> handoff render --stdin` to produce `task_to_execute`. Use the same command to produce `task_to_plan` when the Plan must change.
+2. After TASK formalization, use `<python-command> <skill-root>/scripts/work.py --project-root <project-root> handoff render --stdin` to produce `task_to_execute`. Use `task_to_plan` for a cross-session Plan handoff; use the internal editor above for a confirmed same-session revision.
 3. Place rendered JSON in one conversation code block without edits. Require the fixed marker, actual requirement ID, all artifact paths, Plan skill-selection hash, and applicable single `skill_id`.
 4. A handoff exists only in the conversation and never modifies Plan, TASK, index, Attempt, or lock state.
