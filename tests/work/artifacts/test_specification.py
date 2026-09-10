@@ -129,6 +129,122 @@ class SpecificationUpdateTests(unittest.TestCase):
     def snapshot(self):
         return {p.relative_to(self.root).as_posix(): p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
 
+    def migration_request(self):
+        # Simulate a consistent historical baseline unavailable in the install.
+        plan = copy.deepcopy(self.plan)
+        task = copy.deepcopy(self.task)
+        plan["work_instruction_selection"]["sources"][0]["canonical_sha256"] = "a" * 64
+        plan["work_instruction_selection"]["instructions_sha256"] = "b" * 64
+        self.plan_path.write_bytes(render_plan_contract(plan))
+        task["source_plan"]["canonical_sha256"] = digest(self.plan_path.read_bytes())
+        for selection in [task["instruction_selection"]] + [row["instruction_selection"] for row in task["tasks"]]:
+            selection["sources"][0]["canonical_sha256"] = "c" * 64
+            selection["instructions_sha256"] = "d" * 64
+        self.task_path.write_bytes(render_task_contract(task))
+        validation = validate_task_contract(self.task_path.read_bytes(), source="historical fixture",
+            actual_task_path=self.artifacts["task"], project_root=self.root, user_config_root=str(self.root),
+            _historical_work_sources=True)
+        self.index = build_initial_execution_index(task, validation)
+        self.index_path.write_bytes(render_execution_index(self.index))
+        request = self.request()
+        request["schema"] = "work-spec-migration-request/v1"
+        request["instruction_review"] = {mode: "Reviewed current guidance; revised specification and validations."
+                                         for mode in ("plan", "task", "execute")}
+        request["plan"]["work_instruction_selection"] = copy.deepcopy(self.plan["work_instruction_selection"])
+        candidate = request["task"]
+        candidate["source_plan"]["canonical_sha256"] = digest(render_plan_contract(request["plan"]))
+        candidate["instruction_selection"] = copy.deepcopy(self.task["instruction_selection"])
+        for row, original in zip(candidate["tasks"], self.task["tasks"]):
+            row["instruction_selection"] = copy.deepcopy(original["instruction_selection"])
+            row["validations"][0]["criteria"] += "; reviewed against current guidance"
+        candidate["changes"][0]["edits"] = [
+            {"operation": "replace", "path": "/" + key, "before": task[key], "after": candidate[key]}
+            for key in sorted(task) if key not in {"spec_id", "readiness", "changes"} and task[key] != candidate[key]
+        ]
+        return request
+
+    def run_migration(self, request, operation="validate", approval=None):
+        return update_specification(json.dumps(request).encode(), project_root=self.root,
+            user_config_root=str(self.root), operation=operation, approved_sha256=approval, migration=True)
+
+    def test_migration_revises_drifted_documents_and_restores_normal_revision(self):
+        request = self.migration_request()
+        self.add_history()
+        request["expected"]["index_sha256"] = digest(self.index_path.read_bytes())
+        before = self.snapshot()
+        normal = copy.deepcopy(request)
+        normal["schema"] = "work-spec-update-request/v1"
+        del normal["instruction_review"]
+        with self.assertRaises(WorkError) as error:
+            self.run_update(normal)
+        self.assertEqual(error.exception.code, "work_instruction_selection_sources_mismatch")
+        preview = self.run_migration(request)
+        self.assertEqual(before, self.snapshot())
+        self.assertTrue(preview["migration"]["plan_edits"])
+        self.run_migration(request, "apply", preview["approved_sha256"])
+        for name, raw in before.items():
+            if "/ATTEMPT-" in name:
+                self.assertEqual((self.root / name).read_bytes(), raw)
+        index = json.loads(self.index_path.read_bytes())
+        self.assertTrue(all(row["status"] == "pending_retry" for row in index["tasks"]))
+        self.assertEqual(self.run_update(self.request())["status"], "valid")
+
+    def test_migration_rejects_stale_candidate_and_conflicting_baseline(self):
+        request = self.migration_request()
+        before = self.snapshot()
+        stale = copy.deepcopy(request)
+        stale["plan"]["work_instruction_selection"] = json.loads(self.plan_path.read_bytes())["work_instruction_selection"]
+        with self.assertRaises(WorkError) as error:
+            self.run_migration(stale)
+        self.assertEqual(error.exception.code, "work_instruction_selection_sources_mismatch")
+        self.assertEqual(before, self.snapshot())
+        broken = json.loads(self.task_path.read_bytes())
+        broken["instruction_selection"]["sources"][0]["canonical_sha256"] = "e" * 64
+        self.task_path.write_bytes(render_task_contract(broken))
+        request["expected"]["task_sha256"] = digest(self.task_path.read_bytes())
+        with self.assertRaises(WorkError) as error:
+            self.run_migration(request)
+        self.assertEqual(error.exception.code, "historical_instruction_union_mismatch")
+
+    def test_migration_approval_binds_execute_sources_and_review(self):
+        request = self.migration_request()
+        preview = self.run_migration(request)
+        before = self.snapshot()
+        builder = specification.build_instruction_selection
+        def changed(**kwargs):
+            selection = builder(**kwargs)
+            selection["instructions_sha256"] = "e" * 64
+            return selection
+        with patch.object(specification, "build_instruction_selection", side_effect=changed):
+            with self.assertRaises(WorkError) as error:
+                self.run_migration(request, "apply", preview["approved_sha256"])
+        self.assertEqual(error.exception.code, "spec_update_approval_changed")
+        request["instruction_review"]["execute"] += " changed"
+        with self.assertRaises(WorkError) as error:
+            self.run_migration(request, "apply", preview["approved_sha256"])
+        self.assertEqual(error.exception.code, "spec_update_approval_changed")
+        self.assertEqual(before, self.snapshot())
+
+    def test_migration_cli_and_recovery_use_the_reviewed_transaction(self):
+        request = self.migration_request()
+        output, errors = io.StringIO(), io.StringIO()
+        code = main(["--project-root", str(self.root), "task", "migrate-validate", "--stdin",
+                     "--user-config-root", str(self.root)], stdin=io.StringIO(json.dumps(request)),
+                    stdout=output, stderr=errors)
+        self.assertEqual(code, 0, errors.getvalue())
+        approval = json.loads(output.getvalue())["approved_sha256"]
+        replace = specification._replace
+        def interrupted(path, *args, **kwargs):
+            if path == self.task_path:
+                raise OSError("injected interruption after Plan publication")
+            return replace(path, *args, **kwargs)
+        with patch.object(specification, "_replace", side_effect=interrupted):
+            with self.assertRaises(WorkError) as error:
+                self.run_migration(request, "apply", approval)
+        self.assertEqual(error.exception.code, "spec_update_interrupted")
+        for expected in ("recovered", "already_completed"):
+            self.assertEqual(self.run_migration(request, "recover", approval)["status"], expected)
+
     def add_history(self):
         for row in self.index["tasks"]:
             row.update(status="completed", latest_attempt="ATTEMPT-001", latest_correction="ATTEMPT-001-CORRECTION-001")

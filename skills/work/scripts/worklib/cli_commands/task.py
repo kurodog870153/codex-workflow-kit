@@ -28,12 +28,12 @@ def register_task_commands(commands: SubparserRegistry) -> None:
     task_parser = commands.add_parser("task")
     task_commands = task_parser.add_subparsers(dest="task_command", required=True)
 
-    for name in ("spec-validate", "spec-update", "spec-recover"):
+    for name in ("spec-validate", "spec-update", "spec-recover", "migrate-validate", "migrate", "migrate-recover"):
         spec = task_commands.add_parser(name, help="Internal coordinated specification revision.")
         spec.add_argument("--stdin", action="store_true", required=True)
         spec.add_argument("--user-config-root", required=True)
         spec.add_argument("--skill-root", action="append", default=[])
-        if name != "spec-validate":
+        if name not in {"spec-validate", "migrate-validate"}:
             spec.add_argument("--approved-sha256", required=True)
 
     draft_init = task_commands.add_parser("draft-init", help="Save an initial planning index from stdin.")
@@ -104,13 +104,15 @@ def run_task(
     project_root: Path,
     input_stream: TextIO,
 ) -> dict[str, object]:
-    if arguments.task_command in {"spec-validate", "spec-update", "spec-recover"}:
+    if arguments.task_command in {"spec-validate", "spec-update", "spec-recover", "migrate-validate", "migrate", "migrate-recover"}:
         return update_specification(
             input_stream.read().encode("utf-8"), project_root=project_root,
             user_config_root=arguments.user_config_root,
             skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
-            operation={"spec-validate": "validate", "spec-update": "apply", "spec-recover": "recover"}[arguments.task_command],
+            operation={"spec-validate": "validate", "spec-update": "apply", "spec-recover": "recover",
+                       "migrate-validate": "validate", "migrate": "apply", "migrate-recover": "recover"}[arguments.task_command],
             approved_sha256=getattr(arguments, "approved_sha256", None),
+            migration=arguments.task_command.startswith("migrate"),
         )
     if arguments.task_command in {"draft-list-update", "draft-list-recover"}:
         request = strict_keys(

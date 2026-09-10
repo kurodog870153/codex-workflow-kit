@@ -14,7 +14,7 @@ Use this workflow only after the source Plan and its confirmed skill selection h
 1. Task skill discovery is forbidden. Use only skills in the source Plan `skill_selection`.
 2. Split work into minimum independently verifiable TASK outcomes before delegation.
 3. Bind each TASK to one `skill_id`. Use `null` only for base-only work that needs no external skill.
-4. Give each TASK only an applicable subset of the source Plan hierarchy selection. An empty subset loads `general`; a non-empty path must be a confirmed leaf or one of its ancestors and must exist in both Task and Execute catalogs.
+4. Give each TASK only applicable paths authorized by the source Plan hierarchy selection. An empty selection loads `general`; a non-empty path must be a confirmed path, one of its ancestors, or one of its descendants and must exist in both Task and Execute catalogs. Sharing an ancestor with a confirmed path does not authorize a sibling branch.
 5. Skip Plan-only skills when producing executable TASKs. A required skill with Task mode `unsupported` must return to Plan for a new decision.
 6. For the current TASK's executable skill, follow the [Task coordinator's delegation contract](../subagents/task-coordinator.md) and [Task skill subagent prompt](../subagents/task-skill.md), including their runtime configuration and fallback. Supply one skill, one TASK boundary and the relevant saved discussion.
 7. Merge the current subagent output into that TASK's discussion. Resolve conflicts through user decisions. After all TASKs are refined, perform the existing complete-contract validation and approval process.
@@ -40,9 +40,8 @@ Use this workflow only after the source Plan and its confirmed skill selection h
 
 ## Request coordinated revision
 
-1. After the request is confirmed, route changes to existing formal Plan, TASK and execution index through the parent's [private artifact editor](../subagents/artifact-editor.md). Return confirmed decisions, explicit artifact paths, affected IDs, evidence and the current continuation point; do not spawn the editor yourself or repeat already settled questions.
-2. The editor owns the combined preview and authorized specification transaction. This route replaces same-session specification handoffs only. Missing decisions, active locks, source drift and incomplete artifacts remain stops; normal cross-session handoffs and initial creation keep the procedure below.
-3. After the editor returns, reload and validate changed sources before continuing. Completion does not authorize implementation or a new Attempt.
+1. For confirmed changes to existing formal artifacts or confirmed Work instruction migration, follow [the shared coordinated revision procedure](../instruction-loading.md#coordinated-formal-artifact-revision). Initial creation and cross-session handoffs retain the procedures in this workflow.
+2. Task discussion resolves new technical or specification decisions returned by the editor. Send confirmed decisions back through the parent so the editor can complete the same migration; Task does not independently publish migrated Plan, TASK or index files.
 
 ## Use deterministic handoffs
 

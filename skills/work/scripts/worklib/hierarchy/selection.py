@@ -152,13 +152,6 @@ def _snapshot_entry(
                 "valid_choices": children.get(parent_path, []),
             },
         )
-    if children[path]:
-        raise WorkError(
-            ExitCode.CONTRACT,
-            "hierarchy_selection_path_not_leaf",
-            "A selected hierarchy path must be a cross-mode catalog leaf.",
-            {"path": path, "children": children[path]},
-        )
     path_metadata = metadata[path]
     assert isinstance(path_metadata, dict)
     return {
@@ -399,7 +392,13 @@ def validate_task_hierarchy_paths(
             "/".join(parts[:depth]) for depth in range(1, len(parts) + 1)
         )
     unauthorized = [
-        path for path in hierarchy.selected_paths if path not in allowed_paths
+        path
+        for path in hierarchy.selected_paths
+        if path not in allowed_paths
+        and not any(
+            path.startswith(f"{confirmed_path}/")
+            for confirmed_path in confirmed_selection["selected_paths"]
+        )
     ]
     if unauthorized:
         raise WorkError(

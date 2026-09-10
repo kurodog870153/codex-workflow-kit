@@ -94,14 +94,61 @@ class HierarchySelectionTests(unittest.TestCase):
         )
         self.assertEqual(validated["status"], "valid")
 
-    def test_non_leaf_path_is_rejected(self) -> None:
+    def test_intermediate_path_is_accepted_and_validated(self) -> None:
         request = self._request()
         request["selections"][0]["path"] = "web/frontend/typescript"
 
-        with self.assertRaises(WorkError) as context:
-            build_hierarchy_selection(request, skill_root=self.skill_root)
+        selection = build_hierarchy_selection(request, skill_root=self.skill_root)
+        validated = validate_hierarchy_selection(selection, skill_root=self.skill_root)
 
-        self.assertEqual(context.exception.code, "hierarchy_selection_path_not_leaf")
+        self.assertEqual(selection["selected_paths"], ["web/frontend/typescript"])
+        self.assertEqual(validated["status"], "valid")
+
+    def test_java_plan_authorizes_jpa_and_mybatis_tasks(self) -> None:
+        skill_root = SCRIPT_ROOT.parent
+        request = self._request()
+        request["selections"][0]["path"] = "web/backend/java"
+        selection = build_hierarchy_selection(request, skill_root=skill_root)
+        self.assertEqual(
+            validate_hierarchy_selection(selection, skill_root=skill_root)["status"],
+            "valid",
+        )
+        for path in ("web/backend/java", "web/backend", "web/backend/java/jpa", "web/backend/java/mybatis"):
+            with self.subTest(path=path):
+                self.assertEqual(
+                    validate_task_hierarchy_paths(
+                        [path], confirmed_selection=selection,
+                        skill_root=skill_root, location="TASK-001",
+                    ),
+                    (path,),
+                )
+
+    def test_descendant_must_exist_in_task_and_execute_catalogs(self) -> None:
+        request = self._request()
+        request["selections"][0]["path"] = "web/frontend/typescript"
+        confirmed = build_hierarchy_selection(request, skill_root=self.skill_root)
+        for mode in ("task", "execute"):
+            path = f"web/frontend/typescript/{mode}-only"
+            self._write_entrypoint(mode, path)
+            with self.subTest(mode=mode), self.assertRaises(WorkError) as context:
+                validate_task_hierarchy_paths(
+                    [path], confirmed_selection=confirmed,
+                    skill_root=self.skill_root, location="TASK-001",
+                )
+            self.assertEqual(context.exception.code, "instruction_hierarchy_path_missing")
+
+    def test_intermediate_selection_does_not_authorize_prefix_sibling(self) -> None:
+        for mode in ("task", "execute"):
+            self._write_entrypoint(mode, "web/frontend/typescript-extra")
+        request = self._request()
+        request["selections"][0]["path"] = "web/frontend/typescript"
+        confirmed = build_hierarchy_selection(request, skill_root=self.skill_root)
+        with self.assertRaises(WorkError) as context:
+            validate_task_hierarchy_paths(
+                ["web/frontend/typescript-extra"], confirmed_selection=confirmed,
+                skill_root=self.skill_root, location="TASK-001",
+            )
+        self.assertEqual(context.exception.code, "task_hierarchy_path_not_authorized")
 
     def test_catalog_drift_requires_return_to_plan(self) -> None:
         selection = build_hierarchy_selection(

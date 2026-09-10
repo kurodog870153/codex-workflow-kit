@@ -13,6 +13,7 @@ from ..hierarchy.selection import (
     validate_hierarchy_selection,
 )
 from ..instructions.work_selection import validate_work_instruction_selection
+from ..instructions.historical import stored_selection
 from ..foundation.markdown import (
     parse_json_contract,
     render_json_contract,
@@ -250,6 +251,7 @@ def validate_plan_contract(
     project_root: Path,
     user_config_root: str,
     skill_roots: list[SkillRoot] | None = None,
+    _historical_work_sources: bool = False,
 ) -> dict[str, object]:
     contract = parse_json_contract(raw, source=source)
     _strict_keys(
@@ -289,12 +291,15 @@ def validate_plan_contract(
     assert isinstance(hierarchy_selection, dict)
     confirmed_paths = hierarchy_selection["selected_paths"]
     assert isinstance(confirmed_paths, list)
-    instruction_sources = validate_work_instruction_selection(
-        contract["work_instruction_selection"],
-        skill_root=installed_work_root(),
-        mode="plan",
-        selected_paths=confirmed_paths,
-    )
+    if _historical_work_sources:
+        instruction_fingerprint = stored_selection(
+            contract["work_instruction_selection"], selected_paths=confirmed_paths,
+        )["instructions_sha256"]
+    else:
+        instruction_fingerprint = validate_work_instruction_selection(
+            contract["work_instruction_selection"],
+            skill_root=installed_work_root(), mode="plan", selected_paths=confirmed_paths,
+        ).instructions_sha256
     skill_validation = validate_skill_selection(
         contract["skill_selection"], roots=skill_roots or []
     )
@@ -390,7 +395,7 @@ def validate_plan_contract(
         "status": contract["status"],
         "plan_sha256": canonical_sha256(raw, source=source),
         "hierarchy_selection_sha256": hierarchy_selection["selection_sha256"],
-        "work_instructions_sha256": instruction_sources.instructions_sha256,
+        "work_instructions_sha256": instruction_fingerprint,
         "skill_selection_sha256": skill_validation["skill_selection"]["selection_sha256"],
         "item_count": len(items_by_id),
     }
