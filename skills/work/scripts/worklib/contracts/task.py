@@ -19,6 +19,7 @@ from ..foundation.paths import (
 )
 from ..foundation.runtime import installed_work_root
 from .plan import validate_plan_contract
+from ..instructions.historical import stored_document_selection
 from ..skills.catalog import SkillRoot
 from ..hierarchy.selection import validate_task_hierarchy_paths
 from ..instructions.task_selection import validate_task_document_instruction_selection
@@ -175,6 +176,7 @@ def _validate_task_contract_object(
     validate_file_state: bool,
     skill_roots: list[SkillRoot] | None = None,
     _source_plan_raw: bytes | None = None,
+    _historical_work_sources: bool = False,
 ) -> dict[str, object]:
     _strict_keys(contract, location="task", required=TOP_REQUIRED, optional=TOP_OPTIONAL)
     if contract["schema"] != "work-task/v1" or contract["status"] != "confirmed":
@@ -222,6 +224,7 @@ def _validate_task_contract_object(
     plan_validation = validate_plan_contract(
         plan_raw, source="TASK source Plan", actual_plan_path=artifacts["plan"],
         project_root=project_root, user_config_root=user_config_root, skill_roots=skill_roots,
+        _historical_work_sources=_historical_work_sources,
     )
     if plan_validation["plan_sha256"] != source_plan_sha:
         raise WorkError(
@@ -297,11 +300,13 @@ def _validate_task_contract_object(
         task_ids.append(task_id)
         tasks.append(task)
     task_id_set = set(task_ids)
-    document_selection = validate_task_document_instruction_selection(
-        contract["instruction_selection"],
-        [task["instruction_selection"] for task in tasks],
-        skill_root=installed_work_root(),
-    )
+    selections = [task["instruction_selection"] for task in tasks]
+    if _historical_work_sources:
+        document_selection = stored_document_selection(contract["instruction_selection"], selections)
+    else:
+        document_selection = validate_task_document_instruction_selection(
+            contract["instruction_selection"], selections, skill_root=installed_work_root(),
+        )
     plan_hierarchy_selection = plan_contract["hierarchy_selection"]
     for task in tasks:
         task_selection = task["instruction_selection"]
@@ -676,6 +681,7 @@ def validate_task_contract(
     validate_file_state: bool = True,
     skill_roots: list[SkillRoot] | None = None,
     _source_plan_raw: bytes | None = None,
+    _historical_work_sources: bool = False,
 ) -> dict[str, object]:
     contract = parse_json_contract(raw, source=source)
     result = _validate_task_contract_object(
@@ -686,6 +692,7 @@ def validate_task_contract(
         validate_file_state=validate_file_state,
         skill_roots=skill_roots,
         _source_plan_raw=_source_plan_raw,
+        _historical_work_sources=_historical_work_sources,
     )
     ordered = order_task_contract(contract)
     require_canonical_json_contract(

@@ -22,6 +22,9 @@ from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import validate_artifact_paths
 from ..foundation.spec_update import require_no_spec_update, state_writer, storage_path
 from ..skills.catalog import SkillRoot
+from ..foundation.runtime import installed_work_root
+from ..instructions.selection import build_instruction_selection
+from ..execution.instructions import BASE_EXECUTE_REFERENCES, RECOVERY_REFERENCE
 
 
 def _error(code: str, message: str, **details: object) -> WorkError:
@@ -74,6 +77,7 @@ def _index(
     old_plan: dict[str, Any], plan: dict[str, Any],
     old_task: dict[str, Any], task: dict[str, Any],
     old_index: dict[str, Any], validation: dict[str, object],
+    *, migration: bool = False,
 ) -> tuple[dict[str, Any], list[str]]:
     old_tasks = {item["id"]: item for item in old_task["tasks"]}
     new_tasks = {item["id"]: item for item in task["tasks"]}
@@ -86,7 +90,7 @@ def _index(
         raise _error("spec_update_active_task", "Close the active Attempt before revising specifications.")
     affected = {key for key in new_tasks if new_tasks[key] != old_tasks.get(key)}
     if (
-        plan != old_plan
+        migration or plan != old_plan
         or task.get("execution_defaults") != old_task.get("execution_defaults")
         or task.get("decisions") != old_task.get("decisions")
     ):
@@ -123,10 +127,20 @@ def _index(
 def _prepare(
     request: dict[str, Any], *, project_root: Path, user_config_root: str,
     skill_roots: list[SkillRoot] | None, before: dict[str, str] | None = None,
+    migration: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Path]]:
-    strict_keys(request, location="spec_update", required={"schema", "reason", "expected", "plan", "task"})
-    if request["schema"] != "work-spec-update-request/v1":
+    fields = {"schema", "reason", "expected", "plan", "task"}
+    if migration:
+        fields.add("instruction_review")
+    strict_keys(request, location="spec_update", required=fields)
+    schema = "work-spec-migration-request/v1" if migration else "work-spec-update-request/v1"
+    if request["schema"] != schema:
         raise _error("spec_update_schema", "Invalid specification update request schema.")
+    if migration:
+        review = strict_keys(request["instruction_review"], location="instruction_review",
+                             required={"plan", "task", "execute"})
+        for mode, evidence in review.items():
+            nonempty_string(evidence, location="instruction_review." + mode)
     nonempty_string(request["reason"], location="reason")
     expected = strict_keys(request["expected"], location="expected",
                            required={"plan_sha256", "task_sha256", "index_sha256"})
@@ -153,10 +167,11 @@ def _prepare(
             raise _error("spec_update_identity", "A specification update cannot rename or reroute a requirement.")
     options = dict(project_root=project_root, user_config_root=user_config_root, skill_roots=skill_roots)
     validate_plan_contract(original["plan"], source="original Plan",
-                           actual_plan_path=artifacts["plan"], **options)
+                           actual_plan_path=artifacts["plan"], _historical_work_sources=migration, **options)
     old_validation = validate_task_contract(
         original["task"], source="original TASK", actual_task_path=artifacts["task"],
         validate_file_state=False, _source_plan_raw=original["plan"], **options,
+        _historical_work_sources=migration,
     )
     validate_execution_index(original["index"], source="original index")
     if "lock" in old_index:
@@ -202,7 +217,7 @@ def _prepare(
     plan_change_ids = {item["id"] for item in plan.get("changes", [])}
     if not set(change[0].get("plan_change_ids", [])) <= plan_change_ids:
         raise _error("spec_update_plan_change_reference", "TASK changes reference unknown Plan changes.")
-    index, affected = _index(old_plan, plan, old_task, task, old_index, validation)
+    index, affected = _index(old_plan, plan, old_task, task, old_index, validation, migration=migration)
     if not set(affected) <= {item.split("/", 1)[0] for item in change[0]["affected_ids"]}:
         raise _error("spec_update_affected_evidence", "Change evidence must cover every affected TASK.")
     rendered_index = render_execution_index(index)
@@ -216,6 +231,21 @@ def _prepare(
         "history_sha256": _history(project_root, artifacts["execution"]),
         "affected_task_ids": affected,
     }
+    if migration:
+        # Bind approval to both normal and retry Execute guidance. Attempts keep
+        # their historical fingerprints; a future preflight selects current ones.
+        record["migration"] = {
+            "plan_edits": _changes(old_plan, plan),
+            "execute_instruction_selections": {
+                row["id"]: {
+                    mode: build_instruction_selection(
+                        skill_root=installed_work_root(), mode="execute",
+                        selected_paths=row["instruction_selection"]["selected_paths"],
+                        reference_names=BASE_EXECUTE_REFERENCES + ([RECOVERY_REFERENCE] if mode == "retry" else []),
+                    ) for mode in ("normal", "retry")
+                } for row in task["tasks"]
+            },
+        }
     return record, paths
 
 
@@ -262,6 +292,7 @@ def update_specification(
     raw_request: bytes, *, project_root: Path, user_config_root: str,
     skill_roots: list[SkillRoot] | None = None,
     operation: str = "validate", approved_sha256: str | None = None,
+    migration: bool = False,
 ) -> dict[str, object]:
     if operation not in {"validate", "apply", "recover"}:
         raise _error("spec_update_operation", "Unknown specification update operation.")
@@ -298,7 +329,7 @@ def update_specification(
         require_no_spec_update(project_root, execution)
         before = None
     record, paths = _prepare(request, project_root=project_root, user_config_root=user_config_root,
-                             skill_roots=skill_roots, before=before)
+                             skill_roots=skill_roots, before=before, migration=migration)
     record_raw = _json(record)
     approval = _hash(record_raw)
     result = {
@@ -308,6 +339,9 @@ def update_specification(
         "artifacts": artifacts, "candidate": {key: _decode(value.encode("utf-8")) for key, value in record["after"].items()},
         "file_readiness": "requires_execute_preflight",
     }
+    if migration:
+        result["migration"] = record["migration"]
+        result["instruction_review"] = request["instruction_review"]
     if operation == "validate":
         return result
     sha256(approved_sha256, location="approved_sha256")

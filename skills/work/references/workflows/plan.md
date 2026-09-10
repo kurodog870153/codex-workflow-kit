@@ -27,9 +27,7 @@ Use this workflow only after the user-confirmed hierarchy and Plan skill selecti
 
 ## Request coordinated revision
 
-1. After the request is confirmed, route changes to existing formal Plan, TASK and execution index through the parent's [private artifact editor](../subagents/artifact-editor.md). Return confirmed decisions, explicit artifact paths, affected IDs, evidence and the current continuation point; do not spawn the editor yourself or repeat already settled questions.
-2. The editor owns the combined preview and authorized specification transaction. This route replaces same-session specification handoffs only. Missing decisions, active locks, source drift and incomplete artifacts remain stops; normal cross-session handoffs and initial creation keep the procedure below.
-3. After the editor returns, reload and validate changed sources before continuing. Completion does not authorize implementation or a new Attempt.
+1. For confirmed changes to existing formal artifacts or confirmed Work instruction migration, follow [the shared coordinated revision procedure](../instruction-loading.md#coordinated-formal-artifact-revision). Initial creation and cross-session handoffs retain the procedures in this workflow.
 
 ## Use deterministic handoffs
 

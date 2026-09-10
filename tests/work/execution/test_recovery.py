@@ -33,7 +33,7 @@ from worklib.instructions.selection import build_instruction_selection
 class ExecutionTransactionRecoveryTests(unittest.TestCase):
     def exercise_recovery(self, transaction: str, failed_replace: int) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            project = Path(temporary)
+            project = Path(temporary).resolve()
             execution = project / "execution"
             attempt_path = execution / "TASK-001" / "ATTEMPT-001" / "attempt.json"
             attempt_path.parent.mkdir(parents=True)
