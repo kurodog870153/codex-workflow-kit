@@ -1,0 +1,351 @@
+from __future__ import annotations
+
+import copy
+import hashlib
+import io
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
+sys.path.insert(0, str(SCRIPT_ROOT))
+
+from worklib.artifacts import specification
+from worklib.artifacts.specification import update_specification
+from worklib.cli import main
+from worklib.contracts.execution_index import build_initial_execution_index, render_execution_index
+from worklib.contracts.plan import render_plan_contract
+from worklib.contracts.task import render_task_contract, validate_task_contract
+from worklib.foundation.errors import WorkError
+from worklib.foundation.spec_update import require_no_spec_update, state_writer
+from worklib.hierarchy.selection import build_hierarchy_selection
+from worklib.instructions.selection import build_instruction_selection
+from worklib.instructions.task_selection import build_task_document_instruction_selection
+from worklib.instructions.work_selection import build_work_instruction_selection
+from worklib.skills.selection import selection_sha256
+
+
+def digest(raw):
+    return hashlib.sha256(raw).hexdigest()
+
+
+class SpecificationUpdateTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name).resolve()
+        work_root = SCRIPT_ROOT.parent
+        self.artifacts = {
+            "plan": "outputs/work/plans/example.json",
+            "task": "outputs/work/tasks/example/task.json",
+            "execution": "outputs/work/executions/example",
+        }
+        hierarchy = build_hierarchy_selection({"decision": "general_only", "selections": []}, skill_root=work_root)
+        self.plan = {
+            "schema": "work-plan/v1", "requirement_id": "example", "status": "confirmed",
+            "title": "Plan", "summary": "Original result", "artifacts": self.artifacts,
+            "hierarchy_selection": hierarchy,
+            "work_instruction_selection": build_work_instruction_selection(skill_root=work_root, mode="plan", selected_paths=[]),
+            "skill_selection": {"schema": "work-skill-selection/v1", "decision": "base_only", "skills": [], "selection_sha256": selection_sha256("base_only", [])},
+            "goals": [{"id": "GOAL-001", "statement": "Result"}],
+            "scope": [{"id": "SCOPE-001", "kind": "in_scope", "statement": "Result", "goal_ids": ["GOAL-001"]}],
+            "deliverables": [{"id": "DELIVERABLE-001", "statement": "Result", "goal_ids": ["GOAL-001"], "acceptance_ids": ["ACCEPTANCE-001"]}],
+            "acceptance_criteria": [{"id": "ACCEPTANCE-001", "statement": "Observable result", "deliverable_ids": ["DELIVERABLE-001"]}],
+        }
+        self.plan_path = self.root / self.artifacts["plan"]
+        self.plan_path.parent.mkdir(parents=True)
+        self.plan_path.write_bytes(render_plan_contract(self.plan))
+        selection = build_instruction_selection(skill_root=work_root, mode="task", selected_paths=[], reference_names=["task.general.task-records"])
+        self.task = {
+            "schema": "work-task/v1", "requirement_id": "example", "spec_id": "TASK-SPEC-001", "status": "confirmed",
+            "title": "Tasks", "summary": "Deliver result", "artifacts": self.artifacts,
+            "source_plan": {"canonical_sha256": digest(self.plan_path.read_bytes()), "hierarchy_selection_sha256": hierarchy["selection_sha256"]},
+            "instruction_selection": build_task_document_instruction_selection([selection], skill_root=work_root),
+            "tasks": [{
+                "id": f"TASK-{number:03d}", "title": f"Outcome {number}", "skill_id": None,
+                "instruction_selection": copy.deepcopy(selection),
+                "traceability": {"goal_ids": ["GOAL-001"], "deliverable_ids": ["DELIVERABLE-001"], "acceptance_ids": ["ACCEPTANCE-001"]},
+                "goal": "Deliver the result",
+                "steps": [{"id": "STEP-001", "action": "Confirm the outcome", "references": ["VAL-001"]}],
+                "validations": [{"id": "VAL-001", "kind": "manual", "confirmer": "user", "criteria": "Result is observable", "acceptance_ids": ["ACCEPTANCE-001"]}],
+            } for number in (1, 2, 3)],
+            "readiness": {"status": "passed", "spec_id": "TASK-SPEC-001"},
+        }
+        self.task["tasks"][1]["dependencies"] = ["TASK-001"]
+        self.task_path = self.root / self.artifacts["task"]
+        self.task_path.parent.mkdir(parents=True)
+        self.task_path.write_bytes(render_task_contract(self.task))
+        validation = validate_task_contract(self.task_path.read_bytes(), source="fixture",
+            actual_task_path=self.artifacts["task"], project_root=self.root, user_config_root=str(self.root))
+        self.index = build_initial_execution_index(self.task, validation)
+        self.index_path = self.root / self.artifacts["execution"] / "index.json"
+        self.index_path.parent.mkdir(parents=True)
+        self.index_path.write_bytes(render_execution_index(self.index))
+
+    def request(self, *, change_plan=True):
+        plan = json.loads(self.plan_path.read_bytes())
+        old = json.loads(self.task_path.read_bytes())
+        task = copy.deepcopy(old)
+        if change_plan:
+            previous = plan["summary"]
+            plan["summary"] += " revised"
+            changes = plan.setdefault("changes", [])
+            changes.append({
+                "id": f"PLAN-CHANGE-{len(changes)+1:03d}", "date": "2026-09-10",
+                "location": "summary", "before": previous, "after": plan["summary"],
+                "reason": "Confirmed revision", "affected_ids": ["GOAL-001"],
+            })
+        else:
+            task["tasks"][0]["goal"] += " revised"
+        task["source_plan"]["canonical_sha256"] = digest(render_plan_contract(plan))
+        number = int(task["spec_id"][-3:]) + 1
+        task["spec_id"] = f"TASK-SPEC-{number:03d}"
+        task["readiness"]["spec_id"] = task["spec_id"]
+        # Evidence is constructed independently from the production helper.
+        changed_keys = sorted(key for key in old if key not in {"spec_id", "readiness", "changes"} and old[key] != task[key])
+        task["changes"] = [{
+            "id": f"TASK-CHANGE-{number-1:03d}", "spec_id": task["spec_id"], "date": "2026-09-10",
+            "reason": "Confirmed revision", "affected_ids": ["TASK-001", "TASK-002", "TASK-003"],
+            "edits": [{"operation": "replace", "path": "/" + key, "before": old[key], "after": task[key]} for key in changed_keys],
+        }]
+        return {
+            "schema": "work-spec-update-request/v1", "reason": "Confirmed revision",
+            "expected": {key + "_sha256": digest(path.read_bytes()) for key, path in self.paths().items()},
+            "plan": plan, "task": task,
+        }
+
+    def paths(self):
+        return {"plan": self.plan_path, "task": self.task_path, "index": self.index_path}
+
+    def run_update(self, request, operation="validate", approval=None):
+        return update_specification(json.dumps(request).encode("utf-8"), project_root=self.root,
+            user_config_root=str(self.root), operation=operation, approved_sha256=approval)
+
+    def snapshot(self):
+        return {p.relative_to(self.root).as_posix(): p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
+
+    def add_history(self):
+        for row in self.index["tasks"]:
+            row.update(status="completed", latest_attempt="ATTEMPT-001", latest_correction="ATTEMPT-001-CORRECTION-001")
+            directory = self.index_path.parent / row["id"] / "ATTEMPT-001"
+            (directory / "corrections").mkdir(parents=True)
+            (directory / "attempt.json").write_bytes(b'{"immutable":"attempt"}\n')
+            (directory / "corrections" / "ATTEMPT-001-CORRECTION-001.json").write_bytes(b'{"immutable":"correction"}\n')
+        self.index["overall_status"] = "completed"
+        self.index_path.write_bytes(render_execution_index(self.index))
+
+    def test_preview_is_read_only_and_validates_candidate_plan_in_memory(self):
+        request = self.request()
+        before = self.snapshot()
+        result = self.run_update(request)
+        self.assertEqual(before, self.snapshot())
+        self.assertEqual(result["status"], "valid")
+        self.assertEqual(result["candidate"]["task"]["source_plan"]["canonical_sha256"],
+                         digest(render_plan_contract(request["plan"])))
+        self.assertEqual(result["candidate"]["index"]["task_spec_id"], "TASK-SPEC-002")
+
+    def test_publish_and_second_revision_keep_canonical_identity_and_history(self):
+        self.add_history()
+        history = {key: value for key, value in self.snapshot().items() if "/ATTEMPT-" in key}
+        for expected_spec in ("TASK-SPEC-002", "TASK-SPEC-003"):
+            request = self.request()
+            preview = self.run_update(request)
+            result = self.run_update(request, "apply", preview["approved_sha256"])
+            self.assertEqual(result["status"], "updated")
+            stored = validate_task_contract(self.task_path.read_bytes(), source="stored",
+                actual_task_path=self.artifacts["task"], project_root=self.root,
+                user_config_root=str(self.root), validate_file_state=False)
+            index = json.loads(self.index_path.read_bytes())
+            self.assertEqual(stored["spec_id"], expected_spec)
+            self.assertEqual(index["task_sha256"], stored["task_sha256"])
+            self.assertTrue(all(row["status"] == "pending_retry" for row in index["tasks"]))
+            self.assertTrue(all(row["latest_correction"] == "ATTEMPT-001-CORRECTION-001" for row in index["tasks"]))
+            require_no_spec_update(self.root, self.artifacts["execution"])
+        self.assertEqual(history, {key: value for key, value in self.snapshot().items() if "/ATTEMPT-" in key})
+        records = list(self.index_path.parent.glob(".work-spec-update-*.json"))
+        self.assertEqual(len(records), 2)
+        self.assertEqual(json.loads(records[0].read_bytes())["schema"], "work-spec-update-record/v1")
+
+    def test_task_change_invalidates_only_task_and_transitive_dependents(self):
+        self.add_history()
+        request = self.request(change_plan=False)
+        preview = self.run_update(request)
+        self.assertEqual(preview["affected_task_ids"], ["TASK-001", "TASK-002"])
+        self.run_update(request, "apply", preview["approved_sha256"])
+        index = json.loads(self.index_path.read_bytes())
+        self.assertEqual([row["status"] for row in index["tasks"]], ["pending_retry", "pending_retry", "completed"])
+        self.assertEqual(self.plan_path.read_bytes(), render_plan_contract(self.plan))
+
+    def test_lock_and_inaccurate_change_evidence_are_rejected_without_writes(self):
+        for defect in ("lock", "edits", "source", "version"):
+            with self.subTest(defect=defect):
+                request = self.request()
+                if defect == "lock":
+                    locked = copy.deepcopy(self.index)
+                    locked["lock"] = {"kind": "spec_update", "record": "SPEC-UPDATE-009"}
+                    self.index_path.write_bytes(render_execution_index(locked))
+                    request = self.request()
+                elif defect == "edits":
+                    request["task"]["changes"][0]["edits"][0]["before"] = "invented"
+                elif defect == "source":
+                    request["expected"]["plan_sha256"] = "0" * 64
+                else:
+                    request["task"]["spec_id"] = "TASK-SPEC-004"
+                    request["task"]["readiness"]["spec_id"] = "TASK-SPEC-004"
+                    request["task"]["changes"][0]["spec_id"] = "TASK-SPEC-004"
+                before = self.snapshot()
+                with self.assertRaises(WorkError):
+                    self.run_update(request)
+                self.assertEqual(before, self.snapshot())
+                if defect == "lock":
+                    self.index_path.write_bytes(render_execution_index(self.index))
+
+    def test_history_change_invalidates_preview_approval(self):
+        self.add_history()
+        request = self.request()
+        preview = self.run_update(request)
+        history = self.index_path.parent / "TASK-001/ATTEMPT-001/attempt.json"
+        history.write_bytes(b'{"immutable":"changed elsewhere"}\n')
+        before = self.snapshot()
+        with self.assertRaises(WorkError) as error:
+            self.run_update(request, "apply", preview["approved_sha256"])
+        self.assertEqual(error.exception.code, "spec_update_approval_changed")
+        self.assertEqual(before, self.snapshot())
+
+    def test_partial_publication_blocks_execute_and_recovers_identical_request(self):
+        request = self.request()
+        preview = self.run_update(request)
+        real_replace = os.replace
+
+        def fail_task(source, target):
+            if Path(target) == self.task_path:
+                raise OSError("injected interruption")
+            return real_replace(source, target)
+
+        with patch("worklib.artifacts.specification.os.replace", side_effect=fail_task):
+            with self.assertRaises(WorkError) as error:
+                self.run_update(request, "apply", preview["approved_sha256"])
+        self.assertTrue(error.exception.details["recovery_required"])
+        self.assertEqual(json.loads(self.index_path.read_bytes())["lock"]["kind"], "spec_update")
+        with self.assertRaises(WorkError):
+            require_no_spec_update(self.root, self.artifacts["execution"])
+        output, errors = io.StringIO(), io.StringIO()
+        code = main(["--project-root", str(self.root), "execute", "preflight",
+            "--user-config-root", str(self.root), "--task-path", self.artifacts["task"],
+            "--execution-dir", self.artifacts["execution"], "--task-id", "TASK-001"],
+            stdout=output, stderr=errors)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(json.loads(errors.getvalue())["code"], "spec_update_pending")
+        result = self.run_update(request, "recover", preview["approved_sha256"])
+        self.assertEqual(result["status"], "recovered")
+        require_no_spec_update(self.root, self.artifacts["execution"])
+        self.assertNotIn("lock", json.loads(self.index_path.read_bytes()))
+        self.assertEqual(self.run_update(request, "recover", preview["approved_sha256"])["status"], "already_completed")
+
+    def test_recovery_refuses_conflicting_artifact_without_overwrite(self):
+        request = self.request()
+        preview = self.run_update(request)
+        with patch("worklib.artifacts.specification.os.replace", side_effect=OSError("interrupted")):
+            with self.assertRaises(WorkError):
+                self.run_update(request, "apply", preview["approved_sha256"])
+        self.task_path.write_bytes(b"unrelated edit\n")
+        before = self.snapshot()
+        with self.assertRaises(WorkError):
+            self.run_update(request, "recover", preview["approved_sha256"])
+        self.assertEqual(before, self.snapshot())
+
+    def test_cli_preview_and_update_use_fingerprint_bound_request(self):
+        request = self.request()
+        args = ["--project-root", str(self.root), "task", "spec-validate", "--stdin", "--user-config-root", str(self.root)]
+        output, errors = io.StringIO(), io.StringIO()
+        code = main(args, stdin=io.StringIO(json.dumps(request)), stdout=output, stderr=errors)
+        self.assertEqual(code, 0, errors.getvalue())
+        approval = json.loads(output.getvalue())["approved_sha256"]
+        args[3] = "spec-update"
+        args += ["--approved-sha256", approval]
+        output, errors = io.StringIO(), io.StringIO()
+        code = main(args, stdin=io.StringIO(json.dumps(request)), stdout=output, stderr=errors)
+        self.assertEqual(code, 0, errors.getvalue())
+        self.assertEqual(json.loads(output.getvalue())["status"], "updated")
+
+
+
+    def test_short_journal_temporary_and_marker_recover_by_appending_only(self):
+        # Each stage uses a separate requirement workspace and an injected short write.
+        for suffix in (".json", ".lock", ".tmp", ".index", ".done"):
+            with self.subTest(suffix=suffix):
+                case = SpecificationUpdateTests()
+                case.setUp()
+                try:
+                    request = case.request()
+                    preview = case.run_update(request)
+                    write = specification._write
+                    failed = []
+
+                    def short_write(path, raw):
+                        if not failed and path.name.endswith(suffix):
+                            failed.append(path)
+                            with path.open("xb") as stream:
+                                stream.write(raw[:max(1, len(raw) // 3)])
+                            raise OSError("injected short write")
+                        return write(path, raw)
+
+                    with patch("worklib.artifacts.specification._write", side_effect=short_write):
+                        with self.assertRaises(WorkError):
+                            case.run_update(request, "apply", preview["approved_sha256"])
+                    self.assertEqual(len(failed), 1)
+                    prefix = failed[0].read_bytes()
+                    with self.assertRaises(WorkError):
+                        require_no_spec_update(case.root, case.artifacts["execution"])
+                    result = case.run_update(request, "recover", preview["approved_sha256"])
+                    self.assertEqual(result["status"], "recovered")
+                    require_no_spec_update(case.root, case.artifacts["execution"])
+                    if failed[0].exists():
+                        self.assertTrue(failed[0].read_bytes().startswith(prefix))
+                    self.assertEqual(json.loads(case.task_path.read_bytes())["spec_id"], "TASK-SPEC-002")
+                finally:
+                    case.doCleanups()
+
+    def test_work_writers_are_mutually_exclusive_across_processes(self):
+        program = (
+            "import sys\nfrom pathlib import Path\n"
+            f"sys.path.insert(0, {str(SCRIPT_ROOT)!r})\n"
+            "from worklib.foundation.spec_update import state_writer\n"
+            "from worklib.foundation.errors import WorkError\n"
+            "try:\n"
+            f"    with state_writer(Path({str(self.root)!r}), {self.artifacts['execution']!r}):\n"
+            "        print('acquired')\n"
+            "except WorkError as error:\n"
+            "    print(error.code)\n"
+        )
+        with state_writer(self.root, self.artifacts["execution"]):
+            result = subprocess.run([sys.executable, "-B", "-c", program], capture_output=True, text=True, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "work_state_writer_busy")
+            request = self.request()
+            preview = self.run_update(request)
+            before = {key: path.read_bytes() for key, path in self.paths().items()}
+            with self.assertRaises(WorkError) as error:
+                self.run_update(request, "apply", preview["approved_sha256"])
+            self.assertEqual(error.exception.code, "work_state_writer_busy")
+            self.assertEqual(before, {key: path.read_bytes() for key, path in self.paths().items()})
+            output, errors = io.StringIO(), io.StringIO()
+            with patch("worklib.cli_commands.execute.begin_record") as operation:
+                code = main(["--project-root", str(self.root), "execute", "record-begin",
+                    "--user-config-root", str(self.root), "--task-path", self.artifacts["task"],
+                    "--execution-dir", self.artifacts["execution"], "--task-id", "TASK-001", "--record-id", "VAL-001"],
+                    stdout=output, stderr=errors)
+                self.assertNotEqual(code, 0)
+                self.assertEqual(json.loads(errors.getvalue())["code"], "work_state_writer_busy")
+                operation.assert_not_called()
+        result = subprocess.run([sys.executable, "-B", "-c", program], capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.stdout.strip(), "acquired")
+
+
+if __name__ == "__main__":
+    unittest.main()

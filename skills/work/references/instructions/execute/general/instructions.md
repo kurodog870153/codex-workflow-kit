@@ -57,6 +57,6 @@ metadata:
 2. [強制] 回報須列出實際修改檔案、CMD／OP／VAL 結果、Attempt 與 TASK 狀態、部分成功或不確定結果、未解決事項及剩餘風險。
 3. [強制] 已關閉 Attempt 不得修改；需要更正紀錄時使用獨立 Correction，不得改寫歷史或偽造未執行證據。
 4. [強制] 規格缺陷結案後須依影響判定為不需修改規格、只修改 TASK 或修改 Plan 與 TASK；交接須列出實際需求編號、三個路徑、目標 TASK、Attempt／前置檢查資訊、已確認做法、受影響 ID 與驗證要求，不得保留占位符或由後續流程推測。
-5. [強制] Attempt 已停止／受阻或前置檢查發現規格缺陷後，須詢問使用者後續方向並每次只確認一項；使用者明確不再處理時停止追問。只影響檔案、CMD、OP、VAL 或執行細節時交接 `$work task -- <完整需求>`，影響 Plan 目標、範圍、成果、驗收或決策時交接 `$work plan -- <完整需求>`；不需修改規格時只列理由、解除條件與下次 Execute 授權，不產生規格交接指令。
+5. [強制] Attempt 已停止／受阻或前置檢查發現規格缺陷後，須詢問使用者後續方向並每次只確認一項；使用者明確不再處理時停止追問。同一對話已確認的規格修改回傳父 agent，由私人 artifact editor 接手，原 Execute 不改規格也不自行解除鎖；跨對話只影響檔案、CMD、OP、VAL 或執行細節時交接 `$work task -- <完整需求>`，影響 Plan 目標、範圍、成果、驗收或決策時交接 `$work plan -- <完整需求>`；不需修改規格時只列理由、解除條件與下次 Execute 授權，不產生規格交接指令。
 6. [強制] 規格交接使用 `execute_to_task` 或 `execute_to_plan`，須包含固定 marker、需求編號、實際路徑、TASK spec、目標 TASK、`skill_id`、`execute_skill_selection_sha256`、TASK 與 instructions SHA、Attempt／前置資訊、已確認做法、修改要求、保留範圍、受影響 ID 與驗證要求；不得保存 target hierarchy。
-7. [強制] 交接置於單一 JSON 程式碼區塊且只存在於對話；Execute 不得修改 Plan／TASK 或建立規格鎖，完成對應 Plan／Task 流程前不得建立新 Attempt，交接本身也不授權任何寫入。
+7. [強制] 交接置於單一 JSON 程式碼區塊且只存在於對話；Execute 不得修改 Plan／TASK 或建立規格鎖，完成對應 Plan／Task 流程或已授權私人 artifact editor 交易並重新通過 Execute 檢查前，不得建立新 Attempt，交接本身也不授權任何寫入。

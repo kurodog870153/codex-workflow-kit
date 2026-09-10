@@ -136,12 +136,12 @@ metadata:
 
 ## 4. 變更與同步
 
-1. [強制] 已確認 Plan 的變更須先在對話核准並維持 `status: confirmed`；既有 Plan 不得由 Plan 流程直接覆寫，須交由 Task 流程在同一規格交易中同步 Plan、TASK 與 execution index；不得建立平行 Plan 或把完成狀態寫入 Plan。
+1. [強制] 已確認 Plan 的變更須先在對話核准並維持 `status: confirmed`；既有 Plan 不得由 Plan 流程直接覆寫，既有正式 TASK 與 index 存在時，須交由父 agent 的私人 artifact editor 在同一規格交易中同步 Plan、TASK 與 execution index；不得建立平行 Plan 或把完成狀態寫入 Plan。
 2. [強制] `PLAN-CHANGE-*` 由 `PLAN-CHANGE-001` 遞增，只記 ISO `date`、`location`、`before`、`after`、`reason` 及 `affected_ids`；相同原因與同一成果合併一筆，沒有變更時省略，不把執行證據或狀態寫入變更紀錄。
-3. [強制] 變更時須指出受影響的目標、成果、驗收及正式 TASK；只影響 Plan 時不修改 TASK，影響既有 TASK 時依 Task instructions 在同一已授權邏輯原子更新中同步 TASK 與 execution index。
+3. [強制] 變更時須指出受影響的目標、成果、驗收及正式 TASK；已有正式 TASK 時，Plan canonical SHA 改變須同步 TASK source reference、spec 與 execution index；尚無正式 TASK 時不得憑空建立下游文件。
 4. [強制] 需求編號或三個對應路徑重新命名須另行授權並同步處理；未受影響內容不得順便改寫。
 5. [強制] Plan 不保存完成狀態；實際狀態與證據只由 execution index 與 Attempt 管理。
-6. [強制] Task 或 Execute 要求修改 Plan 時，只接受已由 Work Python CLI 驗證、含固定 `WORK-HANDOFF` marker 的 `task_to_plan` 或 `execute_to_plan` 純 JSON 交接；交接只存在於對話，且本身不授權修改任何成品。
+6. [強制] 同一對話已確認的跨文件修改由父 agent 的私人 artifact editor 接手並保留原討論；跨對話 Task 或 Execute 要求修改 Plan 時，只接受已由 Work Python CLI 驗證、含固定 `WORK-HANDOFF` marker 的 `task_to_plan` 或 `execute_to_plan` 純 JSON 交接；交接只存在於對話，且本身不授權修改任何成品。
 
 ## 5. 完成回報
 

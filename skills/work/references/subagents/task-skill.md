@@ -19,3 +19,7 @@ This prompt is private implementation detail for `$work task`. Do not register i
 2. Return proposed specification content, supporting evidence, unresolved questions and conflicts to the coordinator for integration. Do not execute the TASK or independently save, formalize or approve artifacts; the coordinator owns those workflow steps.
 3. Return user-facing questions and explanations in Traditional Chinese. Keep machine-readable fields, statuses, CLI arguments and JSON in English.
 4. Preserve applicable system, developer, repository, permission and loaded instruction boundaries.
+
+## Cross-artifact impact
+
+1. If the confirmed TASK discussion implies a Plan or execution-index revision, return the proposed changes and evidence to the coordinator. The coordinator relays them to the parent for the private artifact editor; do not create an editor or rewrite formal artifacts yourself.

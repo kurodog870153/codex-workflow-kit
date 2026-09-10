@@ -18,7 +18,7 @@ from ..foundation.paths import (
     validate_artifact_paths,
 )
 from ..foundation.runtime import installed_work_root
-from .plan import validate_plan_file
+from .plan import validate_plan_contract
 from ..skills.catalog import SkillRoot
 from ..hierarchy.selection import validate_task_hierarchy_paths
 from ..instructions.task_selection import validate_task_document_instruction_selection
@@ -174,6 +174,7 @@ def _validate_task_contract_object(
     user_config_root: str,
     validate_file_state: bool,
     skill_roots: list[SkillRoot] | None = None,
+    _source_plan_raw: bytes | None = None,
 ) -> dict[str, object]:
     _strict_keys(contract, location="task", required=TOP_REQUIRED, optional=TOP_OPTIONAL)
     if contract["schema"] != "work-task/v1" or contract["status"] != "confirmed":
@@ -213,11 +214,14 @@ def _validate_task_contract_object(
         source_plan["hierarchy_selection_sha256"],
         location="source_plan.hierarchy_selection_sha256",
     )
-    plan_validation = validate_plan_file(
-        project_root,
-        user_config_root,
-        artifacts["plan"],
-        skill_roots=skill_roots,
+    if _source_plan_raw is None:
+        _, plan_path = resolve_project_relative_path(project_root, artifacts["plan"], field="plan_path")
+        plan_raw = read_raw(plan_path)
+    else:
+        plan_raw = _source_plan_raw
+    plan_validation = validate_plan_contract(
+        plan_raw, source="TASK source Plan", actual_plan_path=artifacts["plan"],
+        project_root=project_root, user_config_root=user_config_root, skill_roots=skill_roots,
     )
     if plan_validation["plan_sha256"] != source_plan_sha:
         raise WorkError(
@@ -231,8 +235,7 @@ def _validate_task_contract_object(
             "source_plan_hierarchy_selection_mismatch",
             "The TASK hierarchy selection fingerprint does not match the formal Plan.",
         )
-    _, plan_path = resolve_project_relative_path(project_root, artifacts["plan"], field="plan_path")
-    plan_contract = parse_json_contract(read_raw(plan_path), source=str(plan_path))
+    plan_contract = parse_json_contract(plan_raw, source="TASK source Plan")
     if plan_contract["requirement_id"] != requirement_id or plan_contract["artifacts"] != artifacts:
         raise WorkError(
             ExitCode.ARTIFACT_INTEGRITY,
@@ -672,6 +675,7 @@ def validate_task_contract(
     user_config_root: str,
     validate_file_state: bool = True,
     skill_roots: list[SkillRoot] | None = None,
+    _source_plan_raw: bytes | None = None,
 ) -> dict[str, object]:
     contract = parse_json_contract(raw, source=source)
     result = _validate_task_contract_object(
@@ -681,6 +685,7 @@ def validate_task_contract(
         user_config_root=user_config_root,
         validate_file_state=validate_file_state,
         skill_roots=skill_roots,
+        _source_plan_raw=_source_plan_raw,
     )
     ordered = order_task_contract(contract)
     require_canonical_json_contract(

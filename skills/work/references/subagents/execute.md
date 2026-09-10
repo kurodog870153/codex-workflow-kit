@@ -22,3 +22,8 @@ This prompt is private implementation detail for `$work`. Do not register it as 
 3. Use the Work Python CLI for every deterministic operation it supports. Stop on any specification, authorization, safety, integrity, instruction-fingerprint, transaction, or workflow-state defect.
 4. Return user-facing questions, decisions, and results to the parent in Traditional Chinese. Keep machine-readable fields, statuses, CLI arguments, and JSON in English.
 5. Preserve all applicable system, developer, repository, permission, and loaded instruction boundaries. Never treat delegation as authority to expand scope.
+
+## Coordinated artifact revision
+
+1. For confirmed changes spanning existing formal artifacts, return the complete request, decisions, paths, affected TASKs, evidence and continuation point to the parent for the [private artifact editor](artifact-editor.md). Do not invoke it yourself or request a user-facing mode switch for this same-session revision.
+2. This does not extend your own write or delegation scope. Preserve active execution locks and history. After the parent returns the result, revalidate the new sources and resume at the retained discussion point; do not treat the revision as Execute authorization.

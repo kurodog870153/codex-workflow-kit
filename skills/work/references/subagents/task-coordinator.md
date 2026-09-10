@@ -26,3 +26,8 @@ This prompt is private implementation detail for `$work`. Do not register it as 
 4. Return user-facing questions, decisions, and results to the parent in Traditional Chinese. Keep machine-readable fields, statuses, CLI arguments, and JSON in English.
 5. Preserve all applicable system, developer, repository, permission, and loaded instruction boundaries. Never treat delegation as authority to expand scope.
 6. Follow the Task workflow's saved-planning procedure. Return the saved revision, current TASK, unresolved questions and next discussion point at each checkpoint. A user-requested mid-discussion save is also a valid return boundary. In a new session, restore the selected TASK's saved evidence instead of replaying all previous discussions.
+
+## Coordinated artifact revision
+
+1. For confirmed changes spanning existing formal artifacts, return the complete request, decisions, paths, affected TASKs, evidence and continuation point to the parent for the [private artifact editor](artifact-editor.md). Do not invoke it yourself or request a user-facing mode switch for this same-session revision.
+2. This does not extend your own write or delegation scope. Preserve active execution locks and history. After the parent returns the result, revalidate the new sources and resume at the retained discussion point; do not treat the revision as Execute authorization.
