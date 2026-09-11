@@ -1,6 +1,6 @@
 # Plan Workflow
 
-Use this workflow only after the user-confirmed hierarchy and Plan skill selections have been validated and their applicable instructions loaded.
+Use this workflow for Plan. Independent discussion restoration follows the progress procedure before formal-source gates; normal source-dependent planning and formalization require validated user-confirmed hierarchy and skill selections and their applicable instructions.
 
 ## Apply confirmed skills
 
@@ -14,7 +14,11 @@ Use this workflow only after the user-confirmed hierarchy and Plan skill selecti
 
 1. Perform the user's Plan request under the loaded instructions.
 2. Loading Plan instructions alone does not create or modify a Plan document. Create or modify artifacts only when the request and applicable authorization permit it.
-3. Keep an unapproved Plan candidate in the conversation. Do not create a draft file.
+3. Keep an unapproved formal Plan candidate in the conversation. When the user requests a checkpoint, return the discussion through the parent for [independent progress saving](progress.md); this permits unfinished discussion memory, not a partial formal Plan or its directories.
+
+## Resume discussion progress
+
+1. For `$work plan -- resume <requirement-id>`, follow [discussion progress](progress.md). Restore the saved context, confirm continuation, and review current sources before relying on decisions. Preserve unanswered questions and resume at the saved point without repeating unchanged confirmed decisions. The saver does not conduct Plan discussion.
 
 ## Use the deterministic Plan contract
 

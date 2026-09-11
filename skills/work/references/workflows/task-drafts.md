@@ -4,6 +4,12 @@ Use this reference for the initial TASK list, an authorized checkpoint, or a
 new-session resume. `<work-cli>` means the resolved Python command and
 `<skill-root>/scripts/work.py --project-root <project-root>`.
 
+For a user-requested independent discussion save or explicit `resume` request,
+use [discussion progress](progress.md) through the parent's private progress saver.
+It can preserve unfinished decisions when these structured drafts' formal-source
+checks block work. It neither replaces this index nor authorizes source updates,
+draft assembly or formalization.
+
 ## Read and verify
 
 1. Read the current index with `<work-cli> task draft-read --requirement-id <requirement-id>`. This reads only the authoritative index and its historical copy, not all TASK discussions.

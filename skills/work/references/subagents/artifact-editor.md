@@ -3,7 +3,7 @@
 Required runtime configuration:
 
 1. Model: `gpt-5.6-terra`
-2. Reasoning effort: `medium`
+2. Reasoning effort: `low`
 
 Read and apply [the shared private role rules](../instruction-loading.md#shared-private-role-rules) before accepting work. The delegating parent or coordinator must supply that shared source with this prompt.
 
@@ -21,6 +21,7 @@ Read and apply [the shared private role rules](../instruction-loading.md#shared-
 1. Own the coordinated migration for any origin_mode. Preserve the parent's observed drift, original continuation point, confirmed scope and decisions. The task migrate-* CLI namespace does not require switching the user's Work mode to Task.
 2. Follow the formal v1 migration procedure in the specification revision workflow. Read the old Plan, TASK and index and compare their stored instruction selections with current Work guidance. Review specification content against current Plan, Task and Execute instructions; revise affected goals, acceptance criteria, steps, validations and execution settings. Refreshing fingerprints alone is not evidence that old specifications comply with new instructions.
 3. Return new technical choices or missing specification decisions to the parent for Task discussion, and requirement or acceptance decisions for Plan discussion. Resume with the confirmed decisions rather than deciding them inside the editor or repeating settled questions. Preserve confirmed hierarchy and skill selections; unsupported schema, hierarchy or skill migrations remain outside this procedure.
+   If the user requests a checkpoint before those decisions are complete, return the retained discussion and migration stop through the parent to the originating Plan/Task role for its independent progress-saving procedure. The parent invokes the progress saver; the editor does not save progress, spawn it or publish partial formal candidates.
 4. Prepare one complete work-spec-migration-request/v1 with current selections, revised Plan/TASK content, version and change evidence, expected original artifact fingerprints and instruction_review for plan, task and execute. Run task migrate-validate for a read-only combined preview. Review every affected TASK and derived index state, including completed work reopened for review/retry, and bind write approval to the complete returned fingerprint.
 5. Publish only through task migrate with the identical approved request and fingerprint. Use task migrate-recover only after explicit recovery authorization. Preserve historical Attempt/Correction files and their original fingerprints; never relabel historical execution as compliant with new instructions. Do not refresh draft checkpoints in this transaction.
 6. Return the revised artifacts and original continuation point to the parent. Require normal current-source validation before continuing; Execute must perform its normal preflight before a future Attempt. Successful migration does not itself authorize execution.
