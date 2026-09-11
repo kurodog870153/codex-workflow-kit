@@ -1,12 +1,12 @@
 # Codex Workflow Kit
 
-Codex Workflow Kit 提供單一 `$work` skill，協助你規劃需求、拆分任務並執行工作。
+Codex Workflow Kit 透過 `$work` 協助你規劃需求、拆分任務並執行工作。
 
 ## 功能
 
 1. 使用同一個入口處理 Plan、Task 與 Execute。
-2. Plan 會依需求推薦適合的 instruction hierarchy 與技能，並顯示說明及推薦原因。
-3. Instruction hierarchy 與技能只有在使用者確認後才會載入。
+2. Plan 會依需求推薦適合的工作類型與技能，並說明推薦原因。
+3. 推薦內容由你確認後才會使用。
 4. Plan 可組合多個技能，例如 UI、frontend 與 backend。
 5. Task 會把工作拆成最小可執行任務；Execute 只使用目標任務需要的技能。
 
@@ -34,12 +34,22 @@ $work execute -- 執行正式 TASK-001
 
 Plan 推薦技能後，你可以接受、加入、移除或取消。若沒有合適技能，也可以確認只使用 Work 的基本能力。
 
-## 產物格式
+### 保存討論進度
 
-1. Plan：`outputs/work/plans/<requirement-id>.json`。
-2. Task：`outputs/work/tasks/<requirement-id>/task.json`；草稿維持 JSON。
-3. Execute：`outputs/work/executions/<requirement-id>/index.json`，以及 `<TASK-ID>/<ATTEMPT-ID>/attempt.json`；修正紀錄放於該 Attempt 的 `corrections/<CORRECTION-ID>.json`。只支援此目錄結構，不相容舊式平放紀錄，也不自動搬移。
-4. 正式產物為純 JSON，保留既有 schema 與欄位順序；不接受舊 Markdown 產物，也不提供自動轉換。
+1. 在 Plan 或 Task 討論中說「先保存目前進度」，確認保存內容後即可暫停，不必先完成所有討論。
+2. 已確認事項、尚未決定的方案、待回答問題與下次討論位置都會保留。初次保存時，若尚無需求編號，會請你指定。
+3. 在同一或新的對話中，使用以下指令繼續討論，將 `example` 換成保存時的需求編號。
+
+```text
+$work plan -- resume example
+$work task -- resume example
+```
+
+保存進度不代表討論已完成，也不會開始執行任務。
+
+## 文件位置
+
+規劃文件、討論進度與執行紀錄預設放在專案的 `outputs/work/` 目錄。保存完成後會提供文件位置。
 
 ## 必要環境
 
@@ -52,9 +62,7 @@ Plan 推薦技能後，你可以接受、加入、移除或取消。若沒有合
 
 Work skill 會安裝到使用者目錄下的 `.agents/skills/work`。安裝時可以選擇預設或自訂使用者目錄。
 
-可選擇的 instruction hierarchy：
-
-安裝器提供以下選項：
+安裝時可依專案選擇適用的工作類型：
 
 1. `general only`。
 2. `web`。
@@ -96,17 +104,8 @@ os-scripts\windows\install-work.bat
 
 ## 版本限制
 
-本版本刻意不相容舊 Work 架構：
-
-1. 公開入口只有 `$work`，不再使用 `$plan`、`$task` 或 `$execute`。
-2. 本版本不相容舊 Work 架構，也不會自動升級舊產物。
-3. 不再需要的舊檔案需由使用者確認後自行清理。
-
-## 驗證狀態
-
-1. Work skill 結構與完整 Work 測試已通過。
-2. Windows 安裝器手動測試已通過；管線式自動互動測試仍有已知限制。
-3. macOS 安裝器具備跨平台靜態驗證，實際整合測試需在 macOS 執行。
+1. 請使用 `$work`，不再使用舊版的 `$plan`、`$task` 或 `$execute`。
+2. 舊版產生的文件無法直接沿用，也不會自動轉換；升級前請保留備份。
 
 ## 清理本機 Codex 資料
 

@@ -15,6 +15,7 @@ from .cli_commands.instructions import (
     run_instructions,
 )
 from .cli_commands.plan import register_plan_commands, run_plan
+from .cli_commands.progress import register_progress_commands, run_progress
 from .cli_commands.skills import register_skill_commands, run_skills
 from .cli_commands.task import register_task_commands, run_task
 from .foundation.errors import ExitCode, WorkError
@@ -68,6 +69,8 @@ def build_parser() -> WorkArgumentParser:
 
     register_plan_commands(commands)
 
+    register_progress_commands(commands)
+
     register_task_commands(commands)
 
     register_execute_commands(commands)
@@ -120,6 +123,9 @@ def _run(
 
     if arguments.command == "plan":
         return run_plan(arguments, project_root, input_stream)
+
+    if arguments.command == "progress":
+        return run_progress(arguments, project_root, input_stream)
 
     if arguments.command == "task":
         return run_task(arguments, project_root, input_stream)

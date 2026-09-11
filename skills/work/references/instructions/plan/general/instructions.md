@@ -34,7 +34,7 @@ metadata:
 4. [強制] 新決策可能影響已確認內容時，須先列出受影響項目，再逐項重新確認；沒有影響時也須在狀態摘要中明示。
 5. [預設] 同一對話中內容與來源均未改變的證據可重用；新對話開始後須先唯讀重新核對，才能再次引用。
 6. [強制] 每次回答後更新目前目標、範圍、限制、交付成果、驗收與未決事項；全部決策完成後先提供完整草案，取得確認後才能正式化。
-7. [強制] 全部必要確認完成前，草案只能存在於對話，不得建立 Plan 檔案或相關目錄；正式寫入時一次建立 `status` 為 `confirmed` 的 Plan。
+7. [強制] 全部必要確認完成前，不得建立正式 Plan 檔案或相關目錄；正式寫入時一次建立 `status` 為 `confirmed` 的 Plan。使用者要求保存討論時，依共用 discussion progress 流程交由父 agent 的私人 progress saver 忠實記錄獨立進度文件，允許保留未決事項；該文件不是 Plan 草案契約，也不授權正式化。
 
 ## 3. 正式 Plan
 
@@ -43,7 +43,7 @@ metadata:
 3. [強制] 需求編號只能使用小寫英數、`.`、`_`、`-`，並須通過共用 instruction-loading 的跨 Windows、macOS、Linux 檔名限制；只能沿用使用者目前輸入或正式交接明列的值，不得由檔名、目錄或其他對話推測。
 4. [強制] Plan、TASK 與 execution 預設分別位於 `outputs/work/plans/<requirement-id>.json`、`outputs/work/tasks/<requirement-id>/task.json`、`outputs/work/executions/<requirement-id>/`；任一項改用非預設路徑時，使用者須同時確認三個專案相對路徑與同一需求編號，不得由單一路徑推導其他路徑。
 5. [強制] 每次讀寫前須完整套用共用 instruction-loading 的需求成品路徑安全檢查，不得在本層縮減、另訂或只沿用前一階段的檢查結果；無法確認時維持對話草案。
-6. [強制] 已確認完整草案後，需求編號必須是寫入前最後一項問題；使用者選定有效編號即授權建立該正式 Plan，不得再追加未揭露內容。
+6. [強制] 已確認完整草案後，尚無明確需求編號時，需求編號必須是寫入前最後一項問題；使用者選定有效編號即授權建立該正式 Plan，不得再追加未揭露內容。若已為獨立進度文件確認編號，沿用該編號並另外取得完整正式 Plan 的寫入核准；先前的進度保存或編號確認不構成正式化授權。
 7. [強制] 初次寫入只確認一次需求編號；後續 Task 只有在使用者目前輸入或正式規格交接已明列有效需求編號時才能沿用且不得重問，未明列時仍須詢問。
 8. [強制] `artifacts` 永遠明列 Plan、TASK 與 execution 三個 project-relative paths；`hierarchy_selection` 保存已確認跨模式葉節點、各模式 metadata、推薦原因與選擇雜湊；`work_instruction_selection` 保存原始 `selected_paths`、Plan 實際載入的 `resolved_paths`、`sources`、`references` 與 `instructions_sha256`；`skill_selection` 保存外部技能快照。每個 instruction source 只保存 `kind`、`logical_name` 與 `canonical_sha256`，不得保存絕對路徑。
 9. [強制] 正式寫入前以 stdin 模式驗證純 JSON，核准後由 Work Python CLI 的 `plan create` 使用固定欄位順序、二格縮排、UTF-8、NFC、LF、無 BOM 與恰好一個尾端換行渲染並 exclusive create；不得由 AI 手動組合或寫入正式 JSON。寫入後以 path 模式重新驗證，兩次 canonical Plan 與 instruction fingerprints 必須一致。任一次失敗立即停止，不得自行修補。

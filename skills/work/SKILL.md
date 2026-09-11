@@ -11,7 +11,7 @@ Provide one explicit entry point for Plan, Task, and Execute workflows without e
 
 1. Read [references/instruction-loading.md](references/instruction-loading.md) completely before interpreting the invocation.
 2. Accept only `$work <mode> -- <request>`. Do not accept or request user-facing hierarchy paths.
-3. For Plan, inspect the cross-mode instruction catalog metadata, recommend the smallest suitable path set at the requested scope, including intermediate nodes when appropriate, show each description and recommendation reason, and ask the user to confirm it. Confirm `general_only` explicitly when no specialized path applies.
+3. For an explicit Plan or Task `resume <requirement-id>` request, first follow [discussion progress](references/workflows/progress.md) to restore that mode's saved context before selection or formal-source gates. For a new Plan, inspect the cross-mode instruction catalog metadata, recommend the smallest suitable path set at the requested scope, including intermediate nodes when appropriate, show each description and recommendation reason, and ask the user to confirm it. Confirm `general_only` explicitly when no specialized path applies.
 4. Discover enabled skills from configured roots using summary metadata only, recommend the smallest suitable set, and confirm it separately. Let the user accept, add, remove, or cancel either selection. Do not load specialized Work instructions or full external skill instructions before confirmation.
 5. The parent owns mode, request, catalog discovery, recommendation, dependency checks, and selection confirmation. It delegates the selected workflow when the required subagent runtime is available and performs it only under the fallback defined below.
 6. For `$work task -- <requirement-id>`, use the Task workflow's saved-planning entry point. A saved checkpoint is a valid end of the current run; do not continue to another TASK until the user chooses to continue in this session or resume in a new one.
@@ -26,7 +26,7 @@ Provide one explicit entry point for Plan, Task, and Execute workflows without e
    1. Plan uses exactly one ephemeral subagent.
    2. Task uses one coordinator; it creates one isolated ephemeral subagent per executable confirmed skill, sequentially, using the Task skill prompt's configuration.
    3. Execute uses exactly one ephemeral subagent.
-3. Send a delegation envelope containing all of the following:
+3. Send a delegation envelope containing all of the following. For explicit progress restoration, the progress workflow permits saved context in place of not-yet-valid source selections solely for restoration and clarification; source-dependent work retains normal validation:
    1. `WORK_DELEGATION_V1`
    2. `skill=$work`
    3. `mode=<plan|task|execute>`
@@ -45,10 +45,14 @@ Provide one explicit entry point for Plan, Task, and Execute workflows without e
 
 1. Follow [the shared coordinated revision procedure](references/instruction-loading.md#coordinated-formal-artifact-revision) when confirmed discussion requires changes to existing formal artifacts. Read [the private artifact editor prompt](references/subagents/artifact-editor.md) for its required runtime configuration, accepted envelope and document-only transaction scope.
 
+## Save discussion progress
+
+1. When Plan or Task returns a user-requested progress checkpoint, follow [discussion progress](references/workflows/progress.md). The parent alone invokes [the private progress saver](references/subagents/progress-saver.md), using `gpt-5.6-terra` with `low` reasoning or its documented parent fallback. This role faithfully records supplied content; Plan and Task retain discussion and resumption ownership.
+
 ## Relay and continue
 
 1. Relay the subagent's user-facing question or result in Traditional Chinese without changing its decision boundary, options, machine fields, or requested authorization. Under parent fallback, present the same user-facing content directly.
 2. When the user answers a subagent question, send the answer back to the same subagent and continue that delegated workflow. If that subagent becomes unavailable, continue the same workflow directly under parent fallback. Do not create a replacement subagent unless the user authorizes restarting the delegated workflow.
 3. Apply the shared private role authorization and stop rules during delegation and parent fallback.
-4. Except for the parent's internal artifact revision procedure above, do not delegate work beyond the selected role. Plan and Execute subagents cannot spawn subagents. Only the Task coordinator may create its specified per-skill subagents; those subagents cannot delegate further. Under parent fallback, the parent performs the selected role without further delegation, and handles Task skill work sequentially.
-5. End only after the selected workflow returns a completed result, an authorized saved Task checkpoint, or a genuine stop condition that has been reported to the user. A checkpoint is planning progress, never formal TASK approval or Execute authorization.
+4. Except for the parent's internal artifact revision and progress-saving procedures above, do not delegate work beyond the selected role. Plan and Execute subagents cannot spawn subagents. Only the Task coordinator may create its specified per-skill subagents; those subagents cannot delegate further. Under parent fallback, the parent performs the selected role without further delegation, and handles Task skill work sequentially.
+5. End only after the selected workflow returns a completed result, an authorized saved Plan/Task progress checkpoint or structured Task checkpoint, or a genuine stop condition that has been reported to the user. A checkpoint is discussion progress, never formal approval or Execute authorization.

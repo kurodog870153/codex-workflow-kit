@@ -33,7 +33,7 @@ metadata:
 
 1. [強制] 正式文件只包含單一純 JSON object，固定使用 `schema: work-task/v1`、`status: confirmed` 與 `TASK-SPEC-nnn`。
 2. [強制] keys、enums、IDs、statuses、paths、references 及 hashes 使用英文；語意字串可使用繁體中文。所有欄位、條件結構與引用規則以 Work Python validator 為唯一機器規格。
-3. [強制] 正式候選使用預計正式化的 `confirmed` JSON；規劃進度另以 `work-task-planning-index/v1` 與 `work-task-draft/v1` 保存，依 Task workflow 的 checkpoint 程序執行。草稿、`refined` 與保存確認都不是正式核准，不得使用 `TASK-SPEC-DRAFT` 或交給 Execute。
+3. [強制] 正式候選使用預計正式化的 `confirmed` JSON；結構化規劃進度另以 `work-task-planning-index/v1` 與 `work-task-draft/v1` 保存，依 Task workflow 的 checkpoint 程序執行。使用者要求獨立保存討論時，依共用 discussion progress 流程交由父 agent 的私人 progress saver 忠實記錄；Task 可由該文件恢復討論，來源檢查與正式化仍循原流程。進度文件、草稿、`refined` 與保存確認都不是正式核准，不得使用 `TASK-SPEC-DRAFT` 或交給 Execute。
 4. [強制] 每個 TASK 的 `instruction_selection.selected_paths` 只能是來源 Plan 已確認葉節點、其祖先或空子集，且非空路徑必須完整存在於 Task 與 Execute catalog；`sources` 只保存 `kind`、`logical_name`、`canonical_sha256`，不得保存來源 layer 或絕對路徑。
 5. [強制] 每個 TASK 保存 `skill_id`、`instruction_selection`、`traceability`、單一 `goal`、有序 `steps` 與至少一個 `VAL-*`；只有 `skill_id` 可用 `null` 表示 base-only，沒有內容的選用欄位省略。
 6. [強制] TASK 集合完整覆蓋來源 Plan 的 `GOAL-*`、`DELIVERABLE-*`、`ACCEPTANCE-*` 與存在的 `MILESTONE-*`；每個 acceptance 至少由一個最終 VAL 覆蓋。

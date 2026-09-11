@@ -2,6 +2,12 @@
 
 Load only for the private artifact editor after confirmed discussion requires coordinated revision of existing formal artifacts. This is not an invocation mode. Initial Plan creation and saved Task planning keep their existing workflows; a checkpoint is not a formal TASK and must not be promoted automatically.
 
+When the user wants to preserve unfinished revision or migration discussion,
+return the retained content and blocking evidence through the parent to the
+originating Plan or Task role for [independent discussion progress](progress.md).
+The parent's progress saver can record that content without completing this
+transaction. Do not publish partial candidates or refresh hashes to permit saving.
+
 ## Prepare and review
 
 1. Preserve the explicit requirement ID and all three confirmed artifact paths. Read the formal Plan, TASK and index; retain their raw-byte SHA-256 values as expected.plan_sha256, expected.task_sha256 and expected.index_sha256. Formal source JSON must already be canonical. Stop for any lock, ongoing Attempt, unresolved transaction or unknown user edits. Work instruction source drift requires the migration procedure below.
