@@ -124,6 +124,25 @@ def _index(
     return result, sorted(affected)
 
 
+def _source_plan_repair_binding(
+    value: object, *, task: dict[str, Any], plan_sha256: str,
+) -> tuple[str, str]:
+    repair = strict_keys(value, location="source_plan_repair",
+                         required={"recorded_sha256", "actual_sha256", "review"})
+    nonempty_string(repair["review"], location="source_plan_repair.review")
+    for key in ("recorded_sha256", "actual_sha256"):
+        sha256(repair[key], location="source_plan_repair." + key)
+    source_plan = task.get("source_plan")
+    recorded = source_plan.get("canonical_sha256") if isinstance(source_plan, dict) else None
+    if repair["recorded_sha256"] != recorded or repair["actual_sha256"] != plan_sha256:
+        raise _error("spec_migration_source_plan_repair_changed",
+                     "Binding repair evidence must match the original TASK and validated original Plan.")
+    if recorded == plan_sha256:
+        raise _error("spec_migration_source_plan_repair_unneeded",
+                     "Binding repair requires a mismatched original Plan fingerprint.")
+    return repair["recorded_sha256"], repair["actual_sha256"]
+
+
 def _prepare(
     request: dict[str, Any], *, project_root: Path, user_config_root: str,
     skill_roots: list[SkillRoot] | None, before: dict[str, str] | None = None,
@@ -132,7 +151,8 @@ def _prepare(
     fields = {"schema", "reason", "expected", "plan", "task"}
     if migration:
         fields.add("instruction_review")
-    strict_keys(request, location="spec_update", required=fields)
+    strict_keys(request, location="spec_update", required=fields,
+                optional={"source_plan_repair"} if migration else set())
     schema = "work-spec-migration-request/v1" if migration else "work-spec-update-request/v1"
     if request["schema"] != schema:
         raise _error("spec_update_schema", "Invalid specification update request schema.")
@@ -166,12 +186,20 @@ def _prepare(
         if value.get("artifacts") != artifacts or value.get("requirement_id") != plan["requirement_id"]:
             raise _error("spec_update_identity", "A specification update cannot rename or reroute a requirement.")
     options = dict(project_root=project_root, user_config_root=user_config_root, skill_roots=skill_roots)
-    validate_plan_contract(original["plan"], source="original Plan",
-                           actual_plan_path=artifacts["plan"], _historical_work_sources=migration, **options)
+    old_plan_validation = validate_plan_contract(
+        original["plan"], source="original Plan", actual_plan_path=artifacts["plan"],
+        _historical_work_sources=migration, **options,
+    )
+    repair_binding = None
+    if "source_plan_repair" in request:
+        repair_binding = _source_plan_repair_binding(
+            request["source_plan_repair"], task=old_task, plan_sha256=old_plan_validation["plan_sha256"],
+        )
     old_validation = validate_task_contract(
         original["task"], source="original TASK", actual_task_path=artifacts["task"],
         validate_file_state=False, _source_plan_raw=original["plan"], **options,
         _historical_work_sources=migration,
+        _reviewed_source_plan_binding=repair_binding,
     )
     validate_execution_index(original["index"], source="original index")
     if "lock" in old_index:
@@ -246,6 +274,8 @@ def _prepare(
                 } for row in task["tasks"]
             },
         }
+        if repair_binding is not None:
+            record["migration"]["source_plan_repair"] = copy.deepcopy(request["source_plan_repair"])
     return record, paths
 
 

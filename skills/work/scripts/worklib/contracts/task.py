@@ -170,6 +170,7 @@ def _plan_id_array(
 def _validate_task_contract_object(
     contract: dict[str, Any],
     *,
+    source: str,
     actual_task_path: str,
     project_root: Path,
     user_config_root: str,
@@ -177,7 +178,15 @@ def _validate_task_contract_object(
     skill_roots: list[SkillRoot] | None = None,
     _source_plan_raw: bytes | None = None,
     _historical_work_sources: bool = False,
+    _reviewed_source_plan_binding: tuple[str, str] | None = None,
 ) -> dict[str, object]:
+    if _reviewed_source_plan_binding is not None and (
+        not _historical_work_sources or _source_plan_raw is None
+    ):
+        raise WorkError(
+            ExitCode.CONTRACT, "invalid_source_plan_repair_context",
+            "Reviewed binding repair requires an explicit historical source Plan.",
+        )
     _strict_keys(contract, location="task", required=TOP_REQUIRED, optional=TOP_OPTIONAL)
     if contract["schema"] != "work-task/v1" or contract["status"] != "confirmed":
         raise WorkError(ExitCode.CONTRACT, "invalid_task_identity", "Invalid TASK schema or status.")
@@ -226,11 +235,18 @@ def _validate_task_contract_object(
         project_root=project_root, user_config_root=user_config_root, skill_roots=skill_roots,
         _historical_work_sources=_historical_work_sources,
     )
-    if plan_validation["plan_sha256"] != source_plan_sha:
+    if (
+        plan_validation["plan_sha256"] != source_plan_sha
+        and _reviewed_source_plan_binding != (source_plan_sha, plan_validation["plan_sha256"])
+    ):
         raise WorkError(
             ExitCode.ARTIFACT_INTEGRITY,
             "source_plan_fingerprint_mismatch",
-            "The TASK source Plan fingerprint does not match the formal Plan.",
+            "The TASK source Plan fingerprint does not match the validated Plan.",
+            {
+                "source": source, "task_path": normalized_task_path, "plan_path": artifacts["plan"],
+                "recorded_sha256": source_plan_sha, "actual_sha256": plan_validation["plan_sha256"],
+            },
         )
     if plan_validation["hierarchy_selection_sha256"] != source_hierarchy_sha:
         raise WorkError(
@@ -682,10 +698,12 @@ def validate_task_contract(
     skill_roots: list[SkillRoot] | None = None,
     _source_plan_raw: bytes | None = None,
     _historical_work_sources: bool = False,
+    _reviewed_source_plan_binding: tuple[str, str] | None = None,
 ) -> dict[str, object]:
     contract = parse_json_contract(raw, source=source)
     result = _validate_task_contract_object(
         contract,
+        source=source,
         actual_task_path=actual_task_path,
         project_root=project_root,
         user_config_root=user_config_root,
@@ -693,6 +711,7 @@ def validate_task_contract(
         skill_roots=skill_roots,
         _source_plan_raw=_source_plan_raw,
         _historical_work_sources=_historical_work_sources,
+        _reviewed_source_plan_binding=_reviewed_source_plan_binding,
     )
     ordered = order_task_contract(contract)
     require_canonical_json_contract(

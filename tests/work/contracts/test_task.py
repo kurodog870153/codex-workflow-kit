@@ -201,6 +201,30 @@ class TaskInstructionContractTests(unittest.TestCase):
         self.assertNotIn("rules_sha256", result)
         self.assertNotIn("task_rules_sha256", result)
 
+    def test_reviewed_binding_is_limited_to_exact_historical_plan(self) -> None:
+        contract = copy.deepcopy(self.contract)
+        actual = contract["source_plan"]["canonical_sha256"]
+        contract["source_plan"]["canonical_sha256"] = "0" * 64
+        raw = render_task_contract(contract)
+        plan_raw = (self.project_root / self.artifacts["plan"]).read_bytes()
+        for historical, explicit_plan, binding, code in (
+            (False, plan_raw, ("0" * 64, actual), "invalid_source_plan_repair_context"),
+            (True, None, ("0" * 64, actual), "invalid_source_plan_repair_context"),
+            (True, plan_raw, ("1" * 64, actual), "source_plan_fingerprint_mismatch"),
+            (True, plan_raw, ("0" * 64, "1" * 64), "source_plan_fingerprint_mismatch"),
+            (True, plan_raw, None, "source_plan_fingerprint_mismatch"),
+            (False, plan_raw, None, "source_plan_fingerprint_mismatch"),
+        ):
+            with self.subTest(historical=historical, explicit_plan=explicit_plan is not None, binding=binding):
+                with self.assertRaises(WorkError) as error:
+                    validate_task_contract(
+                        raw, source="test", actual_task_path=self.artifacts["task"],
+                        project_root=self.project_root, user_config_root=str(self.project_root),
+                        _source_plan_raw=explicit_plan, _historical_work_sources=historical,
+                        _reviewed_source_plan_binding=binding,
+                    )
+                self.assertEqual(error.exception.code, code)
+
     def test_render_orders_instruction_selections_canonically(self) -> None:
         raw = render_task_contract(dict(reversed(self.contract.items())))
         payload = json.loads(
