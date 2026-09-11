@@ -167,6 +167,209 @@ class SpecificationUpdateTests(unittest.TestCase):
         return update_specification(json.dumps(request).encode(), project_root=self.root,
             user_config_root=str(self.root), operation=operation, approved_sha256=approval, migration=True)
 
+    def migration_repair_request(self):
+        request = self.migration_request()
+        # The Plan changed after TASK binding; the index still identifies the original TASK.
+        plan = json.loads(self.plan_path.read_bytes())
+        plan["title"] += " clarified"
+        self.plan_path.write_bytes(render_plan_contract(plan))
+        original_task = json.loads(self.task_path.read_bytes())
+        request["expected"]["plan_sha256"] = digest(self.plan_path.read_bytes())
+        request["source_plan_repair"] = {
+            "recorded_sha256": original_task["source_plan"]["canonical_sha256"],
+            "actual_sha256": digest(self.plan_path.read_bytes()),
+            "review": "Reviewed the Plan title clarification and all TASKs; user accepted this baseline.",
+        }
+        request["plan"]["title"] = plan["title"]
+        candidate = request["task"]
+        candidate["source_plan"]["canonical_sha256"] = digest(render_plan_contract(request["plan"]))
+        candidate["changes"][0]["edits"] = [
+            {"operation": "replace", "path": "/" + key, "before": original_task[key], "after": candidate[key]}
+            for key in sorted(original_task)
+            if key not in {"spec_id", "readiness", "changes"} and original_task[key] != candidate[key]
+        ]
+        return request
+
+    def test_migration_binding_repair_preserves_originals_and_publishes_valid_candidates(self):
+        request = self.migration_repair_request()
+        self.add_history()
+        request["expected"]["index_sha256"] = digest(self.index_path.read_bytes())
+        before = self.snapshot()
+        preview = self.run_migration(request)
+        self.assertEqual(before, self.snapshot())
+        self.assertEqual(preview["migration"]["source_plan_repair"], request["source_plan_repair"])
+        self.assertEqual(preview["candidate"]["task"]["source_plan"]["canonical_sha256"],
+                         digest(render_plan_contract(request["plan"])))
+        self.assertEqual(preview["file_readiness"], "requires_execute_preflight")
+        self.assertEqual(self.run_migration(request, "apply", preview["approved_sha256"])["status"], "updated")
+        validation = validate_task_contract(self.task_path.read_bytes(), source="repaired TASK",
+            actual_task_path=self.artifacts["task"], project_root=self.root, user_config_root=str(self.root))
+        index = json.loads(self.index_path.read_bytes())
+        self.assertEqual(index["task_sha256"], validation["task_sha256"])
+        self.assertTrue(all(row["status"] == "pending_retry" for row in index["tasks"]))
+        for name, raw in before.items():
+            if "/ATTEMPT-" in name:
+                self.assertEqual((self.root / name).read_bytes(), raw)
+        journal = next(self.index_path.parent.glob(".work-spec-update-*.json"))
+        record = json.loads(journal.read_bytes())
+        for key, path in self.paths().items():
+            self.assertEqual(record["before"][key].encode("utf-8"), before[path.relative_to(self.root).as_posix()])
+        self.assertEqual(record["migration"]["source_plan_repair"], request["source_plan_repair"])
+        self.assertEqual(self.run_update(self.request())["status"], "valid")
+
+    def test_migration_missing_repair_reports_original_binding_without_writes(self):
+        request = self.migration_repair_request()
+        repair = request.pop("source_plan_repair")
+        before = self.snapshot()
+        output, errors = io.StringIO(), io.StringIO()
+        code = main(["--project-root", str(self.root), "task", "migrate-validate", "--stdin",
+                     "--user-config-root", str(self.root)], stdin=io.StringIO(json.dumps(request)),
+                    stdout=output, stderr=errors)
+        self.assertEqual(code, 5)
+        self.assertEqual(output.getvalue(), "")
+        error = json.loads(errors.getvalue())
+        self.assertEqual(error["code"], "source_plan_fingerprint_mismatch")
+        self.assertEqual(error["details"], {
+            "source": "original TASK", "task_path": self.artifacts["task"], "plan_path": self.artifacts["plan"],
+            "recorded_sha256": repair["recorded_sha256"], "actual_sha256": repair["actual_sha256"],
+        })
+        self.assertEqual(before, self.snapshot())
+
+    def test_migration_rejects_invalid_or_stale_repair_evidence(self):
+        request = self.migration_repair_request()
+        evidence = request["source_plan_repair"]
+        for value, code in (
+            (None, "expected_object"),
+            ({key: value for key, value in evidence.items() if key != "review"}, "invalid_object_fields"),
+            (dict(evidence, review=" "), "empty_text_value"),
+            (dict(evidence, extra=True), "invalid_object_fields"),
+            (dict(evidence, recorded_sha256="invalid"), "invalid_sha256"),
+            (dict(evidence, recorded_sha256="0" * 64), "spec_migration_source_plan_repair_changed"),
+            (dict(evidence, actual_sha256="0" * 64), "spec_migration_source_plan_repair_changed"),
+            (dict(evidence, actual_sha256=request["task"]["source_plan"]["canonical_sha256"]),
+             "spec_migration_source_plan_repair_changed"),
+        ):
+            with self.subTest(value=value):
+                candidate = copy.deepcopy(request)
+                candidate["source_plan_repair"] = value
+                before = self.snapshot()
+                with self.assertRaises(WorkError) as error:
+                    self.run_migration(candidate)
+                self.assertEqual(error.exception.code, code)
+                self.assertEqual(before, self.snapshot())
+
+    def test_binding_repair_is_rejected_for_normal_updates_and_consistent_baselines(self):
+        request = self.migration_request()
+        original = json.loads(self.task_path.read_bytes())["source_plan"]["canonical_sha256"]
+        request["source_plan_repair"] = {"recorded_sha256": original, "actual_sha256": original, "review": "Reviewed"}
+        before = self.snapshot()
+        with self.assertRaises(WorkError) as error:
+            self.run_migration(request)
+        self.assertEqual(error.exception.code, "spec_migration_source_plan_repair_unneeded")
+        request["schema"] = "work-spec-update-request/v1"
+        del request["instruction_review"]
+        with self.assertRaises(WorkError) as error:
+            self.run_update(request)
+        self.assertEqual(error.exception.code, "invalid_object_fields")
+        self.assertEqual(error.exception.details["unknown"], ["source_plan_repair"])
+        self.assertEqual(before, self.snapshot())
+
+    def test_binding_repair_never_accepts_a_mismatched_candidate(self):
+        request = self.migration_repair_request()
+        wrong = request["source_plan_repair"]["actual_sha256"]
+        request["task"]["source_plan"]["canonical_sha256"] = wrong
+        before = self.snapshot()
+        with self.assertRaises(WorkError) as error:
+            self.run_migration(request)
+        self.assertEqual(error.exception.code, "source_plan_fingerprint_mismatch")
+        self.assertEqual(error.exception.details["source"], "candidate TASK")
+        self.assertEqual(error.exception.details["recorded_sha256"], wrong)
+        self.assertEqual(error.exception.details["actual_sha256"], digest(render_plan_contract(request["plan"])))
+        self.assertEqual(before, self.snapshot())
+
+    def test_binding_repair_preserves_other_baseline_and_candidate_checks(self):
+        for defect, code in (
+            ("index", "spec_update_index_identity"),
+            ("hierarchy", "source_plan_hierarchy_selection_mismatch"),
+            ("union", "historical_instruction_union_mismatch"),
+            ("lock", "spec_update_lock_present"),
+            ("active", "spec_update_active_task"),
+            ("traceability", "invalid_reference"),
+            ("candidate_sources", "work_instruction_selection_sources_mismatch"),
+            ("edits", "spec_update_change_evidence"),
+        ):
+            with self.subTest(defect=defect):
+                request = self.migration_repair_request()
+                task = json.loads(self.task_path.read_bytes())
+                index = json.loads(self.index_path.read_bytes())
+                if defect == "index":
+                    index["task_sha256"] = "0" * 64
+                elif defect == "hierarchy":
+                    task["source_plan"]["hierarchy_selection_sha256"] = "0" * 64
+                elif defect == "union":
+                    task["instruction_selection"]["sources"][0]["canonical_sha256"] = "e" * 64
+                elif defect == "lock":
+                    index["lock"] = {"kind": "spec_update", "record": "SPEC-UPDATE-009"}
+                elif defect == "active":
+                    index["tasks"][0].update(status="in_progress", latest_attempt="ATTEMPT-001")
+                    index["overall_status"] = "in_progress"
+                elif defect == "traceability":
+                    task["tasks"][0]["traceability"]["goal_ids"] = ["GOAL-999"]
+                elif defect == "candidate_sources":
+                    request["plan"]["work_instruction_selection"] = json.loads(self.plan_path.read_bytes())["work_instruction_selection"]
+                else:
+                    request["task"]["changes"][0]["edits"][0]["before"] = "invented"
+                self.task_path.write_bytes(render_task_contract(task))
+                self.index_path.write_bytes(render_execution_index(index))
+                request["expected"] = {key + "_sha256": digest(path.read_bytes()) for key, path in self.paths().items()}
+                before = self.snapshot()
+                with self.assertRaises(WorkError) as error:
+                    self.run_migration(request)
+                self.assertEqual(error.exception.code, code)
+                self.assertEqual(before, self.snapshot())
+
+    def test_binding_repair_approval_binds_review_and_original_bytes(self):
+        request = self.migration_repair_request()
+        preview = self.run_migration(request)
+        changed = copy.deepcopy(request)
+        changed["source_plan_repair"]["review"] += " Additional reviewed context."
+        before = self.snapshot()
+        with self.assertRaises(WorkError) as error:
+            self.run_migration(changed, "apply", preview["approved_sha256"])
+        self.assertEqual(error.exception.code, "spec_update_approval_changed")
+        self.assertEqual(before, self.snapshot())
+        self.plan_path.write_bytes(self.plan_path.read_bytes().replace(b"\n", b"\r\n"))
+        before = self.snapshot()
+        with self.assertRaises(WorkError) as error:
+            self.run_migration(request, "apply", preview["approved_sha256"])
+        self.assertEqual(error.exception.code, "spec_update_source_changed")
+        self.assertEqual(before, self.snapshot())
+
+    def test_binding_repair_recovery_retains_the_reviewed_mismatched_baseline(self):
+        request = self.migration_repair_request()
+        approval = self.run_migration(request)["approved_sha256"]
+        replace = specification._replace
+
+        def interrupted(path, *args, **kwargs):
+            if path == self.task_path:
+                raise OSError("injected interruption after Plan publication")
+            return replace(path, *args, **kwargs)
+
+        with patch.object(specification, "_replace", side_effect=interrupted):
+            with self.assertRaises(WorkError) as error:
+                self.run_migration(request, "apply", approval)
+        self.assertEqual(error.exception.code, "spec_update_interrupted")
+        changed = copy.deepcopy(request)
+        changed["source_plan_repair"]["review"] += " changed"
+        before = self.snapshot()
+        with self.assertRaises(WorkError) as error:
+            self.run_migration(changed, "recover", approval)
+        self.assertEqual(error.exception.code, "spec_update_recovery_request")
+        self.assertEqual(before, self.snapshot())
+        for expected in ("recovered", "already_completed"):
+            self.assertEqual(self.run_migration(request, "recover", approval)["status"], expected)
+        self.assertEqual(self.run_update(self.request())["status"], "valid")
+
     def test_migration_revises_drifted_documents_and_restores_normal_revision(self):
         request = self.migration_request()
         self.add_history()
