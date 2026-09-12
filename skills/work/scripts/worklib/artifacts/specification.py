@@ -168,7 +168,7 @@ def _prepare(
         sha256(value, location="expected." + key)
     if not isinstance(request["plan"], dict) or not isinstance(request["task"], dict):
         raise _error("spec_update_candidate", "Complete Plan and TASK objects are required.")
-    plan, task = request["plan"], request["task"]
+    plan, task = copy.deepcopy(request["plan"]), copy.deepcopy(request["task"])
     artifacts = validate_artifact_paths(project_root, plan.get("requirement_id"), plan.get("artifacts"),
                                        actual_plan_path=plan.get("artifacts", {}).get("plan", ""))
     paths = {key: storage_path(project_root, value) for key, value in artifacts.items()}
@@ -181,7 +181,21 @@ def _prepare(
     }
     if {key + "_sha256": _hash(raw) for key, raw in original.items()} != expected:
         raise _error("spec_update_source_changed", "The reviewed source fingerprints no longer match.")
-    old_plan, old_task, old_index = (_decode(original[key]) for key in ("plan", "task", "index"))
+    # Parsing here extracts repair identity only; normal use still requires the
+    # original contract validation below, including the reviewed binding rules.
+    try:
+        old_task = _decode(original["task"])
+    except WorkError as error:
+        from ..contracts.task_diagnostics import diagnose_task_contract
+        error.details["task_diagnostics"] = diagnose_task_contract(
+            original["task"], source="original TASK", actual_task_path=artifacts["task"],
+            project_root=project_root, user_config_root=user_config_root, skill_roots=skill_roots,
+            plan_path=artifacts["plan"], execution_dir=artifacts["execution"],
+            _source_plan_raw=original["plan"], _historical_work_sources=migration,
+            _contract_error=error,
+        )
+        raise
+    old_plan, old_index = (_decode(original[key]) for key in ("plan", "index"))
     for value in (old_plan, old_task, task):
         if value.get("artifacts") != artifacts or value.get("requirement_id") != plan["requirement_id"]:
             raise _error("spec_update_identity", "A specification update cannot rename or reroute a requirement.")
@@ -357,6 +371,9 @@ def update_specification(
                 raise _error("spec_update_recovery_record", "The complete original artifact bytes are required.")
     else:
         require_no_spec_update(project_root, execution)
+        if migration:
+            from .migration_transactions import require_new_migration
+            require_new_migration(project_root, execution, request)
         before = None
     record, paths = _prepare(request, project_root=project_root, user_config_root=user_config_root,
                              skill_roots=skill_roots, before=before, migration=migration)
@@ -406,7 +423,7 @@ def update_specification(
     for entry in paths["execution"].glob(".work-*.tmp"):
         raise _error("spec_update_other_transaction", "Another execution transaction requires recovery.", path=str(entry))
     if operation == "recover":
-        for entry in paths["execution"].glob(".work-spec-update-*.json"):
+        for entry in [*paths["execution"].glob(".work-spec-update-*.json"), *paths["execution"].glob(".work-task-repair-*.json")]:
             if entry != journal:
                 marker = storage_path(project_root, entry.relative_to(project_root).as_posix() + ".done")
                 if not marker.is_file() or marker.read_bytes() != _hash(entry.read_bytes()).encode("ascii") + b"\n":
@@ -415,6 +432,8 @@ def update_specification(
         # Recheck after acquiring the same OS mutex used by Execute mutations.
         if operation == "apply":
             require_no_spec_update(project_root, execution)
+            if migration:
+                require_new_migration(project_root, execution, request)
         if any(paths[key].read_bytes() != current[key] for key in current):
             raise _error("spec_update_source_changed", "Artifacts changed before exclusive publication.")
         if _history(project_root, execution) != record["history_sha256"]:

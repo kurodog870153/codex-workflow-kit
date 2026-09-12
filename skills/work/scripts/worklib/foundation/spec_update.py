@@ -27,9 +27,12 @@ def storage_path(root: Path, relative: str) -> Path:
     return resolved
 
 
-def require_no_spec_update(root: Path, execution_dir: str) -> None:
+def require_no_spec_update(root: Path, execution_dir: str, *, ignored_record: str | None = None) -> None:
     directory = storage_path(root, execution_dir)
-    for record in directory.glob(".work-spec-update-*.json"):
+    records = sorted([*directory.glob(".work-spec-update-*.json"), *directory.glob(".work-task-repair-*.json")])
+    for record in records:
+        if record.relative_to(root).as_posix() == ignored_record:
+            continue
         record = storage_path(root, record.relative_to(root).as_posix())
         done = storage_path(root, record.relative_to(root).as_posix() + ".done")
         expected = hashlib.sha256(record.read_bytes()).hexdigest().encode("ascii") + b"\n"
@@ -41,28 +44,41 @@ def require_no_spec_update(root: Path, execution_dir: str) -> None:
             )
 
 @contextmanager
+def _writer_lock(stream):
+    try:
+        if os.name == "nt":
+            import msvcrt
+            stream.seek(0)
+            msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as error:
+        raise WorkError(
+            ExitCode.LOCK_CONFLICT, "work_state_writer_busy",
+            "Another Work command is updating this requirement.",
+        ) from error
+    try:
+        yield
+    finally:
+        if os.name == "nt":
+            stream.seek(0)
+            msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+
+
+def require_idle_writer(root: Path, execution_dir: str):
+    """Probe an existing OS mutex without creating files or changing bytes."""
+    path = storage_path(root, execution_dir + "/.work-state-writer.lock")
+    if path.exists():
+        with path.open("rb") as stream, _writer_lock(stream):
+            pass
+
+
+@contextmanager
 def state_writer(root: Path, execution_dir: str):
     """Serialize cooperating Work CLI writers; an OS lock dies with its process."""
     path = storage_path(root, execution_dir + "/.work-state-writer.lock")
-    with path.open("a+b") as stream:
-        try:
-            if os.name == "nt":
-                import msvcrt
-                stream.seek(0)
-                msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
-            else:
-                import fcntl
-                fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError as error:
-            raise WorkError(
-                ExitCode.LOCK_CONFLICT, "work_state_writer_busy",
-                "Another Work command is updating this requirement.",
-            ) from error
-        try:
-            yield
-        finally:
-            if os.name == "nt":
-                stream.seek(0)
-                msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
-            else:
-                fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+    with path.open("a+b") as stream, _writer_lock(stream):
+        yield

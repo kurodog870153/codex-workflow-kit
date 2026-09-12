@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import TextIO
 
 from ..artifacts.specification import update_specification
+from ..artifacts.task_repair import repair_task
+from ..artifacts.migration_preflight import migration_preflight
+from ..artifacts.migration_verify import verify_migration
 from ..artifacts.task import create_task_artifacts, recover_task_create
 from ..artifacts.task_draft import (
     read_task_draft,
@@ -12,6 +14,7 @@ from ..artifacts.task_draft import (
     recover_task_planning,
     save_task_planning,
 )
+from ..contracts.task_diagnostics import diagnose_task_file
 from ..contracts.task import validate_task_file, validate_task_json_contract
 from ..artifacts.task_draft_sources import check_task_draft_sources
 from ..artifacts.task_draft_list import update_task_planning_list
@@ -21,6 +24,7 @@ from ..contracts.validation import strict_keys
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.markdown import parse_json_contract
 from ..skills.catalog import parse_skill_root
+from ..foundation.cli_io import FileInput
 from . import SubparserRegistry
 
 
@@ -30,19 +34,33 @@ def register_task_commands(commands: SubparserRegistry) -> None:
 
     for name in ("spec-validate", "spec-update", "spec-recover", "migrate-validate", "migrate", "migrate-recover"):
         spec = task_commands.add_parser(name, help="Internal coordinated specification revision.")
-        spec.add_argument("--stdin", action="store_true", required=True)
+        spec.add_argument("--input-file", required=True)
         spec.add_argument("--user-config-root", required=True)
         spec.add_argument("--skill-root", action="append", default=[])
         if name not in {"spec-validate", "migrate-validate"}:
             spec.add_argument("--approved-sha256", required=True)
 
-    draft_init = task_commands.add_parser("draft-init", help="Save an initial planning index from stdin.")
-    draft_init.add_argument("--stdin", action="store_true", required=True)
+    for name in ("repair-validate", "repair", "repair-recover"):
+        repair = task_commands.add_parser(name, help="Review or publish an explicitly decided TASK repair.")
+        repair.add_argument("--input-file", required=True)
+        repair.add_argument("--user-config-root", required=True)
+        repair.add_argument("--skill-root", action="append", default=[])
+        if name != "repair-validate":
+            repair.add_argument("--approved-sha256", required=True)
+
+    for name in ("migrate-preflight", "migrate-verify"):
+        inspection = task_commands.add_parser(name, help="Inspect migration evidence without writes.")
+        inspection.add_argument("--input-file", required=True)
+        inspection.add_argument("--user-config-root", required=True)
+        inspection.add_argument("--skill-root", action="append", default=[])
+
+    draft_init = task_commands.add_parser("draft-init", help="Save an initial planning index from a JSON request file.")
+    draft_init.add_argument("--input-file", required=True)
     draft_save = task_commands.add_parser("draft-save", help="Save one discussion from an index/draft JSON object.")
-    draft_save.add_argument("--stdin", action="store_true", required=True)
+    draft_save.add_argument("--input-file", required=True)
     draft_save.add_argument("--expected-revision", type=int, required=True)
     draft_recover = task_commands.add_parser("draft-recover", help="Recover a fully prepared save using its original JSON request.")
-    draft_recover.add_argument("--stdin", action="store_true", required=True)
+    draft_recover.add_argument("--input-file", required=True)
     draft_recover.add_argument("--expected-revision", type=int, required=True)
     draft_read = task_commands.add_parser("draft-read", help="Read the committed index or one historical draft.")
     draft_read.add_argument("--requirement-id", required=True)
@@ -60,13 +78,20 @@ def register_task_commands(commands: SubparserRegistry) -> None:
     draft_check.add_argument("--reference", action="append", default=[])
     for command_name in ("draft-list-update", "draft-list-recover"):
         draft_list = task_commands.add_parser(command_name)
-        draft_list.add_argument("--stdin", action="store_true", required=True)
+        draft_list.add_argument("--input-file", required=True)
         draft_list.add_argument("--expected-revision", type=int, required=True)
+
+    diagnose = task_commands.add_parser("diagnose", help="Diagnose an existing TASK without writing.")
+    diagnose.add_argument("--path", required=True)
+    diagnose.add_argument("--plan-path", required=True)
+    diagnose.add_argument("--execution-dir", required=True)
+    diagnose.add_argument("--user-config-root", required=True)
+    diagnose.add_argument("--skill-root", action="append", default=[])
 
     task_validate = task_commands.add_parser("validate")
     for command_name in ("draft-source-update", "draft-source-recover"):
         source_update = task_commands.add_parser(command_name)
-        source_update.add_argument("--stdin", action="store_true", required=True)
+        source_update.add_argument("--input-file", required=True)
         source_update.add_argument("--requirement-id", required=True)
         source_update.add_argument("--expected-revision", type=int, required=True)
         source_update.add_argument("--plan-path", required=True)
@@ -74,7 +99,7 @@ def register_task_commands(commands: SubparserRegistry) -> None:
         source_update.add_argument("--skill-root", action="append", default=[])
     for command_name in ("draft-assemble", "draft-create"):
         assembly = task_commands.add_parser(command_name)
-        assembly.add_argument("--stdin", action="store_true", required=True)
+        assembly.add_argument("--input-file", required=True)
         assembly.add_argument("--requirement-id", required=True)
         assembly.add_argument("--expected-revision", type=int, required=True)
         assembly.add_argument("--plan-path", required=True)
@@ -86,14 +111,14 @@ def register_task_commands(commands: SubparserRegistry) -> None:
     task_validate.add_argument("--skill-root", action="append", default=[])
     task_source = task_validate.add_mutually_exclusive_group(required=True)
     task_source.add_argument("--path")
-    task_source.add_argument("--stdin", action="store_true")
+    task_source.add_argument("--input-file")
     task_validate.add_argument("--task-path")
 
     for command_name in ("create", "recover-create"):
         task_write = task_commands.add_parser(command_name)
         task_write.add_argument("--user-config-root", required=True)
         task_write.add_argument("--skill-root", action="append", default=[])
-        task_write.add_argument("--stdin", action="store_true", required=True)
+        task_write.add_argument("--input-file", required=True)
         task_write.add_argument("--plan-path", required=True)
         task_write.add_argument("--task-path", required=True)
         task_write.add_argument("--execution-dir", required=True)
@@ -102,11 +127,38 @@ def register_task_commands(commands: SubparserRegistry) -> None:
 def run_task(
     arguments: argparse.Namespace,
     project_root: Path,
-    input_stream: TextIO,
+    request: FileInput | None,
 ) -> dict[str, object]:
+    if arguments.task_command == "migrate-verify":
+        report = verify_migration(
+            request.raw, project_root=project_root, user_config_root=arguments.user_config_root,
+            skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
+        )
+        if not report["verified"]:
+            raise WorkError(
+                ExitCode.ARTIFACT_INTEGRITY, "migration_verification_failed",
+                "Migration verification found incomplete or changed evidence; review the report.", report,
+            )
+        return report
+    if arguments.task_command == "migrate-preflight":
+        report = migration_preflight(
+            request.raw, project_root=project_root, user_config_root=arguments.user_config_root,
+            skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
+        )
+        if not report["can_prepare_candidate"]:
+            raise WorkError(ExitCode.CONTRACT, "migration_preflight_blocked",
+                            "Migration preflight found blockers; review the complete report.", report)
+        return report
+    if arguments.task_command in {"repair-validate", "repair", "repair-recover"}:
+        return repair_task(
+            request.raw, project_root=project_root, user_config_root=arguments.user_config_root,
+            skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
+            operation={"repair-validate": "validate", "repair": "apply", "repair-recover": "recover"}[arguments.task_command],
+            approved_sha256=getattr(arguments, "approved_sha256", None),
+        )
     if arguments.task_command in {"spec-validate", "spec-update", "spec-recover", "migrate-validate", "migrate", "migrate-recover"}:
         return update_specification(
-            input_stream.read().encode("utf-8"), project_root=project_root,
+            request.raw, project_root=project_root,
             user_config_root=arguments.user_config_root,
             skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
             operation={"spec-validate": "validate", "spec-update": "apply", "spec-recover": "recover",
@@ -116,7 +168,7 @@ def run_task(
         )
     if arguments.task_command in {"draft-list-update", "draft-list-recover"}:
         request = strict_keys(
-            parse_json_contract(input_stream.read().encode("utf-8"), source="stdin"),
+            parse_json_contract(request.raw, source=request.source),
             location="draft_list_update", required={"index", "reason"},
         )
         return update_task_planning_list(
@@ -128,7 +180,7 @@ def run_task(
             return read_task_draft(project_root, arguments.requirement_id, arguments.task_id)
         return read_task_planning_index(project_root, arguments.requirement_id)
     if arguments.task_command in {"draft-init", "draft-save", "draft-recover"}:
-        payload = parse_json_contract(input_stream.read().encode("utf-8"), source="stdin")
+        payload = parse_json_contract(request.raw, source=request.source)
         if arguments.task_command == "draft-init":
             return save_task_planning(project_root, payload, expected_revision=0)
         if arguments.task_command == "draft-recover" and arguments.expected_revision == 0:
@@ -145,13 +197,13 @@ def run_task(
     if arguments.task_command in {"draft-source-update", "draft-source-recover"}:
         return update_task_draft_sources(
             project_root, arguments.requirement_id,
-            parse_json_contract(input_stream.read().encode("utf-8"), source="stdin"),
+            parse_json_contract(request.raw, source=request.source),
             expected_revision=arguments.expected_revision, plan_path=arguments.plan_path,
             user_config_root=arguments.user_config_root, skill_roots=skill_roots,
             recover=arguments.task_command == "draft-source-recover",
         )
     if arguments.task_command in {"draft-assemble", "draft-create"}:
-        metadata = parse_json_contract(input_stream.read().encode("utf-8"), source="stdin")
+        metadata = parse_json_contract(request.raw, source=request.source)
         options = dict(expected_revision=arguments.expected_revision, plan_path=arguments.plan_path,
                        user_config_root=arguments.user_config_root, skill_roots=skill_roots)
         if arguments.task_command == "draft-create":
@@ -172,8 +224,8 @@ def run_task(
             else recover_task_create
         )
         return operation(
-            input_stream.read().encode("utf-8"),
-            source="stdin",
+            request.raw,
+            source=request.source,
             raw_plan_path=arguments.plan_path,
             raw_task_path=arguments.task_path,
             raw_execution_dir=arguments.execution_dir,
@@ -181,16 +233,28 @@ def run_task(
             user_config_root=arguments.user_config_root,
             skill_roots=skill_roots,
         )
-    if arguments.stdin:
+    if arguments.task_command == "diagnose":
+        report = diagnose_task_file(
+            project_root, arguments.user_config_root, arguments.path,
+            plan_path=arguments.plan_path, execution_dir=arguments.execution_dir,
+            skill_roots=skill_roots,
+        )
+        if not report["normal_use_allowed"]:
+            raise WorkError(
+                ExitCode.CONTRACT, "task_diagnostics_failed",
+                "TASK validation is blocked; review the diagnostic report.", report,
+            )
+        return report
+    if arguments.input_file:
         if not arguments.task_path:
             raise WorkError(
                 ExitCode.CLI_USAGE,
                 "task_path_required",
-                "--task-path is required with --stdin.",
+                "--task-path is required with --input-file.",
             )
         return validate_task_json_contract(
-            input_stream.read().encode("utf-8"),
-            source="stdin",
+            request.raw,
+            source=request.source,
             actual_task_path=arguments.task_path,
             project_root=project_root,
             user_config_root=arguments.user_config_root,
@@ -200,7 +264,7 @@ def run_task(
         raise WorkError(
             ExitCode.CLI_USAGE,
             "unexpected_task_path",
-            "--task-path is only valid with --stdin.",
+            "--task-path is only valid with --input-file.",
         )
     return validate_task_file(
         project_root,

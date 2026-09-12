@@ -36,10 +36,10 @@ class LegacyRulesCliTests(unittest.TestCase):
         )
 
         self.assertEqual(exit_code, ExitCode.CLI_USAGE)
-        self.assertEqual(stdout.getvalue(), "")
-        error = json.loads(stderr.getvalue())
-        self.assertEqual(error["schema"], "work-error/v1")
-        self.assertEqual(error["code"], "cli_usage_error")
+        self.assertEqual(stderr.getvalue(), "")
+        error = json.loads(stdout.getvalue())
+        self.assertEqual(error["schema"], "work-cli-result/v1")
+        self.assertEqual(error["reason_code"], "cli_usage_error")
 
 
 if __name__ == "__main__":

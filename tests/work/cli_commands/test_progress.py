@@ -14,6 +14,9 @@ from unittest.mock import patch
 
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from cli_support import FileInputTestCase
 
 from worklib.cli import main
 from worklib.contracts.progress import validate_progress_contract
@@ -22,7 +25,7 @@ from worklib.foundation.markdown import render_json_contract
 from worklib.foundation.spec_update import state_writer
 
 
-class ProgressCliTests(unittest.TestCase):
+class ProgressCliTests(FileInputTestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
@@ -42,23 +45,24 @@ class ProgressCliTests(unittest.TestCase):
     def cli(self, *arguments, payload=None, expected_code=0, raw=None):
         output, errors = io.StringIO(), io.StringIO()
         code = main(
-            ["--project-root", str(self.root), *arguments],
-            stdin=io.StringIO(raw if raw is not None else json.dumps(payload, ensure_ascii=False)),
+            self.input_arguments(["--project-root", str(self.root), *arguments], raw if raw is not None else json.dumps(payload, ensure_ascii=False)),
             stdout=output, stderr=errors,
         )
         self.assertEqual(code, expected_code, errors.getvalue())
-        self.assertEqual(output.getvalue() if expected_code else errors.getvalue(), "")
-        return json.loads(errors.getvalue() if expected_code else output.getvalue())
+        self.assertEqual(errors.getvalue(), "")
+        response = json.loads(output.getvalue())
+        self.assertEqual(response["schema"], "work-cli-result/v1")
+        return response if expected_code else response["data"]
 
     def preview(self, progress=None, expected_revision=0, expected_code=0):
-        return self.cli("progress", "validate", "--stdin", "--expected-revision", str(expected_revision),
+        return self.cli("progress", "validate", "--input-file", "request.json", "--expected-revision", str(expected_revision),
                         payload=progress or self.progress, expected_code=expected_code)
 
     def save(self, progress=None, expected_revision=0, approval=None, expected_code=0):
         progress = progress or self.progress
         if approval is None:
             approval = self.preview(progress, expected_revision)["approved_sha256"]
-        return self.cli("progress", "save", "--stdin", "--expected-revision", str(expected_revision),
+        return self.cli("progress", "save", "--input-file", "request.json", "--expected-revision", str(expected_revision),
                         "--approved-sha256", approval, payload=progress, expected_code=expected_code)
 
     def read(self, mode="plan", requirement_id="example", expected_code=0):
@@ -82,7 +86,7 @@ class ProgressCliTests(unittest.TestCase):
         restored = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", timeout=30,
                                   env={**os.environ, "PYTHONIOENCODING": "utf-8"})
         self.assertEqual(restored.returncode, 0, restored.stderr)
-        content = json.loads(restored.stdout)
+        content = json.loads(restored.stdout)["data"]
         self.assertEqual(content["progress"], self.progress)
         self.assertEqual(content["sha256"], result["sha256"])
         self.assertEqual(set(path.name for path in (self.root / "outputs/work").iterdir()), {"progress"})
@@ -139,7 +143,7 @@ class ProgressCliTests(unittest.TestCase):
             ("task", "--task-path", "outputs/work/tasks/example/task.json"),
         ):
             with self.subTest(mode=mode):
-                self.cli(mode, "validate", "--stdin", path_option, path_value,
+                self.cli(mode, "validate", "--input-file", "request.json", path_option, path_value,
                          "--user-config-root", str(self.root), payload=self.progress,
                          expected_code=ExitCode.CONTRACT)
         self.assertEqual(list(self.root.iterdir()), [])
@@ -148,7 +152,7 @@ class ProgressCliTests(unittest.TestCase):
         approval = self.preview()["approved_sha256"]
         self.progress["tentative"].append("Unreviewed candidate")
         error = self.save(approval=approval, expected_code=ExitCode.ARTIFACT_INTEGRITY)
-        self.assertEqual(error["code"], "progress_approval_changed")
+        self.assertEqual(error["reason_code"], "progress_approval_changed")
         self.assertEqual(list(self.root.iterdir()), [])
 
     def test_new_saved_revision_rejects_stale_writer_without_overwrite(self):
@@ -156,7 +160,7 @@ class ProgressCliTests(unittest.TestCase):
         self.save(approval=approval)
         before = self.snapshot()
         error = self.save(approval=approval, expected_code=ExitCode.WORKFLOW_STATE)
-        self.assertEqual(error["code"], "progress_revision_conflict")
+        self.assertEqual(error["reason_code"], "progress_revision_conflict")
         self.assertEqual(self.snapshot(), before)
 
     def test_baseline_content_is_bound_to_approval(self):
@@ -171,7 +175,7 @@ class ProgressCliTests(unittest.TestCase):
             path.write_bytes(raw)
         before = self.snapshot()
         error = self.save(candidate, 1, approval, ExitCode.ARTIFACT_INTEGRITY)
-        self.assertEqual(error["code"], "progress_approval_changed")
+        self.assertEqual(error["reason_code"], "progress_approval_changed")
         self.assertEqual(self.snapshot(), before)
 
     def test_corrupt_current_file_is_not_overwritten(self):
@@ -188,7 +192,7 @@ class ProgressCliTests(unittest.TestCase):
         self.save()
         (self.directory / "history/1/progress.json").write_bytes(b"changed history")
         error = self.read(expected_code=ExitCode.ARTIFACT_INTEGRITY)
-        self.assertEqual(error["code"], "progress_history_mismatch")
+        self.assertEqual(error["reason_code"], "progress_history_mismatch")
         self.progress["revision"] = 2
         self.preview(expected_revision=1, expected_code=ExitCode.ARTIFACT_INTEGRITY)
 
@@ -199,11 +203,11 @@ class ProgressCliTests(unittest.TestCase):
         approval = self.preview(expected_revision=1)["approved_sha256"]
         with patch("worklib.artifacts.progress.os.replace", side_effect=OSError("interrupted")):
             error = self.save(expected_revision=1, approval=approval, expected_code=ExitCode.IO_FAILURE)
-        self.assertEqual(error["code"], "progress_save_interrupted")
+        self.assertEqual(error["reason_code"], "progress_save_interrupted")
         self.assertEqual(self.read(), previous)
         before = self.snapshot()
         rejected = self.save(expected_revision=1, approval=approval, expected_code=ExitCode.WORKFLOW_STATE)
-        self.assertEqual(rejected["code"], "progress_save_pending")
+        self.assertEqual(rejected["reason_code"], "progress_save_pending")
         self.assertEqual(self.snapshot(), before)
 
     def test_partial_first_save_never_looks_like_committed_progress(self):
@@ -215,25 +219,27 @@ class ProgressCliTests(unittest.TestCase):
 
         with patch("worklib.artifacts.progress._write", side_effect=short_write):
             self.save(approval=approval, expected_code=ExitCode.IO_FAILURE)
-        self.assertEqual(self.read(expected_code=ExitCode.WORKFLOW_STATE)["code"], "progress_not_saved")
-        self.assertEqual(self.preview(expected_code=ExitCode.WORKFLOW_STATE)["code"], "progress_save_pending")
+        self.assertEqual(self.read(expected_code=ExitCode.WORKFLOW_STATE)["reason_code"], "progress_not_saved")
+        self.assertEqual(self.preview(expected_code=ExitCode.WORKFLOW_STATE)["reason_code"], "progress_save_pending")
 
     def test_writer_mutex_prevents_concurrent_process_publication(self):
         approval = self.preview()["approved_sha256"]
         self.directory.mkdir(parents=True)
         command = [sys.executable, "-B", str(SCRIPT_ROOT / "work.py"), "--project-root", str(self.root),
-                   "progress", "save", "--stdin", "--expected-revision", "0", "--approved-sha256", approval]
+                   "progress", "save", "--input-file", "request.json", "--expected-revision", "0", "--approved-sha256", approval]
         with state_writer(self.root, self.directory.relative_to(self.root).as_posix()):
-            result = subprocess.run(command, input=json.dumps(self.progress), capture_output=True, text=True, timeout=30)
+            result = subprocess.run(self.input_arguments(command, json.dumps(self.progress)),
+                                    capture_output=True, text=True, encoding="utf-8",
+                                    shell=False, timeout=30)
         self.assertEqual(result.returncode, ExitCode.LOCK_CONFLICT, result.stderr)
-        self.assertEqual(json.loads(result.stderr)["code"], "work_state_writer_busy")
+        self.assertEqual(json.loads(result.stdout)["reason_code"], "work_state_writer_busy")
         self.assertFalse((self.directory / "progress.json").exists())
         self.assertFalse((self.directory / "history").exists())
         self.save(approval=approval)
 
     def test_missing_read_is_read_only(self):
         error = self.read(expected_code=ExitCode.WORKFLOW_STATE)
-        self.assertEqual(error["code"], "progress_not_saved")
+        self.assertEqual(error["reason_code"], "progress_not_saved")
         self.assertEqual(list(self.root.iterdir()), [])
 
     def test_invalid_contracts_do_not_create_files(self):
@@ -255,14 +261,14 @@ class ProgressCliTests(unittest.TestCase):
         self.preview(expected_revision=-1, expected_code=ExitCode.CONTRACT)
         self.progress["revision"] = 2
         error = self.preview(expected_code=ExitCode.WORKFLOW_STATE)
-        self.assertEqual(error["code"], "progress_revision_conflict")
+        self.assertEqual(error["reason_code"], "progress_revision_conflict")
         self.assertEqual(list(self.root.iterdir()), [])
 
     def test_duplicate_keys_and_missing_cli_arguments_are_rejected(self):
-        self.cli("progress", "validate", "--stdin", "--expected-revision", "0",
+        self.cli("progress", "validate", "--input-file", "request.json", "--expected-revision", "0",
                  raw='{"mode":"plan","mode":"task"}', expected_code=ExitCode.INPUT_FORMAT)
-        for arguments in (("save", "--stdin", "--expected-revision", "0"),
-                          ("validate", "--stdin"), ("read", "--requirement-id", "example"),
+        for arguments in (("save", "--input-file", "request.json", "--expected-revision", "0"),
+                          ("validate", "--input-file", "request.json"), ("read", "--requirement-id", "example"),
                           ("read", "--requirement-id", "example", "--mode", "execute")):
             with self.subTest(arguments=arguments):
                 self.cli("progress", *arguments, expected_code=ExitCode.CLI_USAGE)

@@ -10,12 +10,15 @@ from pathlib import Path
 
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from cli_support import FileInputTestCase
 
 from worklib.cli import main
 from worklib.foundation.errors import ExitCode
 
 
-class InstructionCatalogCliTests(unittest.TestCase):
+class InstructionCatalogCliTests(FileInputTestCase):
     def test_catalog_command_discovers_each_installed_mode(self) -> None:
         expected_paths = {
             "plan": (
@@ -75,7 +78,7 @@ class InstructionCatalogCliTests(unittest.TestCase):
 
                     self.assertEqual(exit_code, ExitCode.SUCCESS)
                     self.assertEqual(stderr.getvalue(), "")
-                    result = json.loads(stdout.getvalue())
+                    result = json.loads(stdout.getvalue())["data"]
                     self.assertEqual(result["schema"], "work-instruction-catalog/v1")
                     self.assertEqual(result["mode"], mode)
                     self.assertEqual(tuple(result["paths"]), paths)
@@ -105,10 +108,10 @@ class InstructionCatalogCliTests(unittest.TestCase):
             )
 
         self.assertEqual(exit_code, ExitCode.CLI_USAGE)
-        self.assertEqual(stdout.getvalue(), "")
-        error = json.loads(stderr.getvalue())
-        self.assertEqual(error["schema"], "work-error/v1")
-        self.assertEqual(error["code"], "cli_usage_error")
+        self.assertEqual(stderr.getvalue(), "")
+        error = json.loads(stdout.getvalue())
+        self.assertEqual(error["schema"], "work-cli-result/v1")
+        self.assertEqual(error["reason_code"], "cli_usage_error")
 
     def test_catalog_command_combines_all_modes(self) -> None:
         with tempfile.TemporaryDirectory() as project_directory:
@@ -130,7 +133,7 @@ class InstructionCatalogCliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, ExitCode.SUCCESS)
         self.assertEqual(stderr.getvalue(), "")
-        result = json.loads(stdout.getvalue())
+        result = json.loads(stdout.getvalue())["data"]
         self.assertEqual(result["schema"], "work-instruction-catalog/v1")
         self.assertEqual(result["mode"], "all")
         self.assertEqual(
@@ -161,7 +164,7 @@ class InstructionCatalogCliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, ExitCode.SUCCESS)
         self.assertEqual(stderr.getvalue(), "")
-        result = json.loads(stdout.getvalue())
+        result = json.loads(stdout.getvalue())["data"]
         self.assertEqual(result["schema"], "work-hierarchy/v1")
         self.assertEqual(
             result["selected_paths"],
@@ -199,11 +202,11 @@ class InstructionCatalogCliTests(unittest.TestCase):
             )
 
         self.assertEqual(exit_code, ExitCode.CONTRACT)
-        self.assertEqual(stdout.getvalue(), "")
-        error = json.loads(stderr.getvalue())
-        self.assertEqual(error["code"], "instruction_hierarchy_path_missing")
+        self.assertEqual(stderr.getvalue(), "")
+        error = json.loads(stdout.getvalue())
+        self.assertEqual(error["reason_code"], "instruction_hierarchy_path_missing")
         self.assertEqual(
-            error["details"],
+            error["data"],
             {
                 "mode": "task",
                 "parent": "web/backend/java",
@@ -233,7 +236,7 @@ class InstructionCatalogCliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, ExitCode.SUCCESS)
         self.assertEqual(stderr.getvalue(), "")
-        result = json.loads(stdout.getvalue())
+        result = json.loads(stdout.getvalue())["data"]
         self.assertEqual(result["selected_paths"], ["web/backend/java/jpa"])
         self.assertEqual(
             result["resolved_paths"],
@@ -241,7 +244,7 @@ class InstructionCatalogCliTests(unittest.TestCase):
         )
 
 
-class InstructionSourcesCliTests(unittest.TestCase):
+class InstructionSourcesCliTests(FileInputTestCase):
     def test_load_command_returns_ordered_installed_sources(self) -> None:
         with tempfile.TemporaryDirectory() as project_directory:
             stdout = io.StringIO()
@@ -267,7 +270,7 @@ class InstructionSourcesCliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, ExitCode.SUCCESS)
         self.assertEqual(stderr.getvalue(), "")
-        result = json.loads(stdout.getvalue())
+        result = json.loads(stdout.getvalue())["data"]
         self.assertEqual(result["schema"], "work-instructions/v1")
         self.assertEqual(result["mode"], "task")
         self.assertEqual(
@@ -314,12 +317,12 @@ class InstructionSourcesCliTests(unittest.TestCase):
             )
 
         self.assertEqual(exit_code, ExitCode.CONTRACT)
-        self.assertEqual(stdout.getvalue(), "")
-        error = json.loads(stderr.getvalue())
-        self.assertEqual(error["schema"], "work-error/v1")
-        self.assertEqual(error["code"], "unroutable_instruction_reference")
+        self.assertEqual(stderr.getvalue(), "")
+        error = json.loads(stdout.getvalue())
+        self.assertEqual(error["schema"], "work-cli-result/v1")
+        self.assertEqual(error["reason_code"], "unroutable_instruction_reference")
         self.assertEqual(
-            error["details"]["logical_name"],
+            error["data"]["logical_name"],
             "task.web.backend.security",
         )
 
@@ -348,7 +351,7 @@ class InstructionSourcesCliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, ExitCode.SUCCESS)
         self.assertEqual(stderr.getvalue(), "")
-        result = json.loads(stdout.getvalue())
+        result = json.loads(stdout.getvalue())["data"]
         self.assertEqual(result["schema"], "work-instruction-selection/v1")
         self.assertEqual(result["mode"], "task")
         selection = result["instruction_selection"]
@@ -392,7 +395,7 @@ class InstructionSourcesCliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, ExitCode.SUCCESS)
         self.assertEqual(stderr.getvalue(), "")
-        selection = json.loads(stdout.getvalue())["instruction_selection"]
+        selection = json.loads(stdout.getvalue())["data"]["instruction_selection"]
         self.assertEqual(
             selection["selected_paths"],
             ["web/backend/java/jpa", "web/backend/java/mybatis"],
@@ -419,9 +422,9 @@ class InstructionSourcesCliTests(unittest.TestCase):
             )
 
         self.assertEqual(exit_code, ExitCode.CONTRACT)
-        self.assertEqual(stdout.getvalue(), "")
-        error = json.loads(stderr.getvalue())
-        self.assertEqual(error["code"], "unroutable_instruction_reference")
+        self.assertEqual(stderr.getvalue(), "")
+        error = json.loads(stdout.getvalue())
+        self.assertEqual(error["reason_code"], "unroutable_instruction_reference")
 
 if __name__ == "__main__":
     unittest.main()

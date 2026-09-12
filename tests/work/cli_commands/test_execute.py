@@ -10,12 +10,15 @@ from pathlib import Path
 
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from cli_support import FileInputTestCase
 
 from worklib.cli import build_parser, main
 from worklib.foundation.errors import ExitCode, WorkError
 
 
-class ExecuteCliTests(unittest.TestCase):
+class ExecuteCliTests(FileInputTestCase):
     def common_arguments(self) -> list[str]:
         return [
             "--project-root",
@@ -68,16 +71,16 @@ class ExecuteCliTests(unittest.TestCase):
             ["INPUT-001", "INPUT-002"],
         )
 
-    def test_attempt_start_arguments_require_stdin(self) -> None:
+    def test_attempt_start_arguments_require_input_file(self) -> None:
         arguments = build_parser().parse_args(
             self.common_arguments()
             + ["attempt-start"]
             + self.execute_scope_arguments()
-            + ["--stdin"]
+            + ["--input-file", "request.json"]
         )
 
         self.assertEqual(arguments.execute_command, "attempt-start")
-        self.assertTrue(arguments.stdin)
+        self.assertTrue(arguments.input_file)
         self.assertEqual(arguments.confirmed_input, [])
 
         with self.assertRaises(WorkError) as context:
@@ -125,10 +128,10 @@ class ExecuteCliTests(unittest.TestCase):
             )
 
         self.assertEqual(exit_code, ExitCode.IO_FAILURE)
-        self.assertEqual(stdout.getvalue(), "")
-        error = json.loads(stderr.getvalue())
-        self.assertEqual(error["schema"], "work-error/v1")
-        self.assertEqual(error["code"], "execute_preflight_task_missing")
+        self.assertEqual(stderr.getvalue(), "")
+        error = json.loads(stdout.getvalue())
+        self.assertEqual(error["schema"], "work-cli-result/v1")
+        self.assertEqual(error["reason_code"], "execute_preflight_task_missing")
 
 
 if __name__ == "__main__":

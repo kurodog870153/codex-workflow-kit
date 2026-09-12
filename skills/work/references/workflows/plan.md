@@ -1,5 +1,7 @@
 # Plan Workflow
 
+Before relying on an existing formal TASK, apply [the shared TASK diagnostic gate](../instruction-loading.md#validate-before-relying-on-a-formal-task). Inspect raw content only for diagnosis until validation passes; preserve independent discussion progress and initial-artifact exceptions.
+
 Use this workflow for Plan. Independent discussion restoration follows the progress procedure before formal-source gates; normal source-dependent planning and formalization require validated user-confirmed hierarchy and skill selections and their applicable instructions.
 
 ## Apply confirmed skills
@@ -23,10 +25,10 @@ Use this workflow for Plan. Independent discussion restoration follows the progr
 ## Use the deterministic Plan contract
 
 1. Build the complete proposed `work-plan/v1` JSON object in the conversation.
-2. Include validated `hierarchy_selection`, mode-resolved `work_instruction_selection`, and `skill_selection`. Before requesting authorization to create a formal Plan, pipe that object to `<python-command> <skill-root>/scripts/work.py --project-root <project-root> plan validate --stdin --plan-path <plan-path>` with every confirmed `--skill-root`.
+2. Include validated `hierarchy_selection`, mode-resolved `work_instruction_selection`, and `skill_selection`. Before requesting authorization to create a formal Plan, save that object as the request file and invoke `<python-command> "<skill-root>/scripts/work.py" --project-root "<project-root>" plan validate --input-file "<request-path>" --plan-path "<plan-path>"` with every confirmed `--skill-root`.
 3. Require a successful validation result containing the canonical Plan and instruction fingerprints. Treat any nonzero exit code as a hard stop; do not repair, rewrite, retry, or reinterpret a rejected contract without new user direction.
-4. After the user authorizes creation, pipe the identical approved JSON object to the same `plan create` command with every confirmed `--skill-root`. Do not assemble or write the JSON artifact manually.
-5. After creation, run `plan validate --path <plan-path>` with the same skill roots and require the same canonical Plan, hierarchy-selection, Work instruction, and skill-selection fingerprints as the pre-write validation.
+4. After the user authorizes creation, pass the identical approved JSON request file to the same `plan create` command with every confirmed `--skill-root`. Do not assemble or write the JSON artifact manually.
+5. After creation, run `plan validate --path "<plan-path>"` with the same skill roots and require the same canonical Plan, hierarchy-selection, Work instruction, and skill-selection fingerprints as the pre-write validation.
 6. Never use `plan create` for an existing Plan. Keep the approved revision in the conversation and return it to the parent for the internal artifact editor's combined transaction when formal TASK and index exist.
 
 ## Request coordinated revision
@@ -35,7 +37,7 @@ Use this workflow for Plan. Independent discussion restoration follows the progr
 
 ## Use deterministic handoffs
 
-1. Before accepting `task_to_plan` or `execute_to_plan`, pipe its pure JSON to `<python-command> <skill-root>/scripts/work.py --project-root <project-root> handoff validate --stdin` and require `work-handoff-validation/v1` with `status: valid`.
-2. When handing a confirmed Plan to Task, build a complete `plan_to_task` `work-handoff/v1` object and pipe it to `<python-command> <skill-root>/scripts/work.py --project-root <project-root> handoff render --stdin`.
-3. Place the rendered JSON in one conversation code block without edits. Require the fixed `WORK-HANDOFF` marker, actual requirement ID, all three artifact paths, and validated skill-selection fingerprint.
+1. Before accepting `task_to_plan` or `execute_to_plan`, save its pure JSON as the request file and invoke `<python-command> "<skill-root>/scripts/work.py" --project-root "<project-root>" handoff validate --input-file "<request-path>"` and require `work-handoff-validation/v1` with `status: valid`.
+2. When handing a confirmed Plan to Task, build a complete `plan_to_task` `work-handoff/v1` object, save it as the request file, and invoke `<python-command> "<skill-root>/scripts/work.py" --project-root "<project-root>" handoff render --input-file "<request-path>"`.
+3. Place only the rendered JSON from response.data in one conversation code block without edits. Require the fixed `WORK-HANDOFF` marker, actual requirement ID, all three artifact paths, and validated skill-selection fingerprint.
 4. A handoff exists only in the conversation and never authorizes artifact writes by itself.

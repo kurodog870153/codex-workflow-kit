@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import TextIO
 
 from ..contracts.handoff import (
     render_handoff_json_contract,
     validate_handoff_json_contract,
 )
+from ..foundation.cli_io import FileInput
 from . import SubparserRegistry
 
 
@@ -18,13 +18,13 @@ def register_handoff_commands(commands: SubparserRegistry) -> None:
     )
     for command_name in ("validate", "render"):
         handoff_command = handoff_commands.add_parser(command_name)
-        handoff_command.add_argument("--stdin", action="store_true", required=True)
+        handoff_command.add_argument("--input-file", required=True)
 
 
 def run_handoff(
     arguments: argparse.Namespace,
     project_root: Path,
-    input_stream: TextIO,
+    request: FileInput | None,
 ) -> dict[str, object]:
     operation = (
         validate_handoff_json_contract
@@ -32,7 +32,7 @@ def run_handoff(
         else render_handoff_json_contract
     )
     return operation(
-        input_stream.read().encode("utf-8"),
-        source="stdin",
+        request.raw,
+        source=request.source,
         project_root=project_root,
     )

@@ -10,6 +10,9 @@ from pathlib import Path
 
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from cli_support import FileInputTestCase
 
 from worklib.cli import main
 from worklib.foundation.errors import ExitCode
@@ -17,7 +20,7 @@ from worklib.skills.catalog import SkillRoot, snapshot_catalog_skill
 from worklib.skills.selection import selection_sha256
 
 
-class SkillSelectionCliTests(unittest.TestCase):
+class SkillSelectionCliTests(FileInputTestCase):
     def test_selection_validate_command(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
@@ -61,49 +64,48 @@ class SkillSelectionCliTests(unittest.TestCase):
             stdout = io.StringIO()
             stderr = io.StringIO()
             exit_code = main(
-                [
+                self.input_arguments([
                     "--project-root",
                     str(project),
                     "skills",
                     "selection-validate",
                     "--root",
                     f"repo:.agents/skills={root_path}",
-                    "--stdin",
-                ],
-                stdin=io.StringIO(json.dumps(contract)),
+                    "--input-file", "request.json",
+                ], json.dumps(contract)),
                 stdout=stdout,
                 stderr=stderr,
             )
 
         self.assertEqual(exit_code, ExitCode.SUCCESS)
         self.assertEqual(stderr.getvalue(), "")
-        result = json.loads(stdout.getvalue())
+        result = json.loads(stdout.getvalue())["data"]
         self.assertEqual(result["schema"], "work-skill-selection-validation/v1")
         self.assertEqual(result["status"], "valid")
 
     def test_invalid_json_uses_work_error(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
+            stdout = io.StringIO()
             stderr = io.StringIO()
             exit_code = main(
-                [
+                self.input_arguments([
                     "--project-root",
                     temporary,
                     "skills",
                     "selection-validate",
                     "--root",
                     f"repo:.agents/skills={temporary}",
-                    "--stdin",
-                ],
-                stdin=io.StringIO("{"),
-                stdout=io.StringIO(),
+                    "--input-file", "request.json",
+                ], "{"),
+                stdout=stdout,
                 stderr=stderr,
             )
 
         self.assertEqual(exit_code, ExitCode.INPUT_FORMAT)
-        self.assertEqual(json.loads(stderr.getvalue())["code"], "invalid_json")
+        self.assertEqual(json.loads(stdout.getvalue())["reason_code"], "invalid_json")
 
 
-class SkillCatalogCliTests(unittest.TestCase):
+class SkillCatalogCliTests(FileInputTestCase):
     def test_catalog_and_snapshot_commands(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             project = Path(temporary) / "project"
@@ -124,7 +126,7 @@ class SkillCatalogCliTests(unittest.TestCase):
                 stdout=stdout,
                 stderr=stderr,
             )
-            catalog = json.loads(stdout.getvalue())
+            catalog = json.loads(stdout.getvalue())["data"]
             self.assertEqual(exit_code, ExitCode.SUCCESS)
             self.assertEqual(stderr.getvalue(), "")
             self.assertEqual(catalog["schema"], "work-skill-catalog/v1")
@@ -145,7 +147,7 @@ class SkillCatalogCliTests(unittest.TestCase):
                 stdout=stdout,
                 stderr=io.StringIO(),
             )
-            snapshot = json.loads(stdout.getvalue())
+            snapshot = json.loads(stdout.getvalue())["data"]
             self.assertEqual(exit_code, ExitCode.SUCCESS)
             self.assertEqual(snapshot["schema"], "work-skill-snapshot/v1")
             self.assertEqual(len(snapshot["bundle"]["bundle_sha256"]), 64)
@@ -161,10 +163,10 @@ class SkillCatalogCliTests(unittest.TestCase):
             )
 
         self.assertEqual(exit_code, ExitCode.CLI_USAGE)
-        self.assertEqual(stdout.getvalue(), "")
-        error = json.loads(stderr.getvalue())
-        self.assertEqual(error["schema"], "work-error/v1")
-        self.assertEqual(error["code"], "invalid_skill_root_argument")
+        self.assertEqual(stderr.getvalue(), "")
+        error = json.loads(stdout.getvalue())
+        self.assertEqual(error["schema"], "work-cli-result/v1")
+        self.assertEqual(error["reason_code"], "invalid_skill_root_argument")
 
 if __name__ == "__main__":
     unittest.main()

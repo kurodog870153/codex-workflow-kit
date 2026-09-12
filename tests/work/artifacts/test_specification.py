@@ -14,6 +14,9 @@ from unittest.mock import patch
 
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from cli_support import FileInputTestCase
 
 from worklib.artifacts import specification
 from worklib.artifacts.specification import update_specification
@@ -34,7 +37,7 @@ def digest(raw):
     return hashlib.sha256(raw).hexdigest()
 
 
-class SpecificationUpdateTests(unittest.TestCase):
+class SpecificationUpdateTests(FileInputTestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
@@ -222,14 +225,17 @@ class SpecificationUpdateTests(unittest.TestCase):
         repair = request.pop("source_plan_repair")
         before = self.snapshot()
         output, errors = io.StringIO(), io.StringIO()
-        code = main(["--project-root", str(self.root), "task", "migrate-validate", "--stdin",
-                     "--user-config-root", str(self.root)], stdin=io.StringIO(json.dumps(request)),
+        code = main(self.input_arguments(["--project-root", str(self.root), "task", "migrate-validate", "--input-file", "request.json",
+                     "--user-config-root", str(self.root)], json.dumps(request)),
                     stdout=output, stderr=errors)
         self.assertEqual(code, 5)
-        self.assertEqual(output.getvalue(), "")
-        error = json.loads(errors.getvalue())
-        self.assertEqual(error["code"], "source_plan_fingerprint_mismatch")
-        self.assertEqual(error["details"], {
+        self.assertEqual(errors.getvalue(), "")
+        error = json.loads(output.getvalue())
+        self.assertEqual(error["reason_code"], "source_plan_fingerprint_mismatch")
+        diagnostics = error["data"].pop("task_diagnostics")
+        self.assertFalse(diagnostics["normal_use_allowed"])
+        self.assertEqual(diagnostics["schema"], "work-task-diagnostics/v1")
+        self.assertEqual(error["data"], {
             "source": "original TASK", "task_path": self.artifacts["task"], "plan_path": self.artifacts["plan"],
             "recorded_sha256": repair["recorded_sha256"], "actual_sha256": repair["actual_sha256"],
         })
@@ -431,11 +437,11 @@ class SpecificationUpdateTests(unittest.TestCase):
     def test_migration_cli_and_recovery_use_the_reviewed_transaction(self):
         request = self.migration_request()
         output, errors = io.StringIO(), io.StringIO()
-        code = main(["--project-root", str(self.root), "task", "migrate-validate", "--stdin",
-                     "--user-config-root", str(self.root)], stdin=io.StringIO(json.dumps(request)),
+        code = main(self.input_arguments(["--project-root", str(self.root), "task", "migrate-validate", "--input-file", "request.json",
+                     "--user-config-root", str(self.root)], json.dumps(request)),
                     stdout=output, stderr=errors)
         self.assertEqual(code, 0, errors.getvalue())
-        approval = json.loads(output.getvalue())["approved_sha256"]
+        approval = json.loads(output.getvalue())["data"]["approved_sha256"]
         replace = specification._replace
         def interrupted(path, *args, **kwargs):
             if path == self.task_path:
@@ -559,7 +565,7 @@ class SpecificationUpdateTests(unittest.TestCase):
             "--execution-dir", self.artifacts["execution"], "--task-id", "TASK-001"],
             stdout=output, stderr=errors)
         self.assertNotEqual(code, 0)
-        self.assertEqual(json.loads(errors.getvalue())["code"], "spec_update_pending")
+        self.assertEqual(json.loads(output.getvalue())["reason_code"], "spec_update_pending")
         result = self.run_update(request, "recover", preview["approved_sha256"])
         self.assertEqual(result["status"], "recovered")
         require_no_spec_update(self.root, self.artifacts["execution"])
@@ -580,17 +586,17 @@ class SpecificationUpdateTests(unittest.TestCase):
 
     def test_cli_preview_and_update_use_fingerprint_bound_request(self):
         request = self.request()
-        args = ["--project-root", str(self.root), "task", "spec-validate", "--stdin", "--user-config-root", str(self.root)]
+        args = ["--project-root", str(self.root), "task", "spec-validate", "--input-file", "request.json", "--user-config-root", str(self.root)]
         output, errors = io.StringIO(), io.StringIO()
-        code = main(args, stdin=io.StringIO(json.dumps(request)), stdout=output, stderr=errors)
+        code = main(self.input_arguments(args, json.dumps(request)), stdout=output, stderr=errors)
         self.assertEqual(code, 0, errors.getvalue())
-        approval = json.loads(output.getvalue())["approved_sha256"]
+        approval = json.loads(output.getvalue())["data"]["approved_sha256"]
         args[3] = "spec-update"
         args += ["--approved-sha256", approval]
         output, errors = io.StringIO(), io.StringIO()
-        code = main(args, stdin=io.StringIO(json.dumps(request)), stdout=output, stderr=errors)
+        code = main(self.input_arguments(args, json.dumps(request)), stdout=output, stderr=errors)
         self.assertEqual(code, 0, errors.getvalue())
-        self.assertEqual(json.loads(output.getvalue())["status"], "updated")
+        self.assertEqual(json.loads(output.getvalue())["data"]["status"], "updated")
 
 
 
@@ -660,7 +666,7 @@ class SpecificationUpdateTests(unittest.TestCase):
                     "--execution-dir", self.artifacts["execution"], "--task-id", "TASK-001", "--record-id", "VAL-001"],
                     stdout=output, stderr=errors)
                 self.assertNotEqual(code, 0)
-                self.assertEqual(json.loads(errors.getvalue())["code"], "work_state_writer_busy")
+                self.assertEqual(json.loads(output.getvalue())["reason_code"], "work_state_writer_busy")
                 operation.assert_not_called()
         result = subprocess.run([sys.executable, "-B", "-c", program], capture_output=True, text=True, timeout=15)
         self.assertEqual(result.stdout.strip(), "acquired")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 from pathlib import Path, PurePosixPath
@@ -253,7 +254,7 @@ def inspect_execute_worktree(
         project_root, normalized_task, field="task_path"
     )
     task_raw = read_raw(task_path)
-    if canonical_sha256(task_raw, source=str(task_path)) != preflight["task_sha256"]:
+    if hashlib.sha256(task_raw).hexdigest() != preflight["task_sha256"]:
         raise WorkError(
             ExitCode.ARTIFACT_INTEGRITY,
             "execute_worktree_task_changed",
