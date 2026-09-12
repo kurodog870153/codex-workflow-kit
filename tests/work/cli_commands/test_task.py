@@ -12,12 +12,15 @@ from unittest.mock import patch
 
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from cli_support import FileInputTestCase
 
 from worklib.cli import build_parser, main
 from worklib.foundation.errors import ExitCode
 
 
-class TaskCliTests(unittest.TestCase):
+class TaskCliTests(FileInputTestCase):
     def test_source_update_commands_dispatch(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
@@ -26,11 +29,11 @@ class TaskCliTests(unittest.TestCase):
                     output, error = io.StringIO(), io.StringIO()
                     request = {"reason": "Reviewed", "selections": {"TASK-001": {"selected_paths": [], "references": []}}}
                     with patch("worklib.cli_commands.task.update_task_draft_sources", return_value={"status": "saved"}) as operation:
-                        code = main([
-                            "--project-root", str(root), "task", command, "--stdin",
+                        code = main(self.input_arguments([
+                            "--project-root", str(root), "task", command, "--input-file", "request.json",
                             "--requirement-id", "example", "--expected-revision", "2",
                             "--plan-path", "outputs/work/plans/example.json", "--user-config-root", str(root),
-                        ], stdin=io.StringIO(json.dumps(request)), stdout=output, stderr=error)
+                        ], json.dumps(request)), stdout=output, stderr=error)
                     self.assertEqual(code, ExitCode.SUCCESS)
                     operation.assert_called_once_with(root, "example", request, expected_revision=2,
                         plan_path="outputs/work/plans/example.json", user_config_root=str(root), skill_roots=[],
@@ -42,14 +45,14 @@ class TaskCliTests(unittest.TestCase):
             for command, name in (("draft-assemble", "assemble_task_drafts"), ("draft-create", "create_task_from_drafts")):
                 with self.subTest(command=command):
                     output, error = io.StringIO(), io.StringIO()
-                    arguments = ["--project-root", str(root), "task", command, "--stdin", "--requirement-id", "example", "--expected-revision", "2", "--plan-path", "outputs/work/plans/example.json", "--user-config-root", str(root)]
+                    arguments = ["--project-root", str(root), "task", command, "--input-file", "request.json", "--requirement-id", "example", "--expected-revision", "2", "--plan-path", "outputs/work/plans/example.json", "--user-config-root", str(root)]
                     extra = {}
                     if command == "draft-create":
                         arguments += ["--approved-sha256", "a" * 64]
                         extra["approved_sha256"] = "a" * 64
                     metadata = {"title": "TASK", "summary": "Result"}
                     with patch("worklib.cli_commands.task." + name, return_value={"status": "valid"}) as operation:
-                        code = main(arguments, stdin=io.StringIO(json.dumps(metadata)), stdout=output, stderr=error)
+                        code = main(self.input_arguments(arguments, json.dumps(metadata)), stdout=output, stderr=error)
                     self.assertEqual(code, ExitCode.SUCCESS)
                     operation.assert_called_once_with(root, "example", metadata, expected_revision=2, plan_path="outputs/work/plans/example.json", user_config_root=str(root), skill_roots=[], **extra)
     def test_list_update_and_recovery_dispatch(self) -> None:
@@ -59,10 +62,10 @@ class TaskCliTests(unittest.TestCase):
                 with self.subTest(command=command):
                     output, error = io.StringIO(), io.StringIO()
                     with patch("worklib.cli_commands.task.update_task_planning_list", return_value={"status": "saved"}) as operation:
-                        code = main([
+                        code = main(self.input_arguments([
                             "--project-root", str(root), "task", command,
-                            "--stdin", "--expected-revision", "3",
-                        ], stdin=io.StringIO(json.dumps({"index": {"revision": 4}, "reason": "Split task"})), stdout=output, stderr=error)
+                            "--input-file", "request.json", "--expected-revision", "3",
+                        ], json.dumps({"index": {"revision": 4}, "reason": "Split task"})), stdout=output, stderr=error)
                     self.assertEqual(code, ExitCode.SUCCESS)
                     operation.assert_called_once_with(root, {"revision": 4}, expected_revision=3, reason="Split task", recover=command == "draft-list-recover")
 
@@ -86,7 +89,7 @@ class TaskCliTests(unittest.TestCase):
                         ], stdout=stdout, stderr=stderr)
                     self.assertEqual(code, ExitCode.SUCCESS)
                     self.assertEqual(stderr.getvalue(), "")
-                    self.assertEqual(json.loads(stdout.getvalue()), result)
+                    self.assertEqual(json.loads(stdout.getvalue())["data"], result)
                     check.assert_called_once_with(
                         root, "example", "TASK-001", expected_revision=2,
                         plan_path="outputs/work/plans/example.json", user_config_root=str(root),
@@ -115,7 +118,7 @@ class TaskCliTests(unittest.TestCase):
                 "/config",
                 "--skill-root",
                 "repo:.agents/skills=/skills",
-                "--stdin",
+                "--input-file", "request.json",
                 "--plan-path",
                 "outputs/work/plans/example.json",
                 "--task-path",
@@ -133,7 +136,7 @@ class TaskCliTests(unittest.TestCase):
             arguments.skill_root,
             ["repo:.agents/skills=/skills"],
         )
-        self.assertTrue(arguments.stdin)
+        self.assertTrue(arguments.input_file)
         self.assertEqual(
             arguments.plan_path,
             "outputs/work/plans/example.json",
@@ -147,31 +150,30 @@ class TaskCliTests(unittest.TestCase):
             "outputs/work/executions/example",
         )
 
-    def test_validate_stdin_requires_task_path(self) -> None:
+    def test_validate_input_file_requires_task_path(self) -> None:
         with tempfile.TemporaryDirectory() as project_directory:
             stdout = io.StringIO()
             stderr = io.StringIO()
 
             exit_code = main(
-                [
+                self.input_arguments([
                     "--project-root",
                     project_directory,
                     "task",
                     "validate",
                     "--user-config-root",
                     project_directory,
-                    "--stdin",
-                ],
-                stdin=io.StringIO("{}"),
+                    "--input-file", "request.json",
+                ], "{}"),
                 stdout=stdout,
                 stderr=stderr,
             )
 
         self.assertEqual(exit_code, ExitCode.CLI_USAGE)
-        self.assertEqual(stdout.getvalue(), "")
-        error = json.loads(stderr.getvalue())
-        self.assertEqual(error["schema"], "work-error/v1")
-        self.assertEqual(error["code"], "task_path_required")
+        self.assertEqual(stderr.getvalue(), "")
+        error = json.loads(stdout.getvalue())
+        self.assertEqual(error["schema"], "work-cli-result/v1")
+        self.assertEqual(error["reason_code"], "task_path_required")
 
     def test_validate_file_rejects_task_path(self) -> None:
         with tempfile.TemporaryDirectory() as project_directory:
@@ -196,13 +198,13 @@ class TaskCliTests(unittest.TestCase):
             )
 
         self.assertEqual(exit_code, ExitCode.CLI_USAGE)
-        self.assertEqual(stdout.getvalue(), "")
-        error = json.loads(stderr.getvalue())
-        self.assertEqual(error["schema"], "work-error/v1")
-        self.assertEqual(error["code"], "unexpected_task_path")
+        self.assertEqual(stderr.getvalue(), "")
+        error = json.loads(stdout.getvalue())
+        self.assertEqual(error["schema"], "work-cli-result/v1")
+        self.assertEqual(error["reason_code"], "unexpected_task_path")
 
 
-class TaskDraftCliTests(unittest.TestCase):
+class TaskDraftCliTests(FileInputTestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
@@ -228,16 +230,15 @@ class TaskDraftCliTests(unittest.TestCase):
     def invoke(self, arguments, payload=None, raw=None):
         stdout, stderr = io.StringIO(), io.StringIO()
         code = main(
-            ["--project-root", str(self.root), "task", *arguments],
-            stdin=io.StringIO(raw if raw is not None else json.dumps(payload)),
+            self.input_arguments(["--project-root", str(self.root), "task", *arguments], raw if raw is not None else json.dumps(payload)),
             stdout=stdout, stderr=stderr,
         )
         return code, stdout.getvalue(), stderr.getvalue()
 
     def initialize(self):
-        code, output, error = self.invoke(["draft-init", "--stdin"], self.index)
+        code, output, error = self.invoke(["draft-init", "--input-file", "request.json"], self.index)
         self.assertEqual((code, error), (ExitCode.SUCCESS, ""))
-        self.assertEqual(json.loads(output)["status"], "saved")
+        self.assertEqual(json.loads(output)["data"]["status"], "saved")
 
     def proposal(self):
         index = copy.deepcopy(self.index)
@@ -249,56 +250,56 @@ class TaskDraftCliTests(unittest.TestCase):
         self.initialize()
         code, output, error = self.invoke(["draft-read", "--requirement-id", "example"])
         self.assertEqual((code, error), (ExitCode.SUCCESS, ""))
-        self.assertEqual(json.loads(output), self.index)
-        code, output, error = self.invoke(["draft-save", "--stdin", "--expected-revision", "1"], self.proposal())
+        self.assertEqual(json.loads(output)["data"], self.index)
+        code, output, error = self.invoke(["draft-save", "--input-file", "request.json", "--expected-revision", "1"], self.proposal())
         self.assertEqual((code, error), (ExitCode.SUCCESS, ""))
-        self.assertEqual(json.loads(output)["revision"], 2)
+        self.assertEqual(json.loads(output)["data"]["revision"], 2)
         code, output, error = self.invoke(["draft-read", "--requirement-id", "example", "--task-id", "TASK-001"])
         self.assertEqual((code, error), (ExitCode.SUCCESS, ""))
-        self.assertEqual(json.loads(output), self.draft)
+        self.assertEqual(json.loads(output)["data"], self.draft)
         self.assertFalse((self.root / "outputs/work/tasks/example/task.json").exists())
 
     def test_invalid_json_does_not_create_storage(self) -> None:
-        code, output, error = self.invoke(["draft-init", "--stdin"], raw="{")
+        code, output, error = self.invoke(["draft-init", "--input-file", "request.json"], raw="{")
         self.assertEqual(code, ExitCode.INPUT_FORMAT)
-        self.assertEqual(output, "")
-        self.assertEqual(json.loads(error)["code"], "invalid_json_contract")
+        self.assertEqual(error, "")
+        self.assertEqual(json.loads(output)["reason_code"], "invalid_json_contract")
         self.assertFalse((self.root / "outputs").exists())
 
     def test_save_requires_both_objects_and_rejects_extra_fields(self) -> None:
         for payload in ({"index": self.index}, {"index": self.index, "draft": None}, {**self.proposal(), "approved": True}):
             with self.subTest(payload=payload):
-                code, output, error = self.invoke(["draft-save", "--stdin", "--expected-revision", "0"], payload)
+                code, output, error = self.invoke(["draft-save", "--input-file", "request.json", "--expected-revision", "0"], payload)
                 self.assertEqual(code, ExitCode.CONTRACT)
-                self.assertEqual(output, "")
-                self.assertEqual(json.loads(error)["schema"], "work-error/v1")
+                self.assertEqual(error, "")
+                self.assertEqual(json.loads(output)["schema"], "work-cli-result/v1")
         self.assertFalse((self.root / "outputs").exists())
 
     def test_stale_save_reports_conflict_without_overwrite(self) -> None:
         self.initialize()
-        arguments = ["draft-save", "--stdin", "--expected-revision", "1"]
+        arguments = ["draft-save", "--input-file", "request.json", "--expected-revision", "1"]
         self.assertEqual(self.invoke(arguments, self.proposal())[0], ExitCode.SUCCESS)
         path = self.root / "outputs/work/tasks/example/drafts/index.json"
         before = path.read_bytes()
         code, output, error = self.invoke(arguments, self.proposal())
         self.assertEqual(code, ExitCode.WORKFLOW_STATE)
-        self.assertEqual(output, "")
-        self.assertEqual(json.loads(error)["code"], "draft_revision_conflict")
+        self.assertEqual(error, "")
+        self.assertEqual(json.loads(output)["reason_code"], "draft_revision_conflict")
         self.assertEqual(path.read_bytes(), before)
 
     def test_required_arguments_and_invalid_revision(self) -> None:
-        for arguments in (["draft-init"], ["draft-save", "--stdin"], ["draft-save", "--stdin", "--expected-revision", "x"], ["draft-read"]):
+        for arguments in (["draft-init"], ["draft-save", "--input-file", "request.json"], ["draft-save", "--input-file", "request.json", "--expected-revision", "x"], ["draft-read"]):
             with self.subTest(arguments=arguments):
                 code, output, error = self.invoke(arguments)
                 self.assertEqual(code, ExitCode.CLI_USAGE)
-                self.assertEqual(output, "")
-                self.assertEqual(json.loads(error)["code"], "cli_usage_error")
+                self.assertEqual(error, "")
+                self.assertEqual(json.loads(output)["reason_code"], "cli_usage_error")
 
     def test_missing_draft_read_is_read_only(self) -> None:
         code, output, error = self.invoke(["draft-read", "--requirement-id", "example"])
         self.assertEqual(code, ExitCode.IO_FAILURE)
-        self.assertEqual(output, "")
-        self.assertEqual(json.loads(error)["code"], "draft_read_failed")
+        self.assertEqual(error, "")
+        self.assertEqual(json.loads(output)["reason_code"], "draft_read_failed")
         self.assertFalse((self.root / "outputs").exists())
 
     def test_recover_dispatches_initial_index_and_save_request(self) -> None:
@@ -306,9 +307,9 @@ class TaskDraftCliTests(unittest.TestCase):
             with self.subTest(revision=revision):
                 result = {"schema": "work-task-draft-recovery/v1", "status": "recovered"}
                 with patch("worklib.cli_commands.task.recover_task_planning", return_value=result) as recover:
-                    code, output, error = self.invoke(["draft-recover", "--stdin", "--expected-revision", str(revision)], payload)
+                    code, output, error = self.invoke(["draft-recover", "--input-file", "request.json", "--expected-revision", str(revision)], payload)
                 self.assertEqual((code, error), (ExitCode.SUCCESS, ""))
-                self.assertEqual(json.loads(output), result)
+                self.assertEqual(json.loads(output)["data"], result)
                 if revision == 0:
                     recover.assert_called_once_with(self.root, self.index, expected_revision=0)
                 else:

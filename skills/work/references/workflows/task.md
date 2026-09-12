@@ -1,5 +1,7 @@
 # Task Workflow
 
+Before relying on an existing formal TASK, apply [the shared TASK diagnostic gate](../instruction-loading.md#validate-before-relying-on-a-formal-task). Inspect raw content only for diagnosis until validation passes; preserve independent discussion progress and initial-artifact exceptions.
+
 Use this workflow for Task. Independent discussion restoration follows the progress procedure before formal-source gates; normal source-dependent planning and formalization require a validated source Plan and confirmed skill selection without drift.
 
 ## Independent discussion progress
@@ -36,11 +38,11 @@ Use this workflow for Task. Independent discussion restoration follows the progr
 
 1. For saved planning, use `task draft-assemble` and `task draft-create` as defined in the checkpoint reference. Review the complete assembled result and bind approval to its fingerprint. For an existing formal specification revision, retain the complete candidate JSON procedure below.
 2. Use only English keys, enums, IDs, statuses, paths, references, and hashes. Semantic strings may use the user's language.
-3. Before requesting formal approval, pipe the complete object to `task validate --stdin --task-path <task-path>` with every source Plan `--skill-root`.
+3. Before requesting formal approval, save the complete object as the request file and invoke `task validate --input-file "<request-path>" --task-path "<task-path>"` with every source Plan `--skill-root`.
 4. Require a successful result containing the canonical TASK and instruction fingerprints. Treat any nonzero exit code as a hard stop; do not repair, rewrite, retry, or reinterpret a rejected contract without new user direction.
 5. For initial saved planning, use `task draft-create` after fingerprint-bound approval. Direct complete-contract creation uses the identical approved `task create` request with the same skill roots. Do not assemble or write TASK or index JSON manually.
 6. `task create` exclusively creates the canonical TASK and initial execution index. Treat an existing target or partial failure as a hard stop.
-7. Use `<python-command> <skill-root>/scripts/work.py --project-root <project-root> task recover-create --stdin --plan-path <plan-path> --task-path <task-path> --execution-dir <execution-dir>` only after the user explicitly authorizes recovery and only with the identical approved JSON and three paths.
+7. Use `<python-command> "<skill-root>/scripts/work.py" --project-root "<project-root>" task recover-create --input-file "<request-path>" --plan-path "<plan-path>" --task-path "<task-path>" --execution-dir "<execution-dir>"` only after the user explicitly authorizes recovery and only with the identical approved JSON and three paths.
 8. Neither validation, creation, nor recovery executes CMD or OP or creates an Attempt, execution lock, instruction audit, or specification-update transaction.
 
 ## Request coordinated revision
@@ -50,7 +52,7 @@ Use this workflow for Task. Independent discussion restoration follows the progr
 
 ## Use deterministic handoffs
 
-1. Before accepting `plan_to_task` or `execute_to_task`, pipe its pure JSON to `<python-command> <skill-root>/scripts/work.py --project-root <project-root> handoff validate --stdin` and require `work-handoff-validation/v1` with `status: valid`.
-2. After TASK formalization, use `<python-command> <skill-root>/scripts/work.py --project-root <project-root> handoff render --stdin` to produce `task_to_execute`. Use `task_to_plan` for a cross-session Plan handoff; use the internal editor above for a confirmed same-session revision.
+1. Before accepting `plan_to_task` or `execute_to_task`, save its pure JSON as the request file and invoke `<python-command> "<skill-root>/scripts/work.py" --project-root "<project-root>" handoff validate --input-file "<request-path>"` and require `work-handoff-validation/v1` with `status: valid`.
+2. After TASK formalization, use `<python-command> "<skill-root>/scripts/work.py" --project-root "<project-root>" handoff render --input-file "<request-path>"` to produce `task_to_execute`. Use `task_to_plan` for a cross-session Plan handoff; use the internal editor above for a confirmed same-session revision.
 3. Place rendered JSON in one conversation code block without edits. Require the fixed marker, actual requirement ID, all artifact paths, Plan skill-selection hash, and applicable single `skill_id`.
 4. A handoff exists only in the conversation and never modifies Plan, TASK, index, Attempt, or lock state.

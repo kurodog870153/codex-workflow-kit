@@ -26,6 +26,7 @@ from ..instructions.task_selection import validate_task_document_instruction_sel
 from .task_changes import validate_task_changes
 from .task_dependencies import resolve_task_dependencies
 from .task_ordering import order_task_contract
+from .task_structure import TOP_REQUIRED, TOP_OPTIONAL, TASK_REQUIRED, TASK_OPTIONAL
 from .validation import (
     nonempty_string as _nonempty_string,
     sha256 as _sha256,
@@ -36,20 +37,6 @@ from .validation import (
 TASK_ID_PATTERN = re.compile(r"^TASK-(\d{3})$")
 SPEC_ID_PATTERN = re.compile(r"^TASK-SPEC-(\d{3})$")
 QUALIFIED_FILE_PATTERN = re.compile(r"^(TASK-\d{3})/(FILE-\d{3})$")
-TOP_REQUIRED = {
-    "schema",
-    "requirement_id",
-    "spec_id",
-    "status",
-    "title",
-    "summary",
-    "artifacts",
-    "source_plan",
-    "instruction_selection",
-    "tasks",
-    "readiness",
-}
-TOP_OPTIONAL = {"execution_defaults", "decisions", "changes"}
 OS_VALUES = {"windows", "macos", "linux"}
 SHELL_VALUES = {"powershell", "pwsh", "cmd", "bash", "zsh", "sh"}
 
@@ -283,8 +270,8 @@ def _validate_task_contract_object(
         task = _strict_keys(
             raw_task,
             location=f"tasks[{index}]",
-            required={"id", "title", "skill_id", "instruction_selection", "traceability", "goal", "steps", "validations"},
-            optional={"dependencies", "inputs", "decisions", "files", "risks", "commands", "operations"},
+            required=TASK_REQUIRED,
+            optional=TASK_OPTIONAL,
         )
         task_id = _nonempty_string(task["id"], location=f"tasks[{index}].id")
         match = TASK_ID_PATTERN.fullmatch(task_id)
@@ -688,6 +675,43 @@ def _validate_task_contract_object(
 
 
 def validate_task_contract(
+    raw: bytes,
+    *,
+    source: str,
+    actual_task_path: str,
+    project_root: Path,
+    user_config_root: str,
+    validate_file_state: bool = True,
+    skill_roots: list[SkillRoot] | None = None,
+    _source_plan_raw: bytes | None = None,
+    _historical_work_sources: bool = False,
+    _reviewed_source_plan_binding: tuple[str, str] | None = None,
+) -> dict[str, object]:
+    options = dict(
+        source=source, actual_task_path=actual_task_path, project_root=project_root,
+        user_config_root=user_config_root, validate_file_state=validate_file_state,
+        skill_roots=skill_roots, _source_plan_raw=_source_plan_raw,
+        _historical_work_sources=_historical_work_sources,
+        _reviewed_source_plan_binding=_reviewed_source_plan_binding,
+    )
+    try:
+        return _validate_task_contract(raw, **options)
+    except WorkError as error:
+        failure = error
+    except (TypeError, KeyError, ValueError, RecursionError) as error:
+        # Malformed nested JSON must not escape as an unstructured CLI failure.
+        failure = WorkError(
+            ExitCode.CONTRACT, "invalid_task_value",
+            "The TASK contains a value the contract cannot validate.",
+            {"exception_type": type(error).__name__},
+        )
+    from .task_diagnostics import diagnose_task_contract
+    report = diagnose_task_contract(raw, _contract_error=failure, **options)
+    failure.details = {**failure.details, "task_diagnostics": report}
+    raise failure
+
+
+def _validate_task_contract(
     raw: bytes,
     *,
     source: str,

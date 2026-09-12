@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import TextIO
 
+from ..contracts.task import validate_task_contract
+from ..foundation.fingerprint import read_raw
+from ..foundation.paths import normalize_relative_path
 from ..execution.attempt_close import close_attempt
 from ..execution.attempt_start import recover_attempt_start, start_attempt
 from ..execution.command_correction import record_command_correction
@@ -15,6 +17,7 @@ from ..execution.recovery import recover_execution
 from ..execution.worktree import inspect_execute_worktree
 from ..foundation.spec_update import require_no_spec_update, state_writer, storage_path
 from ..skills.catalog import parse_skill_root
+from ..foundation.cli_io import FileInput
 from . import SubparserRegistry
 
 
@@ -45,7 +48,7 @@ def register_execute_commands(commands: SubparserRegistry) -> None:
         execute_command.add_argument(
             "--confirmed-input", action="append", default=[]
         )
-        execute_command.add_argument("--stdin", action="store_true", required=True)
+        execute_command.add_argument("--input-file", required=True)
 
     record_begin = execute_commands.add_parser("record-begin")
     _add_execution_context_arguments(record_begin)
@@ -60,27 +63,36 @@ def register_execute_commands(commands: SubparserRegistry) -> None:
     ):
         execute_command = execute_commands.add_parser(command_name)
         _add_execution_context_arguments(execute_command)
-        execute_command.add_argument("--stdin", action="store_true", required=True)
+        execute_command.add_argument("--input-file", required=True)
 
 
 def run_execute(
     arguments: argparse.Namespace,
     project_root: Path,
-    input_stream: TextIO,
+    request: FileInput | None,
 ) -> dict[str, object]:
     if arguments.execute_command not in {"preflight", "worktree"}:
+        task_path = storage_path(project_root, arguments.task_path)
+        if task_path.is_file():
+            validate_task_contract(
+                read_raw(task_path), source=str(task_path),
+                actual_task_path=normalize_relative_path(arguments.task_path, field="task_path"),
+                project_root=project_root, user_config_root=arguments.user_config_root,
+                skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
+                validate_file_state=False,
+            )
         directory = storage_path(project_root, arguments.execution_dir)
         # Missing artifacts are reported by the existing command validator.
         if directory.is_dir():
             with state_writer(project_root, arguments.execution_dir):
-                return _run_execute(arguments, project_root, input_stream)
-    return _run_execute(arguments, project_root, input_stream)
+                return _run_execute(arguments, project_root, request)
+    return _run_execute(arguments, project_root, request)
 
 
 def _run_execute(
     arguments: argparse.Namespace,
     project_root: Path,
-    input_stream: TextIO,
+    request: FileInput | None,
 ) -> dict[str, object]:
     require_no_spec_update(project_root, arguments.execution_dir)
     common = {
@@ -98,17 +110,17 @@ def _run_execute(
             base_record_id=arguments.record_id,
         )
 
-    stdin_operations = {
+    file_operations = {
         "command-correction": record_command_correction,
         "record-finish": finish_record,
         "attempt-close": close_attempt,
         "correction-create": create_correction,
         "recover": recover_execution,
     }
-    if arguments.execute_command in stdin_operations:
-        return stdin_operations[arguments.execute_command](
-            input_stream.read().encode("utf-8"),
-            source="stdin",
+    if arguments.execute_command in file_operations:
+        return file_operations[arguments.execute_command](
+            request.raw,
+            source=request.source,
             **common,
         )
 
@@ -124,7 +136,7 @@ def _run_execute(
         else recover_attempt_start
     )
     return operation(
-        input_stream.read().encode("utf-8"),
-        source="stdin",
+        request.raw,
+        source=request.source,
         **common,
     )

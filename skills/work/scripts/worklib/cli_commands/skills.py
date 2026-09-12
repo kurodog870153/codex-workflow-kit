@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-from typing import TextIO
 
 from ..skills.catalog import (
     build_skill_catalog,
@@ -9,6 +8,7 @@ from ..skills.catalog import (
     snapshot_catalog_skill,
 )
 from ..skills.selection import validate_skill_selection_json
+from ..foundation.cli_io import FileInput
 from . import SubparserRegistry
 
 
@@ -29,17 +29,17 @@ def register_skill_commands(commands: SubparserRegistry) -> None:
     skills_selection_validate = skills_commands.add_parser("selection-validate")
     skills_selection_validate.add_argument("--root", action="append", required=True)
     skills_selection_validate.add_argument(
-        "--stdin", action="store_true", required=True
+        "--input-file", required=True
     )
 
 
 def run_skills(
     arguments: argparse.Namespace,
-    input_stream: TextIO,
+    request: FileInput | None,
 ) -> dict[str, object]:
     if arguments.skills_command == "selection-validate":
         return validate_skill_selection_json(
-            input_stream.read().encode("utf-8"),
+            request.raw,
             roots=[parse_skill_root(root) for root in arguments.root],
         )
     if arguments.skills_command == "catalog":

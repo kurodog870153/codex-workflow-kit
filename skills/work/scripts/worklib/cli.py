@@ -18,6 +18,7 @@ from .cli_commands.plan import register_plan_commands, run_plan
 from .cli_commands.progress import register_progress_commands, run_progress
 from .cli_commands.skills import register_skill_commands, run_skills
 from .cli_commands.task import register_task_commands, run_task
+from .foundation.cli_io import FileInput, error_response, read_input_file, success_response
 from .foundation.errors import ExitCode, WorkError
 from .foundation.fingerprint import fingerprint_file
 from .foundation.jsonio import write_json
@@ -28,7 +29,26 @@ from .foundation.paths import (
 )
 
 
+class HelpRequested(Exception):
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+
+class JsonHelpAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None) -> None:
+        raise HelpRequested(parser.format_help())
+
+
 class WorkArgumentParser(argparse.ArgumentParser):
+    def __init__(self, *args, **kwargs) -> None:
+        kwargs["add_help"] = False
+        kwargs["allow_abbrev"] = False
+        super().__init__(*args, **kwargs)
+        self.add_argument(
+            "-h", "--help", action=JsonHelpAction, nargs=0,
+            help="Return command help in a JSON response.",
+        )
+
     def error(self, message: str) -> None:
         raise WorkError(
             ExitCode.CLI_USAGE,
@@ -80,7 +100,7 @@ def build_parser() -> WorkArgumentParser:
 def _run(
     arguments: argparse.Namespace,
     project_root: Path,
-    input_stream: TextIO,
+    request: FileInput | None,
 ) -> dict[str, object]:
     if arguments.command == "paths":
         return {
@@ -91,7 +111,7 @@ def _run(
         }
 
     if arguments.command == "hierarchy":
-        return run_hierarchy(arguments, project_root, input_stream)
+        return run_hierarchy(arguments, project_root, request)
 
     if arguments.command == "instructions":
         return run_instructions(arguments, project_root)
@@ -110,28 +130,28 @@ def _run(
         return result
 
     if arguments.command == "skills":
-        return run_skills(arguments, input_stream)
+        return run_skills(arguments, request)
 
     if arguments.command == "handoff":
-        return run_handoff(arguments, project_root, input_stream)
+        return run_handoff(arguments, project_root, request)
 
     if arguments.command == "attempt":
-        return run_attempt(arguments, project_root, input_stream)
+        return run_attempt(arguments, project_root, request)
 
     if arguments.command == "correction":
-        return run_correction(arguments, project_root, input_stream)
+        return run_correction(arguments, project_root, request)
 
     if arguments.command == "plan":
-        return run_plan(arguments, project_root, input_stream)
+        return run_plan(arguments, project_root, request)
 
     if arguments.command == "progress":
-        return run_progress(arguments, project_root, input_stream)
+        return run_progress(arguments, project_root, request)
 
     if arguments.command == "task":
-        return run_task(arguments, project_root, input_stream)
+        return run_task(arguments, project_root, request)
 
     if arguments.command == "execute":
-        return run_execute(arguments, project_root, input_stream)
+        return run_execute(arguments, project_root, request)
 
     raise WorkError(
         ExitCode.INTERNAL_ERROR,
@@ -145,26 +165,40 @@ def main(
     *,
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
-    stdin: TextIO | None = None,
 ) -> int:
-    output = stdout or sys.stdout
-    error_output = stderr or sys.stderr
-    input_stream = stdin or sys.stdin
+    # stderr is reserved for optional diagnostics; every result goes to stdout.
+    output = stdout if stdout is not None else sys.stdout
     try:
-        arguments = build_parser().parse_args(argv)
+        tokens = list(sys.argv[1:] if argv is None else argv)
+        if any(token == "--stdin" or token.startswith("--stdin=") for token in tokens):
+            raise WorkError(
+                ExitCode.CLI_USAGE,
+                "stdin_removed",
+                "Write the JSON request to a UTF-8 file and use --input-file <path>.",
+                {"replacement": "--input-file"},
+            )
+        arguments = build_parser().parse_args(tokens)
         project_root = resolve_root(arguments.project_root, label="project root")
-        result = _run(arguments, project_root, input_stream)
+        path = getattr(arguments, "input_file", None)
+        request = read_input_file(path) if path is not None else None
+        result = _run(arguments, project_root, request)
+        # Preserve the existing data order independently of the fixed envelope.
         preserve_order = (
-            arguments.command == "attempt"
-            and arguments.attempt_command == "render"
+            arguments.command == "attempt" and arguments.attempt_command == "render"
         ) or (
-            arguments.command == "correction"
-            and arguments.correction_command == "render"
+            arguments.command == "correction" and arguments.correction_command == "render"
         )
-        write_json(output, result, sort_keys=not preserve_order)
+        write_json(
+            output, success_response(result, preserve_order=preserve_order), sort_keys=False,
+        )
+        return int(ExitCode.SUCCESS)
+    except HelpRequested as help_result:
+        write_json(
+            output, success_response({"help": help_result.text}), sort_keys=False,
+        )
         return int(ExitCode.SUCCESS)
     except WorkError as error:
-        write_json(error_output, error.as_dict())
+        write_json(output, error_response(error), sort_keys=False)
         return int(error.exit_code)
     except Exception:
         error = WorkError(
@@ -172,5 +206,5 @@ def main(
             "internal_error",
             "An unexpected internal error occurred.",
         )
-        write_json(error_output, error.as_dict())
+        write_json(output, error_response(error), sort_keys=False)
         return int(error.exit_code)

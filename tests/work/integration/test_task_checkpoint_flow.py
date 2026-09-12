@@ -10,11 +10,14 @@ from pathlib import Path
 
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from cli_support import FileInputTestCase
 
 from worklib.foundation.errors import ExitCode
 
 
-class TaskCheckpointFlowTests(unittest.TestCase):
+class TaskCheckpointFlowTests(FileInputTestCase):
     def setUp(self):
         from worklib.hierarchy.selection import build_hierarchy_selection
         from worklib.instructions.selection import build_instruction_selection
@@ -37,7 +40,7 @@ class TaskCheckpointFlowTests(unittest.TestCase):
             "deliverables": [{"id": "DELIVERABLE-001", "statement": "Result", "goal_ids": ["GOAL-001"], "acceptance_ids": ["ACCEPTANCE-001"]}],
             "acceptance_criteria": [{"id": "ACCEPTANCE-001", "statement": "Observable", "deliverable_ids": ["DELIVERABLE-001"]}],
         }
-        self.cli("plan", "create", "--stdin", "--plan-path", self.plan["artifacts"]["plan"], "--user-config-root", str(self.root), payload=self.plan)
+        self.cli("plan", "create", "--input-file", "request.json", "--plan-path", self.plan["artifacts"]["plan"], "--user-config-root", str(self.root), payload=self.plan)
         validation = self.cli("plan", "validate", "--path", self.plan["artifacts"]["plan"], "--user-config-root", str(self.root))
         selection = build_instruction_selection(skill_root=work_root, mode="task", selected_paths=[], reference_names=["task.general.task-records"])
         source = {key: validation[key] for key in ("plan_sha256", "hierarchy_selection_sha256", "skill_selection_sha256")}
@@ -46,7 +49,7 @@ class TaskCheckpointFlowTests(unittest.TestCase):
         second = copy.deepcopy(index["tasks"][0])
         second.update(id="TASK-002", title="Second task", dependencies=["TASK-001"])
         index["tasks"].append(second)
-        self.cli("task", "draft-init", "--stdin", payload=index)
+        self.cli("task", "draft-init", "--input-file", "request.json", payload=index)
         candidate = {"id": "TASK-001", "title": "Task", "goal": "Result", "skill_id": None, "instruction_selection": selection,
                      "traceability": {"goal_ids": ["GOAL-001"], "deliverable_ids": ["DELIVERABLE-001"], "acceptance_ids": ["ACCEPTANCE-001"]},
                      "steps": [{"id": "STEP-001", "action": "Review result.", "references": ["VAL-001"]}],
@@ -58,18 +61,19 @@ class TaskCheckpointFlowTests(unittest.TestCase):
         self.options = {"expected_revision": 2, "plan_path": self.plan["artifacts"]["plan"], "user_config_root": str(self.root)}
 
     def cli(self, *arguments, payload=None, expected_code=0):
-        import os
         import subprocess
 
+        arguments = self.input_arguments(arguments, json.dumps(payload, ensure_ascii=False))
         result = subprocess.run(
             [sys.executable, "-B", str(SCRIPT_ROOT / "work.py"), "--project-root", str(self.root), *arguments],
-            input=json.dumps(payload, ensure_ascii=False) if payload is not None else "",
             capture_output=True, text=True, encoding="utf-8", timeout=60,
-            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+            shell=False,
         )
         self.assertEqual(result.returncode, expected_code, result.stderr)
-        self.assertEqual(result.stdout if expected_code else result.stderr, "")
-        return json.loads(result.stderr if expected_code else result.stdout)
+        self.assertEqual(result.stderr, "")
+        response = json.loads(result.stdout)
+        self.assertEqual(response["schema"], "work-cli-result/v1")
+        return response if expected_code else response["data"]
 
     def index(self):
         return self.cli("task", "draft-read", "--requirement-id", "example")
@@ -85,11 +89,11 @@ class TaskCheckpointFlowTests(unittest.TestCase):
         for entry in index["tasks"]:
             if entry["id"] == discussion["task_id"]:
                 entry["status"] = discussion["status"]
-        return self.cli("task", "draft-save", "--stdin", "--expected-revision", str(revision),
+        return self.cli("task", "draft-save", "--input-file", "request.json", "--expected-revision", str(revision),
                         payload={"index": index, "draft": discussion})
 
     def formal_arguments(self):
-        return ["--stdin", "--requirement-id", "example", "--expected-revision", str(self.index()["revision"]),
+        return ["--input-file", "request.json", "--requirement-id", "example", "--expected-revision", str(self.index()["revision"]),
                 "--plan-path", self.plan["artifacts"]["plan"], "--user-config-root", str(self.root)]
 
     def test_checkpoint_changes_and_approval_across_fresh_processes(self):
@@ -124,7 +128,7 @@ class TaskCheckpointFlowTests(unittest.TestCase):
         revision = index["revision"]
         index["revision"] += 1
         index["tasks"][0]["goal"] = "Updated result"
-        result = self.cli("task", "draft-list-update", "--stdin", "--expected-revision", str(revision),
+        result = self.cli("task", "draft-list-update", "--input-file", "request.json", "--expected-revision", str(revision),
                           payload={"index": index, "reason": "Confirmed result clarification"})
         self.assertEqual(result["affected_task_ids"], ["TASK-001", "TASK-002"])
         for task_id in ("TASK-001", "TASK-002"):
@@ -138,8 +142,8 @@ class TaskCheckpointFlowTests(unittest.TestCase):
                        "--plan-path", self.plan["artifacts"]["plan"], "--user-config-root", str(self.root)]
         drift = self.cli("task", "draft-check", *source_args, "--task-id", "TASK-001", "--general-only",
                          "--reference", "task.general.task-records", expected_code=ExitCode.ARTIFACT_INTEGRITY)
-        self.assertEqual(drift["code"], "draft_source_drift")
-        result = self.cli("task", "draft-source-update", *source_args, "--stdin", payload={
+        self.assertEqual(drift["reason_code"], "draft_source_drift")
+        result = self.cli("task", "draft-source-update", *source_args, "--input-file", "request.json", payload={
             "reason": "Confirmed Plan clarification",
             "selections": {task_id: {"selected_paths": [], "references": ["task.general.task-records"]}
                            for task_id in ("TASK-001", "TASK-002")},
@@ -161,7 +165,7 @@ class TaskCheckpointFlowTests(unittest.TestCase):
         formal_args = self.formal_arguments()
         rejected = self.cli("task", "draft-create", *formal_args, "--approved-sha256", reviewed["approval_sha256"],
                             payload=self.metadata, expected_code=ExitCode.ARTIFACT_INTEGRITY)
-        self.assertEqual(rejected["code"], "draft_approval_mismatch")
+        self.assertEqual(rejected["reason_code"], "draft_approval_mismatch")
         self.assertFalse((self.root / self.plan["artifacts"]["task"]).exists())
         self.assertFalse((self.root / self.plan["artifacts"]["execution"]).exists())
         final = self.cli("task", "draft-assemble", *formal_args, payload=self.metadata)

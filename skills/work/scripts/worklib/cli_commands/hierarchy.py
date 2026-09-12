@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import TextIO
 
 from ..foundation.hierarchy import build_hierarchy
 from ..foundation.runtime import installed_work_root
@@ -10,6 +9,7 @@ from ..hierarchy.selection import (
     build_hierarchy_selection_json,
     validate_hierarchy_selection_json,
 )
+from ..foundation.cli_io import FileInput
 from . import SubparserRegistry
 
 
@@ -28,14 +28,14 @@ def register_hierarchy_commands(commands: SubparserRegistry) -> None:
     for command_name in ("selection-build", "selection-validate"):
         hierarchy_selection = hierarchy_commands.add_parser(command_name)
         hierarchy_selection.add_argument(
-            "--stdin", action="store_true", required=True
+            "--input-file", required=True
         )
 
 
 def run_hierarchy(
     arguments: argparse.Namespace,
     project_root: Path,
-    input_stream: TextIO,
+    request: FileInput | None,
 ) -> dict[str, object]:
     if arguments.hierarchy_command == "resolve":
         result = build_hierarchy(arguments.work_directory, arguments.paths).as_dict()
@@ -49,6 +49,6 @@ def run_hierarchy(
         else validate_hierarchy_selection_json
     )
     return operation(
-        input_stream.read().encode("utf-8"),
+        request.raw,
         skill_root=skill_root,
     )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import sys
 import unittest
 from pathlib import Path
@@ -32,7 +33,7 @@ class ExecuteWorktreeTests(unittest.TestCase):
             "task_spec_id": "TASK-SPEC-001",
             "task_id": "TASK-001",
             "skill_id": None,
-            "task_sha256": "a" * 64,
+            "task_sha256": hashlib.sha256(b"task").hexdigest(),
             "task_instructions_sha256": "b" * 64,
             "execute_instructions_sha256": "c" * 64,
             "execute_skill_selection": {"selection_sha256": "e" * 64},
