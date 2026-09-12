@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 from ..artifacts.specification import update_specification
+from ..artifacts.spec_prepare import prepare_specification
 from ..artifacts.task_repair import repair_task
 from ..artifacts.migration_preflight import migration_preflight
 from ..artifacts.migration_verify import verify_migration
@@ -31,6 +32,12 @@ from . import SubparserRegistry
 def register_task_commands(commands: SubparserRegistry) -> None:
     task_parser = commands.add_parser("task")
     task_commands = task_parser.add_subparsers(dest="task_command", required=True)
+
+    prepare = task_commands.add_parser("spec-prepare", help="Prepare validated field replacements without publishing.")
+    prepare.add_argument("--input-file", required=True)
+    prepare.add_argument("--user-config-root", required=True)
+    prepare.add_argument("--skill-root", action="append", default=[])
+    prepare.add_argument("--output-file")
 
     for name in ("spec-validate", "spec-update", "spec-recover", "migrate-validate", "migrate", "migrate-recover"):
         spec = task_commands.add_parser(name, help="Internal coordinated specification revision.")
@@ -129,6 +136,12 @@ def run_task(
     project_root: Path,
     request: FileInput | None,
 ) -> dict[str, object]:
+    if arguments.task_command == "spec-prepare":
+        return prepare_specification(
+            request.raw, project_root=project_root, user_config_root=arguments.user_config_root,
+            skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
+            output_file=arguments.output_file,
+        )
     if arguments.task_command == "migrate-verify":
         report = verify_migration(
             request.raw, project_root=project_root, user_config_root=arguments.user_config_root,

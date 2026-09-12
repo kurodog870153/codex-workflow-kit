@@ -10,6 +10,73 @@ transaction. Do not publish partial candidates or refresh hashes to permit savin
 
 ## Prepare and review
 
+### Optional field replacement preparation
+
+For confirmed ordinary revisions, `task spec-prepare` can assemble the complete
+request and validate the derived Plan, TASK and execution index in memory. It does
+not publish formal artifacts or authorize execution, migration or repair.
+
+Supply a UTF-8 `work-spec-prepare-request/v1` file, for example:
+
+```json
+{
+  "schema": "work-spec-prepare-request/v1",
+  "plan_path": "outputs/work/plans/example.json",
+  "reason": "Confirmed acceptance wording",
+  "edits": [
+    {
+      "artifact": "task",
+      "task_id": "TASK-001",
+      "field": "goal",
+      "before": "Deliver the result",
+      "after": "Deliver the confirmed result"
+    }
+  ]
+}
+```
+
+1. This initial interface replaces existing fields only. Plan fields are `title`,
+   `summary`, `goals`, `scope`, `deliverables` and `acceptance_criteria`; each Plan
+   edit also requires confirmed `affected_ids` referencing Plan items. TASK document
+   fields are `title`, `summary`, `decisions` and `execution_defaults`. With
+   `task_id`, editable TASK fields are `title`, `goal`, `traceability`,
+   `dependencies`, `steps`, `validations`, `commands` and `operations`.
+2. `before` must exactly match the existing JSON value. Unknown TASK IDs, repeated
+   targets, unchanged values and protected fields are rejected. Arrays are replaced
+   as complete field values. TASK IDs, sources, selections, history and index fields
+   cannot be edited through this interface. No missing semantic decisions are inferred.
+3. Version, Plan binding and exact change evidence are assembled automatically.
+   The existing specification validator determines affected TASKs and index states.
+   The response contains `data.request` and `data.preview`; the latter includes the
+   complete candidates and `approved_sha256`. Review all three candidates.
+4. Without `--output-file`, preparation is read-only. With it, only a new request
+   file is created after validation; existing files are never overwritten. Paths
+   for input/output files are relative to the process cwd. Parent directories must
+   already exist. Output uses UTF-8 without BOM and LF. If writing is interrupted,
+   retain the partial file and stop; it is not an approved publication request.
+5. Use the saved request with `spec-validate`, then obtain or reuse approval for its
+   exact preview before `spec-update`. Retain that identical request for separately
+   authorized `spec-recover`. Preparation preserves the existing recoverable logical
+   transaction; it does not make publication filesystem-wide atomic.
+
+macOS example (replace the explicit paths):
+
+```text
+python3 "/path/to/work/scripts/work.py" --project-root "/path/to/project" task spec-prepare --input-file "/path/to/edits.json" --output-file "/path/to/prepared.json" --user-config-root "/path/to/user-config"
+```
+
+Windows PowerShell example with the Python launcher:
+
+```text
+py -3 "C:\skills\work\scripts\work.py" --project-root "C:\project" task spec-prepare --input-file "C:\scratch\edits.json" --output-file "C:\scratch\prepared.json" --user-config-root "C:\user-config"
+```
+
+Use the installed Python 3.10+ command and the same confirmed roots for subsequent
+commands. Add the same `--skill-root` selections when required. Do not transport
+JSON through shell interpolation, redirection or pipelines.
+
+### Complete candidate validation
+
 1. First apply [the shared TASK diagnostic gate](../instruction-loading.md#validate-before-relying-on-a-formal-task). Diagnostic reads do not authorize a repair preview or transaction; the supported migration exceptions below remain narrow. Preserve the explicit requirement ID and all three confirmed artifact paths. Read the formal Plan, TASK and index; retain their raw-byte SHA-256 values as expected.plan_sha256, expected.task_sha256 and expected.index_sha256. Formal source JSON must already be canonical. Stop for any lock, ongoing Attempt, unresolved transaction or unknown user edits. Work instruction source drift requires the migration procedure below.
 2. Build one work-spec-update-request/v1 object with exactly schema, reason, expected, plan and task. The latter two are complete candidate objects, including an unchanged Plan when appropriate. Do not supply a candidate execution index.
 3. Preserve Plan change history and append change evidence when Plan changes. Use the Plan renderer/validator to obtain its canonical fingerprint; put it in the candidate TASK source reference. Do not write the Plan separately to make TASK validation pass.

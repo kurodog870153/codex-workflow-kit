@@ -20,6 +20,7 @@ from cli_support import FileInputTestCase
 
 from worklib.artifacts import specification
 from worklib.artifacts.specification import update_specification
+from worklib.artifacts.spec_prepare import prepare_specification
 from worklib.cli import main
 from worklib.contracts.execution_index import build_initial_execution_index, render_execution_index
 from worklib.contracts.plan import render_plan_contract
@@ -124,6 +125,153 @@ class SpecificationUpdateTests(FileInputTestCase):
 
     def paths(self):
         return {"plan": self.plan_path, "task": self.task_path, "index": self.index_path}
+
+    def prepare_request(self):
+        return {"schema": "work-spec-prepare-request/v1", "plan_path": self.artifacts["plan"],
+                "reason": "Confirmed revision", "edits": [
+                    {"artifact": "task", "task_id": "TASK-001", "field": "goal",
+                     "before": "Deliver the result", "after": "交付確認結果"}]}
+
+    def test_prepare_task_and_publish_derived_index(self):
+        before = self.snapshot()
+        result = prepare_specification(json.dumps(self.prepare_request()).encode(),
+            project_root=self.root, user_config_root=str(self.root))
+        self.assertEqual(before, self.snapshot())
+        self.assertEqual(result["preview"]["affected_task_ids"], ["TASK-001", "TASK-002"])
+        self.assertEqual(result["request"]["task"]["spec_id"], "TASK-SPEC-002")
+        self.assertEqual(result["preview"], self.run_update(result["request"]))
+        published = self.run_update(result["request"], "apply", result["preview"]["approved_sha256"])
+        self.assertEqual(published["status"], "updated")
+        self.assertEqual(json.loads(self.task_path.read_bytes())["tasks"][0]["goal"], "交付確認結果")
+        self.assertEqual(json.loads(self.index_path.read_bytes())["task_spec_id"], "TASK-SPEC-002")
+
+    def test_prepare_plan_cli_utf8_file(self):
+        request = self.prepare_request()
+        request["edits"] = [{"artifact": "plan", "field": "summary", "before": "Original result",
+                             "after": "確認的新結果", "affected_ids": ["GOAL-001"]}]
+        source = self.root / "修改 request.json"
+        source.write_bytes(b"\xef\xbb\xbf" + json.dumps(request, ensure_ascii=False, indent=2).replace("\n", "\r\n").encode())
+        output = self.root / "完整 request.json"
+        stdout = io.StringIO()
+        code = main(["--project-root", str(self.root), "task", "spec-prepare", "--input-file", str(source),
+                     "--user-config-root", str(self.root), "--output-file", str(output)], stdout=stdout)
+        self.assertEqual(code, 0, stdout.getvalue())
+        result = json.loads(stdout.getvalue())["data"]
+        raw = output.read_bytes()
+        self.assertFalse(raw.startswith(b"\xef\xbb\xbf"))
+        self.assertNotIn(b"\r", raw)
+        self.assertTrue(raw.endswith(b"\n"))
+        prepared = json.loads(raw)
+        self.assertEqual(prepared["plan"]["summary"], "確認的新結果")
+        self.assertEqual(prepared["task"]["source_plan"]["canonical_sha256"],
+                         digest(render_plan_contract(prepared["plan"])))
+        self.assertEqual(result["preview"], self.run_update(prepared))
+        self.assertEqual(len(result["preview"]["affected_task_ids"]), 3)
+        self.assertEqual(len(prepared["plan"]["changes"]), 1)
+
+    def test_prepare_rejects_invalid_edits_without_writes(self):
+        for update in ({"before": "stale"}, {"task_id": "TASK-999"}, {"field": "id"},
+                       {"artifact": "index"}, {"field": "instruction_selection"}):
+            with self.subTest(update=update):
+                request = self.prepare_request()
+                request["edits"][0].update(update)
+                before = self.snapshot()
+                with self.assertRaises(WorkError):
+                    prepare_specification(json.dumps(request).encode(), project_root=self.root,
+                                           user_config_root=str(self.root), output_file=str(self.root / "rejected.json"))
+                self.assertEqual(before, self.snapshot())
+
+    def test_prepare_preserves_existing_output(self):
+        output = self.root / "existing.json"
+        output.write_bytes(b"preserve")
+        before = self.snapshot()
+        with self.assertRaises(FileExistsError):
+            prepare_specification(json.dumps(self.prepare_request()).encode(), project_root=self.root,
+                                   user_config_root=str(self.root), output_file=str(output))
+        self.assertEqual(before, self.snapshot())
+
+    def test_prepare_combined_revision_recovers_from_saved_request(self):
+        request = self.prepare_request()
+        request["edits"].append({"artifact": "plan", "field": "summary", "before": "Original result",
+                                 "after": "Revised result", "affected_ids": ["GOAL-001"]})
+        output = self.root / "approved request.json"
+        result = prepare_specification(json.dumps(request).encode(), project_root=self.root,
+                                       user_config_root=str(self.root), output_file=str(output))
+        saved = output.read_bytes()
+        prepared = json.loads(saved)
+        approval = result["preview"]["approved_sha256"]
+        before = {key: path.read_bytes() for key, path in self.paths().items()}
+        real_replace = os.replace
+
+        def fail_task(source, target):
+            if Path(target) == self.task_path:
+                raise OSError("injected interruption")
+            return real_replace(source, target)
+
+        with patch("worklib.artifacts.specification.os.replace", side_effect=fail_task):
+            with self.assertRaises(WorkError) as error:
+                self.run_update(prepared, "apply", approval)
+        self.assertEqual(error.exception.code, "spec_update_interrupted")
+        self.assertNotEqual(self.plan_path.read_bytes(), before["plan"])
+        self.assertEqual(self.task_path.read_bytes(), before["task"])
+        with self.assertRaises(WorkError) as error:
+            require_no_spec_update(self.root, self.artifacts["execution"])
+        self.assertEqual(error.exception.code, "spec_update_pending")
+        self.assertEqual(self.run_update(json.loads(output.read_bytes()), "recover", approval)["status"], "recovered")
+        self.assertEqual(output.read_bytes(), saved)
+        for key, path in self.paths().items():
+            self.assertEqual(json.loads(path.read_bytes()), result["preview"]["candidate"][key])
+        self.assertEqual(self.run_update(prepared, "recover", approval)["status"], "already_completed")
+
+    def test_prepare_request_rejects_changed_source_before_publication(self):
+        result = prepare_specification(json.dumps(self.prepare_request()).encode(),
+            project_root=self.root, user_config_root=str(self.root))
+        plan = copy.deepcopy(self.plan)
+        plan["summary"] = "External edit after preparation"
+        self.plan_path.write_bytes(render_plan_contract(plan))
+        before = self.snapshot()
+        with self.assertRaises(WorkError) as error:
+            self.run_update(result["request"], "apply", result["preview"]["approved_sha256"])
+        self.assertEqual(error.exception.code, "spec_update_source_changed")
+        self.assertEqual(before, self.snapshot())
+
+    def test_prepare_rejects_duplicate_unchanged_and_missing_plan_evidence(self):
+        for defect, expected in (("duplicate", "spec_prepare_duplicate"),
+                                 ("unchanged", "spec_prepare_unchanged"),
+                                 ("plan_evidence", "spec_prepare_plan_evidence")):
+            with self.subTest(defect=defect):
+                request = self.prepare_request()
+                if defect == "duplicate":
+                    request["edits"].append(copy.deepcopy(request["edits"][0]))
+                elif defect == "unchanged":
+                    request["edits"][0]["after"] = request["edits"][0]["before"]
+                else:
+                    request["edits"] = [{"artifact": "plan", "field": "summary",
+                                         "before": "Original result", "after": "Revised result"}]
+                before = self.snapshot()
+                with self.assertRaises(WorkError) as error:
+                    prepare_specification(json.dumps(request).encode(), project_root=self.root,
+                                           user_config_root=str(self.root), output_file=str(self.root / "rejected.json"))
+                self.assertEqual(error.exception.code, expected)
+                self.assertEqual(before, self.snapshot())
+
+    def test_prepare_rejects_locked_and_active_index_without_writes(self):
+        for defect, expected in (("lock", "spec_update_lock_present"), ("active", "spec_update_active_task")):
+            with self.subTest(defect=defect):
+                index = copy.deepcopy(self.index)
+                if defect == "lock":
+                    index["lock"] = {"kind": "spec_update", "record": "SPEC-UPDATE-009"}
+                else:
+                    index["tasks"][0]["status"] = "in_progress"
+                    index["tasks"][0]["latest_attempt"] = "ATTEMPT-001"
+                    index["overall_status"] = "in_progress"
+                self.index_path.write_bytes(render_execution_index(index))
+                before = self.snapshot()
+                with self.assertRaises(WorkError) as error:
+                    prepare_specification(json.dumps(self.prepare_request()).encode(), project_root=self.root,
+                                           user_config_root=str(self.root), output_file=str(self.root / "rejected.json"))
+                self.assertEqual(error.exception.code, expected)
+                self.assertEqual(before, self.snapshot())
 
     def run_update(self, request, operation="validate", approval=None):
         return update_specification(json.dumps(request).encode("utf-8"), project_root=self.root,
