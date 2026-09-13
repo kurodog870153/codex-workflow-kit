@@ -5,10 +5,11 @@ import copy
 from datetime import date
 from pathlib import Path
 
-from .specification import _changes, _decode, _error, _hash, _json, update_specification
+from .specification import _changes, _decode, _error, _json, _source_plan_repair_binding, update_specification
 from ..contracts.plan import render_plan_contract, validate_plan_contract
 from ..contracts.task import validate_task_contract
 from ..contracts.validation import nonempty_string, strict_keys
+from ..foundation.fingerprint import raw_sha256
 from ..foundation.paths import validate_artifact_paths
 from ..foundation.spec_update import storage_path, require_no_spec_update, require_idle_writer
 
@@ -20,11 +21,13 @@ ROW_FIELDS = {"title", "goal", "traceability", "dependencies", "steps", "validat
 
 def prepare_specification(raw_request: bytes, *, project_root: Path,
                           user_config_root: str, skill_roots=None,
-                          output_file: str | None = None) -> dict[str, object]:
+                          output_file: str | None = None,
+                          migration: bool = False) -> dict[str, object]:
     request = strict_keys(_decode(raw_request), location="spec_prepare", required={
         "schema", "plan_path", "reason", "edits",
-    })
-    if request["schema"] != "work-spec-prepare-request/v1":
+    } | ({"instruction_review", "instruction_choices"} if migration else set()),
+        optional={"source_plan_repair"} if migration else set())
+    if request["schema"] != ("work-migration-prepare-request/v1" if migration else "work-spec-prepare-request/v1"):
         raise _error("spec_prepare_schema", "Invalid specification preparation schema.")
     nonempty_string(request["reason"], location="reason")
     plan_path = nonempty_string(request["plan_path"], location="plan_path")
@@ -38,14 +41,28 @@ def prepare_specification(raw_request: bytes, *, project_root: Path,
                 "task": storage_path(project_root, artifacts["task"]).read_bytes(),
                 "index": storage_path(project_root, artifacts["execution"] + "/index.json").read_bytes()}
     options = dict(project_root=project_root, user_config_root=user_config_root, skill_roots=skill_roots)
-    validate_plan_contract(original_plan, source="original Plan", actual_plan_path=plan_path, **options)
+    repair_binding = None
+    if migration and "source_plan_repair" in request:
+        repair_binding = _source_plan_repair_binding(request["source_plan_repair"],
+            task=_decode(original["task"]), plan_sha256=raw_sha256(original_plan))
+    validate_plan_contract(original_plan, source="original Plan", actual_plan_path=plan_path,
+                           _historical_work_sources=migration, **options)
     validate_task_contract(original["task"], source="original TASK", actual_task_path=artifacts["task"],
-                           validate_file_state=False, _source_plan_raw=original_plan, **options)
+                           validate_file_state=False, _source_plan_raw=original_plan,
+                           _historical_work_sources=migration,
+                           _reviewed_source_plan_binding=repair_binding, **options)
     old_task = _decode(original["task"])
     task = copy.deepcopy(old_task)
     edits = request["edits"]
-    if not isinstance(edits, list) or not edits:
+    if not isinstance(edits, list) or (not edits and not migration):
         raise _error("spec_prepare_edits", "Supply non-empty field replacements.")
+    if migration:
+        from .migration_prepare import instruction_edits
+        if any(isinstance(edit, dict) and edit.get("field") in {
+            "instruction_selection", "work_instruction_selection",
+        } for edit in edits):
+            raise _error("spec_prepare_field", "Supply instruction choices instead of snapshot edits.")
+        edits = edits + instruction_edits(request["instruction_choices"], plan, task)
     seen = set()
     plan_changes = []
     today = date.today().isoformat()
@@ -61,7 +78,7 @@ def prepare_specification(raw_request: bytes, *, project_root: Path,
         if identity in seen:
             raise _error("spec_prepare_duplicate", "Replace each field only once.")
         seen.add(identity)
-        if artifact == "plan" and task_id is None and field in PLAN_FIELDS:
+        if artifact == "plan" and task_id is None and field in (PLAN_FIELDS | ({"work_instruction_selection"} if migration else set())):
             target = plan
             if "affected_ids" not in edit:
                 raise _error("spec_prepare_plan_evidence", "Plan edits require confirmed affected_ids.")
@@ -74,6 +91,8 @@ def prepare_specification(raw_request: bytes, *, project_root: Path,
                 if len(matches) != 1:
                     raise _error("spec_prepare_task_id", "Unknown TASK ID.")
                 target, allowed = matches[0], ROW_FIELDS
+            if migration:
+                allowed = allowed | {"instruction_selection"}
             if field not in allowed:
                 raise _error("spec_prepare_field", "This field is not editable through preparation.")
         else:
@@ -91,7 +110,7 @@ def prepare_specification(raw_request: bytes, *, project_root: Path,
                             "location": edit["field"], "before": _json(edit["before"]).decode().strip(),
                             "after": _json(edit["after"]).decode().strip(), "reason": request["reason"],
                             "affected_ids": edit["affected_ids"]})
-    task["source_plan"]["canonical_sha256"] = _hash(render_plan_contract(plan))
+    task["source_plan"]["canonical_sha256"] = raw_sha256(render_plan_contract(plan))
     task["spec_id"] = f"TASK-SPEC-{int(old_task['spec_id'].rsplit('-', 1)[1]) + 1:03d}"
     task["readiness"]["spec_id"] = task["spec_id"]
     number = max((int(item["id"].rsplit("-", 1)[1]) for item in old_task.get("changes", [])), default=0)
@@ -101,13 +120,18 @@ def prepare_specification(raw_request: bytes, *, project_root: Path,
     if plan_changes:
         task["changes"][0]["plan_change_ids"] = [item["id"] for item in plan["changes"][-len(plan_changes):]]
     prepared = {"schema": "work-spec-update-request/v1", "reason": request["reason"],
-                "expected": {key + "_sha256": _hash(raw) for key, raw in original.items()},
+                "expected": {key + "_sha256": raw_sha256(raw) for key, raw in original.items()},
                 "plan": plan, "task": task}
-    preview = update_specification(_json(prepared), **options)
+    if migration:
+        prepared["schema"] = "work-spec-migration-request/v1"
+        prepared["instruction_review"] = request["instruction_review"]
+        if "source_plan_repair" in request:
+            prepared["source_plan_repair"] = request["source_plan_repair"]
+    preview = update_specification(_json(prepared), migration=migration, **options)
     # Reuse the publisher's dependency analysis instead of maintaining another one.
     if preview["affected_task_ids"]:
         task["changes"][0]["affected_ids"] = preview["affected_task_ids"]
-        preview = update_specification(_json(prepared), **options)
+        preview = update_specification(_json(prepared), migration=migration, **options)
     # Nested change evidence retains input key order when rendered. Return the
     # same ordering used for preview and disk transport so reserialization cannot
     # change the candidate bytes covered by approval.
@@ -116,5 +140,5 @@ def prepare_specification(raw_request: bytes, *, project_root: Path,
         # Exclusive creation cannot overwrite an input or a formal artifact.
         with Path(output_file).open("xb") as stream:
             stream.write(_json(prepared))
-    return {"schema": "work-spec-prepare/v1", "request": prepared, "preview": preview,
+    return {"schema": "work-migration-prepare/v1" if migration else "work-spec-prepare/v1", "request": prepared, "preview": preview,
             "output_file": output_file}

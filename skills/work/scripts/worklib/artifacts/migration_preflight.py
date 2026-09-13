@@ -1,26 +1,22 @@
 """Read-only migration prerequisites; never creates candidates or approvals."""
 from __future__ import annotations
 
-import hashlib
 import subprocess
 from pathlib import Path
 
 from ..contracts.task_diagnostics import Diagnostics, diagnose_task_contract, _json_document
 from ..contracts.validation import nonempty_string, strict_keys
 from ..execution.instructions import BASE_EXECUTE_REFERENCES, RECOVERY_REFERENCE
+from ..foundation.fingerprint import raw_sha256
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_sha256, decode_utf8, read_raw
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import validate_artifact_paths
 from ..foundation.runtime import installed_work_root
-from ..foundation.spec_update import require_idle_writer, storage_path
+from ..foundation.spec_update import completion_marker_matches, require_idle_writer, storage_path
 from ..instructions.historical import stored_selection
 from ..instructions.selection import build_instruction_selection
 from .migration_transactions import verification_selection
-
-
-def _hash(raw):
-    return hashlib.sha256(raw).hexdigest()
 
 
 def _fail(code, message, **details):
@@ -63,14 +59,14 @@ def _transactions(root, execution, report):
         def inspect():
             raw = read_raw(storage_path(root, relative))
             marker = storage_path(root, relative + ".done")
-            completed = marker.is_file() and read_raw(marker) == _hash(raw).encode("ascii") + b"\n"
+            completed = marker.is_file() and completion_marker_matches(raw, read_raw(marker))
             value = parse_json_contract(raw, source=relative)
             repair = path.name.startswith(".work-task-repair-")
             expected = "work-task-repair-record/v1" if repair else "work-spec-update-record/v1"
             if value.get("schema") != expected or not isinstance(value.get("request"), dict):
                 _fail("migration_transaction_invalid", "The transaction schema or request is invalid.", path=relative)
             return {
-                "path": relative, "raw_sha256": _hash(raw), "record_id": value.get("record_id"),
+                "path": relative, "raw_sha256": raw_sha256(raw), "record_id": value.get("record_id"),
                 "kind": "migration" if value["request"].get("schema") == "work-spec-migration-request/v1" else (
                     "repair" if repair else "specification"),
                 "completion": "completed" if completed else "incomplete",
@@ -118,7 +114,7 @@ def migration_preflight(raw_request, *, project_root: Path, user_config_root: st
     for key, relative in paths.items():
         value = report.check("read:" + key, lambda relative=relative: read_raw(storage_path(project_root, relative)), location=relative)
         raw[key] = value
-        fingerprints[key] = {"raw_sha256": _hash(value) if value is not None else None}
+        fingerprints[key] = {"raw_sha256": raw_sha256(value) if value is not None else None}
         if value is None:
             report.skip("fingerprint:" + key, "read:" + key)
             documents[key] = report.skip("json:" + key, "read:" + key)

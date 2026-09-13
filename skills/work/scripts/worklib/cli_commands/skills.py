@@ -7,8 +7,9 @@ from ..skills.catalog import (
     parse_skill_root,
     snapshot_catalog_skill,
 )
-from ..skills.selection import validate_skill_selection_json
+from ..skills.selection import build_skill_selection, validate_skill_selection_json
 from ..foundation.cli_io import FileInput
+from ..foundation.markdown import parse_json_contract
 from . import SubparserRegistry
 
 
@@ -31,12 +32,20 @@ def register_skill_commands(commands: SubparserRegistry) -> None:
     skills_selection_validate.add_argument(
         "--input-file", required=True
     )
+    selection_build = skills_commands.add_parser("selection-build")
+    selection_build.add_argument("--root", action="append", default=[])
+    selection_build.add_argument("--input-file", required=True)
 
 
 def run_skills(
     arguments: argparse.Namespace,
     request: FileInput | None,
 ) -> dict[str, object]:
+    if arguments.skills_command == "selection-build":
+        return build_skill_selection(
+            parse_json_contract(request.raw, source=request.source),
+            roots=[parse_skill_root(root) for root in arguments.root],
+        )
     if arguments.skills_command == "selection-validate":
         return validate_skill_selection_json(
             request.raw,

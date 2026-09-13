@@ -15,6 +15,10 @@ including unfinished specification revision or migration, or invokes
 
 ## Content and saving
 
+Prefer `<work-cli> progress prepare --input-file "<content-request-path>" --requirement-id <requirement-id> --mode <plan|task> --expected-revision <previous-revision>` to assemble storage metadata. Supply all discussion fields listed below except `schema`, `requirement_id`, `mode`, `revision` and `status`; those fields are derived and rejected in the content request. Include explicit `current_task_id` (`null` for Plan), all known context, decision categories and the continuation point. This is a complete replacement snapshot, not a patch or an automatic merge of old discussion. The read-only result uses `work-progress-prepare/v1` and contains the full `progress`, target `path`, `expected_revision` and `approved_sha256` from the existing preview. It checks the committed baseline and reserved history without validating live formal sources or granting save approval. Missing content, corrupt storage and version conflicts remain stops.
+
+Save only `data.progress` as the complete candidate request for the existing `progress validate` / `progress save` steps below; do not pass the preparation envelope or the original content-only request. Require the same preview fingerprint before reusing approval. Existing complete-object validation remains supported. Never promote tentative content or invent decisions to satisfy preparation.
+
 1. Save only at the user's requested checkpoint, not automatically each turn or at a token threshold. Incomplete discussion, a missing formal Plan or TASK, pending migration, source drift and execution locks do not prevent saving independent discussion memory. Preserve the blocking evidence; the affected formal operation stays stopped. Progress storage itself must pass its path, integrity and revision checks.
 2. The parent supplies one complete snapshot, including prior saved content still needed for continuation and the latest discussion. Use `work-discussion-progress/v1` with exactly these fields:
 

@@ -14,6 +14,8 @@ from ..execution.preflight import execute_preflight
 from ..execution.record_begin import begin_record
 from ..execution.record_finish import finish_record
 from ..execution.recovery import recover_execution
+from ..execution.recovery_prepare import prepare_execution_recovery
+from ..execution.command_run import prepare_command, run_command
 from ..execution.worktree import inspect_execute_worktree
 from ..foundation.spec_update import require_no_spec_update, state_writer, storage_path
 from ..skills.catalog import parse_skill_root
@@ -60,10 +62,16 @@ def register_execute_commands(commands: SubparserRegistry) -> None:
         "attempt-close",
         "correction-create",
         "recover",
+        "recovery-prepare",
+        "command-prepare",
+        "command-run",
     ):
         execute_command = execute_commands.add_parser(command_name)
         _add_execution_context_arguments(execute_command)
         execute_command.add_argument("--input-file", required=True)
+        if command_name == "command-run":
+            execute_command.add_argument("--approved-sha256", required=True)
+            execute_command.add_argument("--authorization-evidence", required=True)
 
 
 def run_execute(
@@ -71,7 +79,7 @@ def run_execute(
     project_root: Path,
     request: FileInput | None,
 ) -> dict[str, object]:
-    if arguments.execute_command not in {"preflight", "worktree"}:
+    if arguments.execute_command not in {"preflight", "worktree", "recovery-prepare", "command-prepare", "command-run"}:
         task_path = storage_path(project_root, arguments.task_path)
         if task_path.is_file():
             validate_task_contract(
@@ -110,12 +118,18 @@ def _run_execute(
             base_record_id=arguments.record_id,
         )
 
+    if arguments.execute_command == "command-run":
+        return run_command(request.raw, source=request.source, approved_sha256=arguments.approved_sha256,
+            authorization_evidence=arguments.authorization_evidence, **common)
+
     file_operations = {
         "command-correction": record_command_correction,
         "record-finish": finish_record,
         "attempt-close": close_attempt,
         "correction-create": create_correction,
         "recover": recover_execution,
+        "recovery-prepare": prepare_execution_recovery,
+        "command-prepare": prepare_command,
     }
     if arguments.execute_command in file_operations:
         return file_operations[arguments.execute_command](

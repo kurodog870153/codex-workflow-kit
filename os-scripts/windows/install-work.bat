@@ -157,6 +157,8 @@ if errorlevel 1 exit /b 1
 for %%M in (plan task execute) do (
     call :require_file "references\workflows\%%M.md"
     if errorlevel 1 exit /b 1
+)
+for %%M in (plan task-coordinator task-skill execute) do (
     call :require_file "references\subagents\%%M.md"
     if errorlevel 1 exit /b 1
 )

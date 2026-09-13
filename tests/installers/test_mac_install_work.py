@@ -57,6 +57,7 @@ class MacWorkInstallerTests(unittest.TestCase):
         self.assertTrue((work / "references" / "instruction-loading.md").is_file())
         for mode in ("plan", "task", "execute"):
             self.assertTrue((work / "references" / "workflows" / f"{mode}.md").is_file())
+        for mode in ("plan", "task-coordinator", "task-skill", "execute"):
             self.assertTrue((work / "references" / "subagents" / f"{mode}.md").is_file())
         self.assertTrue((work / "scripts" / "work.py").is_file())
         self.assertTrue((work / "scripts" / "worklib" / "cli.py").is_file())

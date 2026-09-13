@@ -7,8 +7,8 @@ import os
 from pathlib import Path
 from typing import Any
 
-from ..contracts.progress import validate_progress_contract
-from ..contracts.validation import sha256
+from ..contracts.progress import FIELDS, validate_progress_contract
+from ..contracts.validation import sha256, strict_keys
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.markdown import parse_json_contract, render_json_contract
 from ..foundation.paths import validate_requirement_id
@@ -82,6 +82,25 @@ def preview_progress(
         "approved_sha256": hashlib.sha256(render_json_contract(binding)).hexdigest(),
         "progress": progress,
     }
+
+
+def prepare_progress(
+    project_root: Path, value: object, *, requirement_id: str, mode: str, expected_revision: int,
+) -> dict[str, Any]:
+    """Derive storage metadata from a complete supplied discussion, without writing."""
+    if type(expected_revision) is not int or expected_revision < 0:
+        raise WorkError(ExitCode.CONTRACT, "invalid_progress_revision", "The expected revision must be a nonnegative integer.")
+    _directory(requirement_id, mode)
+    content = strict_keys(value, location="progress_prepare", required=set(FIELDS) - {
+        "schema", "requirement_id", "mode", "revision", "status",
+    })
+    candidate = {
+        "schema": "work-discussion-progress/v1", "requirement_id": requirement_id,
+        "mode": mode, "revision": expected_revision + 1, "status": "discussion_only",
+        **content,
+    }
+    preview = preview_progress(project_root, candidate, expected_revision=expected_revision)
+    return {**preview, "schema": "work-progress-prepare/v1"}
 
 
 def _write(path: Path, raw: bytes) -> None:

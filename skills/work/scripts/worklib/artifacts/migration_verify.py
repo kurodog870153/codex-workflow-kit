@@ -11,13 +11,14 @@ from ..contracts.attempt import validate_attempt_file
 from ..contracts.correction import validate_correction_file
 from ..contracts.task_diagnostics import Diagnostics, diagnose_task_contract
 from ..contracts.validation import nonempty_string, strict_keys
+from ..foundation.fingerprint import raw_sha256
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_sha256, read_raw
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import validate_artifact_paths, validate_execution_task_layout
-from ..foundation.spec_update import require_idle_writer, storage_path
+from ..foundation.spec_update import completion_marker_matches, require_idle_writer, storage_path
 from .migration_preflight import _git_visibility, _transactions
-from .specification import _hash, _history, _json, _prepare
+from .specification import _history, _json, _prepare
 
 
 def _fail(code, message, **details):
@@ -103,7 +104,7 @@ def verify_migration(raw_request, *, project_root: Path, user_config_root: str, 
     fingerprints = {}
     for key in ("plan", "task", "index"):
         raw = snapshots[key]
-        fingerprints[key] = {"raw_sha256": _hash(raw) if raw is not None else None}
+        fingerprints[key] = {"raw_sha256": raw_sha256(raw) if raw is not None else None}
         if raw is not None:
             fingerprints[key]["canonical_sha256"] = report.check(
                 "fingerprint:" + key, lambda raw=raw, key=key: canonical_sha256(raw, source=key),
@@ -118,7 +119,7 @@ def verify_migration(raw_request, *, project_root: Path, user_config_root: str, 
         report.skip("journal_contract", "read:journal")
     if journal_raw is not None and snapshots["completion"] is not None:
         report.check("completion_marker", lambda: _same(
-            snapshots["completion"], _hash(journal_raw).encode("ascii") + b"\n",
+            completion_marker_matches(journal_raw, snapshots["completion"]), True,
             "migration_verify_completion_mismatch", "The completion marker does not match the journal SHA-256.",
         ))
     else:
@@ -267,7 +268,7 @@ def verify_migration(raw_request, *, project_root: Path, user_config_root: str, 
     return {
         "schema": "work-migration-verification/v1", "status": "verified" if verified else "blocked",
         "verified": verified, "record_id": record_id, "requirement_id": requirement, "artifacts": artifacts,
-        "verification_scope": "exact_migration_result", "journal_sha256": _hash(journal_raw) if journal_raw is not None else None,
+        "verification_scope": "exact_migration_result", "journal_sha256": raw_sha256(journal_raw) if journal_raw is not None else None,
         "completion_status": report.status("completion_marker"), "fingerprints": fingerprints,
         "checks": report.checks, "issues": report.issues, "task_diagnostics": diagnostics,
         "execution_tasks": rows, "history_sha256": history, "history_validation": history_validation,

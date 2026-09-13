@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import hashlib
 import os
 from contextlib import contextmanager
 from pathlib import Path
 
+from .fingerprint import raw_sha256
 from .errors import ExitCode, WorkError
 from .paths import resolve_project_relative_path
 
@@ -27,6 +27,15 @@ def storage_path(root: Path, relative: str) -> Path:
     return resolved
 
 
+def completion_marker_matches(record_raw: bytes, marker_raw: bytes) -> bool:
+    """Match exact raw-byte SHA-256 evidence, including one trailing LF.
+
+    Callers retain storage checks, I/O handling and incomplete-transaction policy.
+    A matching marker does not validate the journal contract or grant approval.
+    """
+    return marker_raw == raw_sha256(record_raw).encode("ascii") + b"\n"
+
+
 def require_no_spec_update(root: Path, execution_dir: str, *, ignored_record: str | None = None) -> None:
     directory = storage_path(root, execution_dir)
     records = sorted([*directory.glob(".work-spec-update-*.json"), *directory.glob(".work-task-repair-*.json")])
@@ -35,8 +44,8 @@ def require_no_spec_update(root: Path, execution_dir: str, *, ignored_record: st
             continue
         record = storage_path(root, record.relative_to(root).as_posix())
         done = storage_path(root, record.relative_to(root).as_posix() + ".done")
-        expected = hashlib.sha256(record.read_bytes()).hexdigest().encode("ascii") + b"\n"
-        if not done.is_file() or done.read_bytes() != expected:
+        record_raw = record.read_bytes()
+        if not done.is_file() or not completion_marker_matches(record_raw, done.read_bytes()):
             raise WorkError(
                 ExitCode.LOCK_CONFLICT, "spec_update_pending",
                 "An incomplete specification update requires separately authorized recovery.",

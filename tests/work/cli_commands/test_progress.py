@@ -26,6 +26,21 @@ from worklib.foundation.spec_update import state_writer
 
 
 class ProgressCliTests(FileInputTestCase):
+    def test_prepare_cli_returns_saveable_candidate_and_identical_validation(self):
+        content = {key: value for key, value in self.progress.items()
+                   if key not in {"schema", "requirement_id", "mode", "revision", "status"}}
+        prepared = self.cli("progress", "prepare", "--input-file", "request.json",
+            "--requirement-id", "example", "--mode", "plan", "--expected-revision", "0", payload=content)
+        self.assertEqual(prepared["schema"], "work-progress-prepare/v1")
+        self.assertEqual(prepared["progress"], self.progress)
+        validated = self.cli("progress", "validate", "--input-file", "request.json",
+            "--expected-revision", "0", payload=prepared["progress"])
+        self.assertEqual(prepared["approved_sha256"], validated["approved_sha256"])
+        self.assertEqual(list(self.root.iterdir()), [])
+        self.cli("progress", "save", "--input-file", "request.json", "--expected-revision", "0",
+            "--approved-sha256", prepared["approved_sha256"], payload=prepared["progress"])
+        self.assertEqual(self.read()["progress"], self.progress)
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)

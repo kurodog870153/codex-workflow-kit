@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ..artifacts.plan import create_plan_file
+from ..artifacts.plan import create_plan_file, prepare_initial_plan
 from ..contracts.plan import validate_plan_file, validate_plan_json_contract
 from ..foundation.errors import ExitCode, WorkError
 from ..skills.catalog import parse_skill_root
@@ -14,6 +14,10 @@ from . import SubparserRegistry
 def register_plan_commands(commands: SubparserRegistry) -> None:
     plan_parser = commands.add_parser("plan")
     plan_commands = plan_parser.add_subparsers(dest="plan_command", required=True)
+    prepare = plan_commands.add_parser("prepare")
+    prepare.add_argument("--input-file", required=True)
+    prepare.add_argument("--user-config-root", required=True)
+    prepare.add_argument("--skill-root", action="append", default=[])
 
     plan_validate = plan_commands.add_parser("validate")
     plan_validate.add_argument("--user-config-root", required=True)
@@ -36,6 +40,9 @@ def run_plan(
     request: FileInput | None,
 ) -> dict[str, object]:
     skill_roots = [parse_skill_root(root) for root in arguments.skill_root]
+    if arguments.plan_command == "prepare":
+        return prepare_initial_plan(request.raw, source=request.source, project_root=project_root,
+                                    user_config_root=arguments.user_config_root, skill_roots=skill_roots)
     if arguments.plan_command == "create":
         return create_plan_file(
             request.raw,

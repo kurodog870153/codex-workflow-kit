@@ -16,9 +16,27 @@ from cli_support import FileInputTestCase
 
 from worklib.cli import build_parser, main
 from worklib.foundation.errors import ExitCode
+from artifacts import test_plan as preparation_fixtures
 
 
 class PlanCliTests(FileInputTestCase):
+    def test_prepare_returns_candidate_and_validation_without_writes(self):
+        fixture = preparation_fixtures.InitialPlanPreparationTests()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        stdout, stderr = io.StringIO(), io.StringIO()
+        code = main(self.input_arguments([
+            "--project-root", str(fixture.root), "plan", "prepare",
+            "--input-file", "request.json", "--user-config-root", str(fixture.root),
+        ], json.dumps(fixture.request)), stdout=stdout, stderr=stderr)
+        self.assertEqual(code, ExitCode.SUCCESS, stdout.getvalue())
+        self.assertEqual(stderr.getvalue(), "")
+        data = json.loads(stdout.getvalue())["data"]
+        self.assertEqual(data["schema"], "work-plan-prepare/v1")
+        self.assertEqual(data["plan"], fixture.fixture.contract)
+        self.assertEqual(data["validation"]["schema"], "work-plan-validation/v1")
+        self.assertEqual(list(fixture.root.iterdir()), [])
+
     def test_validate_input_file_arguments_parse(self) -> None:
         arguments = build_parser().parse_args(
             [

@@ -21,6 +21,25 @@ from worklib.skills.selection import selection_sha256
 
 
 class SkillSelectionCliTests(FileInputTestCase):
+    def test_build_base_only_and_reject_duplicate_json_keys(self):
+        for raw, expected in ((b'{"decision":"base_only","skills":[]}', ExitCode.SUCCESS),
+                              (b'{"decision":"base_only","decision":"external_skills","skills":[]}', ExitCode.INPUT_FORMAT)):
+            with tempfile.TemporaryDirectory() as temporary:
+                stdout, stderr = io.StringIO(), io.StringIO()
+                code = main(self.input_arguments([
+                    "--project-root", temporary, "skills", "selection-build",
+                    "--input-file", "request.json",
+                ], raw), stdout=stdout, stderr=stderr)
+                self.assertEqual(code, expected, stdout.getvalue())
+                self.assertEqual(stderr.getvalue(), "")
+                response = json.loads(stdout.getvalue())
+                if expected == ExitCode.SUCCESS:
+                    self.assertEqual(response["data"]["schema"], "work-skill-selection/v1")
+                    self.assertEqual(response["data"]["selection_sha256"], selection_sha256("base_only", []))
+                else:
+                    self.assertEqual(response["reason_code"], "duplicate_json_key")
+                self.assertEqual(list(Path(temporary).iterdir()), [])
+
     def test_selection_validate_command(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
@@ -61,6 +80,19 @@ class SkillSelectionCliTests(FileInputTestCase):
                 "skills": [selected],
                 "selection_sha256": selection_sha256("external_skills", [selected]),
             }
+            build_stdout = io.StringIO()
+            choice = {key: selected[key] for key in (
+                "scope", "root", "source", "recommendation_reason", "dependency_status", "mode_support",
+            )}
+            build_code = main(self.input_arguments([
+                "--project-root", str(project), "skills", "selection-build",
+                "--root", f"repo:.agents/skills={root_path}",
+                "--input-file", "request.json",
+            ], json.dumps({"decision": "external_skills", "skills": [choice]})),
+                stdout=build_stdout, stderr=io.StringIO())
+            self.assertEqual(build_code, ExitCode.SUCCESS, build_stdout.getvalue())
+            self.assertEqual(json.loads(build_stdout.getvalue())["data"], contract)
+            self.assertEqual(list(project.iterdir()), [])
             stdout = io.StringIO()
             stderr = io.StringIO()
             exit_code = main(

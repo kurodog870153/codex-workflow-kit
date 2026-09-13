@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from .task_draft import _decode, _error, _path, _read, _render, _write, read_task_planning_index
+from .task_draft import _decode, _error, _path, _read, _render, _write, read_task_draft_from_index, read_task_planning_index, read_task_planning_revision
 from ..contracts.plan import validate_plan_contract
 from ..contracts.task_draft import validate_task_draft, validate_task_planning_index
 from ..contracts.validation import nonempty_string, strict_keys
@@ -19,6 +19,7 @@ from ..foundation.paths import resolve_project_relative_path
 from ..foundation.runtime import installed_work_root
 from ..hierarchy.selection import validate_task_hierarchy_paths
 from ..instructions.selection import build_instruction_selection
+from ..instructions.draft_selection import validate_draft_instruction_selection
 from ..skills.catalog import SkillRoot
 
 
@@ -39,8 +40,7 @@ every active TASK. It cannot supply fingerprints or upgrade a stale Plan.
     current = read_task_planning_index(project_root, requirement_id)
     previous = current
     if recover:
-        previous = _decode(_read(_path(project_root, requirement_id, f"history/{expected_revision}/index.json")))
-        validate_task_planning_index(previous)
+        previous = read_task_planning_revision(project_root, requirement_id, expected_revision)
     if previous["revision"] != expected_revision or previous["requirement_id"] != requirement_id:
         raise _error("draft_revision_conflict", "Reload the planning index before updating sources.")
     selections = strict_keys(payload["selections"], location="selections", required={task["id"] for task in previous["tasks"]})
@@ -58,17 +58,17 @@ every active TASK. It cannot supply fingerprints or upgrade a stale Plan.
         task_id, skill_id = entry["id"], entry["skill_id"]
         if skill_id is not None and (skill_id not in skills or skills[skill_id]["mode_support"]["task"] == "unsupported"):
             raise _error("draft_skill_not_available", "Resolve the TASK skill binding against the confirmed Plan before updating sources.")
-        selected = strict_keys(selections[task_id], location=f"selections.{task_id}", required={"selected_paths", "references"})
-        for field in ("selected_paths", "references"):
-            values = selected[field]
-            if not isinstance(values, list) or any(not isinstance(value, str) or not value.strip() for value in values) or len(values) != len(set(values)):
-                raise _error("invalid_source_selection", "Instruction selections must be unique string arrays.")
+        selected = validate_draft_instruction_selection(selections[task_id])
         work_root = installed_work_root()
         validate_task_hierarchy_paths(selected["selected_paths"], confirmed_selection=plan["hierarchy_selection"], skill_root=work_root, location=f"selections.{task_id}")
         instruction = build_instruction_selection(skill_root=work_root, mode="task", selected_paths=selected["selected_paths"], reference_names=selected["references"])
         instruction_hashes[task_id] = instruction["instructions_sha256"]
     global_change = new_source != previous["source"]
-    changed = {task["id"] for task in previous["tasks"] if task["instructions_sha256"] != instruction_hashes[task["id"]]}
+    changed = {
+        task["id"] for task in previous["tasks"]
+        if task["instructions_sha256"] != instruction_hashes[task["id"]]
+        or ("instruction_selection" in task and task["instruction_selection"] != selections[task["id"]])
+    }
     affected = {task["id"] for task in previous["tasks"]} if global_change else set(changed)
     if not affected:
         raise _error("draft_sources_unchanged", "No source fingerprint changed.")
@@ -84,24 +84,17 @@ every active TASK. It cannot supply fingerprints or upgrade a stale Plan.
     for entry in proposed["tasks"]:
         task_id = entry["id"]
         entry["instructions_sha256"] = instruction_hashes[task_id]
+        entry["instruction_selection"] = validate_draft_instruction_selection(selections[task_id])
         entry["boundary_revision"] += int(task_id in changed)
         if task_id not in affected or "draft_ref" not in entry:
             continue
-        reference = entry["draft_ref"]
-        raw = _read(_path(project_root, requirement_id, f"history/{reference['save_revision']}/{task_id}.json"))
-        if hashlib.sha256(raw).hexdigest() != reference["sha256"]:
-            raise _error("draft_content_integrity", "The historical draft fingerprint differs from its index.")
-        draft = _decode(raw)
-        if draft.get("task_id") != task_id:
-            raise _error("draft_task_mismatch", "The historical discussion belongs to another TASK.")
-        validate_task_draft(draft, index=previous)
+        draft = read_task_draft_from_index(project_root, previous, task_id)
         draft["source"] = dict(new_source)
         draft["revision"] += 1
         draft["boundary_revision"] = entry["boundary_revision"]
         draft["instructions_sha256"] = entry["instructions_sha256"]
         draft["status"] = entry["status"] = "needs_review"
         draft["notes"].append(f"Sources updated: {payload['reason']}")
-        draft["notes"].append("Confirmed instruction selection: " + _render(selections[task_id]).decode("utf-8").strip())
         draft["next_discussion_point"] = "Reconfirm affected decisions against the updated sources."
         drafts[task_id] = _render(draft)
         entry["draft_ref"] = {"save_revision": proposed["revision"], "revision": draft["revision"], "sha256": hashlib.sha256(drafts[task_id]).hexdigest()}
