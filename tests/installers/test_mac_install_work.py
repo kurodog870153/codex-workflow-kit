@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -34,11 +35,12 @@ class MacWorkInstallerTests(unittest.TestCase):
         user_input: str,
         *,
         user_home: Path,
+        installer: Path = INSTALLER,
     ) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
         environment["HOME"] = str(user_home)
         return subprocess.run(
-            ["bash", str(INSTALLER)],
+            ["bash", str(installer)],
             cwd=REPOSITORY_ROOT,
             env=environment,
             input=user_input,
@@ -139,6 +141,145 @@ class MacWorkInstallerTests(unittest.TestCase):
                 root = work / "references" / "instructions" / mode / "web" / "frontend"
                 self.assertTrue((root / "typescript" / "astro" / "instructions.md").is_file())
                 self.assertTrue((root / "css" / "tailwind" / "instructions.md").is_file())
+
+
+
+    def assert_install_contents(self, home: Path, branches: set[str] | None) -> Path:
+        source = REPOSITORY_ROOT / "skills" / "work"
+        expected = {}
+        for path in source.rglob("*"):
+            if not path.is_file() or "__pycache__" in path.parts:
+                continue
+            relative = path.relative_to(source)
+            if path.name == "rules.py" or path.suffix == ".pyc":
+                continue
+            if relative.parts[:2] == ("references", "instructions"):
+                owner = path.parent
+                while owner != source and not (owner / "instructions.md").is_file():
+                    owner = owner.parent
+                self.assertNotEqual(owner, source, msg=str(relative))
+                branch = owner.relative_to(source / "references" / "instructions").parts[1:]
+                if branches is not None and "/".join(branch) not in branches:
+                    continue
+            expected[relative.as_posix()] = path.read_bytes()
+        work = home / ".agents" / "skills" / "work"
+        actual = {
+            path.relative_to(work).as_posix(): path.read_bytes()
+            for path in work.rglob("*")
+            if path.is_file()
+        }
+        self.assertEqual(set(actual), set(expected))
+        for relative, content in expected.items():
+            self.assertEqual(actual[relative], content, msg=relative)
+        return work
+
+    def test_install_contents_and_cli_outside_repository(self) -> None:
+        cases = (
+            ("1", {"general"}),
+            ("all", None),
+            ("3", {"general", "web", "web/backend"}),
+            ("5 6", {
+                "general", "web", "web/backend", "web/backend/java",
+                "web/backend/java/jpa", "web/backend/java/mybatis",
+            }),
+            ("9 11", {
+                "general", "web", "web/frontend", "web/frontend/typescript",
+                "web/frontend/typescript/astro", "web/frontend/css",
+                "web/frontend/css/tailwind",
+            }),
+        )
+        for selection, branches in cases:
+            with self.subTest(selection=selection), tempfile.TemporaryDirectory(
+                prefix="work-installer-content-"
+            ) as directory:
+                home = Path(directory)
+                result = self.run_installer(f"1\n{selection}\n", user_home=home)
+                self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+                work = self.assert_install_contents(home, branches)
+                environment = os.environ.copy()
+                environment.pop("PYTHONPATH", None)
+                result = subprocess.run(
+                    [sys.executable, "-B", str(work / "scripts" / "work.py"), "--help"],
+                    cwd=home,
+                    env=environment,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    timeout=60,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+                self.assertIn("usage: work.py", result.stdout)
+
+    def test_reinstall_keeps_branches_and_stale_files(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="work-installer-reinstall-") as directory:
+            home = Path(directory)
+            result = self.run_installer("1\nall\n", user_home=home)
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            work = self.assert_install_contents(home, None)
+            stale = work / "stale.txt"
+            stale.write_text("keep this file", encoding="utf-8")
+            (work / "SKILL.md").write_text("outdated", encoding="utf-8")
+            result = self.run_installer("1\n1\n", user_home=home)
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertIn("Previously installed branches and stale files will be kept", result.stdout)
+            source = REPOSITORY_ROOT / "skills" / "work"
+            for path in source.rglob("*"):
+                if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc":
+                    self.assertEqual(
+                        (work / path.relative_to(source)).read_bytes(),
+                        path.read_bytes(),
+                        msg=str(path.relative_to(source)),
+                    )
+            self.assertEqual(stale.read_text(encoding="utf-8"), "keep this file")
+
+    def test_missing_sources_do_not_write_target(self) -> None:
+        missing_files = (
+            "references/workflows/specification.md",
+            "references/workflows/task-drafts.md",
+            "references/workflows/repair.md",
+            "references/workflows/progress.md",
+            "references/subagents/artifact-editor.md",
+            "references/subagents/progress-saver.md",
+            "references/instructions/task/web/backend/instructions.md",
+        )
+        for missing in missing_files:
+            for existing in (False, True):
+                with self.subTest(missing=missing, existing=existing), tempfile.TemporaryDirectory(
+                    prefix="work-installer-missing-"
+                ) as directory:
+                    root = Path(directory)
+                    fixture = root / "source"
+                    installer = fixture / INSTALLER.relative_to(REPOSITORY_ROOT)
+                    installer.parent.mkdir(parents=True)
+                    shutil.copy2(INSTALLER, installer)
+                    source = REPOSITORY_ROOT / "skills" / "work"
+                    for path in source.rglob("*"):
+                        if not path.is_file() or "__pycache__" in path.parts:
+                            continue
+                        relative = path.relative_to(source)
+                        if relative.as_posix() == missing:
+                            continue
+                        target = fixture / "skills" / "work" / relative
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(path, target)
+                    home = root / "home"
+                    home.mkdir()
+                    work = home / ".agents" / "skills" / "work"
+                    if existing:
+                        work.mkdir(parents=True)
+                        (work / "SKILL.md").write_bytes(b"existing installation")
+                    result = self.run_installer(
+                        "1\n3\n", user_home=home, installer=installer
+                    )
+                    self.assertEqual(result.returncode, 1, msg=result.stdout + result.stderr)
+                    self.assertIn("required Work skill source not found", result.stdout + result.stderr)
+                    self.assertIn(missing.replace("/", os.sep), result.stdout + result.stderr)
+                    if existing:
+                        self.assertEqual(list(work.iterdir()), [work / "SKILL.md"])
+                        self.assertEqual((work / "SKILL.md").read_bytes(), b"existing installation")
+                    else:
+                        self.assertFalse((home / ".agents").exists())
 
 
 if __name__ == "__main__":

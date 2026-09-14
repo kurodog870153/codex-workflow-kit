@@ -64,10 +64,10 @@ validate_base_sources() {
     require_file "references/instruction-loading.md" || return 1
 
     local mode
-    for mode in plan task execute; do
+    for mode in plan task execute specification task-drafts repair progress; do
         require_file "references/workflows/$mode.md" || return 1
     done
-    for mode in plan task-coordinator task-skill execute; do
+    for mode in plan task-coordinator task-skill execute artifact-editor progress-saver; do
         require_file "references/subagents/$mode.md" || return 1
     done
 
@@ -357,6 +357,7 @@ while true; do
     printf '  10. css\n'
     printf '  11. tailwind\n'
     printf 'Select multiple branches with spaces. Parent branches are included automatically.\n'
+    printf 'Previously installed branches and stale files will be kept, even with general only.\n'
     read -r -p 'Select hierarchy numbers, enter "all", or press Enter for general only: ' hierarchy_selection
     hierarchy_selection="${hierarchy_selection:-1}"
 

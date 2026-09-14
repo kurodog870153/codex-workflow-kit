@@ -1,5 +1,5 @@
 @echo off
-chcp 65001 >nul
+chcp 65001 <nul >nul
 setlocal EnableExtensions EnableDelayedExpansion
 
 if not "%~1"=="" goto invalid_arguments
@@ -67,6 +67,7 @@ echo   9. astro
 echo   10. css
 echo   11. tailwind
 echo Select multiple branches with spaces. Parent branches are included automatically.
+echo Previously installed branches and stale files will be kept, even with general only.
 set "hierarchy_selection="
 set /p "hierarchy_selection=Select hierarchy numbers, enter "all", or press Enter for general only: "
 if not defined hierarchy_selection set "hierarchy_selection=1"
@@ -154,11 +155,11 @@ call :require_file "agents\openai.yaml"
 if errorlevel 1 exit /b 1
 call :require_file "references\instruction-loading.md"
 if errorlevel 1 exit /b 1
-for %%M in (plan task execute) do (
+for %%M in (plan task execute specification task-drafts repair progress) do (
     call :require_file "references\workflows\%%M.md"
     if errorlevel 1 exit /b 1
 )
-for %%M in (plan task-coordinator task-skill execute) do (
+for %%M in (plan task-coordinator task-skill execute artifact-editor progress-saver) do (
     call :require_file "references\subagents\%%M.md"
     if errorlevel 1 exit /b 1
 )

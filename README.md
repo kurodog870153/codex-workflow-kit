@@ -102,6 +102,10 @@ os-scripts\windows\install-work.bat
 
 同名檔案會覆寫，但安裝器不會自動刪除舊檔案。
 
+重新選擇工作類型不會移除已安裝的分支。例如先安裝 `all`，再選 `general only`，先前的 web 分支仍會保留。
+
+安裝器會在寫入前檢查必要的 workflow、subagent、Python 入口與所選 instruction 是否存在；缺少時會停止並顯示檔案位置。此檢查不涵蓋所有 Python 模組及附屬文件，也不提供複製失敗時的自動回復。
+
 ## 版本限制
 
 1. 請使用 `$work`，不再使用舊版的 `$plan`、`$task` 或 `$execute`。
