@@ -25,6 +25,7 @@ from worklib.cli import main
 from worklib.contracts.execution_index import build_initial_execution_index, render_execution_index
 from worklib.contracts.plan import render_plan_contract
 from worklib.contracts.task import render_task_contract, validate_task_contract
+from worklib.foundation import spec_transactions
 from worklib.foundation.errors import WorkError
 from worklib.foundation.spec_update import require_no_spec_update, state_writer
 from worklib.hierarchy.selection import build_hierarchy_selection
@@ -208,7 +209,7 @@ class SpecificationUpdateTests(FileInputTestCase):
                 raise OSError("injected interruption")
             return real_replace(source, target)
 
-        with patch("worklib.artifacts.specification.os.replace", side_effect=fail_task):
+        with patch("worklib.foundation.spec_transactions.os.replace", side_effect=fail_task):
             with self.assertRaises(WorkError) as error:
                 self.run_update(prepared, "apply", approval)
         self.assertEqual(error.exception.code, "spec_update_interrupted")
@@ -502,14 +503,14 @@ class SpecificationUpdateTests(FileInputTestCase):
     def test_binding_repair_recovery_retains_the_reviewed_mismatched_baseline(self):
         request = self.migration_repair_request()
         approval = self.run_migration(request)["approved_sha256"]
-        replace = specification._replace
+        replace = spec_transactions.replace_checked
 
         def interrupted(path, *args, **kwargs):
             if path == self.task_path:
                 raise OSError("injected interruption after Plan publication")
             return replace(path, *args, **kwargs)
 
-        with patch.object(specification, "_replace", side_effect=interrupted):
+        with patch.object(spec_transactions, "replace_checked", side_effect=interrupted):
             with self.assertRaises(WorkError) as error:
                 self.run_migration(request, "apply", approval)
         self.assertEqual(error.exception.code, "spec_update_interrupted")
@@ -590,12 +591,12 @@ class SpecificationUpdateTests(FileInputTestCase):
                     stdout=output, stderr=errors)
         self.assertEqual(code, 0, errors.getvalue())
         approval = json.loads(output.getvalue())["data"]["approved_sha256"]
-        replace = specification._replace
+        replace = spec_transactions.replace_checked
         def interrupted(path, *args, **kwargs):
             if path == self.task_path:
                 raise OSError("injected interruption after Plan publication")
             return replace(path, *args, **kwargs)
-        with patch.object(specification, "_replace", side_effect=interrupted):
+        with patch.object(spec_transactions, "replace_checked", side_effect=interrupted):
             with self.assertRaises(WorkError) as error:
                 self.run_migration(request, "apply", approval)
         self.assertEqual(error.exception.code, "spec_update_interrupted")
@@ -700,7 +701,7 @@ class SpecificationUpdateTests(FileInputTestCase):
                 raise OSError("injected interruption")
             return real_replace(source, target)
 
-        with patch("worklib.artifacts.specification.os.replace", side_effect=fail_task):
+        with patch("worklib.foundation.spec_transactions.os.replace", side_effect=fail_task):
             with self.assertRaises(WorkError) as error:
                 self.run_update(request, "apply", preview["approved_sha256"])
         self.assertTrue(error.exception.details["recovery_required"])
@@ -723,7 +724,7 @@ class SpecificationUpdateTests(FileInputTestCase):
     def test_recovery_refuses_conflicting_artifact_without_overwrite(self):
         request = self.request()
         preview = self.run_update(request)
-        with patch("worklib.artifacts.specification.os.replace", side_effect=OSError("interrupted")):
+        with patch("worklib.foundation.spec_transactions.os.replace", side_effect=OSError("interrupted")):
             with self.assertRaises(WorkError):
                 self.run_update(request, "apply", preview["approved_sha256"])
         self.task_path.write_bytes(b"unrelated edit\n")
@@ -757,7 +758,7 @@ class SpecificationUpdateTests(FileInputTestCase):
                 try:
                     request = case.request()
                     preview = case.run_update(request)
-                    write = specification._write
+                    write = spec_transactions.write_exclusive
                     failed = []
 
                     def short_write(path, raw):
@@ -768,7 +769,7 @@ class SpecificationUpdateTests(FileInputTestCase):
                             raise OSError("injected short write")
                         return write(path, raw)
 
-                    with patch("worklib.artifacts.specification._write", side_effect=short_write):
+                    with patch("worklib.foundation.spec_transactions.write_exclusive", side_effect=short_write):
                         with self.assertRaises(WorkError):
                             case.run_update(request, "apply", preview["approved_sha256"])
                     self.assertEqual(len(failed), 1)

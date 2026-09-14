@@ -197,8 +197,10 @@ def _validate_source(value: object, direction: str) -> None:
             value,
             location="source",
             required={"stage", "plan_sha256", "task_spec_id", "skill_selection_sha256"},
-            optional={"task_id", "skill_id"},
+            optional={"task_id", "skill_id", "task_sha256"},
         )
+        if "task_sha256" in source:
+            _sha256(source["task_sha256"], location="source.task_sha256")
         _sha256(source["plan_sha256"], location="source.plan_sha256")
         _sha256(source["skill_selection_sha256"], location="source.skill_selection_sha256")
         _identifier(
@@ -225,7 +227,10 @@ def _validate_source(value: object, direction: str) -> None:
             required.update({"execution_context", "execute_skill_selection_sha256"})
         else:
             required.add("skill_selection_sha256")
-        source = _strict_object(value, location="source", required=required)
+        source = _strict_object(value, location="source", required=required,
+                                optional={"attempt_sha256"} if direction.startswith("execute_to_") else set())
+        if "attempt_sha256" in source:
+            _sha256(source["attempt_sha256"], location="source.attempt_sha256")
         _identifier(
             source["task_spec_id"],
             location="source.task_spec_id",

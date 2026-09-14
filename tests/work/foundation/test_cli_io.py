@@ -11,9 +11,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-SCRIPT_ROOT = Path(__file__).resolve().parents[2] / "skills" / "work" / "scripts"
+SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from cli_support import FileInputTestCase
 from worklib.cli import build_parser, main

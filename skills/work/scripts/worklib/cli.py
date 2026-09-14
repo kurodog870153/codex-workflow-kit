@@ -18,6 +18,8 @@ from .cli_commands.plan import register_plan_commands, run_plan
 from .cli_commands.progress import register_progress_commands, run_progress
 from .cli_commands.skills import register_skill_commands, run_skills
 from .cli_commands.task import register_task_commands, run_task
+from .cli_commands.invocation import register_invocation_commands, run_invocation
+from .cli_commands.delegation import register_delegation_commands, run_delegation
 from .foundation.cli_io import FileInput, error_response, read_input_file, success_response
 from .foundation.errors import ExitCode, WorkError
 from .foundation.fingerprint import fingerprint_file
@@ -94,6 +96,8 @@ def build_parser() -> WorkArgumentParser:
     register_task_commands(commands)
 
     register_execute_commands(commands)
+    register_invocation_commands(commands)
+    register_delegation_commands(commands)
     return parser
 
 
@@ -102,6 +106,10 @@ def _run(
     project_root: Path,
     request: FileInput | None,
 ) -> dict[str, object]:
+    if arguments.command == "invocation":
+        return run_invocation(request)
+    if arguments.command == "delegation":
+        return run_delegation(arguments, project_root, request)
     if arguments.command == "paths":
         return {
             "schema": "work-paths/v1",

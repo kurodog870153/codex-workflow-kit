@@ -1,0 +1,205 @@
+from __future__ import annotations
+
+import copy
+import io
+import json
+import platform
+import subprocess
+import sys
+from pathlib import Path
+from unittest.mock import patch
+
+TEST_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(TEST_ROOT))
+sys.path.insert(0, str(TEST_ROOT.parents[1] / "skills/work/scripts"))
+
+from cli_support import FileInputTestCase
+from contracts import test_task as fixtures
+from worklib.cli import main
+from worklib.contracts.attempt import render_attempt_contract
+from worklib.contracts.execution_index import build_initial_execution_index, render_execution_index
+from worklib.contracts.task import render_task_contract
+from worklib.execution import command_run
+from worklib.execution.instructions import BASE_EXECUTE_REFERENCES
+from worklib.execution.record_finish import finish_record
+from worklib.foundation.errors import WorkError
+from worklib.instructions.selection import build_instruction_selection
+
+
+class CommandRunTests(FileInputTestCase):
+    def setUp(self):
+        self.fixture = fixtures.TaskInstructionContractTests()
+        self.fixture.setUp()
+        self.addCleanup(self.fixture.doCleanups)
+        self.root = self.fixture.project_root
+        self.task_path = self.root / self.fixture.artifacts["task"]
+        self.directory = self.root / self.fixture.artifacts["execution"]
+        self.attempt_path = self.directory / "TASK-001/ATTEMPT-001/attempt.json"
+        self.index_path = self.directory / "index.json"
+        self.task_path.parent.mkdir(parents=True, exist_ok=True)
+        self.attempt_path.parent.mkdir(parents=True)
+        self.common = dict(project_root=self.root, user_config_root=str(self.root),
+            raw_task_path=self.fixture.artifacts["task"], raw_execution_dir=self.fixture.artifacts["execution"],
+            task_id="TASK-001", source="test")
+        self.request = {"schema": "work-command-run-request/v1", "attempt_id": "ATTEMPT-001",
+                        "record_id": "CMD-001", "timeout_seconds": 10}
+        self.configure([sys.executable, "-c", "print('observed')"])
+
+    def configure(self, argv):
+        self.fixture.contract["execution_defaults"] = {"working_directory": ".",
+            "os": {"Darwin": "macos", "Linux": "linux", "Windows": "windows"}[platform.system()], "shell": "sh"}
+        self.fixture.contract["tasks"][0]["commands"][0] = {"id": "CMD-001", "mode": "argv", "argv": argv}
+        validation = self.fixture.validate()
+        self.task_path.write_bytes(render_task_contract(self.fixture.contract))
+        self.index = build_initial_execution_index(self.fixture.contract, validation)
+        selection = build_instruction_selection(skill_root=fixtures.SKILL_ROOT, mode="execute",
+            selected_paths=self.fixture.contract["tasks"][0]["instruction_selection"]["selected_paths"],
+            reference_names=BASE_EXECUTE_REFERENCES)
+        self.attempt = {"schema": "work-attempt/v1", "attempt_id": "ATTEMPT-001", "task_id": "TASK-001",
+            "task_spec_id": self.index["task_spec_id"], "skill_id": None, "status": "in_progress",
+            "task_sha256": self.index["task_sha256"], "task_instructions_sha256": self.index["tasks"][0]["instructions_sha256"],
+            "execute_instructions_sha256": selection["instructions_sha256"],
+            "hierarchy_selection_sha256": self.index["hierarchy_selection_sha256"],
+            "execute_skill_selection_sha256": self.index["skill_selection_sha256"],
+            "started_at": "2026-09-01T10:00+08:00", "records": []}
+        self.index["tasks"][0].update(status="in_progress", latest_attempt="ATTEMPT-001")
+        self.index["overall_status"] = "in_progress"
+        self.index["lock"] = {"kind": "execution", "task_id": "TASK-001", "attempt_id": "ATTEMPT-001",
+            "record_id": "CMD-001", "execute_instructions_sha256": selection["instructions_sha256"]}
+        self.save()
+
+    def save(self):
+        self.index_path.write_bytes(render_execution_index(self.index))
+        self.attempt_path.write_bytes(render_attempt_contract(self.attempt, project_root=self.root))
+
+    def prepare(self):
+        return command_run.prepare_command(json.dumps(self.request).encode(), **self.common)
+
+    def run_cmd(self, approval):
+        return command_run.run_command(json.dumps(self.request).encode(), **self.common,
+            approved_sha256=approval, authorization_evidence="User authorized this controlled test command.")
+
+    def snapshot(self):
+        return {str(path): path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
+
+    def test_preview_is_read_only_and_literal_argv_runs_once(self):
+        script = "import json,sys; from pathlib import Path; Path('observed.json').write_text(json.dumps(sys.argv[1:])); print('done')"
+        arguments = ["two words", "$HOME", "$(touch unwanted)", "a;b", "x|y", 'a"b']
+        self.configure([sys.executable, "-c", script, *arguments])
+        before = self.snapshot()
+        preview = self.prepare()
+        self.assertEqual(before, self.snapshot())
+        result = self.run_cmd(preview["approved_sha256"])
+        self.assertEqual(json.loads((self.root / "observed.json").read_text()), arguments)
+        self.assertEqual(result["exit_code"], 0)
+        self.assertEqual(self.attempt_path.read_bytes(), before[str(self.attempt_path)])
+        self.assertEqual(self.index_path.read_bytes(), before[str(self.index_path)])
+        with patch.object(command_run, "_execute") as execute:
+            with self.assertRaises(WorkError) as error:
+                self.run_cmd(preview["approved_sha256"])
+            self.assertEqual(error.exception.code, "command_run_already_started")
+            execute.assert_not_called()
+        finish = finish_record(json.dumps(result["record_finish_request"]).encode(), **self.common)
+        self.assertEqual(finish["lock_status"], "attempt_held")
+
+    def test_wrong_or_stale_approval_never_launches(self):
+        preview = self.prepare()
+        with patch.object(command_run, "_execute") as execute:
+            with self.assertRaises(WorkError):
+                self.run_cmd("0" * 64)
+            self.request["timeout_seconds"] = 11
+            with self.assertRaises(WorkError) as error:
+                self.run_cmd(preview["approved_sha256"])
+            self.assertEqual(error.exception.code, "command_run_approval_changed")
+            execute.assert_not_called()
+        self.assertFalse(list(self.attempt_path.parent.glob(".work-command-*")))
+
+    def test_saved_correction_is_the_only_actual_command(self):
+        original = copy.deepcopy(self.fixture.contract["tasks"][0]["commands"][0])
+        original.pop("id")
+        self.index["lock"]["command_correction"] = {"original_command": original,
+            "actual_command": {"mode": "argv", "argv": [sys.executable, "-c", "print('corrected')"]},
+            "reason": "Reviewed equivalent test command", "authorization_evidence": "Confirmed test correction"}
+        self.save()
+        preview = self.prepare()
+        self.assertEqual(preview["argv"][-1], "print('corrected')")
+        self.assertIn("corrected", self.run_cmd(preview["approved_sha256"])["stdout_tail"])
+
+    def test_nonzero_exit_is_retained_without_retry(self):
+        self.configure([sys.executable, "-c", "import sys; print('failed'); sys.exit(7)"])
+        preview = self.prepare()
+        with self.assertRaises(WorkError) as error:
+            self.run_cmd(preview["approved_sha256"])
+        self.assertEqual(error.exception.code, "command_run_failed")
+        self.assertEqual(error.exception.details["exit_code"], 7)
+        self.assertEqual(error.exception.details["record_finish_request"]["record"]["exit_code"], 7)
+        self.assertEqual(json.loads(self.index_path.read_bytes())["lock"]["record_id"], "CMD-001")
+
+    def test_timeout_keeps_receipts_and_never_invents_exit_code(self):
+        preview = self.prepare()
+        with patch.object(command_run.subprocess, "run", side_effect=subprocess.TimeoutExpired("controlled", 10)) as run:
+            with self.assertRaises(WorkError) as error:
+                self.run_cmd(preview["approved_sha256"])
+            run.assert_called_once()
+        self.assertEqual(error.exception.details["status"], "timed_out")
+        self.assertIsNone(error.exception.details["exit_code"])
+        self.assertNotIn("record_finish_request", error.exception.details)
+        self.assertEqual(len(list(self.attempt_path.parent.glob(".work-command-*"))), 2)
+
+    def test_partial_receipt_blocks_execution(self):
+        preview = self.prepare()
+        (self.root / (preview["receipt_prefix"] + ".started.json")).write_bytes(b'{"partial":')
+        with patch.object(command_run, "_execute") as execute:
+            with self.assertRaises(WorkError):
+                self.run_cmd(preview["approved_sha256"])
+            execute.assert_not_called()
+
+    def test_result_receipt_failure_does_not_allow_reexecution(self):
+        preview = self.prepare()
+        real = command_run._write_receipt
+        def interrupted(path, value):
+            if path.name.endswith(".finished.json"):
+                raise OSError("injected write failure")
+            real(path, value)
+        with patch.object(command_run, "_write_receipt", side_effect=interrupted):
+            with self.assertRaises(WorkError) as error:
+                self.run_cmd(preview["approved_sha256"])
+        self.assertEqual(error.exception.code, "command_run_interrupted")
+        with patch.object(command_run, "_execute") as execute:
+            with self.assertRaises(WorkError):
+                self.run_cmd(preview["approved_sha256"])
+            execute.assert_not_called()
+
+    def test_output_tails_are_bounded(self):
+        self.configure([sys.executable, "-c", "import sys; print('x'*10000); print('error', file=sys.stderr)"])
+        result = self.run_cmd(self.prepare()["approved_sha256"])
+        self.assertTrue(result["stdout_truncated"])
+        self.assertLessEqual(len(result["stdout_tail"]), 4096)
+        self.assertIn("error", result["stderr_tail"])
+
+    def test_wrong_lock_and_instruction_drift_are_rejected(self):
+        self.index["lock"]["record_id"] = "VAL-001"
+        self.save()
+        with self.assertRaises(WorkError):
+            self.prepare()
+        self.index["lock"]["record_id"] = "CMD-001"
+        self.index["lock"]["execute_instructions_sha256"] = "0" * 64
+        self.attempt["execute_instructions_sha256"] = "0" * 64
+        self.save()
+        with self.assertRaises(WorkError) as error:
+            self.prepare()
+        self.assertEqual(error.exception.code, "command_run_execute_instructions_changed")
+
+    def test_cli_requires_approval_and_preview_does_not_create_mutex(self):
+        args = self.input_arguments(["--project-root", str(self.root), "execute", "command-prepare",
+            "--task-path", self.fixture.artifacts["task"], "--execution-dir", self.fixture.artifacts["execution"],
+            "--task-id", "TASK-001", "--user-config-root", str(self.root), "--input-file", "request.json"],
+            json.dumps(self.request))
+        before = self.snapshot()
+        out = io.StringIO()
+        self.assertEqual(main(args, stdout=out), 0, out.getvalue())
+        self.assertEqual(before, self.snapshot())
+        args[3] = "command-run"
+        with patch.object(command_run, "_execute") as execute:
+            self.assertNotEqual(main(args, stdout=io.StringIO()), 0)
+            execute.assert_not_called()

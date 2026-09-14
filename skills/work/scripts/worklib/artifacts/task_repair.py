@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import copy
 import difflib
-import hashlib
 import json
 from pathlib import Path
 
@@ -14,20 +13,18 @@ from ..contracts.task import validate_task_contract
 from ..contracts.task_diagnostics import _json_document, diagnose_task_contract
 from ..contracts.task_ordering import order_task_contract
 from ..contracts.validation import nonempty_string, sha256, strict_keys
+from ..foundation.fingerprint import raw_sha256
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import decode_utf8, read_raw
 from ..foundation.markdown import parse_json_contract, render_json_contract
 from ..foundation.paths import validate_artifact_paths
 from ..foundation.spec_update import require_idle_writer, require_no_spec_update, state_writer, storage_path
-from .specification import _complete_write, _history, _replace, _write
+from ..foundation import spec_transactions
+from .specification import _history
 
 
 def _fail(code, message, **details):
     raise WorkError(ExitCode.ARTIFACT_INTEGRITY, code, message, details)
-
-
-def _hash(raw):
-    return hashlib.sha256(raw).hexdigest()
 
 
 def _json(value):
@@ -122,7 +119,7 @@ def _prepare(request, *, project_root, user_config_root, skill_roots,
     paths["index"] = storage_path(project_root, artifacts["execution"] + "/index.json")
     if before is None:
         before = {key: read_raw(paths[key]) for key in ("plan", "task", "index")}
-    if {key + "_sha256": _hash(raw) for key, raw in before.items()} != request["expected"]:
+    if {key + "_sha256": raw_sha256(raw) for key, raw in before.items()} != request["expected"]:
         _fail("task_repair_source_changed", "The original artifact fingerprints changed.")
     require_no_spec_update(project_root, artifacts["execution"], ignored_record=ignored_record)
     options = dict(
@@ -176,7 +173,7 @@ def _prepare(request, *, project_root, user_config_root, skill_roots,
                     _fail("task_repair_cancelled", "A changed cancelled TASK needs a separate lifecycle decision.")
                 if row["status"] != "pending":
                     row["status"] = "pending_retry" if "latest_attempt" in row else "blocked"
-                    row["status_reason"] = {"kind": "task_change", "ref": "TASK-REPAIR-" + _hash(_json(request))}
+                    row["status_reason"] = {"kind": "task_change", "ref": "TASK-REPAIR-" + raw_sha256(_json(request))}
             rows.append(row)
         result["tasks"] = rows
         result["overall_status"] = derive_overall_status([row["status"] for row in rows])
@@ -203,7 +200,7 @@ def _preview(record):
     after = {key: _decode(value) for key, value in record["after"].items()}
     return {
         "schema": "work-task-repair/v1", "status": "preview",
-        "stage": record["request"]["stage"], "approved_sha256": _hash(_json(record)),
+        "stage": record["request"]["stage"], "approved_sha256": raw_sha256(_json(record)),
         "artifacts": record["request"]["artifacts"], "decisions": record["request"]["decisions"],
         "affected_task_ids": record["affected_task_ids"],
         "original_bytes_base64": record["before"],
@@ -233,7 +230,7 @@ def repair_task(raw_request, *, project_root: Path, user_config_root: str,
         except (ValueError, UnicodeError):
             partial = journal_raw
         if saved is not None:
-            if _json(saved) != journal_raw or _hash(journal_raw) != approved_sha256 or saved.get("request") != request:
+            if _json(saved) != journal_raw or raw_sha256(journal_raw) != approved_sha256 or saved.get("request") != request:
                 _fail("task_repair_recovery_changed", "Recovery requires the exact approved request and record.")
             before = {key: _decode(value) for key, value in strict_keys(
                 saved.get("before"), location="record.before", required={"plan", "task", "index"},
@@ -276,14 +273,14 @@ def repair_task(raw_request, *, project_root: Path, user_config_root: str,
             observed = read_raw(done)
             if current != after or not marker.startswith(observed):
                 _fail("task_repair_completion_conflict", "Completion evidence conflicts with the transaction.")
-            _complete_write(done, marker)
+            spec_transactions.complete_write(done, marker)
             result["status"] = "already_completed" if observed == marker else "recovered"
             return result
         try:
             if operation == "apply":
-                _write(journal, raw_record)
+                spec_transactions.write_exclusive(journal, raw_record)
             elif partial is not None:
-                _complete_write(journal, raw_record)
+                spec_transactions.complete_write(journal, raw_record)
             elif read_raw(journal) != raw_record:
                 _fail("task_repair_recovery_changed", "The journal changed before recovery.")
             for key in ("task", "index"):
@@ -291,7 +288,7 @@ def repair_task(raw_request, *, project_root: Path, user_config_root: str,
                     continue
                 # Keep temporaries beside their target for same-volume replace.
                 temporary = storage_path(project_root, paths[key].relative_to(project_root).as_posix() + ".repair-" + approval + ".tmp")
-                _replace(paths[key], before[key], after[key], temporary, recover=operation == "recover")
+                spec_transactions.replace_checked(paths[key], before[key], after[key], temporary, recover=operation == "recover")
             if any(read_raw(paths[key]) != after[key] for key in after) or _history(project_root, execution) != record["history_sha256"]:
                 _fail("task_repair_post_write", "Installed artifacts or execution history changed.")
             final = diagnose_task_contract(
@@ -302,7 +299,7 @@ def repair_task(raw_request, *, project_root: Path, user_config_root: str,
             )
             if final != record["candidate_diagnostics"]:
                 _fail("task_repair_post_validation", "Post-write validation differs from the reviewed result.")
-            _write(done, marker)
+            spec_transactions.write_exclusive(done, marker)
         except (OSError, WorkError) as error:
             raise WorkError(
                 ExitCode.IO_FAILURE, "task_repair_interrupted",

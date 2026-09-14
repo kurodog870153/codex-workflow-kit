@@ -107,8 +107,15 @@ class MigrationPreflightTests(FileInputTestCase):
         self.assertEqual(self.run_preflight()["transactions"][0]["completion"], "incomplete")
 
     def test_busy_writer_blocks_without_modifying_mutex(self):
+        # Initialize the mutex, then compare bytes outside its Windows lock.
         with state_writer(self.root, self.fixture.artifacts["execution"]):
-            result = self.run_preflight()
+            pass
+        before = self.fixture.snapshot()
+        with state_writer(self.root, self.fixture.artifacts["execution"]):
+            result = migration_preflight(
+                json.dumps(self.request).encode("utf-8"), project_root=self.root, user_config_root=str(self.root),
+            )
+        self.assertEqual(self.fixture.snapshot(), before)
         self.assertFalse(result["can_prepare_candidate"])
         self.assertTrue(any(item["code"] == "work_state_writer_busy" for item in result["issues"]))
 

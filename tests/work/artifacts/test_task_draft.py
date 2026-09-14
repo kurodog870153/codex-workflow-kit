@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import sys
 import tempfile
 import unittest
@@ -12,7 +13,8 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.artifacts.task_draft import (
-    read_task_draft, read_task_planning_index, recover_task_planning, save_task_planning,
+    read_task_draft, read_task_draft_from_index, read_task_planning_index, read_task_planning_revision,
+    recover_task_planning, save_task_planning,
 )
 from worklib.foundation.errors import WorkError
 
@@ -44,12 +46,56 @@ class TaskDraftArtifactTests(unittest.TestCase):
     def initialize(self) -> None:
         save_task_planning(self.root, self.index, expected_revision=0)
 
+    def test_save_cannot_remove_or_replace_stored_instruction_selection(self) -> None:
+        self.index["tasks"][0]["instruction_selection"] = {"selected_paths": [], "references": []}
+        self.initialize()
+        for selection in (None, {"selected_paths": [], "references": ["other"]}):
+            proposed = copy.deepcopy(self.index)
+            proposed["revision"] = 2
+            proposed["tasks"][0]["status"] = "in_progress"
+            if selection is None:
+                proposed["tasks"][0].pop("instruction_selection")
+            else:
+                proposed["tasks"][0]["instruction_selection"] = selection
+            with self.assertRaises(WorkError) as context:
+                save_task_planning(self.root, proposed, expected_revision=1, draft=self.draft)
+            self.assertEqual(context.exception.code, "draft_selection_mismatch")
+        self.assertEqual(read_task_planning_index(self.root, "example"), self.index)
+
     def save(self):
         proposed = read_task_planning_index(self.root, "example")
         expected = proposed["revision"]
         proposed["revision"] += 1
         proposed["tasks"][0]["status"] = self.draft["status"]
         return save_task_planning(self.root, proposed, expected_revision=expected, draft=self.draft)
+
+    def test_historical_index_read_is_independent_of_current_revision(self) -> None:
+        self.initialize()
+        self.save()
+        self.assertEqual(read_task_planning_revision(self.root, "example", 1), self.index)
+        self.assertEqual(read_task_planning_revision(self.root, "example", 2), read_task_planning_index(self.root, "example"))
+
+    def test_historical_index_rejects_wrong_identity_or_revision(self) -> None:
+        self.initialize()
+        path = self.storage / "history/1/index.json"
+        for field, value, code in (
+            ("requirement_id", "other", "draft_requirement_mismatch"),
+            ("revision", 2, "draft_revision_conflict"),
+        ):
+            with self.subTest(field=field):
+                index = {**self.index, field: value}
+                path.write_bytes((json.dumps(index, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8"))
+                with self.assertRaises(WorkError) as context:
+                    read_task_planning_revision(self.root, "example", 1)
+                self.assertEqual(context.exception.code, code)
+
+    def test_historical_index_requires_positive_integer_revision(self) -> None:
+        for revision in (0, -1, True, "1"):
+            with self.subTest(revision=revision):
+                with self.assertRaises(WorkError) as context:
+                    read_task_planning_revision(self.root, "example", revision)
+                self.assertEqual(context.exception.code, "invalid_expected_revision")
+        self.assertFalse(self.storage.exists())
 
     def test_initial_index_and_discussion_round_trip(self) -> None:
         self.initialize()
@@ -59,6 +105,17 @@ class TaskDraftArtifactTests(unittest.TestCase):
         self.assertEqual((self.storage / "TASK-001.json").read_bytes(), (self.storage / "history/2/TASK-001.json").read_bytes())
         self.assertFalse((self.storage.parent / "task.json").exists())
         self.assertFalse((self.root / "outputs/work/executions").exists())
+
+    def test_snapshot_draft_reader_reuses_verified_index_without_rereading(self) -> None:
+        self.initialize()
+        self.save()
+        index = read_task_planning_index(self.root, "example")
+        with patch("worklib.artifacts.task_draft.read_task_planning_index", side_effect=AssertionError("Unexpected index read")):
+            self.assertEqual(read_task_draft_from_index(self.root, index, "TASK-001"), self.draft)
+        (self.storage / "history/2/TASK-001.json").write_bytes(b"changed")
+        with self.assertRaises(WorkError) as context:
+            read_task_draft_from_index(self.root, index, "TASK-001")
+        self.assertEqual(context.exception.code, "draft_content_integrity")
 
     def test_updates_preserve_immutable_history(self) -> None:
         self.initialize()

@@ -16,7 +16,7 @@ Read and apply [the shared private role rules](../instruction-loading.md#shared-
 
 ## Save and return
 
-1. Prepare a complete discussion snapshot using only the handoff. Run `progress validate` for the read-only preview. Return its content, paths, expected revision, fingerprint, command and risks through the parent for review and save authorization; reuse approval only for the identical preview.
+1. Supply the complete discussion content from the handoff to `progress prepare` with the explicit requirement ID, originating mode and expected saved revision, following the progress workflow. Let the CLI derive schema, discussion-only status and next revision. Preserve `data.progress` as the complete candidate request and run `progress validate` with the same expected revision; require the same approval fingerprint. Return its content, paths, expected revision, fingerprint, command and risks through the parent for review and save authorization; reuse approval only for the identical preview. Do not merge or classify decisions in the saver.
 2. After authorization, use `progress save` with the identical content and fingerprint. Verify by `progress read` and compare the committed fingerprint and content. A saved document is discussion memory, never formal approval or execution permission.
 3. Return the mode, requirement ID, path, saved revision, content fingerprint, unresolved items and `$work <mode> -- resume <requirement-id>` to the parent. Return control to the originating role at its retained continuation point; do not continue the discussion yourself.
 4. On any save or verification failure, preserve all files and report the observed state through the parent. Do not retry, repair, overwrite unknown content or silently report success.

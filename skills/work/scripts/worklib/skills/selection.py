@@ -93,6 +93,59 @@ def selection_sha256(decision: str, skills: list[dict[str, object]]) -> str:
     return canonical_json_sha256({"decision": decision, "skills": skills})
 
 
+def build_skill_selection(value: object, *, roots: list[SkillRoot]) -> dict[str, object]:
+    """Assemble confirmed choices; dependency and inferred-mode decisions stay explicit."""
+    request = _strict_object(value, location="skill_selection_request",
+                             fields=frozenset({"decision", "skills"}))
+    decision = request["decision"]
+    if not isinstance(decision, str) or decision not in DECISIONS:
+        raise WorkError(ExitCode.CONTRACT, "invalid_skill_selection_decision", "An explicit selection decision is required.")
+    choices = request["skills"]
+    if not isinstance(choices, list):
+        raise WorkError(ExitCode.CONTRACT, "invalid_skill_selection_skills", "Skill choices must be an array.")
+    if (decision == "base_only") != (not choices):
+        raise WorkError(ExitCode.CONTRACT, "skill_selection_decision_mismatch", "The decision does not match the choices.")
+    roots_by_identity = _root_map(roots)
+    skills = []
+    for index, value in enumerate(choices):
+        location = f"skill_selection_request.skills[{index}]"
+        fields = {"scope", "root", "source", "recommendation_reason", "dependency_status"}
+        if isinstance(value, dict) and "mode_support" in value:
+            fields.add("mode_support")
+        choice = _strict_object(value, location=location, fields=frozenset(fields))
+        for field in fields - {"mode_support"}:
+            _text(choice[field], location=f"{location}.{field}")
+        if choice["dependency_status"] != "available":
+            raise WorkError(ExitCode.CONTRACT, "skill_dependencies_unavailable", "Confirm dependency availability before building a selection.")
+        root = roots_by_identity.get((choice["scope"], choice["root"]))
+        if root is None:
+            raise WorkError(ExitCode.ARTIFACT_INTEGRITY, "selected_skill_root_missing", "The selected skill root is not available.")
+        snapshot = snapshot_catalog_skill(root, choice["source"])
+        summary, bundle = snapshot["skill"], snapshot["bundle"]
+        declared = summary["work_modes"]
+        if declared:
+            modes = {mode: "declared" if mode in declared else "unsupported" for mode in MODES}
+            if "mode_support" in choice and choice["mode_support"] != modes:
+                raise WorkError(ExitCode.CONTRACT, "declared_skill_modes_mismatch", "Confirmed modes differ from the declared modes.")
+        elif "mode_support" not in choice:
+            raise WorkError(ExitCode.CONTRACT, "inferred_skill_modes_required", "Supply confirmed mode support for a skill without declared modes.")
+        else:
+            modes = choice["mode_support"]
+        selected = {field: summary[field] for field in (
+            "id", "name", "scope", "root", "source", "description",
+            "allow_implicit_invocation", "summary_sha256",
+        )}
+        selected.update(mode_support=modes, dependency_status=choice["dependency_status"],
+                        recommendation_reason=choice["recommendation_reason"], bundle_sha256=bundle["bundle_sha256"])
+        skills.append(selected)
+    # Resnapshot through the existing validator to reject drift during construction.
+    validated = validate_skill_selection({
+        "schema": "work-skill-selection/v1", "decision": decision, "skills": skills,
+        "selection_sha256": selection_sha256(decision, skills),
+    }, roots=roots)
+    return validated["skill_selection"]
+
+
 def validate_skill_selection(value: object, *, roots: list[SkillRoot]) -> dict[str, object]:
     selection = _strict_object(value, location="skill_selection", fields=TOP_FIELDS)
     if selection["schema"] != "work-skill-selection/v1":

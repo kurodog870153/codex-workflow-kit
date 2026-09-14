@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 import os
 import re
@@ -17,10 +16,12 @@ from ..contracts.execution_index import (
 from ..contracts.plan import render_plan_contract, validate_plan_contract
 from ..contracts.task import render_task_contract, validate_task_contract
 from ..contracts.validation import nonempty_string, sha256, strict_keys
+from ..foundation.fingerprint import raw_sha256
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import validate_artifact_paths
-from ..foundation.spec_update import require_no_spec_update, state_writer, storage_path
+from ..foundation import spec_transactions
+from ..foundation.spec_update import completion_marker_matches, require_no_spec_update, state_writer, storage_path
 from ..skills.catalog import SkillRoot
 from ..foundation.runtime import installed_work_root
 from ..instructions.selection import build_instruction_selection
@@ -33,10 +34,6 @@ def _error(code: str, message: str, **details: object) -> WorkError:
 
 def _json(value: object) -> bytes:
     return (json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
-
-
-def _hash(raw: bytes) -> str:
-    return hashlib.sha256(raw).hexdigest()
 
 
 def _decode(raw: bytes) -> dict[str, Any]:
@@ -55,7 +52,7 @@ def _history(root: Path, execution: str) -> dict[str, str]:
             for name in directories + files:
                 path = storage_path(root, (Path(current) / name).relative_to(root).as_posix())
                 if path.is_file():
-                    result[path.relative_to(root).as_posix()] = _hash(path.read_bytes())
+                    result[path.relative_to(root).as_posix()] = raw_sha256(path.read_bytes())
     return result
 
 
@@ -179,7 +176,7 @@ def _prepare(
         key: before[key].encode("utf-8") if before is not None else paths[key].read_bytes()
         for key in ("plan", "task", "index")
     }
-    if {key + "_sha256": _hash(raw) for key, raw in original.items()} != expected:
+    if {key + "_sha256": raw_sha256(raw) for key, raw in original.items()} != expected:
         raise _error("spec_update_source_changed", "The reviewed source fingerprints no longer match.")
     # Parsing here extracts repair identity only; normal use still requires the
     # original contract validation below, including the reviewed binding rules.
@@ -293,45 +290,6 @@ def _prepare(
     return record, paths
 
 
-def _write(path: Path, raw: bytes) -> None:
-    with path.open("xb") as output:
-        output.write(raw)
-        output.flush()
-        os.fsync(output.fileno())
-
-
-def _complete_write(path: Path, target: bytes) -> None:
-    """Authorized recovery may append a missing suffix, never overwrite bytes."""
-    if not path.exists():
-        _write(path, target)
-        return
-    with path.open("r+b") as output:
-        current = output.read()
-        if not target.startswith(current):
-            raise _error("spec_update_partial_conflict", "Partial transaction bytes conflict with approval.")
-        if current != target:
-            output.write(target[len(current):])
-            output.flush()
-            os.fsync(output.fileno())
-
-
-def _replace(
-    path: Path, expected: bytes, target: bytes, temporary: Path, *, recover: bool = False,
-) -> None:
-    if recover:
-        _complete_write(temporary, target)
-    elif temporary.exists():
-        if temporary.read_bytes() != target:
-            raise _error("spec_update_temporary_changed", "Prepared specification bytes changed.")
-    else:
-        _write(temporary, target)
-    if path.read_bytes() != expected:
-        raise _error("spec_update_concurrent_change", "An artifact changed before publication.")
-    os.replace(temporary, path)
-    if path.read_bytes() != target:
-        raise _error("spec_update_write_mismatch", "Published specification bytes differ from the approved candidate.")
-
-
 def update_specification(
     raw_request: bytes, *, project_root: Path, user_config_root: str,
     skill_roots: list[SkillRoot] | None = None,
@@ -378,7 +336,7 @@ def update_specification(
     record, paths = _prepare(request, project_root=project_root, user_config_root=user_config_root,
                              skill_roots=skill_roots, before=before, migration=migration)
     record_raw = _json(record)
-    approval = _hash(record_raw)
+    approval = raw_sha256(record_raw)
     result = {
         "schema": "work-spec-update/v1", "status": "valid",
         "requirement_id": plan["requirement_id"], "record_id": record["record_id"],
@@ -426,7 +384,7 @@ def update_specification(
         for entry in [*paths["execution"].glob(".work-spec-update-*.json"), *paths["execution"].glob(".work-task-repair-*.json")]:
             if entry != journal:
                 marker = storage_path(project_root, entry.relative_to(project_root).as_posix() + ".done")
-                if not marker.is_file() or marker.read_bytes() != _hash(entry.read_bytes()).encode("ascii") + b"\n":
+                if not marker.is_file() or not completion_marker_matches(entry.read_bytes(), marker.read_bytes()):
                     raise _error("spec_update_other_transaction", "Another specification update requires recovery.")
     with state_writer(project_root, execution):
         # Recheck after acquiring the same OS mutex used by Execute mutations.
@@ -440,9 +398,9 @@ def update_specification(
             raise _error("spec_update_history_changed", "History changed before exclusive publication.")
         try:
             if operation == "apply":
-                _write(journal, record_raw)
+                spec_transactions.write_exclusive(journal, record_raw)
             elif partial_journal is not None:
-                _complete_write(journal, record_raw)
+                spec_transactions.complete_write(journal, record_raw)
             elif journal.read_bytes() != record_raw:
                 raise _error("spec_update_recovery_changed", "The preserved transaction changed.")
             marker = approval.encode("ascii") + b"\n"
@@ -450,26 +408,26 @@ def update_specification(
                 observed = done.read_bytes()
                 if current != after_raw or not marker.startswith(observed):
                     raise _error("spec_update_completion_conflict", "The completion marker conflicts with the transaction.")
-                _complete_write(done, marker)
+                spec_transactions.complete_write(done, marker)
                 result["status"] = "already_completed" if observed == marker else "recovered"
                 return result
             recovering = operation == "recover"
             if current["index"] == before_raw["index"]:
                 temporary = storage_path(project_root, journal.relative_to(project_root).as_posix() + ".lock")
-                _replace(paths["index"], before_raw["index"], locked_raw, temporary, recover=recovering)
+                spec_transactions.replace_checked(paths["index"], before_raw["index"], locked_raw, temporary, recover=recovering)
                 current["index"] = locked_raw
             for key in ("plan", "task"):
                 if current[key] != after_raw[key]:
                     relative = paths[key].relative_to(project_root).as_posix() + "." + record["record_id"] + ".tmp"
-                    _replace(paths[key], before_raw[key], after_raw[key], storage_path(project_root, relative), recover=recovering)
+                    spec_transactions.replace_checked(paths[key], before_raw[key], after_raw[key], storage_path(project_root, relative), recover=recovering)
             if _history(project_root, execution) != record["history_sha256"]:
                 raise _error("spec_update_history_changed", "Execution history changed during specification publication.")
             if any(paths[key].read_bytes() != after_raw[key] for key in ("plan", "task")):
                 raise _error("spec_update_post_write", "The installed specification differs from approval.")
             if current["index"] != after_raw["index"]:
                 temporary = storage_path(project_root, journal.relative_to(project_root).as_posix() + ".index")
-                _replace(paths["index"], locked_raw, after_raw["index"], temporary, recover=recovering)
-            _write(done, marker)
+                spec_transactions.replace_checked(paths["index"], locked_raw, after_raw["index"], temporary, recover=recovering)
+            spec_transactions.write_exclusive(done, marker)
         except (OSError, WorkError) as error:
             raise WorkError(
                 ExitCode.IO_FAILURE, "spec_update_interrupted",

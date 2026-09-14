@@ -54,6 +54,38 @@ class TaskDraftSourceTests(unittest.TestCase):
     def initialize(self):
         save_task_planning(self.root, self.index, expected_revision=0)
 
+    def test_stored_selection_is_checked_without_flags(self):
+        self.index["tasks"][0]["instruction_selection"] = {"selected_paths": [], "references": []}
+        self.initialize()
+        result = check_task_draft_sources(
+            self.root, "example", "TASK-001", expected_revision=1,
+            plan_path=self.plan["artifacts"]["plan"], user_config_root=str(self.root),
+        )
+        self.assertEqual(result["instruction_selection"], self.index["tasks"][0]["instruction_selection"])
+        self.plan["summary"] = "Changed result"
+        self.plan_path.write_bytes(render_plan_contract(self.plan))
+        with self.assertRaises(WorkError) as context:
+            check_task_draft_sources(self.root, "example", "TASK-001", expected_revision=1,
+                                    plan_path=self.plan["artifacts"]["plan"], user_config_root=str(self.root))
+        self.assertEqual(context.exception.code, "draft_source_drift")
+
+    def test_legacy_check_without_selection_requires_confirmation(self):
+        self.initialize()
+        with self.assertRaises(WorkError) as context:
+            check_task_draft_sources(self.root, "example", "TASK-001", expected_revision=1,
+                                    plan_path=self.plan["artifacts"]["plan"], user_config_root=str(self.root))
+        self.assertEqual(context.exception.code, "draft_selection_required")
+
+    def test_stored_references_are_loaded_and_checked(self):
+        stored = {"selected_paths": [], "references": ["task.general.task-records"]}
+        instruction = build_instruction_selection(skill_root=SCRIPT_ROOT.parent, mode="task", selected_paths=[], reference_names=stored["references"])
+        self.index["tasks"][0].update(instruction_selection=stored, instructions_sha256=instruction["instructions_sha256"])
+        self.initialize()
+        result = check_task_draft_sources(self.root, "example", "TASK-001", expected_revision=1,
+                                         plan_path=self.plan["artifacts"]["plan"], user_config_root=str(self.root))
+        self.assertEqual(result["instruction_selection"], stored)
+        self.assertEqual(result["instructions_sha256"], instruction["instructions_sha256"])
+
     def invoke(self, *, expected_revision=1, task_id="TASK-001"):
         try:
             result = check_task_draft_sources(

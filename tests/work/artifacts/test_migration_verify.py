@@ -14,7 +14,8 @@ from cli_support import FileInputTestCase
 from artifacts import test_specification as fixtures
 from contracts import test_attempt as attempt_fixtures
 from worklib.artifacts import migration_verify
-from worklib.artifacts.specification import _hash, _json
+from worklib.artifacts.specification import _json
+from worklib.foundation.fingerprint import raw_sha256
 from worklib.cli import main
 from worklib.contracts.attempt import canonicalize_attempt_contract
 from worklib.contracts.execution_index import render_execution_index
@@ -51,7 +52,7 @@ class MigrationVerifyTests(FileInputTestCase):
 
     def test_success_checks_exact_result_without_writes(self):
         self.migrate()
-        with patch("worklib.artifacts.specification._write") as write:
+        with patch("worklib.foundation.spec_transactions.write_exclusive") as write:
             result = self.verify()
         write.assert_not_called()
         self.assertTrue(result["verified"])
@@ -103,7 +104,7 @@ class MigrationVerifyTests(FileInputTestCase):
         record["affected_task_ids"] = []
         raw = _json(record)
         self.journal.write_bytes(raw)
-        self.marker.write_bytes(_hash(raw).encode("ascii") + b"\n")
+        self.marker.write_bytes(raw_sha256(raw).encode("ascii") + b"\n")
         result = self.verify()
         self.assertEqual(result["completion_status"], "passed")
         self.assertFalse(result["verified"])
@@ -122,7 +123,7 @@ class MigrationVerifyTests(FileInputTestCase):
     def assert_record_rejected(self, record):
         raw = _json(record)
         self.journal.write_bytes(raw)
-        self.marker.write_bytes(_hash(raw).encode("ascii") + b"\n")
+        self.marker.write_bytes(raw_sha256(raw).encode("ascii") + b"\n")
         result = self.verify()
         self.assertEqual(result["completion_status"], "passed")
         self.assertFalse(result["verified"])
@@ -239,8 +240,13 @@ class MigrationVerifyTests(FileInputTestCase):
 
     def test_active_writer_and_unrelated_pending_transaction_block(self):
         self.migrate()
+        before = self.fixture.snapshot()
         with state_writer(self.root, self.fixture.artifacts["execution"]):
-            self.assertFalse(self.verify()["verified"])
+            result = migration_verify.verify_migration(
+                json.dumps(self.request).encode("utf-8"), project_root=self.root, user_config_root=str(self.root),
+            )
+            self.assertFalse(result["verified"])
+        self.assertEqual(self.fixture.snapshot(), before)
         other = self.journal.with_name(".work-task-repair-other.json")
         other.write_bytes(b"{")
         self.assertFalse(self.verify()["verified"])

@@ -11,6 +11,7 @@ from ..foundation.markdown import (
     require_canonical_json_contract,
 )
 from .execution_index_ordering import order_execution_index
+from .command_correction import canonicalize_command_correction
 from .validation import (
     nonempty_string as _nonempty_string,
     sha256 as _sha256,

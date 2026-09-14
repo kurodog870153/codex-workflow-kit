@@ -5,7 +5,9 @@ from pathlib import Path
 
 from ..artifacts.specification import update_specification
 from ..artifacts.spec_prepare import prepare_specification
+from ..artifacts.migration_prepare import prepare_migration
 from ..artifacts.task_repair import repair_task
+from ..artifacts.task_repair_prepare import prepare_task_repair
 from ..artifacts.migration_preflight import migration_preflight
 from ..artifacts.migration_verify import verify_migration
 from ..artifacts.task import create_task_artifacts, recover_task_create
@@ -21,6 +23,9 @@ from ..artifacts.task_draft_sources import check_task_draft_sources
 from ..artifacts.task_draft_list import update_task_planning_list
 from ..artifacts.task_draft_assembly import assemble_task_drafts, create_task_from_drafts
 from ..artifacts.task_draft_source_update import update_task_draft_sources
+from ..artifacts.task_draft_request import save_task_draft_request
+from ..artifacts.task_draft_status import task_draft_status
+from ..artifacts.task_draft_prepare import initialize_task_planning_request, prepare_task_planning_request
 from ..contracts.validation import strict_keys
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.markdown import parse_json_contract
@@ -29,15 +34,37 @@ from ..foundation.cli_io import FileInput
 from . import SubparserRegistry
 
 
+def _add_draft_source_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--requirement-id", required=True)
+    parser.add_argument("--task-id", required=True)
+    parser.add_argument("--expected-revision", type=int, required=True)
+    parser.add_argument("--plan-path", required=True)
+    parser.add_argument("--user-config-root", required=True)
+    parser.add_argument("--skill-root", action="append", default=[])
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument("--general-only", action="store_true")
+    selection.add_argument("--instruction-path", action="append")
+    parser.add_argument("--reference", action="append")
+
+
+def _draft_selection_arguments(arguments: argparse.Namespace) -> dict[str, object]:
+    if arguments.general_only or arguments.instruction_path is not None:
+        return {"selected_paths": arguments.instruction_path or [], "reference_names": arguments.reference or []}
+    if arguments.reference is not None:
+        raise WorkError(ExitCode.CLI_USAGE, "draft_selection_incomplete", "--reference requires --general-only or --instruction-path.")
+    return {"selected_paths": None, "reference_names": None}
+
+
 def register_task_commands(commands: SubparserRegistry) -> None:
     task_parser = commands.add_parser("task")
     task_commands = task_parser.add_subparsers(dest="task_command", required=True)
 
-    prepare = task_commands.add_parser("spec-prepare", help="Prepare validated field replacements without publishing.")
-    prepare.add_argument("--input-file", required=True)
-    prepare.add_argument("--user-config-root", required=True)
-    prepare.add_argument("--skill-root", action="append", default=[])
-    prepare.add_argument("--output-file")
+    for name in ("spec-prepare", "migrate-prepare", "repair-prepare"):
+        prepare = task_commands.add_parser(name, help="Prepare validated field replacements without publishing.")
+        prepare.add_argument("--input-file", required=True)
+        prepare.add_argument("--user-config-root", required=True)
+        prepare.add_argument("--skill-root", action="append", default=[])
+        prepare.add_argument("--output-file")
 
     for name in ("spec-validate", "spec-update", "spec-recover", "migrate-validate", "migrate", "migrate-recover"):
         spec = task_commands.add_parser(name, help="Internal coordinated specification revision.")
@@ -63,6 +90,17 @@ def register_task_commands(commands: SubparserRegistry) -> None:
 
     draft_init = task_commands.add_parser("draft-init", help="Save an initial planning index from a JSON request file.")
     draft_init.add_argument("--input-file", required=True)
+    for name in ("draft-init-request", "draft-list-prepare"):
+        preparation = task_commands.add_parser(name)
+        preparation.add_argument("--input-file", required=True)
+        preparation.add_argument("--requirement-id", required=True)
+        preparation.add_argument("--plan-path", required=True)
+        preparation.add_argument("--user-config-root", required=True)
+        preparation.add_argument("--skill-root", action="append", default=[])
+        if name == "draft-list-prepare":
+            preparation.add_argument("--expected-revision", type=int, required=True)
+        else:
+            preparation.add_argument("--prepare-only", action="store_true")
     draft_save = task_commands.add_parser("draft-save", help="Save one discussion from an index/draft JSON object.")
     draft_save.add_argument("--input-file", required=True)
     draft_save.add_argument("--expected-revision", type=int, required=True)
@@ -72,17 +110,15 @@ def register_task_commands(commands: SubparserRegistry) -> None:
     draft_read = task_commands.add_parser("draft-read", help="Read the committed index or one historical draft.")
     draft_read.add_argument("--requirement-id", required=True)
     draft_read.add_argument("--task-id")
+    draft_status = task_commands.add_parser("draft-status", help="Inspect planning progress and the next action without writing.")
+    draft_status.add_argument("--requirement-id", required=True)
+    draft_status.add_argument("--task-id")
     draft_check = task_commands.add_parser("draft-check", help="Verify one TASK's saved source fingerprints without writing.")
-    draft_check.add_argument("--requirement-id", required=True)
-    draft_check.add_argument("--task-id", required=True)
-    draft_check.add_argument("--expected-revision", type=int, required=True)
-    draft_check.add_argument("--plan-path", required=True)
-    draft_check.add_argument("--user-config-root", required=True)
-    draft_check.add_argument("--skill-root", action="append", default=[])
-    selection = draft_check.add_mutually_exclusive_group(required=True)
-    selection.add_argument("--general-only", action="store_true")
-    selection.add_argument("--instruction-path", action="append")
-    draft_check.add_argument("--reference", action="append", default=[])
+    _add_draft_source_arguments(draft_check)
+    for command_name in ("draft-save-request", "draft-recover-request"):
+        draft_request = task_commands.add_parser(command_name, help="Save or recover one discussion with derived index and draft metadata.")
+        _add_draft_source_arguments(draft_request)
+        draft_request.add_argument("--input-file", required=True)
     for command_name in ("draft-list-update", "draft-list-recover"):
         draft_list = task_commands.add_parser(command_name)
         draft_list.add_argument("--input-file", required=True)
@@ -136,8 +172,21 @@ def run_task(
     project_root: Path,
     request: FileInput | None,
 ) -> dict[str, object]:
-    if arguments.task_command == "spec-prepare":
-        return prepare_specification(
+    if arguments.task_command in {"draft-init-request", "draft-list-prepare"}:
+        options = dict(plan_path=arguments.plan_path, user_config_root=arguments.user_config_root,
+                       skill_roots=[parse_skill_root(root) for root in arguments.skill_root])
+        payload = parse_json_contract(request.raw, source=request.source)
+        if arguments.task_command == "draft-init-request":
+            return initialize_task_planning_request(project_root, arguments.requirement_id, payload,
+                prepare_only=arguments.prepare_only, **options)
+        if arguments.expected_revision < 1:
+            raise WorkError(ExitCode.CLI_USAGE, "invalid_expected_revision", "List preparation requires an existing revision.")
+        return prepare_task_planning_request(project_root, arguments.requirement_id, payload,
+            expected_revision=arguments.expected_revision, **options)
+    if arguments.task_command in {"spec-prepare", "migrate-prepare", "repair-prepare"}:
+        prepare = {"spec-prepare": prepare_specification, "migrate-prepare": prepare_migration,
+                   "repair-prepare": prepare_task_repair}[arguments.task_command]
+        return prepare(
             request.raw, project_root=project_root, user_config_root=arguments.user_config_root,
             skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
             output_file=arguments.output_file,
@@ -188,6 +237,8 @@ def run_task(
             project_root, request["index"], expected_revision=arguments.expected_revision,
             reason=request["reason"], recover=arguments.task_command == "draft-list-recover",
         )
+    if arguments.task_command == "draft-status":
+        return task_draft_status(project_root, arguments.requirement_id, task_id=arguments.task_id)
     if arguments.task_command == "draft-read":
         if arguments.task_id is not None:
             return read_task_draft(project_root, arguments.requirement_id, arguments.task_id)
@@ -207,6 +258,15 @@ def run_task(
             expected_revision=arguments.expected_revision, draft=request["draft"],
         )
     skill_roots = [parse_skill_root(root) for root in arguments.skill_root]
+    if arguments.task_command in {"draft-save-request", "draft-recover-request"}:
+        return save_task_draft_request(
+            project_root, arguments.requirement_id, arguments.task_id,
+            parse_json_contract(request.raw, source=request.source),
+            expected_revision=arguments.expected_revision, plan_path=arguments.plan_path,
+            user_config_root=arguments.user_config_root, skill_roots=skill_roots,
+            **_draft_selection_arguments(arguments),
+            recover=arguments.task_command == "draft-recover-request",
+        )
     if arguments.task_command in {"draft-source-update", "draft-source-recover"}:
         return update_task_draft_sources(
             project_root, arguments.requirement_id,
@@ -228,7 +288,7 @@ def run_task(
             project_root, arguments.requirement_id, arguments.task_id,
             expected_revision=arguments.expected_revision, plan_path=arguments.plan_path,
             user_config_root=arguments.user_config_root, skill_roots=skill_roots,
-            selected_paths=arguments.instruction_path or [], reference_names=arguments.reference,
+            **_draft_selection_arguments(arguments),
         )
     if arguments.task_command in {"create", "recover-create"}:
         operation = (

@@ -10,7 +10,7 @@ Provide one explicit entry point for Plan, Task, and Execute workflows without e
 ## Parse and select
 
 1. Read [references/instruction-loading.md](references/instruction-loading.md) completely before interpreting the invocation.
-2. Accept only `$work <mode> -- <request>`. Do not accept or request user-facing hierarchy paths.
+2. Parse the explicit `$work <mode> -- <request>` with `invocation parse` as described in the shared invocation contract. Use its mode, untouched request and entry kind; parsing does not authorize the workflow. Do not accept or request user-facing hierarchy paths.
 3. For an explicit Plan or Task `resume <requirement-id>` request, first follow [discussion progress](references/workflows/progress.md) to restore that mode's saved context before selection or formal-source gates. For a new Plan, inspect the cross-mode instruction catalog metadata, recommend the smallest suitable path set at the requested scope, including intermediate nodes when appropriate, show each description and recommendation reason, and ask the user to confirm it. Confirm `general_only` explicitly when no specialized path applies.
 4. Discover enabled skills from configured roots using summary metadata only, recommend the smallest suitable set, and confirm it separately. Let the user accept, add, remove, or cancel either selection. Do not load specialized Work instructions or full external skill instructions before confirmation.
 5. The parent owns mode, request, catalog discovery, recommendation, dependency checks, and selection confirmation. It delegates the selected workflow when the required subagent runtime is available and performs it only under the fallback defined below.
@@ -26,16 +26,7 @@ Provide one explicit entry point for Plan, Task, and Execute workflows without e
    1. Plan uses exactly one ephemeral subagent.
    2. Task uses one coordinator; it creates one isolated ephemeral subagent per executable confirmed skill, sequentially, using the Task skill prompt's configuration.
    3. Execute uses exactly one ephemeral subagent.
-3. Send a delegation envelope containing all of the following. For explicit progress restoration, the progress workflow permits saved context in place of not-yet-valid source selections solely for restoration and clarification; source-dependent work retains normal validation:
-   1. `WORK_DELEGATION_V1`
-   2. `skill=$work`
-   3. `mode=<plan|task|execute>`
-   4. `skill_root=<resolved-skill-root>`
-   5. `project_root=<resolved-project-root>`
-   6. `work_instruction_selection=<validated-work-instruction-selection>`
-   7. `hierarchy_selection=<validated-work-hierarchy-selection>`
-   8. `skill_selection=<validated-work-skill-selection>`
-   9. `request=<complete-user-request>`
+3. Before delegation or parent fallback, follow [the internal envelope contract](references/instruction-loading.md#internal-envelope-validation) for the exact transport fields, role context and `delegation validate` command. Its explicit progress-restoration exception permits only restoration and clarification; source-dependent work retains normal validation.
 4. Include the matching private prompt and [shared private role rules](references/instruction-loading.md#shared-private-role-rules) as role instructions. For each Task skill subagent, the coordinator reads and includes [references/subagents/task-skill.md](references/subagents/task-skill.md), the same shared source, exactly one selected skill snapshot and one proposed TASK boundary.
 5. If the required subagent capability, model, or reasoning configuration is unavailable for Plan, Task, or Execute, do not stop solely for that reason. The parent must perform the selected workflow directly with its current runtime, following the matching private prompt as workflow instructions and preserving the confirmed selections, permissions, role scope, and machine fields.
 6. When delegated, the Plan subagent loads all confirmed external skills. The Task coordinator loads one confirmed skill per isolated TASK subagent. The Execute subagent loads only the target TASK's one confirmed skill, or none for base-only. The parent does not preload full external instructions before delegation.
@@ -47,7 +38,7 @@ Provide one explicit entry point for Plan, Task, and Execute workflows without e
 
 ## Save discussion progress
 
-1. When Plan or Task returns a user-requested progress checkpoint, follow [discussion progress](references/workflows/progress.md). The parent alone invokes [the private progress saver](references/subagents/progress-saver.md), using `gpt-5.6-terra` with `low` reasoning or its documented parent fallback. This role faithfully records supplied content; Plan and Task retain discussion and resumption ownership.
+1. When Plan or Task returns a user-requested progress checkpoint, follow [the shared progress procedure](references/instruction-loading.md#independent-discussion-progress). Read [the private progress saver](references/subagents/progress-saver.md) for its runtime configuration and recording-only boundary; Plan and Task retain discussion and resumption ownership.
 
 ## Relay and continue
 

@@ -66,6 +66,8 @@ validate_base_sources() {
     local mode
     for mode in plan task execute; do
         require_file "references/workflows/$mode.md" || return 1
+    done
+    for mode in plan task-coordinator task-skill execute; do
         require_file "references/subagents/$mode.md" || return 1
     done
 

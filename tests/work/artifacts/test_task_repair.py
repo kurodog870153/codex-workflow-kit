@@ -19,6 +19,7 @@ from contracts import test_attempt as attempt_fixtures
 from worklib.artifacts import task_repair
 from worklib.cli import main
 from worklib.contracts.execution_index import render_execution_index
+from worklib.foundation import spec_transactions
 from worklib.foundation.errors import WorkError
 from worklib.foundation.spec_update import require_no_spec_update, state_writer
 
@@ -153,11 +154,13 @@ class TaskRepairTests(FileInputTestCase):
 
     def test_active_writer_prohibits_preview_without_changes(self):
         with state_writer(self.root, self.artifacts["execution"]):
-            before = self.fixture.snapshot()
+            pass
+        before = self.fixture.snapshot()
+        with state_writer(self.root, self.artifacts["execution"]):
             with self.assertRaises(WorkError) as error:
                 self.run_repair(self.request())
             self.assertEqual(error.exception.code, "work_state_writer_busy")
-            self.assertEqual(before, self.fixture.snapshot())
+        self.assertEqual(before, self.fixture.snapshot())
 
     def test_pending_other_transaction_prohibits_preview(self):
         (self.fixture.directory / ".work-task-repair-other.json").write_bytes(b"{}")
@@ -186,14 +189,14 @@ class TaskRepairTests(FileInputTestCase):
         request = self.request("complete")
         request["task"]["summary"] = "Explicitly reviewed restored summary."
         preview = self.run_repair(request)
-        real = task_repair._replace
+        real = spec_transactions.replace_checked
 
         def interrupted(path, *args, **kwargs):
             if path == self.index_path:
                 raise OSError("injected interruption after TASK replacement")
             return real(path, *args, **kwargs)
 
-        with patch.object(task_repair, "_replace", side_effect=interrupted):
+        with patch.object(spec_transactions, "replace_checked", side_effect=interrupted):
             with self.assertRaises(WorkError) as error:
                 self.run_repair(request, "apply", preview["approved_sha256"])
         self.assertEqual(error.exception.code, "task_repair_interrupted")
@@ -208,7 +211,7 @@ class TaskRepairTests(FileInputTestCase):
     def test_recovery_refuses_external_edits(self):
         request = self.request()
         preview = self.run_repair(request)
-        with patch.object(task_repair, "_replace", side_effect=OSError("interrupted")):
+        with patch.object(spec_transactions, "replace_checked", side_effect=OSError("interrupted")):
             with self.assertRaises(WorkError):
                 self.run_repair(request, "apply", preview["approved_sha256"])
         self.task_path.write_bytes(b"external edit")
@@ -220,7 +223,7 @@ class TaskRepairTests(FileInputTestCase):
     def test_partial_journal_can_only_resume_identical_approved_bytes(self):
         request = self.request()
         preview = self.run_repair(request)
-        original_write = task_repair._write
+        original_write = spec_transactions.write_exclusive
 
         def partial(path, raw):
             if path.name.endswith(".json"):
@@ -228,7 +231,7 @@ class TaskRepairTests(FileInputTestCase):
                 raise OSError("partial journal")
             original_write(path, raw)
 
-        with patch.object(task_repair, "_write", side_effect=partial):
+        with patch.object(spec_transactions, "write_exclusive", side_effect=partial):
             with self.assertRaises(WorkError):
                 self.run_repair(request, "apply", preview["approved_sha256"])
         self.assertEqual(self.run_repair(request, "recover", preview["approved_sha256"])["status"], "recovered")
@@ -236,7 +239,7 @@ class TaskRepairTests(FileInputTestCase):
     def test_partial_completion_marker_recovers_without_rewriting_task(self):
         request = self.request()
         preview = self.run_repair(request)
-        original_write = task_repair._write
+        original_write = spec_transactions.write_exclusive
 
         def partial(path, raw):
             if path.name.endswith(".done"):
@@ -244,10 +247,10 @@ class TaskRepairTests(FileInputTestCase):
                 raise OSError("partial marker")
             original_write(path, raw)
 
-        with patch.object(task_repair, "_write", side_effect=partial):
+        with patch.object(spec_transactions, "write_exclusive", side_effect=partial):
             with self.assertRaises(WorkError):
                 self.run_repair(request, "apply", preview["approved_sha256"])
-        with patch.object(task_repair, "_replace") as replace:
+        with patch.object(spec_transactions, "replace_checked") as replace:
             self.assertEqual(self.run_repair(request, "recover", preview["approved_sha256"])["status"], "recovered")
         replace.assert_not_called()
 

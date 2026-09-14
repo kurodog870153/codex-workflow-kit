@@ -27,6 +27,7 @@
 12. [強制] 一般交易恢復須在使用者另行核准當下完整狀態後，以 `work-execution-recovery-request/v1` 純 JSON呼叫 `execute recover --input-file "<request-path>"`，固定傳入 `record_begin|command_correction|record_finish|attempt_close|correction`、目標 Attempt ID，以及排序後完整 `.work-*.tmp` 檔名清單；檔案集合在執行前有任何改變即停止。Attempt-start 只能使用既有 `recover-attempt-start`。
 13. [強制] `execute recover` 重新驗證正式 TASK identity、canonical Attempt、index、原 lock fingerprint、transaction identity 與所有 prepared bytes，只能依原交易順序推進唯一 canonical target。只有 record-finish／attempt-close 的 Attempt 已寫入且 lock 足以唯一重建 index 時可接受空檔案清單；其他缺檔、內容衝突、多重交易或模糊狀態均保留現況停止。
 14. [強制] Recovery 需要補建下一階段 temporary file 時，須先 exclusive prepare 並核對 bytes，再依序 atomic replacement；失敗時保留全部來源、lock 與 temporary files 並再次回傳 `recovery_required`。不得自動重試、rollback、刪除、覆寫已關閉 Attempt、處理未知交易或手動解鎖。
+15. [強制] 一般交易恢復可先以 `execute recovery-prepare --input-file "<preparation-path>"` 唯讀組裝請求，輸入 `work-execution-recovery-prepare-request/v1`、已確認的 `transaction` 與 `attempt_id`，沿用明確 TASK／execution 路徑、TASK ID 與 roots。程式盤點完整排序暫存檔、身分、鎖及檔案指紋；僅保存回傳的 `data.request` 作為恢復請求。此步驟不寫入或取得恢復授權，也不宣稱交易目標已唯一驗證；完整目標驗證仍由另行授權後的 `execute recover` 執行。檔案指紋為審查快照，並非原恢復契約中的核准憑證；授權前仍須核對現況及外部副作用。
 
 ## 3. Correction
 

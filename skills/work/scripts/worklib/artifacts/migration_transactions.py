@@ -1,12 +1,11 @@
 """Read-only identification of completed migration transactions."""
-import hashlib
 import json
 import re
 
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import read_raw
 from ..foundation.markdown import parse_json_contract
-from ..foundation.spec_update import storage_path
+from ..foundation.spec_update import completion_marker_matches, storage_path
 
 
 def completed_migrations(root, execution):
@@ -22,7 +21,7 @@ def completed_migrations(root, execution):
         relative = path.relative_to(root).as_posix()
         raw = read_raw(storage_path(root, relative))
         marker = storage_path(root, relative + ".done")
-        if not marker.is_file() or read_raw(marker) != hashlib.sha256(raw).hexdigest().encode("ascii") + b"\n":
+        if not marker.is_file() or not completion_marker_matches(raw, read_raw(marker)):
             continue
         value = parse_json_contract(raw, source=relative)
         request = value.get("request")
