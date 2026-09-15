@@ -10,6 +10,7 @@ from ..artifacts.task_repair import repair_task
 from ..artifacts.task_repair_prepare import prepare_task_repair
 from ..artifacts.migration_preflight import migration_preflight
 from ..artifacts.migration_verify import verify_migration
+from ..artifacts.specification_verify import verify_specification
 from ..artifacts.task import create_task_artifacts, recover_task_create
 from ..artifacts.task_draft import (
     read_task_draft,
@@ -55,6 +56,28 @@ def _draft_selection_arguments(arguments: argparse.Namespace) -> dict[str, objec
     return {"selected_paths": None, "reference_names": None}
 
 
+def _specification_summary(result: dict[str, object]) -> dict[str, object]:
+    source = result.get("preview", result)
+    summary = {
+        "schema": "work-specification-summary/v1",
+        "status": source["status"],
+        "record_id": source["record_id"],
+        "approved_sha256": source["approved_sha256"],
+        "affected_task_ids": source["affected_task_ids"],
+        "changed_fields": source["changed_fields"],
+        "file_readiness": source["file_readiness"],
+    }
+    if "preview" in result:
+        summary["output_file"] = result.get("output_file")
+        summary["transport"] = result["transport"]
+        summary["next_step"] = result["next_step"]
+    elif "next_step" in source:
+        summary["next_step"] = source["next_step"]
+    if "verification_request" in source:
+        summary["verification_request"] = source["verification_request"]
+    return summary
+
+
 def register_task_commands(commands: SubparserRegistry) -> None:
     task_parser = commands.add_parser("task")
     task_commands = task_parser.add_subparsers(dest="task_command", required=True)
@@ -65,6 +88,8 @@ def register_task_commands(commands: SubparserRegistry) -> None:
         prepare.add_argument("--user-config-root", required=True)
         prepare.add_argument("--skill-root", action="append", default=[])
         prepare.add_argument("--output-file")
+        if name != "repair-prepare":
+            prepare.add_argument("--summary", action="store_true")
 
     for name in ("spec-validate", "spec-update", "spec-recover", "migrate-validate", "migrate", "migrate-recover"):
         spec = task_commands.add_parser(name, help="Internal coordinated specification revision.")
@@ -73,6 +98,8 @@ def register_task_commands(commands: SubparserRegistry) -> None:
         spec.add_argument("--skill-root", action="append", default=[])
         if name not in {"spec-validate", "migrate-validate"}:
             spec.add_argument("--approved-sha256", required=True)
+        if name in {"spec-validate", "spec-update", "migrate-validate", "migrate"}:
+            spec.add_argument("--summary", action="store_true")
 
     for name in ("repair-validate", "repair", "repair-recover"):
         repair = task_commands.add_parser(name, help="Review or publish an explicitly decided TASK repair.")
@@ -82,7 +109,7 @@ def register_task_commands(commands: SubparserRegistry) -> None:
         if name != "repair-validate":
             repair.add_argument("--approved-sha256", required=True)
 
-    for name in ("migrate-preflight", "migrate-verify"):
+    for name in ("migrate-preflight", "migrate-verify", "spec-verify"):
         inspection = task_commands.add_parser(name, help="Inspect migration evidence without writes.")
         inspection.add_argument("--input-file", required=True)
         inspection.add_argument("--user-config-root", required=True)
@@ -186,11 +213,12 @@ def run_task(
     if arguments.task_command in {"spec-prepare", "migrate-prepare", "repair-prepare"}:
         prepare = {"spec-prepare": prepare_specification, "migrate-prepare": prepare_migration,
                    "repair-prepare": prepare_task_repair}[arguments.task_command]
-        return prepare(
+        result = prepare(
             request.raw, project_root=project_root, user_config_root=arguments.user_config_root,
             skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
             output_file=arguments.output_file,
         )
+        return _specification_summary(result) if getattr(arguments, "summary", False) else result
     if arguments.task_command == "migrate-verify":
         report = verify_migration(
             request.raw, project_root=project_root, user_config_root=arguments.user_config_root,
@@ -200,6 +228,17 @@ def run_task(
             raise WorkError(
                 ExitCode.ARTIFACT_INTEGRITY, "migration_verification_failed",
                 "Migration verification found incomplete or changed evidence; review the report.", report,
+            )
+        return report
+    if arguments.task_command == "spec-verify":
+        report = verify_specification(
+            request.raw, project_root=project_root, user_config_root=arguments.user_config_root,
+            skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
+        )
+        if not report["verified"]:
+            raise WorkError(
+                ExitCode.ARTIFACT_INTEGRITY, "specification_verification_failed",
+                "Specification verification found incomplete or changed evidence; review the report.", report,
             )
         return report
     if arguments.task_command == "migrate-preflight":
@@ -219,7 +258,7 @@ def run_task(
             approved_sha256=getattr(arguments, "approved_sha256", None),
         )
     if arguments.task_command in {"spec-validate", "spec-update", "spec-recover", "migrate-validate", "migrate", "migrate-recover"}:
-        return update_specification(
+        result = update_specification(
             request.raw, project_root=project_root,
             user_config_root=arguments.user_config_root,
             skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
@@ -228,6 +267,7 @@ def run_task(
             approved_sha256=getattr(arguments, "approved_sha256", None),
             migration=arguments.task_command.startswith("migrate"),
         )
+        return _specification_summary(result) if getattr(arguments, "summary", False) else result
     if arguments.task_command in {"draft-list-update", "draft-list-recover"}:
         request = strict_keys(
             parse_json_contract(request.raw, source=request.source),

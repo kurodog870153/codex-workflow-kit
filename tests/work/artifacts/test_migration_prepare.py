@@ -60,6 +60,8 @@ class MigrationPreparationTests(unittest.TestCase):
             for item in plan[group]
         ])
         self.assertEqual(before, self.fixture.snapshot())
+        self.assertEqual(result["transport"]["request_schema"], "work-spec-migration-request/v1")
+        self.assertEqual(result["next_step"], {"command": "task migrate-validate", "input": "request"})
 
     def test_explicit_binding_repair_is_preserved(self):
         request = self.request(repair=True)
@@ -87,6 +89,16 @@ class MigrationPreparationTests(unittest.TestCase):
             with self.subTest(request=bad), self.assertRaises(WorkError):
                 self.prepare(bad)
             self.assertEqual(before, self.fixture.snapshot())
+
+    def test_task_affected_ids_reports_exact_migration_edit(self):
+        request = self.request()
+        request["edits"][1]["affected_ids"] = ["TASK-002"]
+        with self.assertRaises(WorkError) as caught:
+            self.prepare(request)
+        self.assertEqual(caught.exception.code, "spec_prepare_task_affected_ids")
+        self.assertEqual(caught.exception.details["edit_index"], 1)
+        self.assertEqual(caught.exception.details["task_id"], "TASK-002")
+        self.assertEqual(caught.exception.details["field"], "validations")
 
     def test_missing_and_stale_repair_evidence_are_rejected(self):
         request = self.request(repair=True)

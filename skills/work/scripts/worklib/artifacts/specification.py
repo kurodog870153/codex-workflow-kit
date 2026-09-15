@@ -70,6 +70,47 @@ def _changes(before: dict[str, Any], after: dict[str, Any]) -> list[dict[str, An
     return result
 
 
+def _changed_fields(before_plan: dict[str, Any], after_plan: dict[str, Any],
+                    before_task: dict[str, Any], after_task: dict[str, Any]) -> list[str]:
+    """Return stable review paths without including generated revision evidence."""
+    result = {
+        "/plan/" + key for key in before_plan.keys() | after_plan.keys()
+        if key != "changes" and before_plan.get(key) != after_plan.get(key)
+    }
+    for key in (before_task.keys() | after_task.keys()) - {"tasks", "spec_id", "readiness", "changes"}:
+        if before_task.get(key) != after_task.get(key):
+            result.add("/task/" + key)
+    old_rows = {row["id"]: row for row in before_task["tasks"]}
+    new_rows = {row["id"]: row for row in after_task["tasks"]}
+    for task_id in old_rows.keys() | new_rows.keys():
+        if task_id not in old_rows or task_id not in new_rows:
+            result.add("/tasks/" + task_id)
+            continue
+        for key in old_rows[task_id].keys() | new_rows[task_id].keys():
+            if old_rows[task_id].get(key) != new_rows[task_id].get(key):
+                result.add(f"/tasks/{task_id}/{key}")
+    return sorted(result)
+
+
+def _publication_followup(result: dict[str, object], *, migration: bool) -> None:
+    if migration:
+        result["verification_request"] = {
+            "schema": "work-migration-verify-request/v1",
+            "requirement_id": result["requirement_id"],
+            "artifacts": result["artifacts"],
+            "record_id": result["record_id"],
+        }
+        result["next_step"] = {"command": "task migrate-verify", "input": "verification_request"}
+    else:
+        result["verification_request"] = {
+            "schema": "work-spec-verification-request/v1",
+            "requirement_id": result["requirement_id"],
+            "artifacts": result["artifacts"],
+            "record_id": result["record_id"],
+        }
+        result["next_step"] = {"command": "task spec-verify", "input": "verification_request"}
+
+
 def _index(
     old_plan: dict[str, Any], plan: dict[str, Any],
     old_task: dict[str, Any], task: dict[str, Any],
@@ -342,12 +383,22 @@ def update_specification(
         "requirement_id": plan["requirement_id"], "record_id": record["record_id"],
         "approved_sha256": approval, "affected_task_ids": record["affected_task_ids"],
         "artifacts": artifacts, "candidate": {key: _decode(value.encode("utf-8")) for key, value in record["after"].items()},
+        "changed_fields": _changed_fields(
+            _decode(record["before"]["plan"].encode("utf-8")),
+            _decode(record["after"]["plan"].encode("utf-8")),
+            _decode(record["before"]["task"].encode("utf-8")),
+            _decode(record["after"]["task"].encode("utf-8")),
+        ),
         "file_readiness": "requires_execute_preflight",
     }
     if migration:
         result["migration"] = record["migration"]
         result["instruction_review"] = request["instruction_review"]
     if operation == "validate":
+        result["next_step"] = {
+            "command": "task migrate" if migration else "task spec-update",
+            "input": "same_request", "approved_sha256": approval,
+        }
         return result
     sha256(approved_sha256, location="approved_sha256")
     if approved_sha256 != approval:
@@ -410,6 +461,7 @@ def update_specification(
                     raise _error("spec_update_completion_conflict", "The completion marker conflicts with the transaction.")
                 spec_transactions.complete_write(done, marker)
                 result["status"] = "already_completed" if observed == marker else "recovered"
+                _publication_followup(result, migration=migration)
                 return result
             recovering = operation == "recover"
             if current["index"] == before_raw["index"]:
@@ -435,4 +487,5 @@ def update_specification(
                 {"recovery_required": True, "record": journal.relative_to(project_root).as_posix()},
             ) from error
     result["status"] = "recovered" if operation == "recover" else "updated"
+    _publication_followup(result, migration=migration)
     return result

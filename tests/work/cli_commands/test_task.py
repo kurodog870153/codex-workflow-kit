@@ -17,10 +17,73 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from cli_support import FileInputTestCase
 
 from worklib.cli import build_parser, main
+from worklib.cli_commands.task import _specification_summary
 from worklib.foundation.errors import ExitCode
 
 
 class TaskCliTests(FileInputTestCase):
+    def test_specification_summary_omits_complete_candidates(self):
+        preview = {
+            "schema": "work-spec-update/v1", "status": "valid", "record_id": "SPEC-UPDATE-002",
+            "approved_sha256": "a" * 64, "affected_task_ids": ["TASK-001"],
+            "changed_fields": ["/tasks/TASK-001/goal"],
+            "file_readiness": "requires_execute_preflight", "candidate": {"plan": {}, "task": {}, "index": {}},
+            "migration": {"instruction_review": "large"},
+        }
+        summary = _specification_summary({"schema": "work-spec-prepare/v1", "request": {},
+                                          "preview": preview, "output_file": "prepared.json",
+                                          "transport": {"request_field": "request"},
+                                          "next_step": {"command": "task spec-validate", "input": "request"}})
+        self.assertEqual(summary, {
+            "schema": "work-specification-summary/v1", "status": "valid",
+            "record_id": "SPEC-UPDATE-002", "approved_sha256": "a" * 64,
+            "affected_task_ids": ["TASK-001"],
+            "changed_fields": ["/tasks/TASK-001/goal"],
+            "file_readiness": "requires_execute_preflight", "output_file": "prepared.json",
+            "transport": {"request_field": "request"},
+            "next_step": {"command": "task spec-validate", "input": "request"},
+        })
+
+    def test_published_migration_summary_retains_only_verification_transport(self):
+        result = {
+            "schema": "work-spec-update/v1", "status": "updated", "record_id": "SPEC-UPDATE-002",
+            "approved_sha256": "a" * 64, "affected_task_ids": ["TASK-001"],
+            "changed_fields": ["/tasks/TASK-001/goal"], "file_readiness": "requires_execute_preflight",
+            "artifacts": {}, "candidate": {"large": True}, "migration": {"large": True},
+            "verification_request": {"schema": "work-migration-verify-request/v1"},
+            "next_step": {"command": "task migrate-verify", "input": "verification_request"},
+        }
+        summary = _specification_summary(result)
+        self.assertEqual(summary["verification_request"], result["verification_request"])
+        self.assertEqual(summary["next_step"], result["next_step"])
+        self.assertNotIn("candidate", summary)
+        self.assertNotIn("migration", summary)
+
+    def test_summary_flag_is_limited_to_requested_specification_commands(self):
+        supported = ("spec-prepare", "migrate-prepare", "spec-validate", "spec-update",
+                     "migrate-validate", "migrate")
+        for command in supported:
+            with self.subTest(command=command):
+                arguments = ["--project-root", "/project", "task", command,
+                             "--input-file", "request.json", "--user-config-root", "/config", "--summary"]
+                if command in {"spec-update", "migrate"}:
+                    arguments.extend(["--approved-sha256", "a" * 64])
+                self.assertTrue(build_parser().parse_args(arguments).summary)
+        for command in ("repair-prepare", "spec-recover", "migrate-recover"):
+            with self.subTest(command=command), self.assertRaises(Exception):
+                build_parser().parse_args([
+                    "--project-root", "/project", "task", command,
+                    "--input-file", "request.json", "--user-config-root", "/config", "--summary",
+                ])
+
+    def test_spec_verify_arguments_parse(self):
+        arguments = build_parser().parse_args([
+            "--project-root", "/project", "task", "spec-verify",
+            "--input-file", "request.json", "--user-config-root", "/config",
+        ])
+        self.assertEqual(arguments.task_command, "spec-verify")
+        self.assertEqual(arguments.input_file, "request.json")
+
     def test_draft_preparation_commands_use_file_transport(self):
         from artifacts import test_task_draft_prepare as fixtures
         fixture = fixtures.DraftPreparationTests()

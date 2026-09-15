@@ -34,6 +34,24 @@ class ProgressStorageTests(unittest.TestCase):
         self.assertEqual(list(self.root.iterdir()), [])
         result["progress"]["notes"].append("Caller edit")
         self.assertEqual(content, original)
+        self.assertEqual(result["source_validation"], "not_checked")
+        self.assertEqual(result["evidence_trust"], "historical_context_only")
+        self.assertEqual(result["formal_readiness"], "not_established")
+
+    def test_formal_looking_context_remains_unverified_historical_evidence(self):
+        content = self.content()
+        content["context"] = {
+            "plan_sha256": "a" * 64, "task_raw_sha256": "b" * 64,
+            "status": "valid", "approved_sha256": "c" * 64,
+        }
+        prepared = self.prepare(content)
+        validated = preview_progress(self.root, prepared["progress"], expected_revision=0)
+        for result in (prepared, validated):
+            self.assertEqual(result["source_validation"], "not_checked")
+            self.assertEqual(result["evidence_trust"], "historical_context_only")
+            self.assertEqual(result["formal_readiness"], "not_established")
+        self.assertEqual(prepared["progress"]["context"], content["context"])
+        self.assertEqual(list(self.root.iterdir()), [])
 
     def test_prepare_second_revision_saves_through_existing_api(self):
         first = self.save()
