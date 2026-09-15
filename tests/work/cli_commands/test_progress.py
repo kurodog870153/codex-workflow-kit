@@ -33,9 +33,15 @@ class ProgressCliTests(FileInputTestCase):
             "--requirement-id", "example", "--mode", "plan", "--expected-revision", "0", payload=content)
         self.assertEqual(prepared["schema"], "work-progress-prepare/v1")
         self.assertEqual(prepared["progress"], self.progress)
+        self.assertEqual(prepared["source_validation"], "not_checked")
+        self.assertEqual(prepared["evidence_trust"], "historical_context_only")
+        self.assertEqual(prepared["formal_readiness"], "not_established")
         validated = self.cli("progress", "validate", "--input-file", "request.json",
             "--expected-revision", "0", payload=prepared["progress"])
         self.assertEqual(prepared["approved_sha256"], validated["approved_sha256"])
+        self.assertEqual(validated["source_validation"], "not_checked")
+        self.assertEqual(validated["evidence_trust"], "historical_context_only")
+        self.assertEqual(validated["formal_readiness"], "not_established")
         self.assertEqual(list(self.root.iterdir()), [])
         self.cli("progress", "save", "--input-file", "request.json", "--expected-revision", "0",
             "--approved-sha256", prepared["approved_sha256"], payload=prepared["progress"])

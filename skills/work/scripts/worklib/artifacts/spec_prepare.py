@@ -14,7 +14,10 @@ from ..foundation.paths import validate_artifact_paths
 from ..foundation.spec_update import storage_path, require_no_spec_update, require_idle_writer
 
 
-PLAN_FIELDS = {"title", "summary", "goals", "scope", "deliverables", "acceptance_criteria"}
+PLAN_FIELDS = {
+    "title", "summary", "goals", "scope", "constraints", "dependencies",
+    "risks", "milestones", "deliverables", "acceptance_criteria", "decisions",
+}
 TASK_FIELDS = {"title", "summary", "decisions", "execution_defaults"}
 ROW_FIELDS = {"title", "goal", "traceability", "dependencies", "steps", "validations", "commands", "operations"}
 
@@ -66,41 +69,57 @@ def prepare_specification(raw_request: bytes, *, project_root: Path,
     seen = set()
     plan_changes = []
     today = date.today().isoformat()
-    for edit in edits:
-        edit = strict_keys(edit, location="edit", required={"artifact", "field", "before", "after"},
+    for edit_index, edit in enumerate(edits):
+        location = f"edits[{edit_index}]"
+        edit = strict_keys(edit, location=location, required={"artifact", "field", "before", "after"},
                            optional={"task_id", "affected_ids"})
-        artifact = nonempty_string(edit["artifact"], location="edit.artifact")
-        field = nonempty_string(edit["field"], location="edit.field")
+        artifact = nonempty_string(edit["artifact"], location=location + ".artifact")
+        field = nonempty_string(edit["field"], location=location + ".field")
         task_id = edit.get("task_id")
         if task_id is not None:
-            nonempty_string(task_id, location="edit.task_id")
+            nonempty_string(task_id, location=location + ".task_id")
+        details = {"edit_index": edit_index, "location": location, "artifact": artifact,
+                   "task_id": task_id, "field": field}
         identity = (artifact, task_id, field)
         if identity in seen:
-            raise _error("spec_prepare_duplicate", "Replace each field only once.")
+            raise _error("spec_prepare_duplicate", "Replace each field only once.", **details)
         seen.add(identity)
-        if artifact == "plan" and task_id is None and field in (PLAN_FIELDS | ({"work_instruction_selection"} if migration else set())):
+        plan_fields = PLAN_FIELDS | ({"work_instruction_selection"} if migration else set())
+        if artifact not in {"plan", "task"}:
+            raise _error("spec_prepare_artifact", "Only Plan and TASK artifacts are editable through preparation.",
+                         **details, allowed_artifacts=["plan", "task"])
+        if artifact == "plan" and task_id is not None:
+            raise _error("spec_prepare_plan_task_id", "Plan edits cannot select a TASK row.", **details)
+        if artifact == "task" and "affected_ids" in edit:
+            raise _error("spec_prepare_task_affected_ids", "affected_ids is only valid for Plan edits.", **details)
+        if artifact == "plan" and field in plan_fields:
             target = plan
             if "affected_ids" not in edit:
-                raise _error("spec_prepare_plan_evidence", "Plan edits require confirmed affected_ids.")
+                raise _error("spec_prepare_plan_evidence", "Plan edits require confirmed affected_ids.", **details)
             plan_changes.append(edit)
-        elif artifact == "task" and "affected_ids" not in edit:
+        elif artifact == "task":
             target = task
             allowed = TASK_FIELDS
             if task_id is not None:
                 matches = [row for row in task["tasks"] if row["id"] == task_id]
                 if len(matches) != 1:
-                    raise _error("spec_prepare_task_id", "Unknown TASK ID.")
+                    raise _error("spec_prepare_task_id", "Unknown TASK ID.", **details)
                 target, allowed = matches[0], ROW_FIELDS
             if migration:
                 allowed = allowed | {"instruction_selection"}
             if field not in allowed:
-                raise _error("spec_prepare_field", "This field is not editable through preparation.")
+                raise _error("spec_prepare_field", "This field is not editable through preparation.",
+                             **details, allowed_fields=sorted(allowed))
         else:
-            raise _error("spec_prepare_field", "This artifact or field is not editable through preparation.")
+            raise _error("spec_prepare_field", "This field is not editable through preparation.",
+                         **details, allowed_fields=sorted(plan_fields))
         if field not in target or _json(target[field]) != _json(edit["before"]):
-            raise _error("spec_prepare_old_value", "The expected existing field value does not match.")
+            evidence = dict(details, field_present=field in target)
+            if field in target:
+                evidence["actual_sha256"] = raw_sha256(_json(target[field]))
+            raise _error("spec_prepare_old_value", "The expected existing field value does not match.", **evidence)
         if _json(edit["before"]) == _json(edit["after"]):
-            raise _error("spec_prepare_unchanged", "Each replacement must change its field.")
+            raise _error("spec_prepare_unchanged", "Each replacement must change its field.", **details)
         target[field] = copy.deepcopy(edit["after"])
     if plan_changes:
         history = plan.setdefault("changes", [])
@@ -140,5 +159,15 @@ def prepare_specification(raw_request: bytes, *, project_root: Path,
         # Exclusive creation cannot overwrite an input or a formal artifact.
         with Path(output_file).open("xb") as stream:
             stream.write(_json(prepared))
-    return {"schema": "work-migration-prepare/v1" if migration else "work-spec-prepare/v1", "request": prepared, "preview": preview,
-            "output_file": output_file}
+    validate_command = "task migrate-validate" if migration else "task spec-validate"
+    return {
+        "schema": "work-migration-prepare/v1" if migration else "work-spec-prepare/v1",
+        "request": prepared,
+        "preview": preview,
+        "output_file": output_file,
+        "transport": {
+            "request_field": "request", "request_schema": prepared["schema"],
+            "output_file": output_file,
+        },
+        "next_step": {"command": validate_command, "input": "request"},
+    }

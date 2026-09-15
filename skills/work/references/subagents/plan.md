@@ -2,7 +2,7 @@
 
 Required runtime configuration:
 
-1. Model: `gpt-6-astra`
+1. Model: `gpt-5.6-sol`
 2. Reasoning effort: `low`
 
 Read and apply [the shared private role rules](../instruction-loading.md#shared-private-role-rules) before accepting work. The delegating parent or coordinator must supply that shared source with this prompt.

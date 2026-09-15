@@ -139,12 +139,37 @@ class SpecificationUpdateTests(FileInputTestCase):
             project_root=self.root, user_config_root=str(self.root))
         self.assertEqual(before, self.snapshot())
         self.assertEqual(result["preview"]["affected_task_ids"], ["TASK-001", "TASK-002"])
+        self.assertEqual(result["preview"]["changed_fields"], ["/tasks/TASK-001/goal"])
         self.assertEqual(result["request"]["task"]["spec_id"], "TASK-SPEC-002")
         self.assertEqual(result["preview"], self.run_update(result["request"]))
         published = self.run_update(result["request"], "apply", result["preview"]["approved_sha256"])
         self.assertEqual(published["status"], "updated")
+        self.assertEqual(published["next_step"], {
+            "command": "task spec-verify", "input": "verification_request",
+        })
+        self.assertEqual(published["verification_request"]["record_id"], published["record_id"])
         self.assertEqual(json.loads(self.task_path.read_bytes())["tasks"][0]["goal"], "交付確認結果")
         self.assertEqual(json.loads(self.index_path.read_bytes())["task_spec_id"], "TASK-SPEC-002")
+
+    def test_changed_fields_use_stable_plan_task_and_row_paths(self):
+        request = self.request()
+        request["task"]["summary"] = "Revised task summary"
+        original = json.loads(self.task_path.read_bytes())
+        request["task"]["changes"][0]["edits"] = [
+            {"operation": "replace", "path": "/" + key,
+             "before": original[key], "after": request["task"][key]}
+            for key in sorted(original)
+            if key not in {"spec_id", "readiness", "changes"} and original[key] != request["task"][key]
+        ]
+        result = self.run_update(request)
+        self.assertEqual(result["changed_fields"], [
+            "/plan/summary", "/task/source_plan", "/task/summary",
+        ])
+        self.assertNotIn("/plan/changes", result["changed_fields"])
+        self.assertEqual(result["next_step"], {
+            "command": "task spec-update", "input": "same_request",
+            "approved_sha256": result["approved_sha256"],
+        })
 
     def test_prepare_plan_cli_utf8_file(self):
         request = self.prepare_request()
@@ -353,7 +378,15 @@ class SpecificationUpdateTests(FileInputTestCase):
         self.assertEqual(preview["candidate"]["task"]["source_plan"]["canonical_sha256"],
                          digest(render_plan_contract(request["plan"])))
         self.assertEqual(preview["file_readiness"], "requires_execute_preflight")
-        self.assertEqual(self.run_migration(request, "apply", preview["approved_sha256"])["status"], "updated")
+        published = self.run_migration(request, "apply", preview["approved_sha256"])
+        self.assertEqual(published["status"], "updated")
+        self.assertEqual(published["verification_request"], {
+            "schema": "work-migration-verify-request/v1", "requirement_id": "example",
+            "artifacts": self.artifacts, "record_id": preview["record_id"],
+        })
+        self.assertEqual(published["next_step"], {
+            "command": "task migrate-verify", "input": "verification_request",
+        })
         validation = validate_task_contract(self.task_path.read_bytes(), source="repaired TASK",
             actual_task_path=self.artifacts["task"], project_root=self.root, user_config_root=str(self.root))
         index = json.loads(self.index_path.read_bytes())

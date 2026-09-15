@@ -81,6 +81,9 @@ def preview_progress(
         "expected_revision": expected_revision,
         "approved_sha256": hashlib.sha256(render_json_contract(binding)).hexdigest(),
         "progress": progress,
+        "source_validation": "not_checked",
+        "evidence_trust": "historical_context_only",
+        "formal_readiness": "not_established",
     }
 
 
