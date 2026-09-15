@@ -8,6 +8,8 @@ from .errors import ExitCode, WorkError
 
 
 REQUIREMENT_ID_PATTERN = re.compile(r"^[a-z0-9._-]+$")
+WORKFLOW_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+TRANSACTION_ID_PATTERN = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$")
 WINDOWS_DEVICES = {
     "CON",
     "PRN",
@@ -87,6 +89,57 @@ def validate_requirement_id(requirement_id: str) -> str:
         )
     _validate_segment(requirement_id, field="requirement_id")
     return requirement_id
+
+
+def validate_workflow_id(workflow_id: str) -> str:
+    if not isinstance(workflow_id, str) or not WORKFLOW_ID_PATTERN.fullmatch(workflow_id):
+        raise WorkError(
+            ExitCode.CONTRACT,
+            "invalid_workflow_id",
+            "The workflow ID must use lowercase alphanumeric words separated by hyphens.",
+            {"workflow_id": workflow_id},
+        )
+    _validate_segment(workflow_id, field="workflow_id")
+    return workflow_id
+
+
+def validate_transaction_id(transaction_id: str) -> str:
+    if not isinstance(transaction_id, str) or not TRANSACTION_ID_PATTERN.fullmatch(transaction_id):
+        raise WorkError(
+            ExitCode.CONTRACT,
+            "invalid_transaction_id",
+            "The transaction ID must use UTC YYYYMMDDTHHMMSSZ followed by an eight-character lowercase hexadecimal suffix.",
+            {"transaction_id": transaction_id},
+        )
+    _validate_segment(transaction_id, field="transaction_id")
+    return transaction_id
+
+
+def transaction_directory(
+    project_root: Path,
+    *,
+    requirement_id: str | None,
+    workflow_id: str,
+    transaction_id: str,
+) -> tuple[str, Path]:
+    if requirement_id is None:
+        owner = "pending"
+    else:
+        owner = validate_requirement_id(requirement_id)
+        if owner == "pending":
+            raise WorkError(
+                ExitCode.CONTRACT,
+                "reserved_transaction_owner",
+                "The pending transaction owner is reserved for work without a requirement ID.",
+                {"requirement_id": requirement_id},
+            )
+    workflow_id = validate_workflow_id(workflow_id)
+    transaction_id = validate_transaction_id(transaction_id)
+    return resolve_project_relative_path(
+        project_root,
+        f"outputs/work/transactions/{owner}/{workflow_id}/{transaction_id}",
+        field="transaction_directory",
+    )
 
 
 def normalize_relative_path(raw_path: str, *, field: str = "path") -> str:

@@ -16,8 +16,11 @@ from worklib.foundation.paths import (
     portable_path_identity,
     resolve_project_relative_path,
     resolve_root,
+    transaction_directory,
     validate_artifact_paths,
     validate_requirement_id,
+    validate_transaction_id,
+    validate_workflow_id,
 )
 
 
@@ -51,6 +54,48 @@ class PathTests(unittest.TestCase):
                 with self.assertRaises(WorkError) as context:
                     validate_requirement_id(value)
 
+                self.assertEqual(context.exception.code, expected_code)
+
+    def test_transaction_directory_uses_requirement_or_pending_owner(self) -> None:
+        transaction_id = "20260915T103000Z-a1b2c3d4"
+        normalized, resolved = transaction_directory(
+            self.project_root,
+            requirement_id="feature-1",
+            workflow_id="migration",
+            transaction_id=transaction_id,
+        )
+        self.assertEqual(
+            normalized,
+            f"outputs/work/transactions/feature-1/migration/{transaction_id}",
+        )
+        self.assertEqual(resolved, self.project_root.joinpath(*normalized.split("/")))
+
+        pending, _ = transaction_directory(
+            self.project_root,
+            requirement_id=None,
+            workflow_id="invocation",
+            transaction_id=transaction_id,
+        )
+        self.assertEqual(
+            pending,
+            f"outputs/work/transactions/pending/invocation/{transaction_id}",
+        )
+
+    def test_transaction_segments_reject_unsafe_or_ambiguous_values(self) -> None:
+        self.assertEqual(validate_workflow_id("specification-update"), "specification-update")
+        self.assertEqual(
+            validate_transaction_id("20260915T103000Z-a1b2c3d4"),
+            "20260915T103000Z-a1b2c3d4",
+        )
+        cases = (
+            ({"requirement_id": "pending", "workflow_id": "migration", "transaction_id": "20260915T103000Z-a1b2c3d4"}, "reserved_transaction_owner"),
+            ({"requirement_id": "feature-1", "workflow_id": "../migration", "transaction_id": "20260915T103000Z-a1b2c3d4"}, "invalid_workflow_id"),
+            ({"requirement_id": "feature-1", "workflow_id": "migration", "transaction_id": "migration-001"}, "invalid_transaction_id"),
+        )
+        for arguments, expected_code in cases:
+            with self.subTest(arguments=arguments):
+                with self.assertRaises(WorkError) as context:
+                    transaction_directory(self.project_root, **arguments)
                 self.assertEqual(context.exception.code, expected_code)
 
     def test_normalizes_relative_separators_and_rejects_unsafe_paths(self) -> None:
