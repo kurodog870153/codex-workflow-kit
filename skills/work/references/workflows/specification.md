@@ -159,6 +159,69 @@ For migration use the migration commands below with the same publication and rec
 4. If the original Plan binding is broken, supply the existing `source_plan_repair` object with the explicitly reviewed `recorded_sha256`, `actual_sha256` and `review`. Preparation never invents acceptance or fills these hashes. A preflight binding blocker is retained in the response; the migration validator checks the narrow repair exception and all other prerequisites before returning any candidate.
 5. Review `request`, `preview` and `preflight`. The preview includes affected TASK states, current Execute selections and `approved_sha256`. The output file contains only `request`; without that file, transport `data.request` unchanged to `migrate-validate`/`migrate`, never the surrounding response. Source drift, stale edits, invalid reviews, active writers and unfinished transactions block preparation. Approval and authorized recovery follow the existing migration procedure.
 
+### Windows migration command sequence
+
+On Windows PowerShell, invoke the installed Python CLI directly and keep JSON in
+UTF-8 files. Replace every placeholder below with the same confirmed paths and
+repeat every confirmed `--skill-root` argument on each command that accepts it.
+Do not reconstruct candidates from an earlier response or transport JSON through
+PowerShell interpolation, redirection or pipelines.
+
+1. Save a `work-migration-preflight-request/v1` file containing the confirmed
+   requirement ID and Plan, TASK and execution paths, then inspect the baseline:
+
+   ```text
+   py -3 "C:\skills\work\scripts\work.py" --project-root "C:\project" task migrate-preflight --input-file "C:\scratch\migration-preflight.json" --user-config-root "C:\user-config"
+   ```
+
+2. After review, create a fresh `work-migration-prepare-request/v1` file. TASK
+   edits contain `artifact`, optional `task_id`, `field`, exact current `before`
+   and reviewed `after`; they must not contain `affected_ids`. Only Plan edits
+   require confirmed `affected_ids`. Use preparation to create the complete
+   migration request instead of copying or editing an old candidate:
+
+   ```text
+   py -3 "C:\skills\work\scripts\work.py" --project-root "C:\project" task migrate-prepare --input-file "C:\scratch\migration-edits.json" --output-file "C:\scratch\migration-request.json" --user-config-root "C:\user-config"
+   ```
+
+   A stale `before` is not repairable by changing a fingerprint. Reload the
+   current formal artifact, review the actual field, and prepare a new edits file.
+   Validate JSON with the installed Python JSON support when an independent parse
+   check is needed. Windows PowerShell `ConvertFrom-Json` does not accept `-Depth`;
+   do not depend on that parameter or manually repair trailing commas.
+
+3. Validate exactly the request file created by preparation and review the full
+   response, including all candidates and its `approved_sha256`:
+
+   ```text
+   py -3 "C:\skills\work\scripts\work.py" --project-root "C:\project" task migrate-validate --input-file "C:\scratch\migration-request.json" --user-config-root "C:\user-config"
+   ```
+
+4. After explicit approval of that exact validation result, publish with the
+   identical request, roots and approval fingerprint. Any regenerated request or
+   source change requires validation and approval again:
+
+   ```text
+   py -3 "C:\skills\work\scripts\work.py" --project-root "C:\project" task migrate --input-file "C:\scratch\migration-request.json" --user-config-root "C:\user-config" --approved-sha256 "<approved-sha256>"
+   ```
+
+5. Preserve `data.verification_request` from the successful publish response as
+   an unchanged UTF-8 JSON file using the caller's trusted JSON serializer. Do not
+   reuse `migration-request.json`, the preparation response or a hand-built record
+   ID. Run verification with that distinct request:
+
+   ```text
+   py -3 "C:\skills\work\scripts\work.py" --project-root "C:\project" task migrate-verify --input-file "C:\scratch\migration-verification.json" --user-config-root "C:\user-config"
+   ```
+
+6. Only after verification returns `verified: true`, resume the separately
+   authorized execution workflow. Execute preflight still requires the confirmed
+   user configuration root; migration verification does not supply or default it:
+
+   ```text
+   py -3 "C:\skills\work\scripts\work.py" --project-root "C:\project" execute preflight --task-path "outputs\work\tasks\example.json" --execution-dir "outputs\work\execution\example" --task-id "TASK-001" --user-config-root "C:\user-config"
+   ```
+
 ## Migration verification
 
 1. After a successful migration or its explicitly authorized recovery, run the read-only `task migrate-verify --input-file "<request-path>" --user-config-root "<user-config-root>"` with the same global project root and confirmed skill-root arguments. The request contains exactly `schema: "work-migration-verify-request/v1"`, `requirement_id`, the three confirmed `artifacts` paths and `record_id: "SPEC-UPDATE-nnn"`. Use the actual returned record ID; do not infer it from filenames or increment it. Input remains UTF-8 with no BOM or one leading BOM.

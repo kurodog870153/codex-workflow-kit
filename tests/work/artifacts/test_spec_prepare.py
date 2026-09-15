@@ -52,6 +52,15 @@ class SpecificationPreparationTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "spec_prepare_plan_evidence")
         self.assertEqual(self.fixture.snapshot(), before)
 
+    def test_invalid_schema_reports_expected_preparation_schema(self):
+        request = self.fixture.prepare_request()
+        request["schema"] = "work-spec-update-request/v1"
+        with self.assertRaises(WorkError) as caught:
+            self.prepare(request)
+        self.assertEqual(caught.exception.code, "spec_prepare_schema")
+        self.assertEqual(caught.exception.details["expected_schema"], "work-spec-prepare-request/v1")
+        self.assertIn("preparation request schema", caught.exception.details["hint"])
+
     def test_prepared_transport_revalidates_to_identical_approval(self):
         before = self.fixture.snapshot()
         result = self.prepare(self.fixture.prepare_request())
@@ -109,6 +118,8 @@ class SpecificationPreparationTests(unittest.TestCase):
                 self.assertEqual(caught.exception.details["location"], "edits[0]")
                 if code == "spec_prepare_field":
                     self.assertIn("goal", caught.exception.details["allowed_fields"])
+                if code == "spec_prepare_task_affected_ids":
+                    self.assertIn("Remove affected_ids", caught.exception.details["hint"])
 
     def test_stale_before_reports_field_fingerprint_without_value(self):
         request = self.fixture.prepare_request()
@@ -120,3 +131,4 @@ class SpecificationPreparationTests(unittest.TestCase):
         self.assertEqual(caught.exception.details["field"], "goal")
         self.assertEqual(len(caught.exception.details["actual_sha256"]), 64)
         self.assertNotIn("actual", caught.exception.details)
+        self.assertIn("Reload the formal artifact", caught.exception.details["hint"])
