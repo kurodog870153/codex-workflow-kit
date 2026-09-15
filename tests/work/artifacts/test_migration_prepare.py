@@ -99,6 +99,15 @@ class MigrationPreparationTests(unittest.TestCase):
         self.assertEqual(caught.exception.details["edit_index"], 1)
         self.assertEqual(caught.exception.details["task_id"], "TASK-002")
         self.assertEqual(caught.exception.details["field"], "validations")
+        self.assertIn("only Plan edits", caught.exception.details["hint"])
+
+    def test_invalid_schema_reports_expected_migration_preparation_schema(self):
+        request = self.request()
+        request["schema"] = "work-spec-migration-request/v1"
+        with self.assertRaises(WorkError) as caught:
+            self.prepare(request)
+        self.assertEqual(caught.exception.code, "spec_prepare_schema")
+        self.assertEqual(caught.exception.details["expected_schema"], "work-migration-prepare-request/v1")
 
     def test_missing_and_stale_repair_evidence_are_rejected(self):
         request = self.request(repair=True)

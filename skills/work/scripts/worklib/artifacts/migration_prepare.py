@@ -51,7 +51,9 @@ def prepare_migration(raw_request, *, project_root, user_config_root, skill_root
         "schema", "plan_path", "reason", "edits", "instruction_choices", "instruction_review",
     }, optional={"source_plan_repair"})
     if request["schema"] != "work-migration-prepare-request/v1":
-        raise _error("spec_prepare_schema", "Invalid migration preparation schema.")
+        raise _error("spec_prepare_schema", "Invalid migration preparation schema.",
+                     expected_schema="work-migration-prepare-request/v1",
+                     hint="Use the preparation request schema for the selected command.")
     plan = _decode(storage_path(project_root, request["plan_path"]).read_bytes())
     options = dict(project_root=project_root, user_config_root=user_config_root, skill_roots=skill_roots)
     preflight = migration_preflight(_json({"schema": "work-migration-preflight-request/v1",

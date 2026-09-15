@@ -30,8 +30,11 @@ def prepare_specification(raw_request: bytes, *, project_root: Path,
         "schema", "plan_path", "reason", "edits",
     } | ({"instruction_review", "instruction_choices"} if migration else set()),
         optional={"source_plan_repair"} if migration else set())
-    if request["schema"] != ("work-migration-prepare-request/v1" if migration else "work-spec-prepare-request/v1"):
-        raise _error("spec_prepare_schema", "Invalid specification preparation schema.")
+    expected_schema = "work-migration-prepare-request/v1" if migration else "work-spec-prepare-request/v1"
+    if request["schema"] != expected_schema:
+        raise _error("spec_prepare_schema", "Invalid specification preparation schema.",
+                     expected_schema=expected_schema,
+                     hint="Use the preparation request schema for the selected command.")
     nonempty_string(request["reason"], location="reason")
     plan_path = nonempty_string(request["plan_path"], location="plan_path")
     original_plan = storage_path(project_root, plan_path).read_bytes()
@@ -91,7 +94,9 @@ def prepare_specification(raw_request: bytes, *, project_root: Path,
         if artifact == "plan" and task_id is not None:
             raise _error("spec_prepare_plan_task_id", "Plan edits cannot select a TASK row.", **details)
         if artifact == "task" and "affected_ids" in edit:
-            raise _error("spec_prepare_task_affected_ids", "affected_ids is only valid for Plan edits.", **details)
+            raise _error("spec_prepare_task_affected_ids", "affected_ids is only valid for Plan edits.",
+                         **details,
+                         hint="Remove affected_ids from the TASK edit; only Plan edits require confirmed affected_ids.")
         if artifact == "plan" and field in plan_fields:
             target = plan
             if "affected_ids" not in edit:
@@ -117,7 +122,9 @@ def prepare_specification(raw_request: bytes, *, project_root: Path,
             evidence = dict(details, field_present=field in target)
             if field in target:
                 evidence["actual_sha256"] = raw_sha256(_json(target[field]))
-            raise _error("spec_prepare_old_value", "The expected existing field value does not match.", **evidence)
+            raise _error("spec_prepare_old_value", "The expected existing field value does not match.",
+                         **evidence,
+                         hint="Reload the formal artifact, review the current field, and rebuild the preparation request.")
         if _json(edit["before"]) == _json(edit["after"]):
             raise _error("spec_prepare_unchanged", "Each replacement must change its field.", **details)
         target[field] = copy.deepcopy(edit["after"])
