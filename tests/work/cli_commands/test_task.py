@@ -22,6 +22,37 @@ from worklib.foundation.errors import ExitCode
 
 
 class TaskCliTests(FileInputTestCase):
+    def test_validate_file_dispatches_collection_loader(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            result = {"schema": "work-task-collection-validation/v2"}
+            with patch(
+                "worklib.cli_commands.task.load_task_artifact",
+                return_value=result,
+            ) as load:
+                output, error = io.StringIO(), io.StringIO()
+                code = main(
+                    [
+                        "--project-root",
+                        str(root),
+                        "task",
+                        "validate",
+                        "--user-config-root",
+                        str(root),
+                        "--path",
+                        "outputs/work/tasks/example/index.json",
+                    ],
+                    stdout=output,
+                    stderr=error,
+                )
+
+            self.assertEqual((code, error.getvalue()), (ExitCode.SUCCESS, ""))
+            load.assert_called_once_with(
+                root,
+                str(root),
+                "outputs/work/tasks/example/index.json",
+                skill_roots=[],
+            )
     def test_specification_summary_omits_complete_candidates(self):
         preview = {
             "schema": "work-spec-update/v1", "status": "valid", "record_id": "SPEC-UPDATE-002",
@@ -83,6 +114,26 @@ class TaskCliTests(FileInputTestCase):
         ])
         self.assertEqual(arguments.task_command, "spec-verify")
         self.assertEqual(arguments.input_file, "request.json")
+
+    def test_layout_migration_commands_are_distinct_and_parse(self):
+        commands = ("layout-preflight", "layout-prepare", "layout-validate", "layout-apply", "layout-recover", "layout-verify")
+        for command in commands:
+            with self.subTest(command=command):
+                arguments = [
+                    "--project-root", "/project", "task", command,
+                    "--input-file", "request.json", "--user-config-root", "/config",
+                ]
+                if command in {"layout-apply", "layout-recover"}:
+                    arguments.extend(["--approved-sha256", "a" * 64])
+                parsed = build_parser().parse_args(arguments)
+                self.assertEqual(parsed.task_command, command)
+        self.assertEqual(
+            build_parser().parse_args([
+                "--project-root", "/project", "task", "migrate-preflight",
+                "--input-file", "request.json", "--user-config-root", "/config",
+            ]).task_command,
+            "migrate-preflight",
+        )
 
     def test_draft_preparation_commands_use_file_transport(self):
         from artifacts import test_task_draft_prepare as fixtures
@@ -178,6 +229,9 @@ class TaskCliTests(FileInputTestCase):
     def test_assembly_commands_dispatch_metadata_and_approval(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
+            plan = root / "outputs/work/plans/example.json"
+            plan.parent.mkdir(parents=True)
+            plan.write_text(json.dumps({"artifacts": {"task": "outputs/work/tasks/example/index.json"}}), encoding="utf-8")
             for command, name in (("draft-assemble", "assemble_task_drafts"), ("draft-create", "create_task_from_drafts")):
                 with self.subTest(command=command):
                     output, error = io.StringIO(), io.StringIO()
@@ -308,6 +362,54 @@ class TaskCliTests(FileInputTestCase):
             "outputs/work/executions/example",
         )
 
+    def test_v2_create_and_recover_create_dispatch(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            common = [
+                "--project-root", str(root), "task", "COMMAND",
+                "--user-config-root", str(root), "--input-file", "request.json",
+                "--plan-path", "outputs/work/plans/example.json",
+                "--task-path", "outputs/work/tasks/example/index.json",
+                "--execution-dir", "outputs/work/executions/example",
+            ]
+            for command, operation_name in (("create", "create_task_artifacts"), ("recover-create", "recover_task_create")):
+                with self.subTest(command=command):
+                    arguments = [command if value == "COMMAND" else value for value in common]
+                    result = {"schema": "work-task-create/v2", "status": "created"}
+                    output, error = io.StringIO(), io.StringIO()
+                    with patch("worklib.cli_commands.task." + operation_name, return_value=result) as operation:
+                        code = main(self.input_arguments(arguments, "{}"), stdout=output, stderr=error)
+                    self.assertEqual((code, error.getvalue()), (ExitCode.SUCCESS, ""))
+                    self.assertEqual(json.loads(output.getvalue())["data"], result)
+                    self.assertEqual(operation.call_args.kwargs["raw_task_path"], "outputs/work/tasks/example/index.json")
+
+    def test_v1_write_commands_require_layout_migration_before_dispatch(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            plan_path = root / "outputs/work/plans/example.json"
+            plan_path.parent.mkdir(parents=True)
+            legacy_artifacts = {
+                "plan": "outputs/work/plans/example.json",
+                "task": "outputs/work/tasks/example/task.json",
+                "execution": "outputs/work/executions/example",
+            }
+            plan_path.write_text(json.dumps({"artifacts": legacy_artifacts}), encoding="utf-8")
+            cases = [
+                ("create_task_artifacts", ["create", "--input-file", "request.json", "--plan-path", legacy_artifacts["plan"], "--task-path", legacy_artifacts["task"], "--execution-dir", legacy_artifacts["execution"]], {}),
+                ("prepare_specification", ["spec-prepare", "--input-file", "request.json"], {"plan_path": legacy_artifacts["plan"]}),
+                ("update_specification", ["spec-validate", "--input-file", "request.json"], {"plan": {"artifacts": legacy_artifacts}}),
+                ("repair_task", ["repair-validate", "--input-file", "request.json"], {"artifacts": legacy_artifacts}),
+            ]
+            for operation_name, arguments, payload in cases:
+                with self.subTest(command=arguments[0]), patch("worklib.cli_commands.task." + operation_name) as operation:
+                    output = io.StringIO()
+                    code = main(self.input_arguments([
+                        "--project-root", str(root), "task", *arguments,
+                        "--user-config-root", str(root),
+                    ], json.dumps(payload)), stdout=output, stderr=io.StringIO())
+                    self.assertEqual(code, ExitCode.WORKFLOW_STATE)
+                    self.assertEqual(json.loads(output.getvalue())["reason_code"], "task_layout_migration_required")
+                    operation.assert_not_called()
     def test_validate_input_file_requires_task_path(self) -> None:
         with tempfile.TemporaryDirectory() as project_directory:
             stdout = io.StringIO()

@@ -12,6 +12,7 @@ sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.foundation import spec_transactions as transactions
 from worklib.foundation.errors import ExitCode, WorkError
+from worklib.contracts.spec_transaction import encode_snapshot, transaction_approval_sha256
 
 
 class SpecificationTransactionTests(unittest.TestCase):
@@ -93,3 +94,52 @@ class SpecificationTransactionTests(unittest.TestCase):
         with patch.object(transactions.os, "replace", side_effect=changed):
             self.assert_code("spec_update_write_mismatch", self.replace)
         self.assertEqual(self.path.read_bytes(), b"external")
+
+    def journal(self):
+        metadata = {"request": {"schema": "test/v1"}, "artifacts": {}, "affected_task_ids": ["TASK-001"], "history_sha256": {}, "source_sha256": {}, "candidate_sha256": {}}
+        files = [
+            {"phase": 10, "path": "a.json", "operation": "replace", "before": encode_snapshot(b"old-a"), "after": encode_snapshot(b"new-a")},
+            {"phase": 20, "path": "b.json", "operation": "replace", "before": encode_snapshot(b"old-b"), "after": encode_snapshot(b"new-b")},
+        ]
+        return {"schema": "work-spec-transaction/v2", "transaction_id": "SPEC-UPDATE-002", "approval_sha256": transaction_approval_sha256(files, metadata), "state": "prepared", "published_count": 0, "metadata": metadata, "files": files}
+
+    def test_multi_file_publish_and_idempotent_recovery(self):
+        (self.root / "a.json").write_bytes(b"old-a")
+        (self.root / "b.json").write_bytes(b"old-b")
+        journal = self.root / "journal.json"
+        marker = self.root / "journal.json.done"
+        transactions.write_journal(journal, self.journal())
+        result = transactions.publish_journal(self.root, "journal.json", "journal.json.done")
+        self.assertEqual(result["status"], "published")
+        self.assertEqual((self.root / "a.json").read_bytes(), b"new-a")
+        self.assertEqual((self.root / "b.json").read_bytes(), b"new-b")
+        self.assertEqual(transactions.publish_journal(self.root, "journal.json", "journal.json.done")["status"], "already_published")
+
+    def test_interruption_recovery_and_concurrent_change(self):
+        for changed in (False, True):
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "a.json").write_bytes(b"old-a")
+                (root / "b.json").write_bytes(b"old-b")
+                transactions.write_journal(root / "journal.json", self.journal())
+                original = transactions._replace_journal
+                calls = 0
+                def interrupt(*args, **kwargs):
+                    nonlocal calls
+                    calls += 1
+                    result = original(*args, **kwargs)
+                    if calls == 1:
+                        raise OSError("interrupted")
+                    return result
+                with patch.object(transactions, "_replace_journal", side_effect=interrupt), self.assertRaises(OSError):
+                    transactions.publish_journal(root, "journal.json", "journal.json.done")
+                if changed:
+                    (root / "b.json").write_bytes(b"external")
+                    self.assert_code_at_root(root, "spec_transaction_concurrent_change")
+                else:
+                    self.assertEqual(transactions.publish_journal(root, "journal.json", "journal.json.done")["status"], "published")
+
+    def assert_code_at_root(self, root, code):
+        with self.assertRaises(WorkError) as caught:
+            transactions.publish_journal(root, "journal.json", "journal.json.done")
+        self.assertEqual(caught.exception.code, code)

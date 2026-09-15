@@ -13,7 +13,7 @@ from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path
 from ..skills.catalog import SkillRoot
 from ..contracts.task import validate_task_contract
-from .context import read_contract, find_task_row, validate_execution_identity
+from .context import read_contract, find_task_row, load_lifecycle_task_context, validate_execution_identity
 from .instructions import validate_execute_instructions
 from .records import BASE_RECORD_PATTERN, next_record_id, formal_record_kind
 
@@ -143,17 +143,14 @@ def begin_record(
             files=transaction_files,
             recovery_required=True,
         )
-    task_raw = read_raw(task_path)
-    task_validation = validate_task_contract(
-        task_raw,
-        source=str(task_path),
-        actual_task_path=normalized_task,
+    normalized_task, task_path, task_contract, task_validation = load_lifecycle_task_context(
+        raw_task_path=raw_task_path,
         project_root=project_root,
         user_config_root=user_config_root,
-        validate_file_state=False,
+        task_id=task_id,
         skill_roots=skill_roots,
+        v1_validator=validate_task_contract,
     )
-    task_contract = parse_json_contract(task_raw, source=str(task_path))
     if (
         task_contract["artifacts"]["task"] != normalized_task
         or task_contract["artifacts"]["execution"] != normalized_execution

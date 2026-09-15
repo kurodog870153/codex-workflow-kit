@@ -47,7 +47,8 @@ every active TASK. It cannot supply fingerprints or upgrade a stale Plan.
     normalized, resolved = resolve_project_relative_path(project_root, plan_path, field="plan_path")
     raw_plan = read_raw(resolved)
     validation = validate_plan_contract(raw_plan, source=str(resolved), actual_plan_path=normalized,
-                                        project_root=project_root, user_config_root=user_config_root, skill_roots=skill_roots)
+                                        project_root=project_root, user_config_root=user_config_root, skill_roots=skill_roots,
+                                        _allow_task_index=True)
     if validation["requirement_id"] != requirement_id:
         raise _error("draft_source_requirement_mismatch", "The validated Plan belongs to another requirement.")
     plan = parse_json_contract(raw_plan, source=str(resolved))

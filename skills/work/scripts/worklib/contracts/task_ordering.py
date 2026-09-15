@@ -36,6 +36,7 @@ TASK_FIELD_ORDER = (
     "operations",
     "validations",
 )
+TASK_INDEX_REFERENCE_ORDER = ("id", "path", "canonical_sha256")
 
 
 def _ordered_object(value: object, order: tuple[str, ...]) -> object:
@@ -176,4 +177,29 @@ def order_task_contract(contract: dict[str, Any]) -> dict[str, Any]:
         ordered["readiness"] = _ordered_object(
             ordered["readiness"], ("status", "spec_id")
         )
+    return ordered
+
+
+def order_task_index_contract(contract: dict[str, Any]) -> dict[str, Any]:
+    raw_tasks = contract.get("tasks")
+    ordered = order_task_contract({**contract, "tasks": []})
+    ordered["tasks"] = _order_array(raw_tasks, TASK_INDEX_REFERENCE_ORDER)
+    if isinstance(ordered.get("changes"), list):
+        for change in ordered["changes"]:
+            if isinstance(change, dict):
+                change["edits"] = _order_array(
+                    change.get("edits"),
+                    ("artifact", "task_id", "operation", "path", "before", "after"),
+                )
+    return ordered
+
+
+def order_task_item_contract(contract: dict[str, Any]) -> dict[str, Any]:
+    body = {key: value for key, value in contract.items() if key != "schema"}
+    ordered_body = order_task_contract({"tasks": [body]})["tasks"][0]
+    assert isinstance(ordered_body, dict)
+    ordered: dict[str, Any] = {}
+    if "schema" in contract:
+        ordered["schema"] = contract["schema"]
+    ordered.update(ordered_body)
     return ordered

@@ -38,7 +38,10 @@ def validate_task_changes(
             "changes must be non-empty.",
         )
     previous = 0
+    previous_spec = 0
+    current_spec = int(spec_id.rsplit("-", 1)[1])
     for index, raw_change in enumerate(value):
+        latest = index == len(value) - 1
         change = strict_keys(
             raw_change,
             location=f"changes[{index}]",
@@ -53,12 +56,18 @@ def validate_task_changes(
                 "Invalid TASK change ID.",
             )
         previous = int(match.group(1))
-        if change["spec_id"] != spec_id:
+        change_spec = re.fullmatch(r"TASK-SPEC-(\d{3})", str(change["spec_id"]))
+        if (
+            not change_spec
+            or int(change_spec.group(1)) <= previous_spec
+            or int(change_spec.group(1)) > current_spec
+        ):
             raise WorkError(
                 ExitCode.CONTRACT,
                 "change_spec_mismatch",
-                "Change spec_id mismatch.",
+                "Change spec_id history must be strictly increasing through the current spec.",
             )
+        previous_spec = int(change_spec.group(1))
         try:
             date.fromisoformat(nonempty_string(change["date"], location="change.date"))
         except ValueError as error:
@@ -69,12 +78,14 @@ def validate_task_changes(
             ) from error
         nonempty_string(change["reason"], location="change.reason")
         affected = _string_array(change["affected_ids"], location="change.affected_ids")
-        if any(item_id.split("/", 1)[0] not in known_ids for item_id in affected):
+        if latest and any(item_id.split("/", 1)[0] not in known_ids for item_id in affected):
             raise WorkError(
                 ExitCode.CONTRACT,
                 "invalid_reference",
                 "Unknown affected ID.",
             )
+        if any(not re.fullmatch(r"TASK-\d{3}(?:/.*)?", item_id) for item_id in affected):
+            raise WorkError(ExitCode.CONTRACT, "invalid_reference", "Invalid affected TASK ID.")
         if "plan_change_ids" in change:
             for item_id in _string_array(
                 change["plan_change_ids"], location="change.plan_change_ids"
@@ -118,3 +129,9 @@ def validate_task_changes(
                     "invalid_json_pointer",
                     "Change path must be a JSON Pointer.",
                 )
+    if previous_spec != current_spec:
+        raise WorkError(
+            ExitCode.CONTRACT,
+            "change_spec_mismatch",
+            "The latest change must belong to the current spec.",
+        )

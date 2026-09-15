@@ -340,6 +340,13 @@ def update_specification(
     if operation not in {"validate", "apply", "recover"}:
         raise _error("spec_update_operation", "Unknown specification update operation.")
     request = _decode(raw_request)
+    if request.get("schema") == "work-spec-update-request/v2" and not migration:
+        from .specification_v2 import update_v2
+        return update_v2(
+            raw_request, project_root=project_root,
+            user_config_root=user_config_root, skill_roots=skill_roots,
+            operation=operation, approved_sha256=approved_sha256,
+        )
     # Resolve storage before accessing any journal or formal artifact.
     plan = request.get("plan")
     if not isinstance(plan, dict):

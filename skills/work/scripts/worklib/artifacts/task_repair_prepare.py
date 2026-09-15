@@ -63,6 +63,13 @@ def _apply_edits(task, edits):
 
 def prepare_task_repair(raw_request, *, project_root: Path, user_config_root: str,
                         skill_roots=None, output_file: str | None = None):
+    envelope = parse_json_contract(raw_request, source="TASK repair preparation")
+    if isinstance(envelope, dict) and envelope.get("schema") == "work-task-repair-prepare-request/v2":
+        from .task_repair_v2 import prepare_v2
+        return prepare_v2(
+            raw_request, project_root=project_root, user_config_root=user_config_root,
+            skill_roots=skill_roots, output_file=output_file,
+        )
     request = strict_keys(parse_json_contract(raw_request, source="TASK repair preparation"),
         location="task_repair_prepare", required={"schema", "stage", "requirement_id", "artifacts", "decisions"},
         optional={"task", "edits"})

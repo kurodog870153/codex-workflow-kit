@@ -337,6 +337,44 @@ Instructions
             ],
         )
 
+    def test_v2_preflight_uses_collection_fingerprints(self) -> None:
+        from tests.work.contracts.test_task_collection import TaskCollectionTests
+        from worklib.artifacts.task_collection import load_task_collection
+
+        fixture = TaskCollectionTests(
+            "test_loads_complete_v2_collection_and_v1_artifact"
+        )
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        validation = load_task_collection(
+            fixture.root, str(fixture.root), fixture.index_path
+        )
+        logical = validation["logical_contract"]
+        index = build_initial_execution_index(logical, validation)
+        execution_path = fixture.root / logical["artifacts"]["execution"]
+        execution_path.mkdir(parents=True, exist_ok=True)
+        (execution_path / "index.json").write_bytes(
+            render_execution_index(index)
+        )
+
+        result = execute_preflight(
+            project_root=fixture.root,
+            user_config_root=str(fixture.root),
+            raw_task_path=fixture.index_path,
+            raw_execution_dir=logical["artifacts"]["execution"],
+            task_id="TASK-001",
+        )
+
+        self.assertEqual(
+            result["task_collection_sha256"],
+            validation["task_collection_sha256"],
+        )
+        self.assertEqual(
+            result["task_item_sha256"],
+            validation["task_item_sha256"]["TASK-001"],
+        )
+        self.assertNotIn("task_sha256", result)
+
 
 if __name__ == "__main__":
     unittest.main()

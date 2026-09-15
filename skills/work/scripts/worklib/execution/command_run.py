@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 
 from .commands import formal_command
+from ..artifacts.task_collection import load_task_execution_context
 from .context import validate_execution_identity
 from .instructions import validate_execute_instructions
 from .records import next_record_id
@@ -59,15 +60,23 @@ def _prepare(raw, *, source, project_root, user_config_root, raw_task_path, raw_
         observed[relative] = content
         return content
 
-    task_raw = snapshot(task_relative)
-    contract = parse_json_contract(task_raw, source=task_relative)
+    task_context = load_task_execution_context(
+        project_root,
+        user_config_root,
+        task_relative,
+        task_id,
+        skill_roots=skill_roots,
+    )
+    contract = task_context["contract"]
+    validation = task_context["validation"]
+    sources = task_context["sources"]
+    assert isinstance(contract, dict) and isinstance(validation, dict)
+    assert isinstance(sources, dict)
+    observed.update(sources)
     artifacts = contract.get("artifacts", {})
     if not isinstance(artifacts, dict) or artifacts.get("task") != task_relative or artifacts.get("execution") != execution:
         _fail("command_run_paths", "Explicit paths must match the formal TASK.")
     plan_raw = snapshot(artifacts["plan"])
-    validation = validate_task_contract(task_raw, source=task_relative, actual_task_path=task_relative,
-        project_root=project_root, user_config_root=user_config_root, skill_roots=skill_roots,
-        validate_file_state=False, _source_plan_raw=plan_raw)
     task = next((row for row in contract["tasks"] if row["id"] == task_id), None)
     if task is None:
         _fail("command_run_identity", "Unknown TASK ID.")

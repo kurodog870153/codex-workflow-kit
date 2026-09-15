@@ -36,6 +36,13 @@ def completion_marker_matches(record_raw: bytes, marker_raw: bytes) -> bool:
     return marker_raw == raw_sha256(record_raw).encode("ascii") + b"\n"
 
 
+def transaction_completion_state(record_raw: bytes, marker_raw: bytes | None) -> str:
+    """Classify storage evidence without treating corrupt markers as complete."""
+    if marker_raw is None:
+        return "incomplete"
+    return "completed" if completion_marker_matches(record_raw, marker_raw) else "corrupt"
+
+
 def require_no_spec_update(root: Path, execution_dir: str, *, ignored_record: str | None = None) -> None:
     directory = storage_path(root, execution_dir)
     records = sorted([*directory.glob(".work-spec-update-*.json"), *directory.glob(".work-task-repair-*.json")])

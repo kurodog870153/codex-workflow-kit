@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ..contracts.task import validate_task_contract
+from ..artifacts.task_collection import load_task_execution_context
 from ..foundation.fingerprint import read_raw
 from ..foundation.paths import normalize_relative_path
 from ..execution.attempt_close import close_attempt
@@ -82,12 +82,12 @@ def run_execute(
     if arguments.execute_command not in {"preflight", "worktree", "recovery-prepare", "command-prepare", "command-run"}:
         task_path = storage_path(project_root, arguments.task_path)
         if task_path.is_file():
-            validate_task_contract(
-                read_raw(task_path), source=str(task_path),
-                actual_task_path=normalize_relative_path(arguments.task_path, field="task_path"),
-                project_root=project_root, user_config_root=arguments.user_config_root,
+            load_task_execution_context(
+                project_root,
+                arguments.user_config_root,
+                normalize_relative_path(arguments.task_path, field="task_path"),
+                arguments.task_id,
                 skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
-                validate_file_state=False,
             )
         directory = storage_path(project_root, arguments.execution_dir)
         # Missing artifacts are reported by the existing command validator.

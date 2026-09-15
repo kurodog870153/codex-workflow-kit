@@ -17,7 +17,7 @@ from artifacts import test_task_repair as fixtures
 from worklib.artifacts import task_repair_prepare
 from worklib.cli import main
 from worklib.contracts.execution_index import render_execution_index
-from worklib.foundation.errors import WorkError
+from worklib.foundation.errors import ExitCode, WorkError
 from worklib.foundation.spec_update import state_writer
 
 
@@ -177,17 +177,12 @@ class TaskRepairPreparationTests(FileInputTestCase):
         with self.assertRaises(WorkError):
             self.prepare(self.request())
 
-    def test_cli_output_is_request_only_and_exclusive(self):
+    def test_cli_prepare_requires_v1_layout_migration(self):
         output = self.root / "prepared.json"
         args = self.input_arguments(["--project-root", str(self.root), "task", "repair-prepare",
             "--input-file", "request.json", "--user-config-root", str(self.root), "--output-file", str(output)],
             b"\xef\xbb\xbf" + json.dumps(self.request()).encode())
         stdout = io.StringIO()
-        self.assertEqual(main(args, stdout=stdout), 0, stdout.getvalue())
-        data = json.loads(stdout.getvalue())["data"]
-        self.assertEqual(json.loads(output.read_bytes()), data["request"])
-        self.assertEqual(self.fixture.run_repair(json.loads(output.read_bytes())), data["preview"])
-        before = self.fixture.fixture.snapshot()
-        with self.assertRaises(FileExistsError):
-            self.prepare(self.request(), output_file=str(output))
-        self.assertEqual(before, self.fixture.fixture.snapshot())
+        self.assertEqual(main(args, stdout=stdout), ExitCode.WORKFLOW_STATE, stdout.getvalue())
+        self.assertEqual(json.loads(stdout.getvalue())["reason_code"], "task_layout_migration_required")
+        self.assertFalse(output.exists())
