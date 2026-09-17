@@ -12,7 +12,7 @@ sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.foundation.errors import WorkError
 from worklib.execution.instructions import validate_execute_instructions
-from worklib.instructions.selection import build_instruction_selection
+from worklib.services.instruction_selection import build_instruction_selection
 
 
 class ExecuteInstructionTests(unittest.TestCase):
@@ -43,7 +43,9 @@ class ExecuteInstructionTests(unittest.TestCase):
         self.attempt = {
             "task_spec_id": "TASK-SPEC-001",
             "task_id": "TASK-001",
-            "task_sha256": "a" * 64,
+            "task_collection_sha256": "a" * 64,
+            "task_index_sha256": "1" * 64,
+            "task_item_sha256": "2" * 64,
             "task_instructions_sha256": self.task_selection[
                 "instructions_sha256"
             ],

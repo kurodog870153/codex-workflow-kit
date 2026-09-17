@@ -45,6 +45,9 @@ class HandoffInstructionContractTests(unittest.TestCase):
                 "plan_sha256": "a" * 64,
                 "task_spec_id": "TASK-SPEC-001",
                 "task_id": "TASK-001",
+                "task_collection_sha256": "1" * 64,
+                "task_index_sha256": "2" * 64,
+                "task_item_sha256": "3" * 64,
                 "skill_selection_sha256": "d" * 64,
                 "skill_id": None,
             }
@@ -53,7 +56,9 @@ class HandoffInstructionContractTests(unittest.TestCase):
                 "stage": source_stage,
                 "task_spec_id": "TASK-SPEC-001",
                 "task_id": "TASK-001",
-                "task_sha256": "b" * 64,
+                "task_collection_sha256": "1" * 64,
+                "task_index_sha256": "2" * 64,
+                "task_item_sha256": "3" * 64,
                 "task_instructions_sha256": "c" * 64,
                 "skill_id": None,
             }
@@ -75,7 +80,7 @@ class HandoffInstructionContractTests(unittest.TestCase):
             "requirement_id": "example",
             "artifacts": {
                 "plan": "outputs/work/plans/example.json",
-                "task": "outputs/work/tasks/example/task.json",
+                "task": "outputs/work/tasks/example/index.json",
                 "execution": "outputs/work/executions/example",
             },
             "source": source,
@@ -131,21 +136,8 @@ class HandoffInstructionContractTests(unittest.TestCase):
             ["task_rules_sha256"],
         )
 
-    def test_accepts_v2_task_fingerprints(self) -> None:
+    def test_accepts_collection_task_fingerprints(self) -> None:
         contract = self.handoff("task_to_execute")
-        contract["artifacts"]["task"] = (
-            "outputs/work/tasks/example/index.json"
-        )
-        source = contract["source"]
-        assert isinstance(source, dict)
-        source.pop("task_sha256")
-        source.update(
-            {
-                "task_collection_sha256": "1" * 64,
-                "task_index_sha256": "2" * 64,
-                "task_item_sha256": "3" * 64,
-            }
-        )
 
         result = validate_handoff_contract(
             contract, project_root=self.project_root
@@ -153,16 +145,19 @@ class HandoffInstructionContractTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "valid")
 
-    def test_rejects_mixed_task_fingerprints(self) -> None:
+    def test_rejects_legacy_single_file_fingerprint(self) -> None:
         contract = self.handoff("task_to_execute")
         source = contract["source"]
         assert isinstance(source, dict)
-        source["task_collection_sha256"] = "1" * 64
+        source["task_sha256"] = source.pop("task_collection_sha256")
+        source.pop("task_index_sha256")
+        source.pop("task_item_sha256")
 
         with self.assertRaises(WorkError) as context:
             validate_handoff_contract(contract, project_root=self.project_root)
 
-        self.assertEqual(context.exception.code, "invalid_task_fingerprint_set")
+        self.assertEqual(context.exception.code, "invalid_object_fields")
+        self.assertEqual(context.exception.details["unknown"], ["task_sha256"])
 
     def test_rejects_legacy_target_hierarchy(self) -> None:
         contract = self.handoff("task_to_execute")

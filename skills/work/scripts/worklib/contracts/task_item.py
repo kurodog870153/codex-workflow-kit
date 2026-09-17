@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from pydantic import ValidationError
+
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_sha256
 from ..foundation.markdown import (
@@ -10,8 +12,9 @@ from ..foundation.markdown import (
     render_json_contract,
     require_canonical_json_contract,
 )
-from ..instructions.historical import stored_selection
+from ..services.instruction_history import stored_selection
 from .task_ordering import order_task_item_contract
+from .task_collection_models import TaskItemContract, TaskItemValidationContract
 from .task_structure import TASK_OPTIONAL, TASK_REQUIRED
 from .validation import nonempty_string, strict_keys
 
@@ -58,19 +61,22 @@ def _items(
 
 
 def render_task_item_contract(contract: dict[str, Any]) -> bytes:
-    return render_json_contract(order_task_item_contract(contract))
+    try:
+        checked = TaskItemContract.model_validate(contract).to_canonical_dict()
+    except ValidationError as error:
+        raise TaskItemContract._work_error(error) from error
+    return render_json_contract(order_task_item_contract(checked))
 
 
 def validate_task_item_contract(raw: bytes, *, source: str, expected_task_id: str) -> dict[str, object]:
-    contract = parse_json_contract(raw, source=source)
+    model = TaskItemContract.parse_json_bytes(raw, source=source)
+    contract = model.to_canonical_dict()
     strict_keys(
         contract,
         location="task_item",
         required={"schema", *TASK_REQUIRED},
         optional=TASK_OPTIONAL,
     )
-    if contract["schema"] != "work-task-item/v2":
-        raise WorkError(ExitCode.CONTRACT, "invalid_task_item_schema", "Invalid TASK item schema.")
     task_id = nonempty_string(contract["id"], location="id")
     if not TASK_ID_PATTERN.fullmatch(task_id) or task_id != expected_task_id:
         raise WorkError(ExitCode.CONTRACT, "task_item_identity_mismatch", "The TASK item ID does not match its reference.")
@@ -209,9 +215,9 @@ def validate_task_item_contract(raw: bytes, *, source: str, expected_task_id: st
 
     ordered = order_task_item_contract(contract)
     require_canonical_json_contract(raw, contract=ordered, source=source)
-    return {
-        "schema": "work-task-item-validation/v2",
+    return TaskItemValidationContract.model_validate({
+        "schema": "work-task-item-validation/v1",
         "task_id": task_id,
         "dependencies": dependencies,
         "task_item_sha256": canonical_sha256(raw, source=source),
-    }
+    }).to_canonical_dict()

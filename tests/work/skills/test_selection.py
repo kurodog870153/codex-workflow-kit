@@ -12,8 +12,8 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.foundation.errors import WorkError
-from worklib.skills.catalog import SkillRoot, snapshot_catalog_skill
-from worklib.skills.selection import build_skill_selection, selection_sha256, validate_skill_selection
+from worklib.services.skill_catalog import SkillRoot, snapshot_catalog_skill
+from worklib.services.skill_selection import build_skill_selection, selection_sha256, validate_skill_selection
 
 
 class SkillSelectionTests(unittest.TestCase):
@@ -93,7 +93,7 @@ class SkillSelectionTests(unittest.TestCase):
                 path.write_text(path.read_text() + "Changed\n")
                 return result
 
-            with patch("worklib.skills.selection.snapshot_catalog_skill", side_effect=drifting):
+            with patch("worklib.services.skill_selection.snapshot_catalog_skill", side_effect=drifting):
                 with self.assertRaises(WorkError) as caught:
                     build_skill_selection({"decision": "external_skills", "skills": [self._choice(selected)]}, roots=[root])
             self.assertEqual(caught.exception.code, "selected_skill_snapshot_mismatch")

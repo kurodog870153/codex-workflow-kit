@@ -13,9 +13,9 @@ sys.path.insert(0, str(SCRIPT_ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from contracts import test_task_collection as fixtures
-from worklib.artifacts.task_collection import load_task_collection
+from worklib.services.task_collection import load_task_collection
 from worklib.contracts.execution_index import build_initial_execution_index, render_execution_index
-from worklib.contracts.plan import render_plan_contract
+from worklib.services.plan_validation import render_plan_contract
 from worklib.contracts.task_index import render_task_index_contract
 from worklib.foundation.fingerprint import raw_sha256
 from worklib.foundation.markdown import parse_json_contract
@@ -23,7 +23,7 @@ from worklib.foundation.markdown import parse_json_contract
 
 class WorkflowContinuationFlowTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.fixture = fixtures.TaskCollectionTests("test_loads_complete_v2_collection_and_v1_artifact")
+        self.fixture = fixtures.TaskCollectionTests("test_loads_complete_collection_and_rejects_single_file_artifact")
         self.fixture.setUp()
         self.addCleanup(self.fixture.doCleanups)
         self.root = self.fixture.root
@@ -46,10 +46,10 @@ class WorkflowContinuationFlowTests(unittest.TestCase):
         index["source_plan"]["canonical_sha256"] = raw_sha256(self.plan_path.read_bytes())
         (self.root / self.task_path).write_bytes(render_task_index_contract(index))
         validation = load_task_collection(self.root, str(self.root), self.task_path)
-        self.artifacts = validation["logical_contract"]["artifacts"]
+        self.artifacts = validation["collection_contract"]["artifacts"]
         execution_path = self.root / self.artifacts["execution"] / "index.json"
         execution_path.parent.mkdir(parents=True, exist_ok=True)
-        execution_path.write_bytes(render_execution_index(build_initial_execution_index(validation["logical_contract"], validation)))
+        execution_path.write_bytes(render_execution_index(build_initial_execution_index(validation["collection_contract"], validation)))
 
     def request_file(self, name: str, value: object) -> Path:
         path = self.requests / name

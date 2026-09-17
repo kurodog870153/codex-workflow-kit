@@ -8,7 +8,7 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.hierarchy.ordering import order_hierarchy_selection
+from worklib.contracts.hierarchy import order_hierarchy_selection
 
 
 class HierarchyOrderingTests(unittest.TestCase):

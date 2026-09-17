@@ -27,7 +27,10 @@ class ExecutionInstructionIndexTests(unittest.TestCase):
                 "tasks": [{"id": "TASK-001", "skill_id": None}],
             },
             {
-                "task_sha256": "a" * 64,
+                "schema": "work-task-collection-validation/v1",
+                "task_collection_sha256": "a" * 64,
+                "task_index_sha256": "1" * 64,
+                "task_item_sha256": {"TASK-001": "2" * 64},
                 "instructions_sha256": "b" * 64,
                 "task_instructions_sha256": {"TASK-001": "c" * 64},
                 "hierarchy_selection_sha256": "f" * 64,
@@ -62,12 +65,20 @@ class ExecutionInstructionIndexTests(unittest.TestCase):
             raw.decode("utf-8")
         )
 
-        self.assertEqual(list(payload)[5], "task_instructions_sha256")
-        self.assertEqual(list(payload)[6], "hierarchy_selection_sha256")
-        self.assertEqual(list(payload)[7], "skill_selection_sha256")
+        self.assertEqual(list(payload)[4], "task_collection_sha256")
+        self.assertEqual(list(payload)[5], "task_index_sha256")
+        self.assertEqual(list(payload)[6], "task_instructions_sha256")
+        self.assertEqual(list(payload)[7], "hierarchy_selection_sha256")
+        self.assertEqual(list(payload)[8], "skill_selection_sha256")
         self.assertEqual(
             list(payload["tasks"][0]),
-            ["id", "status", "skill_id", "instructions_sha256"],
+            [
+                "id",
+                "status",
+                "skill_id",
+                "task_item_sha256",
+                "instructions_sha256",
+            ],
         )
 
     def test_rejects_missing_skill_identity(self) -> None:
@@ -109,40 +120,21 @@ class ExecutionInstructionIndexTests(unittest.TestCase):
         self.assertEqual(context.exception.details["missing"], ["instructions_sha256"])
         self.assertEqual(context.exception.details["unknown"], ["rules_sha256"])
 
-    def v2_index(self) -> dict[str, object]:
-        return build_initial_execution_index(
-            {
-                "requirement_id": "example",
-                "spec_id": "TASK-SPEC-001",
-                "tasks": [{"id": "TASK-001", "skill_id": None}],
-            },
-            {
-                "schema": "work-task-collection-validation/v2",
-                "task_collection_sha256": "1" * 64,
-                "task_index_sha256": "2" * 64,
-                "task_item_sha256": {"TASK-001": "3" * 64},
-                "instructions_sha256": "4" * 64,
-                "task_instructions_sha256": {"TASK-001": "5" * 64},
-                "hierarchy_selection_sha256": "6" * 64,
-                "skill_selection_sha256": "7" * 64,
-                "task_skill_ids": {"TASK-001": None},
-            },
-        )
-
-    def test_builds_v2_index_with_collection_fingerprints(self) -> None:
-        index = self.v2_index()
+    def test_builds_v1_index_with_collection_fingerprints(self) -> None:
+        index = self.index()
         result = self.validate(index)
 
-        self.assertEqual(index["schema"], "work-execution-index/v2")
-        self.assertEqual(index["task_collection_sha256"], "1" * 64)
-        self.assertEqual(index["task_index_sha256"], "2" * 64)
-        self.assertEqual(index["tasks"][0]["task_item_sha256"], "3" * 64)
+        self.assertEqual(index["schema"], "work-execution-index/v1")
+        self.assertEqual(index["task_collection_sha256"], "a" * 64)
+        self.assertEqual(index["task_index_sha256"], "1" * 64)
+        self.assertEqual(index["tasks"][0]["task_item_sha256"], "2" * 64)
         self.assertNotIn("task_sha256", index)
-        self.assertEqual(result["schema"], "work-execution-index-validation/v2")
+        self.assertEqual(result["schema"], "work-execution-index-validation/v1")
 
-    def test_v2_rejects_v1_fingerprint_mixup(self) -> None:
+    def test_v1_rejects_legacy_single_file_fingerprint(self) -> None:
         index = self.index()
-        index["schema"] = "work-execution-index/v2"
+        index["task_sha256"] = index.pop("task_collection_sha256")
+        index.pop("task_index_sha256")
 
         with self.assertRaises(WorkError) as context:
             self.validate(index)
@@ -154,13 +146,26 @@ class ExecutionInstructionIndexTests(unittest.TestCase):
         )
         self.assertEqual(context.exception.details["unknown"], ["task_sha256"])
 
-    def test_v2_accepts_source_v1_provenance(self) -> None:
-        index = self.v2_index()
+    def test_rejects_source_v1_provenance(self) -> None:
+        index = self.index()
         index["source_v1_task_sha256"] = "8" * 64
 
-        result = self.validate(index)
+        with self.assertRaises(WorkError) as context:
+            self.validate(index)
 
-        self.assertEqual(result["schema"], "work-execution-index-validation/v2")
+        self.assertEqual(context.exception.code, "invalid_object_fields")
+        self.assertEqual(
+            context.exception.details["unknown"], ["source_v1_task_sha256"]
+        )
+
+    def test_rejects_retired_schema(self) -> None:
+        index = self.index()
+        index["schema"] = "work-execution-index/v2"
+
+        with self.assertRaises(WorkError) as context:
+            self.validate(index)
+
+        self.assertEqual(context.exception.code, "invalid_execution_index_schema")
 
 
 class ExecutionInstructionAuditTests(unittest.TestCase):
@@ -172,7 +177,10 @@ class ExecutionInstructionAuditTests(unittest.TestCase):
                 "tasks": [{"id": "TASK-001", "skill_id": None}],
             },
             {
-                "task_sha256": "a" * 64,
+                "schema": "work-task-collection-validation/v1",
+                "task_collection_sha256": "a" * 64,
+                "task_index_sha256": "1" * 64,
+                "task_item_sha256": {"TASK-001": "2" * 64},
                 "instructions_sha256": "b" * 64,
                 "task_instructions_sha256": {"TASK-001": "c" * 64},
                 "hierarchy_selection_sha256": "f" * 64,
@@ -213,7 +221,7 @@ class ExecutionInstructionAuditTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            list(payload)[8],
+            list(payload)[9],
             "latest_task_instruction_audit",
         )
 

@@ -4,26 +4,29 @@ from __future__ import annotations
 import json
 import os
 import platform
-import re
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 
 from .commands import formal_command
-from ..artifacts.task_collection import load_task_execution_context
+from ..services.task_collection import load_task_execution_context
 from .context import validate_execution_identity
 from .instructions import validate_execute_instructions
 from .records import next_record_id
 from .recovery import _validate_attempt_bytes, _validate_index_bytes
 from ..contracts.command_correction import canonicalize_command_correction
-from ..contracts.task import validate_task_contract
-from ..contracts.validation import nonempty_string, sha256, strict_keys
+from ..contracts.command_models import (
+    CommandPreviewContract, CommandResultContract, CommandRunRequestContract,
+    CommandStartedContract,
+)
+from ..contracts.validation import nonempty_string, sha256
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import raw_sha256, read_raw
-from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import normalize_relative_path
-from ..foundation.spec_update import require_idle_writer, require_no_spec_update, state_writer, storage_path
+from ..foundation.spec_update import require_no_spec_update, storage_path
+from ..infrastructure.writer_lock import require_idle_writer, state_writer
+from ..infrastructure.command_receipt_storage import write_command_receipt
 
 
 def _json(value):
@@ -35,17 +38,10 @@ def _fail(code, message, **details):
 
 
 def _prepare(raw, *, source, project_root, user_config_root, raw_task_path, raw_execution_dir, task_id, skill_roots=None):
-    request = strict_keys(parse_json_contract(raw, source=source), location="command_run", required={
-        "schema", "attempt_id", "record_id", "timeout_seconds"})
-    if request["schema"] != "work-command-run-request/v1":
-        _fail("command_run_schema", "Use work-command-run-request/v1.")
-    for field, pattern in (("attempt_id", r"ATTEMPT-[0-9]{3}"), ("record_id", r"CMD-[0-9]{3}(?:#[1-9][0-9]*)?")):
-        if not isinstance(request[field], str) or not re.fullmatch(pattern, request[field]):
-            _fail("command_run_identity", "Supply explicit canonical Attempt and reserved CMD IDs.")
-    timeout = request["timeout_seconds"]
-    if type(timeout) is not int or not 1 <= timeout <= 3600:
-        _fail("command_run_timeout", "timeout_seconds must be an integer from 1 to 3600.")
-    if not isinstance(task_id, str) or not re.fullmatch(r"TASK-[0-9]{3}", task_id):
+    request = CommandRunRequestContract.parse_request(
+        raw, source=source
+    ).to_canonical_dict()
+    if not isinstance(task_id, str) or not __import__("re").fullmatch(r"TASK-[0-9]{3}", task_id):
         _fail("command_run_identity", "Supply a canonical TASK ID.")
     execution = normalize_relative_path(raw_execution_dir, field="execution_dir")
     task_relative = normalize_relative_path(raw_task_path, field="task_path")
@@ -147,19 +143,12 @@ def _prepare(raw, *, source, project_root, user_config_root, raw_task_path, raw_
         "selected_executable": str(selected), "executable_sha256": raw_sha256(read_raw(selected)),
         "receipt_prefix": receipt, "sources": {path: raw_sha256(content) for path, content in observed.items()}}
     preview["approved_sha256"] = raw_sha256(_json(preview))
-    return preview
+    return CommandPreviewContract.model_validate(preview).to_canonical_dict()
 
 
 def prepare_command(raw, **options):
     require_idle_writer(options["project_root"], options["raw_execution_dir"])
     return _prepare(raw, **options)
-
-
-def _write_receipt(path, value):
-    with path.open("xb") as stream:
-        stream.write(_json(value))
-        stream.flush()
-        os.fsync(stream.fileno())
 
 
 def _execute(argv, cwd, timeout):
@@ -191,15 +180,23 @@ def run_command(raw, *, approved_sha256, authorization_evidence, **options):
         if preview["approved_sha256"] != approved_sha256:
             _fail("command_run_approval_changed", "Sources or command parameters changed after review.")
         prefix = preview["receipt_prefix"]
-        started = {"schema": "work-command-started/v1", "preview": preview,
-                   "authorization_evidence": authorization_evidence}
+        started = CommandStartedContract.model_validate({
+            "schema": "work-command-started/v1", "preview": preview,
+            "authorization_evidence": authorization_evidence,
+        }).to_canonical_dict()
         try:
-            _write_receipt(storage_path(root, prefix + ".started.json"), started)
+            write_command_receipt(
+                storage_path(root, prefix + ".started.json"), _json(started)
+            )
             result = _execute([preview["selected_executable"], *preview["argv"][1:]],
                               preview["working_directory"], preview["request"]["timeout_seconds"])
-            receipt = {"schema": "work-command-result/v1", "approved_sha256": approved_sha256,
-                       "record_id": preview["request"]["record_id"], **result}
-            _write_receipt(storage_path(root, prefix + ".finished.json"), receipt)
+            receipt = CommandResultContract.model_validate({
+                "schema": "work-command-result/v1", "approved_sha256": approved_sha256,
+                "record_id": preview["request"]["record_id"], **result,
+            }).to_canonical_dict()
+            write_command_receipt(
+                storage_path(root, prefix + ".finished.json"), _json(receipt)
+            )
         except (OSError, KeyboardInterrupt) as error:
             raise WorkError(ExitCode.IO_FAILURE, "command_run_interrupted",
                 "Preserve command evidence and inspect effects; do not rerun this record.", {"receipt_prefix": prefix}) from error
@@ -208,6 +205,7 @@ def run_command(raw, *, approved_sha256, authorization_evidence, **options):
         response["record_finish_request"] = {"schema": "work-record-finish-request/v1", "record": {
             "id": receipt["record_id"], "kind": "command", "exit_code": result["exit_code"],
             "result": f"Command exited with code {result['exit_code']}; inspect retained execution evidence."}}
+    response = CommandResultContract.model_validate(response).to_canonical_dict()
     if result["status"] != "exited" or result["exit_code"] != 0:
         raise WorkError(ExitCode.WORKFLOW_STATE, "command_run_failed",
             "The command did not succeed. Review evidence and effects before continuing; never retry automatically.", response)

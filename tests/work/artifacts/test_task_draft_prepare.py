@@ -13,7 +13,7 @@ from artifacts import test_task_draft_sources as fixtures
 from worklib.artifacts.task_draft import read_task_planning_index, save_task_planning, recover_task_planning
 from worklib.artifacts.task_draft_list import update_task_planning_list
 from worklib.artifacts.task_draft_prepare import initialize_task_planning_request, prepare_task_planning_request
-from worklib.contracts.plan import render_plan_contract
+from worklib.services.plan_validation import render_plan_contract
 from worklib.foundation.errors import WorkError
 
 

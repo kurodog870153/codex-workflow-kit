@@ -13,10 +13,10 @@ SCRIPT_ROOT = SKILL_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.foundation.errors import WorkError
-from worklib.contracts.plan import render_plan_contract, validate_plan_contract
-from worklib.skills.selection import selection_sha256
-from worklib.instructions.work_selection import build_work_instruction_selection
-from worklib.hierarchy.selection import build_hierarchy_selection
+from worklib.services.plan_validation import render_plan_contract, validate_plan_contract
+from worklib.services.skill_selection import selection_sha256
+from worklib.services.instruction_work_selection import build_work_instruction_selection
+from worklib.services.hierarchy_selection import build_hierarchy_selection
 
 
 class PlanInstructionContractTests(unittest.TestCase):

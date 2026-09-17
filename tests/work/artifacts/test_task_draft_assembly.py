@@ -11,13 +11,13 @@ sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.artifacts.task_draft import save_task_planning, read_task_planning_index
 from worklib.artifacts.task_draft_assembly import assemble_task_drafts, create_task_from_drafts
-from worklib.contracts.plan import render_plan_contract, validate_plan_contract, validate_plan_file
-from worklib.contracts.task import validate_task_file
+from worklib.services.plan_validation import render_plan_contract, validate_plan_contract
+from worklib.services.task_collection import load_task_collection
 from worklib.foundation.errors import WorkError
-from worklib.hierarchy.selection import build_hierarchy_selection
-from worklib.instructions.selection import build_instruction_selection
-from worklib.instructions.work_selection import build_work_instruction_selection
-from worklib.skills.selection import selection_sha256
+from worklib.services.hierarchy_selection import build_hierarchy_selection
+from worklib.services.instruction_selection import build_instruction_selection
+from worklib.services.instruction_work_selection import build_work_instruction_selection
+from worklib.services.skill_selection import selection_sha256
 
 
 class TaskDraftAssemblyTests(unittest.TestCase):
@@ -29,7 +29,7 @@ class TaskDraftAssemblyTests(unittest.TestCase):
         hierarchy = build_hierarchy_selection({"decision": "general_only", "selections": []}, skill_root=work_root)
         self.plan = {
             "schema": "work-plan/v1", "requirement_id": "example", "status": "confirmed", "title": "Plan", "summary": "Result",
-            "artifacts": {"plan": "outputs/work/plans/example.json", "task": getattr(self, "task_artifact", "outputs/work/tasks/example/task.json"), "execution": "outputs/work/executions/example"},
+            "artifacts": {"plan": "outputs/work/plans/example.json", "task": "outputs/work/tasks/example/index.json", "execution": "outputs/work/executions/example"},
             "hierarchy_selection": hierarchy,
             "work_instruction_selection": build_work_instruction_selection(skill_root=work_root, mode="plan", selected_paths=[]),
             "skill_selection": {"schema": "work-skill-selection/v1", "decision": "base_only", "skills": [], "selection_sha256": selection_sha256("base_only", [])},
@@ -41,15 +41,12 @@ class TaskDraftAssemblyTests(unittest.TestCase):
         path = self.root / self.plan["artifacts"]["plan"]
         path.parent.mkdir(parents=True)
         path.write_bytes(render_plan_contract(self.plan))
-        if self.plan["artifacts"]["task"].endswith("/index.json"):
-            validation = validate_plan_contract(
-                path.read_bytes(), source=str(path),
-                actual_plan_path=self.plan["artifacts"]["plan"],
-                project_root=self.root, user_config_root=str(self.root),
-                _allow_task_index=True,
-            )
-        else:
-            validation = validate_plan_file(self.root, str(self.root), self.plan["artifacts"]["plan"])
+        validation = validate_plan_contract(
+            path.read_bytes(), source=str(path),
+            actual_plan_path=self.plan["artifacts"]["plan"],
+            project_root=self.root, user_config_root=str(self.root),
+            _allow_task_index=True,
+        )
         selection = build_instruction_selection(skill_root=work_root, mode="task", selected_paths=[], reference_names=["task.general.task-records"])
         source = {key: validation[key] for key in ("plan_sha256", "hierarchy_selection_sha256", "skill_selection_sha256")}
         index = {"schema": "work-task-planning-index/v1", "requirement_id": "example", "revision": 1, "current_task_id": "TASK-001", "source": source,
@@ -81,10 +78,11 @@ class TaskDraftAssemblyTests(unittest.TestCase):
         assembled = self.assemble()
         self.assertEqual(before, {p: p.read_bytes() for p in self.root.rglob("*") if p.is_file()})
         self.assertEqual(assembled["contract"]["tasks"], [self.draft["task_candidate"]])
+        self.assertIn("task_collection_sha256", assembled)
         result = create_task_from_drafts(self.root, "example", self.metadata, approved_sha256=assembled["approval_sha256"], **self.options)
         self.assertEqual(result["status"], "created")
-        formal = validate_task_file(self.root, str(self.root), self.plan["artifacts"]["task"])
-        self.assertEqual(formal["task_sha256"], assembled["task_sha256"])
+        formal = load_task_collection(self.root, str(self.root), self.plan["artifacts"]["task"])
+        self.assertEqual(formal["task_collection_sha256"], assembled["task_collection_sha256"])
         self.assertTrue((self.root / self.plan["artifacts"]["execution"] / "index.json").exists())
 
     def test_changed_metadata_rejects_approval_before_any_formal_write(self):
@@ -108,7 +106,24 @@ class TaskDraftAssemblyTests(unittest.TestCase):
         self.assertEqual(context.exception.code, "draft_revision_conflict")
         self.options["expected_revision"] = 3
         second = self.assemble()
-        self.assertEqual(first["task_sha256"], second["task_sha256"])
+        self.assertEqual(
+            {
+                key: first[key]
+                for key in (
+                    "task_collection_sha256",
+                    "task_index_sha256",
+                    "task_item_sha256",
+                )
+            },
+            {
+                key: second[key]
+                for key in (
+                    "task_collection_sha256",
+                    "task_index_sha256",
+                    "task_item_sha256",
+                )
+            },
+        )
         self.assertNotEqual(first["approval_sha256"], second["approval_sha256"])
 
     def test_missing_candidate_and_incomplete_discussion_are_rejected(self):
@@ -129,8 +144,9 @@ class TaskDraftAssemblyTests(unittest.TestCase):
         self.save()
         with self.assertRaises(WorkError) as context:
             self.assemble()
-        self.assertEqual(context.exception.code, "invalid_item_array")
-        self.assertEqual(context.exception.details["location"], "TASK-001.steps")
+        self.assertEqual(context.exception.code, "invalid_object_fields")
+        self.assertEqual(context.exception.details["location"], "contract")
+        self.assertEqual(context.exception.details["missing"], ["steps"])
 
     def test_candidate_cannot_change_confirmed_boundary(self):
         self.draft["task_candidate"]["goal"] = "Different goal"
@@ -145,20 +161,3 @@ class TaskDraftAssemblyTests(unittest.TestCase):
         with self.assertRaises(WorkError) as context:
             self.assemble()
         self.assertEqual(context.exception.code, "draft_source_drift")
-
-    def test_v2_assembly_approval_creates_exact_collection(self):
-        case = TaskDraftAssemblyTests("test_assembly_is_read_only_and_formal_creation_matches_hash")
-        case.task_artifact = "outputs/work/tasks/example/index.json"
-        case.setUp()
-        self.addCleanup(case.doCleanups)
-        case.save()
-        assembled = case.assemble()
-        self.assertIn("task_collection_sha256", assembled)
-        result = create_task_from_drafts(
-            case.root, "example", case.metadata,
-            approved_sha256=assembled["approval_sha256"], **case.options,
-        )
-        self.assertEqual(result["schema"], "work-task-create/v2")
-        self.assertEqual(result["task_collection_sha256"], assembled["task_collection_sha256"])
-        self.assertTrue((case.root / case.plan["artifacts"]["task"]).is_file())
-        self.assertTrue((case.root / case.plan["artifacts"]["task"]).parent.joinpath("tasks/TASK-001.json").is_file())

@@ -14,8 +14,8 @@ from .task_draft import (
 from .task_draft_sources import check_task_draft_sources
 from ..contracts.validation import strict_keys
 from ..foundation.errors import ExitCode, WorkError
-from ..instructions.draft_selection import resolve_draft_instruction_selection
-from ..skills.catalog import SkillRoot
+from ..services.instruction_draft_selection import resolve_draft_instruction_selection
+from ..services.skill_catalog import SkillRoot
 
 
 def save_task_draft_request(

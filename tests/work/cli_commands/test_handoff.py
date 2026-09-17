@@ -17,7 +17,7 @@ from cli_support import FileInputTestCase
 
 from worklib.cli import build_parser, main
 from worklib.foundation.errors import ExitCode, WorkError
-from worklib.skills.catalog import parse_skill_root
+from worklib.services.skill_catalog import parse_skill_root
 
 
 class HandoffCliTests(FileInputTestCase):
@@ -27,7 +27,7 @@ class HandoffCliTests(FileInputTestCase):
             with tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary).resolve()
                 output = io.StringIO()
-                with patch("worklib.cli_commands.handoff.verify_return_handoff", return_value={"status": "valid"}) as verify:
+                with patch("worklib.controllers.handoff.verify_return_handoff", return_value={"status": "valid"}) as verify:
                     code = main(self.input_arguments([
                         "--project-root", str(root), "handoff", "verify-" + direction,
                         "--input-file", "request.json", "--plan-path", "outputs/work/plans/example.json",
@@ -58,7 +58,7 @@ class HandoffCliTests(FileInputTestCase):
             output, error = io.StringIO(), io.StringIO()
             incoming = {"marker": "WORK-HANDOFF"}
             skill_root = "repo:skills=" + str(root / "skills")
-            with patch("worklib.cli_commands.handoff.verify_task_to_execute_handoff", return_value={"status": "valid"}) as verify:
+            with patch("worklib.controllers.handoff.verify_task_to_execute_handoff", return_value={"status": "valid"}) as verify:
                 code = main(self.input_arguments(["--project-root", str(root), "handoff", "verify-task-to-execute", "--input-file", "request.json",
                              "--task-path", "confirmed/example/task.json", "--task-id", "TASK-002",
                              "--user-config-root", str(root), "--skill-root", skill_root], json.dumps(incoming)), stdout=output, stderr=error)
@@ -79,7 +79,7 @@ class HandoffCliTests(FileInputTestCase):
             output, error = io.StringIO(), io.StringIO()
             incoming = {"marker": "WORK-HANDOFF"}
             skill_root = "repo:skills=" + str(root / "skills")
-            with patch("worklib.cli_commands.handoff.verify_plan_to_task_handoff", return_value={"status": "valid"}) as verify:
+            with patch("worklib.controllers.handoff.verify_plan_to_task_handoff", return_value={"status": "valid"}) as verify:
                 code = main(self.input_arguments(["--project-root", str(root), "handoff", "verify-plan-to-task", "--input-file", "request.json",
                              "--plan-path", "confirmed/plan.json", "--user-config-root", str(root), "--skill-root", skill_root], json.dumps(incoming)), stdout=output, stderr=error)
             self.assertEqual((code, error.getvalue()), (ExitCode.SUCCESS, ""))
@@ -107,7 +107,7 @@ class HandoffCliTests(FileInputTestCase):
             skill_root = "repo:skills=" + str(root / "skills")
             for target in ("task", "plan"):
                 output, error = io.StringIO(), io.StringIO()
-                with patch("worklib.cli_commands.handoff.build_preflight_return_handoff", return_value={"marker": "WORK-HANDOFF"}) as build:
+                with patch("worklib.controllers.handoff.build_preflight_return_handoff", return_value={"marker": "WORK-HANDOFF"}) as build:
                     code = main(self.input_arguments([
                         "--project-root", str(root), "handoff", f"build-execute-to-{target}", "--input-file", "request.json", "--preflight",
                         "--task-path", "task.json", "--task-id", "TASK-002", "--user-config-root", str(root),
@@ -125,7 +125,7 @@ class HandoffCliTests(FileInputTestCase):
             for task_id in (None, "TASK-002"):
                 output, error = io.StringIO(), io.StringIO()
                 extra = [] if task_id is None else ["--task-id", task_id]
-                with patch("worklib.cli_commands.handoff.build_task_to_plan_handoff", return_value={"marker": "WORK-HANDOFF"}) as build:
+                with patch("worklib.controllers.handoff.build_task_to_plan_handoff", return_value={"marker": "WORK-HANDOFF"}) as build:
                     code = main(self.input_arguments([
                         "--project-root", str(root), "handoff", "build-task-to-plan", "--input-file", "request.json",
                         "--task-path", "outputs/work/tasks/example/task.json", "--user-config-root", str(root),
@@ -146,7 +146,7 @@ class HandoffCliTests(FileInputTestCase):
             output, error = io.StringIO(), io.StringIO()
             request = {"summary": "Execute reviewed task"}
             skill_root = "repo:skills=" + str(root / "skills")
-            with patch("worklib.cli_commands.handoff.build_task_to_execute_handoff", return_value={"marker": "WORK-HANDOFF"}) as build:
+            with patch("worklib.controllers.handoff.build_task_to_execute_handoff", return_value={"marker": "WORK-HANDOFF"}) as build:
                 code = main(self.input_arguments([
                     "--project-root", str(root), "handoff", "build-task-to-execute", "--input-file", "request.json",
                     "--task-path", "outputs/work/tasks/example/task.json", "--task-id", "TASK-002",
@@ -168,7 +168,7 @@ class HandoffCliTests(FileInputTestCase):
             output, error = io.StringIO(), io.StringIO()
             request = {"summary": "Continue planning", "affected_ids": ["GOAL-001"]}
             skill_root = "repo:skills=" + str(root / "skills")
-            with patch("worklib.cli_commands.handoff.build_plan_to_task_handoff", return_value={"marker": "WORK-HANDOFF"}) as build:
+            with patch("worklib.controllers.handoff.build_plan_to_task_handoff", return_value={"marker": "WORK-HANDOFF"}) as build:
                 code = main(self.input_arguments([
                     "--project-root", str(root), "handoff", "build-plan-to-task", "--input-file", "request.json",
                     "--plan-path", "outputs/work/plans/example.json", "--user-config-root", str(root),

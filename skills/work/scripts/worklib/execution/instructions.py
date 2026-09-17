@@ -4,7 +4,7 @@ from typing import Any
 
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.runtime import installed_work_root
-from ..instructions.selection import build_instruction_selection
+from ..services.instruction_selection import build_instruction_selection
 
 
 BASE_EXECUTE_REFERENCES = ["execute.general.execution-records"]

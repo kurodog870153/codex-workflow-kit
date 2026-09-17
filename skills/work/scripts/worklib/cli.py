@@ -5,22 +5,22 @@ import sys
 from pathlib import Path
 from typing import Sequence, TextIO
 
-from .cli_commands.attempt import register_attempt_commands, run_attempt
-from .cli_commands.correction import register_correction_commands, run_correction
-from .cli_commands.execute import register_execute_commands, run_execute
-from .cli_commands.handoff import register_handoff_commands, run_handoff
-from .cli_commands.hierarchy import register_hierarchy_commands, run_hierarchy
-from .cli_commands.instructions import (
+from .controllers.attempt import register_attempt_commands, run_attempt
+from .controllers.correction import register_correction_commands, run_correction
+from .controllers.execution import register_execute_commands, run_execute
+from .controllers.handoff import register_handoff_commands, run_handoff
+from .controllers.hierarchy import register_hierarchy_commands, run_hierarchy
+from .controllers.instruction import (
     register_instruction_commands,
     run_instructions,
 )
-from .cli_commands.plan import register_plan_commands, run_plan
-from .cli_commands.progress import register_progress_commands, run_progress
-from .cli_commands.skills import register_skill_commands, run_skills
-from .cli_commands.task import register_task_commands, run_task
-from .cli_commands.invocation import register_invocation_commands, run_invocation
-from .cli_commands.delegation import register_delegation_commands, run_delegation
-from .foundation.cli_io import FileInput, error_response, read_input_file, success_response
+from .controllers.plan import register_plan_commands, run_plan
+from .controllers.progress import register_progress_commands, run_progress
+from .controllers.skill import register_skill_commands, run_skills
+from .controllers.task import register_task_commands, run_task
+from .controllers.delegation import register_delegation_commands, run_delegation
+from .controllers.contract import register_contract_commands, run_contract
+from .controllers.invocation import register_invocation_commands, run_invocation
 from .foundation.errors import ExitCode, WorkError
 from .foundation.fingerprint import fingerprint_file
 from .foundation.jsonio import write_json
@@ -29,6 +29,7 @@ from .foundation.paths import (
     resolve_project_relative_path,
     resolve_root,
 )
+from .infrastructure.cli_io import FileInput, error_response, read_input_file, success_response
 
 
 class HelpRequested(Exception):
@@ -64,6 +65,8 @@ def build_parser() -> WorkArgumentParser:
     parser = WorkArgumentParser(prog="work.py")
     parser.add_argument("--project-root", required=True)
     commands = parser.add_subparsers(dest="command", required=True)
+
+    register_contract_commands(commands)
 
     paths_parser = commands.add_parser("paths")
     paths_commands = paths_parser.add_subparsers(dest="paths_command", required=True)
@@ -110,6 +113,8 @@ def _run(
         return run_invocation(request)
     if arguments.command == "delegation":
         return run_delegation(arguments, project_root, request)
+    if arguments.command == "contract":
+        return run_contract(arguments)
     if arguments.command == "paths":
         return {
             "schema": "work-paths/v1",

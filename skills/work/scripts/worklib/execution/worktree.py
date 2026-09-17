@@ -6,14 +6,18 @@ import subprocess
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from ..artifacts.task_collection import load_task_execution_context
+from ..contracts.execution_inspection_models import (
+    ExecuteWorktreeContract,
+    ExecuteWorktreeSnapshotContract,
+)
+from ..services.task_collection import load_task_execution_context
 
 from ..foundation.errors import ExitCode, WorkError
 from .preflight import execute_preflight
 from ..foundation.fingerprint import canonical_sha256, raw_sha256, read_raw
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path
-from ..skills.catalog import SkillRoot
+from ..services.skill_catalog import SkillRoot
 
 
 GIT_TIMEOUT_SECONDS = 30
@@ -220,11 +224,14 @@ def worktree_snapshot_sha256(
         if all(_within_directory(path, execution_dir) for path in record_paths):
             continue
         included.append(record)
-    payload = json.dumps(
+    snapshot = ExecuteWorktreeSnapshotContract.model_validate(
         {
             "schema": "work-execute-worktree-snapshot/v1",
             "records": included,
-        },
+        }
+    ).to_canonical_dict()
+    payload = json.dumps(
+        snapshot,
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
@@ -255,14 +262,11 @@ def inspect_execute_worktree(
     _, task_path = resolve_project_relative_path(
         project_root, normalized_task, field="task_path"
     )
-    if "task_collection_sha256" in preflight:
-        item_path = task_path.parent / "tasks" / f"{task_id}.json"
-        unchanged = (
-            raw_sha256(read_raw(task_path)) == preflight.get("task_index_sha256")
-            and raw_sha256(read_raw(item_path)) == preflight.get("task_item_sha256")
-        )
-    else:
-        unchanged = raw_sha256(read_raw(task_path)) == preflight.get("task_sha256")
+    item_path = task_path.parent / "tasks" / f"{task_id}.json"
+    unchanged = (
+        raw_sha256(read_raw(task_path)) == preflight.get("task_index_sha256")
+        and raw_sha256(read_raw(item_path)) == preflight.get("task_item_sha256")
+    )
     if not unchanged:
         raise WorkError(
             ExitCode.ARTIFACT_INTEGRITY,
@@ -278,15 +282,11 @@ def inspect_execute_worktree(
     )
     validation = task_context["validation"]
     assert isinstance(validation, dict)
-    fingerprints = (
-        {
-            "task_collection_sha256": validation["task_collection_sha256"],
-            "task_index_sha256": validation["task_index_sha256"],
-            "task_item_sha256": validation["task_item_sha256"][task_id],
-        }
-        if validation["schema"] == "work-task-execution-validation/v2"
-        else {"task_sha256": validation["task_sha256"]}
-    )
+    fingerprints = {
+        "task_collection_sha256": validation["task_collection_sha256"],
+        "task_index_sha256": validation["task_index_sha256"],
+        "task_item_sha256": validation["task_item_sha256"][task_id],
+    }
     if any(preflight.get(key) != value for key, value in fingerprints.items()):
         raise WorkError(
             ExitCode.ARTIFACT_INTEGRITY,
@@ -333,7 +333,7 @@ def inspect_execute_worktree(
             item["path_classification"] == "unrelated" for item in changes
         ),
     }
-    return {
+    return ExecuteWorktreeContract.model_validate({
         "schema": "work-execute-worktree/v1",
         "requirement_id": preflight["requirement_id"],
         "task_spec_id": preflight["task_spec_id"],
@@ -350,4 +350,4 @@ def inspect_execute_worktree(
         "excluded_execution_change_count": excluded_count,
         "counts": counts,
         "changes": changes,
-    }
+    }).to_canonical_dict()

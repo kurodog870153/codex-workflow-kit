@@ -18,7 +18,7 @@ from worklib.contracts.execution_index import (
     render_execution_index,
     validate_execution_index,
 )
-from worklib.instructions.selection import build_instruction_selection
+from worklib.services.instruction_selection import build_instruction_selection
 
 
 class ExecuteInstructionCorrectionTests(unittest.TestCase):
@@ -55,7 +55,10 @@ class ExecuteInstructionCorrectionTests(unittest.TestCase):
                 "tasks": [{"id": "TASK-001", "skill_id": None}],
             },
             {
-                "task_sha256": "a" * 64,
+                "schema": "work-task-collection-validation/v1",
+                "task_collection_sha256": "a" * 64,
+                "task_index_sha256": "1" * 64,
+                "task_item_sha256": {"TASK-001": "2" * 64},
                 "instructions_sha256": "b" * 64,
                 "task_instructions_sha256": {"TASK-001": "c" * 64},
                 "hierarchy_selection_sha256": "f" * 64,

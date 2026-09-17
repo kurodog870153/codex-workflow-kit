@@ -10,7 +10,7 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.foundation.errors import WorkError
-from worklib.instructions.catalog import (
+from worklib.services.instruction_catalog import (
     build_cross_mode_instruction_catalog,
     build_instruction_catalog,
     resolve_instruction_hierarchy,

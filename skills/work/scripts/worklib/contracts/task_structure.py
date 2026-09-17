@@ -33,7 +33,7 @@ def inspect_task_structure(contract: dict[str, Any]) -> list[dict[str, Any]]:
     def issue(code, location, field="", **details):
         category = "decision_required" if field in DECISION_FIELDS else "review_required"
         if code == "legacy_field":
-            category = "migration_review"
+            category = "source_review"
         issues.append({
             "stage": "structure", "code": code, "location": location,
             "category": category,

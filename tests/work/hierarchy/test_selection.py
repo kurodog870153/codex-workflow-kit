@@ -11,7 +11,7 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.foundation.errors import WorkError
-from worklib.hierarchy.selection import (
+from worklib.services.hierarchy_selection import (
     build_hierarchy_selection,
     validate_hierarchy_selection,
     validate_task_hierarchy_paths,

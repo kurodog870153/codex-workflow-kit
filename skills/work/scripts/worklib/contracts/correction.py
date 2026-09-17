@@ -3,9 +3,12 @@ from __future__ import annotations
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar, Literal
+
+from pydantic import Field, ValidationError
 
 from .attempt import validate_attempt_file
+from .base import WorkContract
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.markdown import (
     parse_json_contract,
@@ -35,11 +38,57 @@ FIELD_ORDER = (
     "correct_value",
     "reason",
 )
-V2_FINGERPRINTS = {
+COLLECTION_FINGERPRINTS = {
     "task_collection_sha256",
     "task_index_sha256",
     "task_item_sha256",
 }
+
+
+class CorrectionContract(WorkContract):
+    contract_id: ClassVar[str] = "work-correction/v1"
+    contract_kind: ClassVar[Literal["artifact"]] = "artifact"
+    canonical_order: ClassVar[tuple[str, ...]] = FIELD_ORDER
+    contract_example: ClassVar[dict[str, Any]] = {
+        "schema": "work-correction/v1",
+        "correction_id": "ATTEMPT-001-CORRECTION-001",
+        "created_at": "2026-09-01T10:05+08:00",
+        "target_attempt_id": "ATTEMPT-001",
+        "task_collection_sha256": "a" * 64, "task_index_sha256": "b" * 64,
+        "task_item_sha256": "c" * 64, "task_instructions_sha256": "d" * 64,
+        "execute_instructions_sha256": "e" * 64,
+        "field": "records[0].outcome", "correct_value": "passed",
+        "reason": "Correct the recorded outcome.",
+    }
+
+    schema_: Literal["work-correction/v1"] = Field(alias="schema")
+    correction_id: Any
+    created_at: Any
+    target_attempt_id: Any
+    task_collection_sha256: Any
+    task_index_sha256: Any
+    task_item_sha256: Any
+    task_instructions_sha256: Any
+    execute_instructions_sha256: Any
+    field: Any
+    correct_value: Any
+    reason: Any
+
+
+def _correction_model(contract: object) -> dict[str, Any]:
+    try:
+        return CorrectionContract.model_validate(contract).to_canonical_dict()
+    except ValidationError as error:
+        issues = error.errors(include_url=False, include_context=False, include_input=False)
+        missing = sorted(str(issue["loc"][-1]) for issue in issues if issue["type"] == "missing")
+        unknown = sorted(str(issue["loc"][-1]) for issue in issues if issue["type"] == "extra_forbidden")
+        if missing or unknown:
+            _fail(
+                "correction_invalid_fields",
+                "The Correction contract has missing or unknown fields.",
+                missing=missing, unknown=unknown,
+            )
+        raise
 
 
 def _fail(code: str, message: str, **details: object) -> None:
@@ -69,22 +118,9 @@ def _sha256(value: object, *, location: str) -> str:
 def canonicalize_correction_contract(contract: object) -> dict[str, Any]:
     if not isinstance(contract, dict):
         _fail("correction_expected_object", "A JSON object is required.")
-    schema = contract.get("schema")
-    if schema == "work-correction/v1":
-        required = set(FIELD_ORDER) - V2_FINGERPRINTS
-    elif schema == "work-correction/v2":
-        required = set(FIELD_ORDER)
-    else:
+    if contract.get("schema") != "work-correction/v1":
         _fail("correction_invalid_schema", "The Correction schema is invalid.")
-    missing = sorted(required - set(contract))
-    unknown = sorted(set(contract) - required)
-    if missing or unknown:
-        _fail(
-            "correction_invalid_fields",
-            "The Correction contract has missing or unknown fields.",
-            missing=missing,
-            unknown=unknown,
-        )
+    contract = _correction_model(contract)
     correction_id = _text(contract["correction_id"], location="correction_id")
     match = CORRECTION_PATTERN.fullmatch(correction_id)
     target_attempt_id = _text(
@@ -121,7 +157,7 @@ def canonicalize_correction_contract(contract: object) -> dict[str, Any]:
             "created_at must include a numeric offset.",
         )
     canonical = dict(contract)
-    for field in V2_FINGERPRINTS & set(canonical):
+    for field in COLLECTION_FINGERPRINTS:
         _sha256(canonical[field], location=field)
     _sha256(
         canonical["task_instructions_sha256"],
@@ -143,11 +179,7 @@ def canonicalize_correction_contract(contract: object) -> dict[str, Any]:
 def validate_correction_contract(contract: object) -> dict[str, object]:
     canonical = canonicalize_correction_contract(contract)
     return {
-        "schema": (
-            "work-correction-validation/v2"
-            if canonical["schema"] == "work-correction/v2"
-            else "work-correction-validation/v1"
-        ),
+        "schema": "work-correction-validation/v1",
         "correction_id": canonical["correction_id"],
         "target_attempt_id": canonical["target_attempt_id"],
         "result": "valid",

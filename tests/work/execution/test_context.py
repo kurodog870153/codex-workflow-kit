@@ -18,7 +18,7 @@ from worklib.execution.context import (
     validate_execution_identity,
 )
 from worklib.contracts.execution_index import build_initial_execution_index
-from worklib.instructions.selection import build_instruction_selection
+from worklib.services.instruction_selection import build_instruction_selection
 
 
 class ExecutionContextTests(unittest.TestCase):
@@ -41,7 +41,11 @@ class ExecutionContextTests(unittest.TestCase):
             ],
         }
         self.task_validation = {
-            "task_sha256": "a" * 64,
+            "schema": "work-task-execution-validation/v1",
+            "task_ids": ["TASK-001"],
+            "task_collection_sha256": "a" * 64,
+            "task_index_sha256": "1" * 64,
+            "task_item_sha256": {"TASK-001": "2" * 64},
             "instructions_sha256": "b" * 64,
             "task_instructions_sha256": {
                 "TASK-001": self.task_selection["instructions_sha256"]
@@ -57,7 +61,9 @@ class ExecutionContextTests(unittest.TestCase):
         self.attempt = {
             "task_spec_id": "TASK-SPEC-001",
             "task_id": "TASK-001",
-            "task_sha256": "a" * 64,
+            "task_collection_sha256": "a" * 64,
+            "task_index_sha256": "1" * 64,
+            "task_item_sha256": "2" * 64,
             "task_instructions_sha256": self.task_selection[
                 "instructions_sha256"
             ],
@@ -120,11 +126,11 @@ class ExecutionContextTests(unittest.TestCase):
                 index = copy.deepcopy(self.index)
                 attempt = copy.deepcopy(self.attempt)
                 if mismatch == "index":
-                    index["task_sha256"] = "0" * 64
+                    index["task_collection_sha256"] = "0" * 64
                 elif mismatch == "task_set":
                     index["tasks"][0]["id"] = "TASK-002"
                 else:
-                    attempt["task_sha256"] = "0" * 64
+                    attempt["task_item_sha256"] = "0" * 64
                 with self.assertRaises(WorkError) as context:
                     validate_execution_identity(
                         task_contract=self.task_contract,

@@ -16,8 +16,8 @@ from cli_support import FileInputTestCase
 
 from worklib.cli import main
 from worklib.foundation.errors import ExitCode
-from worklib.skills.catalog import SkillRoot, snapshot_catalog_skill
-from worklib.skills.selection import selection_sha256
+from worklib.services.skill_catalog import SkillRoot, snapshot_catalog_skill
+from worklib.services.skill_selection import selection_sha256
 
 
 class SkillSelectionCliTests(FileInputTestCase):

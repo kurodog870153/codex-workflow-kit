@@ -18,12 +18,15 @@ from contracts import test_task as fixtures
 from worklib.cli import main
 from worklib.contracts.attempt import render_attempt_contract
 from worklib.contracts.execution_index import build_initial_execution_index, render_execution_index
-from worklib.contracts.task import render_task_contract
+from worklib.contracts.task_collection_semantics import render_task_contract
+from worklib.artifacts.task import prepare_task_collection_create
 from worklib.execution import command_run
 from worklib.execution.instructions import BASE_EXECUTE_REFERENCES
 from worklib.execution.record_finish import finish_record
 from worklib.foundation.errors import WorkError
-from worklib.instructions.selection import build_instruction_selection
+from worklib.foundation.markdown import parse_json_contract
+from worklib.services.plan_validation import render_plan_contract, validate_plan_contract
+from worklib.services.instruction_selection import build_instruction_selection
 
 
 class CommandRunTests(FileInputTestCase):
@@ -32,7 +35,25 @@ class CommandRunTests(FileInputTestCase):
         self.fixture.setUp()
         self.addCleanup(self.fixture.doCleanups)
         self.root = self.fixture.project_root
-        self.task_path = self.root / self.fixture.artifacts["task"]
+        task_artifact = str(Path(self.fixture.artifacts["task"]).with_name("index.json")).replace("\\", "/")
+        self.fixture.artifacts["task"] = task_artifact
+        self.fixture.contract["artifacts"]["task"] = task_artifact
+        plan_path = self.root / self.fixture.artifacts["plan"]
+        plan = parse_json_contract(plan_path.read_bytes(), source=str(plan_path))
+        plan["artifacts"]["task"] = task_artifact
+        plan_path.write_bytes(render_plan_contract(plan))
+        plan_validation = validate_plan_contract(
+            plan_path.read_bytes(),
+            source=str(plan_path),
+            actual_plan_path=self.fixture.artifacts["plan"],
+            project_root=self.root,
+            user_config_root=str(self.root),
+            _allow_task_index=True,
+        )
+        self.fixture.contract["source_plan"]["canonical_sha256"] = plan_validation[
+            "plan_sha256"
+        ]
+        self.task_path = self.root / task_artifact
         self.directory = self.root / self.fixture.artifacts["execution"]
         self.attempt_path = self.directory / "TASK-001/ATTEMPT-001/attempt.json"
         self.index_path = self.directory / "index.json"
@@ -49,15 +70,31 @@ class CommandRunTests(FileInputTestCase):
         self.fixture.contract["execution_defaults"] = {"working_directory": ".",
             "os": {"Darwin": "macos", "Linux": "linux", "Windows": "windows"}[platform.system()], "shell": "sh"}
         self.fixture.contract["tasks"][0]["commands"][0] = {"id": "CMD-001", "mode": "argv", "argv": argv}
-        validation = self.fixture.validate()
-        self.task_path.write_bytes(render_task_contract(self.fixture.contract))
+        bundle = prepare_task_collection_create(
+            render_task_contract(self.fixture.contract),
+            source="command-run fixture",
+            raw_plan_path=self.fixture.artifacts["plan"],
+            raw_task_path=self.fixture.artifacts["task"],
+            project_root=self.root,
+            user_config_root=str(self.root),
+        )
+        self.task_path.parent.mkdir(parents=True, exist_ok=True)
+        self.task_path.write_bytes(bundle["index_raw"])
+        item_directory = self.task_path.parent / "tasks"
+        item_directory.mkdir(parents=True, exist_ok=True)
+        for task_id, raw in bundle["items"].items():
+            item_directory.joinpath(f"{task_id}.json").write_bytes(raw)
+        validation = bundle["validation"]
         self.index = build_initial_execution_index(self.fixture.contract, validation)
         selection = build_instruction_selection(skill_root=fixtures.SKILL_ROOT, mode="execute",
             selected_paths=self.fixture.contract["tasks"][0]["instruction_selection"]["selected_paths"],
             reference_names=BASE_EXECUTE_REFERENCES)
         self.attempt = {"schema": "work-attempt/v1", "attempt_id": "ATTEMPT-001", "task_id": "TASK-001",
             "task_spec_id": self.index["task_spec_id"], "skill_id": None, "status": "in_progress",
-            "task_sha256": self.index["task_sha256"], "task_instructions_sha256": self.index["tasks"][0]["instructions_sha256"],
+            "task_collection_sha256": self.index["task_collection_sha256"],
+            "task_index_sha256": self.index["task_index_sha256"],
+            "task_item_sha256": self.index["tasks"][0]["task_item_sha256"],
+            "task_instructions_sha256": self.index["tasks"][0]["instructions_sha256"],
             "execute_instructions_sha256": selection["instructions_sha256"],
             "hierarchy_selection_sha256": self.index["hierarchy_selection_sha256"],
             "execute_skill_selection_sha256": self.index["skill_selection_sha256"],
@@ -156,12 +193,12 @@ class CommandRunTests(FileInputTestCase):
 
     def test_result_receipt_failure_does_not_allow_reexecution(self):
         preview = self.prepare()
-        real = command_run._write_receipt
-        def interrupted(path, value):
+        real = command_run.write_command_receipt
+        def interrupted(path, content):
             if path.name.endswith(".finished.json"):
                 raise OSError("injected write failure")
-            real(path, value)
-        with patch.object(command_run, "_write_receipt", side_effect=interrupted):
+            real(path, content)
+        with patch.object(command_run, "write_command_receipt", side_effect=interrupted):
             with self.assertRaises(WorkError) as error:
                 self.run_cmd(preview["approved_sha256"])
         self.assertEqual(error.exception.code, "command_run_interrupted")

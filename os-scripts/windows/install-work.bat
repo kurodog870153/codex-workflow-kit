@@ -119,31 +119,36 @@ exit /b 0
 
 :validate_python_runtime
 set "python_command="
-py -3 -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)" <nul >nul 2>nul
+py -3 -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 14) else 1)" <nul >nul 2>nul
 if not errorlevel 1 set "python_command=py -3"
 if defined python_command (
-    call :validate_pyyaml
+    call :validate_python_dependencies
     exit /b !errorlevel!
 )
-python -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)" <nul >nul 2>nul
+python -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 14) else 1)" <nul >nul 2>nul
 if not errorlevel 1 set "python_command=python"
 if defined python_command (
-    call :validate_pyyaml
+    call :validate_python_dependencies
     exit /b !errorlevel!
 )
-python3 -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)" <nul >nul 2>nul
+python3 -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 14) else 1)" <nul >nul 2>nul
 if not errorlevel 1 set "python_command=python3"
 if defined python_command (
-    call :validate_pyyaml
+    call :validate_python_dependencies
     exit /b !errorlevel!
 )
-set "runtime_error_message=Python 3.10 or newer is required. Install Python and run this installer again."
+set "runtime_error_message=Python 3.14 or newer is required. Install Python and run this installer again."
 exit /b 1
 
-:validate_pyyaml
+:validate_python_dependencies
 !python_command! -c "import yaml" <nul >nul 2>nul
 if errorlevel 1 (
     set "runtime_error_message=PyYAML is required. Install PyYAML for !python_command! and run this installer again."
+    exit /b 1
+)
+!python_command! -c "import pydantic" <nul >nul 2>nul
+if errorlevel 1 (
+    set "runtime_error_message=Pydantic is required. Install the latest Pydantic for !python_command! and run this installer again."
     exit /b 1
 )
 exit /b 0

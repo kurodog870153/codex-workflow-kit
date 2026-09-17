@@ -19,7 +19,7 @@ class SpecTransactionContractTests(unittest.TestCase):
             {"phase": 20, "path": "tasks/TASK-001.json", "operation": "replace", "before": encode_snapshot(b"old"), "after": encode_snapshot(b"new")},
             {"phase": 20, "path": "tasks/TASK-002.json", "operation": "add", "after": encode_snapshot(b"added")},
         ]
-        return {"schema": "work-spec-transaction/v2", "transaction_id": "SPEC-UPDATE-002", "approval_sha256": transaction_approval_sha256(files, metadata), "state": "prepared", "published_count": 0, "metadata": metadata, "files": files}
+        return {"schema": "work-spec-transaction/v1", "transaction_id": "SPEC-UPDATE-002", "approval_sha256": transaction_approval_sha256(files, metadata), "state": "prepared", "published_count": 0, "metadata": metadata, "files": files}
 
     def test_round_trip(self):
         raw = render_spec_transaction(self.contract())
@@ -34,3 +34,10 @@ class SpecTransactionContractTests(unittest.TestCase):
         for contract in cases:
             with self.subTest(contract=contract), self.assertRaises(WorkError):
                 render_spec_transaction(contract)
+
+    def test_rejects_retired_schema(self):
+        contract = self.contract()
+        contract["schema"] = "work-spec-transaction/v2"
+
+        with self.assertRaises(WorkError):
+            render_spec_transaction(contract)

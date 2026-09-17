@@ -17,16 +17,17 @@ from worklib.contracts.execution_index import (
     build_initial_execution_index,
     render_execution_index,
 )
-from worklib.instructions.selection import build_instruction_selection
-from worklib.contracts.plan import render_plan_contract, validate_plan_file
-from worklib.skills.catalog import SkillRoot, snapshot_catalog_skill
-from worklib.skills.selection import selection_sha256
-from worklib.contracts.task import render_task_contract, validate_task_contract
-from worklib.instructions.task_selection import (
+from worklib.services.instruction_selection import build_instruction_selection
+from worklib.services.plan_validation import render_plan_contract, validate_plan_file
+from worklib.services.skill_catalog import SkillRoot, snapshot_catalog_skill
+from worklib.services.skill_selection import selection_sha256
+from worklib.contracts.task_collection_semantics import render_task_contract
+from worklib.artifacts.task import prepare_task_collection_create
+from worklib.services.instruction_task_selection import (
     build_task_document_instruction_selection,
 )
-from worklib.instructions.work_selection import build_work_instruction_selection
-from worklib.hierarchy.selection import build_hierarchy_selection
+from worklib.services.instruction_work_selection import build_work_instruction_selection
+from worklib.services.hierarchy_selection import build_hierarchy_selection
 
 
 class ExecuteInstructionPreflightTests(unittest.TestCase):
@@ -37,7 +38,7 @@ class ExecuteInstructionPreflightTests(unittest.TestCase):
         (self.project_root / "src.txt").write_text("source\n", encoding="utf-8")
         self.artifacts = {
             "plan": "outputs/work/plans/example.json",
-            "task": "outputs/work/tasks/example/task.json",
+            "task": "outputs/work/tasks/example/index.json",
             "execution": "outputs/work/executions/example",
         }
         skill_root_path = self.project_root / ".agents" / "skills"
@@ -148,7 +149,7 @@ Instructions
             reference_names=["task.general.task-records"],
         )
         self.task_contract: dict[str, object] = {
-            "schema": "work-task/v1",
+            "schema": "work-task-collection-projection/v1",
             "requirement_id": "example",
             "spec_id": "TASK-SPEC-001",
             "status": "confirmed",
@@ -205,17 +206,21 @@ Instructions
             "readiness": {"status": "passed", "spec_id": "TASK-SPEC-001"},
         }
         task_raw = render_task_contract(self.task_contract)
-        task_path = self.project_root / self.artifacts["task"]
-        task_path.parent.mkdir(parents=True)
-        task_path.write_bytes(task_raw)
-        task_validation = validate_task_contract(
-            task_raw,
-            source=str(task_path),
-            actual_task_path=self.artifacts["task"],
+        bundle = prepare_task_collection_create(
+            task_raw, source="preflight fixture",
+            raw_plan_path=self.artifacts["plan"],
+            raw_task_path=self.artifacts["task"],
             project_root=self.project_root,
             user_config_root=str(self.project_root),
             skill_roots=[self.skill_root],
         )
+        task_path = self.project_root / bundle["normalized_index"]
+        item_directory = task_path.parent / "tasks"
+        item_directory.mkdir(parents=True)
+        task_path.write_bytes(bundle["index_raw"])
+        for task_id, raw in bundle["items"].items():
+            item_directory.joinpath(f"{task_id}.json").write_bytes(raw)
+        task_validation = bundle["validation"]
 
         self.index = build_initial_execution_index(
             self.task_contract,
@@ -337,19 +342,19 @@ Instructions
             ],
         )
 
-    def test_v2_preflight_uses_collection_fingerprints(self) -> None:
+    def test_preflight_uses_collection_fingerprints(self) -> None:
         from tests.work.contracts.test_task_collection import TaskCollectionTests
-        from worklib.artifacts.task_collection import load_task_collection
+        from worklib.services.task_collection import load_task_collection
 
         fixture = TaskCollectionTests(
-            "test_loads_complete_v2_collection_and_v1_artifact"
+            "test_loads_complete_collection_and_rejects_single_file_artifact"
         )
         fixture.setUp()
         self.addCleanup(fixture.doCleanups)
         validation = load_task_collection(
             fixture.root, str(fixture.root), fixture.index_path
         )
-        logical = validation["logical_contract"]
+        logical = validation["collection_contract"]
         index = build_initial_execution_index(logical, validation)
         execution_path = fixture.root / logical["artifacts"]["execution"]
         execution_path.mkdir(parents=True, exist_ok=True)

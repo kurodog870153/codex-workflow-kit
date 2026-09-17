@@ -15,7 +15,7 @@ from worklib.execution.attempt_close import (
     _task_status,
     _validate_execute_instruction_close_state,
 )
-from worklib.instructions.selection import build_instruction_selection
+from worklib.services.instruction_selection import build_instruction_selection
 
 
 class ExecuteInstructionAttemptCloseTests(unittest.TestCase):
@@ -43,7 +43,9 @@ class ExecuteInstructionAttemptCloseTests(unittest.TestCase):
             "task_id": "TASK-001",
             "skill_id": None,
             "status": "in_progress",
-            "task_sha256": "a" * 64,
+            "task_collection_sha256": "a" * 64,
+            "task_index_sha256": "1" * 64,
+            "task_item_sha256": "2" * 64,
             "task_instructions_sha256": self.task_selection[
                 "instructions_sha256"
             ],

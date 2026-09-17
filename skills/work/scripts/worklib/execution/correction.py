@@ -13,6 +13,8 @@ from ..contracts.correction import (
     render_correction_contract,
     validate_correction_file,
 )
+from ..contracts.correction_create_models import CorrectionCreateContract
+from ..contracts.recovery_models import ExecutionRecoveryContract
 from ..foundation.errors import ExitCode, WorkError
 from .context import read_contract, find_task_row, load_lifecycle_task_context, validate_execution_identity
 from ..contracts.execution_index import (
@@ -23,10 +25,9 @@ from ..contracts.execution_index import (
 from ..foundation.fingerprint import read_raw
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path
-from ..skills.catalog import SkillRoot
-from ..contracts.task import validate_task_contract
+from ..services.skill_catalog import SkillRoot
 from .correction_request import parse_correction_create_request
-from .correction_transactions import (
+from ..infrastructure.correction_storage import (
     consume_temporary,
     install_exclusive,
     prepare_file,
@@ -199,7 +200,6 @@ def _load_context(
         user_config_root=user_config_root,
         task_id=task_id,
         skill_roots=skill_roots,
-        v1_validator=validate_task_contract,
     )
     if (
         task_contract["artifacts"]["task"] != normalized_task
@@ -307,26 +307,18 @@ def create_correction(
     )
     correction = canonicalize_correction_contract(
         {
-            "schema": (
-                "work-correction/v2"
-                if attempt["schema"] == "work-attempt/v2"
-                else "work-correction/v1"
-            ),
+            "schema": "work-correction/v1",
             "correction_id": correction_id,
             "created_at": _timestamp(now),
             "target_attempt_id": attempt_id,
-            **(
-                {
-                    field: attempt[field]
-                    for field in (
-                        "task_collection_sha256",
-                        "task_index_sha256",
-                        "task_item_sha256",
-                    )
-                }
-                if attempt["schema"] == "work-attempt/v2"
-                else {}
-            ),
+            **{
+                field: attempt[field]
+                for field in (
+                    "task_collection_sha256",
+                    "task_index_sha256",
+                    "task_item_sha256",
+                )
+            },
             "task_instructions_sha256": attempt["task_instructions_sha256"],
             "execute_instructions_sha256": attempt[
                 "execute_instructions_sha256"
@@ -393,16 +385,16 @@ def create_correction(
     )
     validate_correction_file(project_root, correction_relative)
     validate_execution_index(read_raw(context["index_path"]), source=context["index_relative"])
-    return {
-        "schema": "work-correction-create/v1",
-        "task_id": task_id,
-        "attempt_id": attempt_id,
-        "correction_id": correction_id,
-        "correction_path": correction_relative,
-        "index_path": context["index_relative"],
-        "affected_task_ids": affected_task_ids,
-        "lock_status": "released",
-    }
+    return CorrectionCreateContract(
+        schema="work-correction-create/v1",
+        task_id=task_id,
+        attempt_id=attempt_id,
+        correction_id=correction_id,
+        correction_path=correction_relative,
+        index_path=context["index_relative"],
+        affected_task_ids=affected_task_ids,
+        lock_status="released",
+    ).to_canonical_dict()
 
 
 def _transaction_identity(files: list[str], task_id: str) -> str:
@@ -691,7 +683,7 @@ def recover_correction(
     )
     validate_correction_file(project_root, correction_relative)
     validate_execution_index(read_raw(context["index_path"]), source=context["index_relative"])
-    return {
+    return ExecutionRecoveryContract.model_validate({
         "schema": "work-execution-recovery/v1",
         "transaction": "correction",
         "task_id": task_id,
@@ -702,4 +694,4 @@ def recover_correction(
         "affected_task_ids": affected,
         "lock_status": "released",
         "status": "recovered",
-    }
+    }).to_canonical_dict()

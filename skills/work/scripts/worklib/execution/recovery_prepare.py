@@ -1,21 +1,23 @@
 """Read-only inventory and request preparation for a reviewed recovery direction."""
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 
 from .context import validate_execution_identity
-from ..artifacts.task_collection import load_task_execution_context
-from .recovery import REQUEST_SCHEMA, parse_execution_recovery_request, _validate_attempt_bytes, _validate_index_bytes
+from ..services.task_collection import load_task_execution_context
+from .recovery import _validate_attempt_bytes, _validate_index_bytes
+from ..contracts.recovery_models import (
+    ExecutionRecoveryPrepareContract, ExecutionRecoveryPrepareRequestContract,
+    ExecutionRecoveryRequestContract,
+)
 from ..contracts.correction import canonicalize_correction_contract, render_correction_contract
-from ..contracts.task import validate_task_contract
-from ..contracts.validation import strict_keys
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import raw_sha256, read_raw
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import normalize_relative_path
-from ..foundation.spec_update import require_idle_writer, require_no_spec_update, storage_path
+from ..foundation.spec_update import require_no_spec_update, storage_path
+from ..infrastructure.writer_lock import require_idle_writer
 
 
 def _fail(code, message):
@@ -35,13 +37,11 @@ def _inventory(root, execution):
 def prepare_execution_recovery(raw, *, source, project_root: Path, user_config_root: str,
                                raw_task_path: str, raw_execution_dir: str, task_id: str,
                                skill_roots=None):
-    value = strict_keys(parse_json_contract(raw, source=source), location="recovery_prepare",
-                        required={"schema", "transaction", "attempt_id"})
-    if value["schema"] != "work-execution-recovery-prepare-request/v1":
-        _fail("recovery_prepare_schema", "Use work-execution-recovery-prepare-request/v1.")
+    value = ExecutionRecoveryPrepareRequestContract.parse_request(
+        raw, source=source
+    )
     # Validate the explicit recovery direction before constructing any paths.
-    request = {**value, "schema": REQUEST_SCHEMA, "transaction_files": []}
-    parse_execution_recovery_request(json.dumps(request).encode(), source=source)
+    request = value.to_recovery_request().to_canonical_dict()
     if not isinstance(task_id, str) or not re.fullmatch(r"TASK-\d{3}", task_id):
         _fail("recovery_prepare_task_id", "Use a canonical TASK-nnn ID.")
     task_relative = normalize_relative_path(raw_task_path, field="task_path")
@@ -144,16 +144,16 @@ def prepare_execution_recovery(raw, *, source, project_root: Path, user_config_r
         else:
             _validate_index_bytes(preserved, source=relative)
     request["transaction_files"] = files
-    parse_execution_recovery_request(json.dumps(request).encode(), source="prepared recovery")
+    ExecutionRecoveryRequestContract.model_validate(request)
     if files != _inventory(project_root, execution) or any(
         read_raw(storage_path(project_root, relative)) != old for relative, old in observed.items()
     ):
         _fail("recovery_prepare_source_changed", "Recovery evidence changed during preparation.")
     require_idle_writer(project_root, execution)
     require_no_spec_update(project_root, execution)
-    return {"schema": "work-execution-recovery-prepare/v1", "status": "prepared",
+    return ExecutionRecoveryPrepareContract.model_validate({"schema": "work-execution-recovery-prepare/v1", "status": "prepared",
         "request": request, "task_id": task_id, "attempt_path": attempt_relative, "index_path": index_relative,
         "lock": lock, "attempt_status": attempt["status"],
         "evidence": {path: {"raw_sha256": raw_sha256(content), "size_bytes": len(content)}
                      for path, content in observed.items()},
-        "recovery_validation": "requires_authorized_recover", "recovery_authorized": False}
+        "recovery_validation": "requires_authorized_recover", "recovery_authorized": False}).to_canonical_dict()

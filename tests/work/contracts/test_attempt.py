@@ -11,6 +11,7 @@ SCRIPT_ROOT = REPO_ROOT / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.contracts.attempt import (
+    AttemptValidationContract,
     canonicalize_attempt_contract,
     validate_attempt_contract,
 )
@@ -26,7 +27,9 @@ class AttemptContractTests(unittest.TestCase):
             "task_id": "TASK-001",
             "skill_id": None,
             "status": "in_progress",
-            "task_sha256": "a" * 64,
+            "task_collection_sha256": "a" * 64,
+            "task_index_sha256": "1" * 64,
+            "task_item_sha256": "2" * 64,
             "task_instructions_sha256": "b" * 64,
             "execute_instructions_sha256": "c" * 64,
             "hierarchy_selection_sha256": "f" * 64,
@@ -89,25 +92,20 @@ class AttemptContractTests(unittest.TestCase):
             ["execute_rules_sha256", "task_rules_sha256"],
         )
 
-    def test_accepts_v2_collection_fingerprints(self) -> None:
-        attempt = copy.deepcopy(self.attempt)
-        attempt["schema"] = "work-attempt/v2"
-        attempt.pop("task_sha256")
-        attempt.update(
-            {
-                "task_collection_sha256": "1" * 64,
-                "task_index_sha256": "2" * 64,
-                "task_item_sha256": "3" * 64,
-            }
+    def test_accepts_v1_collection_fingerprints(self) -> None:
+        result = validate_attempt_contract(self.attempt, project_root=REPO_ROOT)
+
+        self.assertEqual(result["schema"], "work-attempt-validation/v1")
+        self.assertEqual(
+            AttemptValidationContract.model_validate(result).to_canonical_dict(),
+            result,
         )
 
-        result = validate_attempt_contract(attempt, project_root=REPO_ROOT)
-
-        self.assertEqual(result["schema"], "work-attempt-validation/v2")
-
-    def test_v2_rejects_v1_fingerprint_mixup(self) -> None:
+    def test_v1_rejects_legacy_single_file_fingerprint(self) -> None:
         attempt = copy.deepcopy(self.attempt)
-        attempt["schema"] = "work-attempt/v2"
+        attempt["task_sha256"] = attempt.pop("task_collection_sha256")
+        attempt.pop("task_index_sha256")
+        attempt.pop("task_item_sha256")
 
         with self.assertRaises(WorkError) as context:
             canonicalize_attempt_contract(attempt, project_root=REPO_ROOT)
@@ -122,6 +120,15 @@ class AttemptContractTests(unittest.TestCase):
             ],
         )
         self.assertEqual(context.exception.details["unknown"], ["task_sha256"])
+
+    def test_rejects_retired_schema(self) -> None:
+        attempt = copy.deepcopy(self.attempt)
+        attempt["schema"] = "work-attempt/v2"
+
+        with self.assertRaises(WorkError) as context:
+            canonicalize_attempt_contract(attempt, project_root=REPO_ROOT)
+
+        self.assertEqual(context.exception.code, "attempt_invalid_schema")
 
 
 if __name__ == "__main__":

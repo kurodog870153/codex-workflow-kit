@@ -18,7 +18,7 @@ class TaskOrderingTests(unittest.TestCase):
                 "zzz": 2,
                 "readiness": {"spec_id": "TASK-SPEC-001", "status": "ready"},
                 "tasks": [],
-                "schema": "work-task/v1",
+                "schema": "work-task-collection-projection/v1",
                 "aaa": 1,
             }
         )

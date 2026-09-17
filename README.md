@@ -53,8 +53,15 @@ $work task -- resume example
 
 ## 必要環境
 
-1. Python 3.10 以上。
+1. 最新版 Python，最低支援 Python 3.14。
 2. PyYAML。
+3. 最新版 Pydantic。
+
+請使用相同的 Python 環境安裝或升級 Pydantic：
+
+```text
+python -m pip install --upgrade pydantic
+```
 
 安裝器只檢查必要環境，不會自動安裝或升級 Python 套件。
 

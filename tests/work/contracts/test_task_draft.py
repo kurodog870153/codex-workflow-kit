@@ -9,7 +9,7 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.task import validate_task_json_contract
+from worklib.contracts.task_collection_semantics import validate_task_contract
 from worklib.contracts.task_draft import (
     DRAFT_SCHEMA,
     INDEX_SCHEMA,
@@ -151,7 +151,7 @@ class TaskDraftContractTests(unittest.TestCase):
             ("status", "confirmed", "invalid_draft_status"),
             ("status", {}, "invalid_draft_status"),
             ("notes", "text", "invalid_draft_array"),
-            ("schema", "work-task/v1", "invalid_draft_schema"),
+            ("schema", "work-task-collection-projection/v1", "invalid_draft_schema"),
         ):
             with self.subTest(field=field, value=value):
                 original = self.draft[field]
@@ -174,9 +174,9 @@ class TaskDraftContractTests(unittest.TestCase):
         import json
 
         self.assert_rejected(
-            lambda: validate_task_json_contract(
+            lambda: validate_task_contract(
                 json.dumps(self.draft).encode("utf-8"), source="test",
-                actual_task_path="outputs/work/tasks/example/task.json",
+                actual_task_path="outputs/work/tasks/example/index.json",
                 project_root=Path.cwd(), user_config_root=str(Path.cwd()),
             ),
             "invalid_object_fields",

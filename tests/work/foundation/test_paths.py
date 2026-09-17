@@ -65,12 +65,12 @@ class PathTests(unittest.TestCase):
         normalized, resolved = transaction_directory(
             self.project_root,
             requirement_id="feature-1",
-            workflow_id="migration",
+            workflow_id="specification",
             transaction_id=transaction_id,
         )
         self.assertEqual(
             normalized,
-            f"outputs/work/transactions/feature-1/migration/{transaction_id}",
+            f"outputs/work/transactions/feature-1/specification/{transaction_id}",
         )
         self.assertEqual(resolved, self.project_root.joinpath(*normalized.split("/")))
 
@@ -92,9 +92,9 @@ class PathTests(unittest.TestCase):
             "20260915T103000Z-a1b2c3d4",
         )
         cases = (
-            ({"requirement_id": "pending", "workflow_id": "migration", "transaction_id": "20260915T103000Z-a1b2c3d4"}, "reserved_transaction_owner"),
-            ({"requirement_id": "feature-1", "workflow_id": "../migration", "transaction_id": "20260915T103000Z-a1b2c3d4"}, "invalid_workflow_id"),
-            ({"requirement_id": "feature-1", "workflow_id": "migration", "transaction_id": "migration-001"}, "invalid_transaction_id"),
+            ({"requirement_id": "pending", "workflow_id": "specification", "transaction_id": "20260915T103000Z-a1b2c3d4"}, "reserved_transaction_owner"),
+            ({"requirement_id": "feature-1", "workflow_id": "../specification", "transaction_id": "20260915T103000Z-a1b2c3d4"}, "invalid_workflow_id"),
+            ({"requirement_id": "feature-1", "workflow_id": "specification", "transaction_id": "specification-001"}, "invalid_transaction_id"),
         )
         for arguments, expected_code in cases:
             with self.subTest(arguments=arguments):
@@ -155,7 +155,7 @@ class PathTests(unittest.TestCase):
             artifacts,
         )
 
-    def test_v2_defaults_are_active(self) -> None:
+    def test_collection_defaults_are_active(self) -> None:
         default = default_artifact_paths(self.project_root, "feature-1")
         collection = default_task_collection_artifact_paths(
             self.project_root, "feature-1"

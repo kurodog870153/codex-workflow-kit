@@ -23,6 +23,9 @@ class CorrectionContractTests(unittest.TestCase):
             "correction_id": "ATTEMPT-001-CORRECTION-001",
             "created_at": "2026-09-01T10:05+08:00",
             "target_attempt_id": "ATTEMPT-001",
+            "task_collection_sha256": "1" * 64,
+            "task_index_sha256": "2" * 64,
+            "task_item_sha256": "3" * 64,
             "task_instructions_sha256": "b" * 64,
             "execute_instructions_sha256": "c" * 64,
             "field": "records[0].outcome",
@@ -59,29 +62,28 @@ class CorrectionContractTests(unittest.TestCase):
             ["execute_rules_sha256", "task_rules_sha256"],
         )
 
-    def test_accepts_v2_collection_fingerprints(self) -> None:
+    def test_accepts_v1_collection_fingerprints(self) -> None:
+        result = validate_correction_contract(self.correction)
+
+        self.assertEqual(result["schema"], "work-correction-validation/v1")
+
+    def test_rejects_missing_collection_fingerprint(self) -> None:
         correction = copy.deepcopy(self.correction)
-        correction["schema"] = "work-correction/v2"
-        correction.update(
-            {
-                "task_collection_sha256": "1" * 64,
-                "task_index_sha256": "2" * 64,
-                "task_item_sha256": "3" * 64,
-            }
-        )
-
-        result = validate_correction_contract(correction)
-
-        self.assertEqual(result["schema"], "work-correction-validation/v2")
-
-    def test_rejects_v1_correction_with_v2_fingerprints(self) -> None:
-        correction = copy.deepcopy(self.correction)
-        correction["task_collection_sha256"] = "1" * 64
+        correction.pop("task_collection_sha256")
 
         with self.assertRaises(WorkError) as context:
             canonicalize_correction_contract(correction)
 
         self.assertEqual(context.exception.code, "correction_invalid_fields")
+
+    def test_rejects_retired_schema(self) -> None:
+        correction = copy.deepcopy(self.correction)
+        correction["schema"] = "work-correction/v2"
+
+        with self.assertRaises(WorkError) as context:
+            canonicalize_correction_contract(correction)
+
+        self.assertEqual(context.exception.code, "correction_invalid_schema")
 
 
 if __name__ == "__main__":

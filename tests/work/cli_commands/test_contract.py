@@ -1,0 +1,62 @@
+from __future__ import annotations
+
+import io
+import json
+import sys
+import unittest
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+SCRIPT_ROOT = PROJECT_ROOT / "skills" / "work" / "scripts"
+sys.path.insert(0, str(SCRIPT_ROOT))
+
+from worklib.cli import main
+from worklib.foundation.errors import ExitCode
+
+
+class ContractCliTests(unittest.TestCase):
+    def run_cli(self, *arguments: str) -> tuple[int, dict[str, object], str]:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        code = main(
+            ["--project-root", str(PROJECT_ROOT), "contract", *arguments],
+            stdout=stdout,
+            stderr=stderr,
+        )
+        return code, json.loads(stdout.getvalue()), stderr.getvalue()
+
+    def test_list_returns_registered_contracts(self) -> None:
+        code, result, stderr = self.run_cli("list")
+
+        self.assertEqual(code, ExitCode.SUCCESS)
+        self.assertEqual(stderr, "")
+        self.assertEqual(result["data"]["schema"], "work-contract-catalog/v1")
+        contract_ids = [item["id"] for item in result["data"]["contracts"]]
+        self.assertTrue(contract_ids)
+        self.assertEqual(contract_ids, sorted(contract_ids))
+        self.assertIn("work-contract-catalog/v1", contract_ids)
+        self.assertIn("work-contract-description/v1", contract_ids)
+
+    def test_describe_returns_stable_public_description(self) -> None:
+        code, result, stderr = self.run_cli(
+            "describe", "work-contract-catalog/v1"
+        )
+
+        self.assertEqual(code, ExitCode.SUCCESS)
+        self.assertEqual(stderr, "")
+        self.assertEqual(
+            result["data"]["schema"], "work-contract-description/v1"
+        )
+        self.assertEqual(result["data"]["id"], "work-contract-catalog/v1")
+
+    def test_unknown_contract_is_rejected(self) -> None:
+        code, result, stderr = self.run_cli("describe", "work-unknown/v1")
+
+        self.assertEqual(code, ExitCode.CONTRACT)
+        self.assertEqual(stderr, "")
+        self.assertEqual(result["reason_code"], "unknown_contract_id")
+
+
+if __name__ == "__main__":
+    unittest.main()

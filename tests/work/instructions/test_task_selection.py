@@ -11,8 +11,8 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.foundation.errors import WorkError
-from worklib.instructions.selection import build_instruction_selection
-from worklib.instructions.task_selection import (
+from worklib.services.instruction_selection import build_instruction_selection
+from worklib.services.instruction_task_selection import (
     build_task_document_instruction_selection,
     validate_task_document_instruction_selection,
 )

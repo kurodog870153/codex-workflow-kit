@@ -19,7 +19,7 @@ class SpecificationTransactionTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = Path(temporary.name).resolve()
         self.path = self.root / "artifact.json"
         self.temporary = self.root / "prepared.tmp"
 
@@ -101,7 +101,7 @@ class SpecificationTransactionTests(unittest.TestCase):
             {"phase": 10, "path": "a.json", "operation": "replace", "before": encode_snapshot(b"old-a"), "after": encode_snapshot(b"new-a")},
             {"phase": 20, "path": "b.json", "operation": "replace", "before": encode_snapshot(b"old-b"), "after": encode_snapshot(b"new-b")},
         ]
-        return {"schema": "work-spec-transaction/v2", "transaction_id": "SPEC-UPDATE-002", "approval_sha256": transaction_approval_sha256(files, metadata), "state": "prepared", "published_count": 0, "metadata": metadata, "files": files}
+        return {"schema": "work-spec-transaction/v1", "transaction_id": "SPEC-UPDATE-002", "approval_sha256": transaction_approval_sha256(files, metadata), "state": "prepared", "published_count": 0, "metadata": metadata, "files": files}
 
     def test_multi_file_publish_and_idempotent_recovery(self):
         (self.root / "a.json").write_bytes(b"old-a")
@@ -118,7 +118,7 @@ class SpecificationTransactionTests(unittest.TestCase):
     def test_interruption_recovery_and_concurrent_change(self):
         for changed in (False, True):
             with self.subTest(changed=changed), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                root = Path(directory).resolve()
                 (root / "a.json").write_bytes(b"old-a")
                 (root / "b.json").write_bytes(b"old-b")
                 transactions.write_journal(root / "journal.json", self.journal())

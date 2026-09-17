@@ -1,1 +1,0 @@
-"""Skill catalog and selection."""

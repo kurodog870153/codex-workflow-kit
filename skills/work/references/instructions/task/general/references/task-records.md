@@ -48,29 +48,26 @@
 
 1. [強制] execution index 使用 `work-execution-index/v1` canonical 純 JSON，保存 TASK spec、TASK SHA、Plan `hierarchy_selection_sha256` 與 `skill_selection_sha256`、文件與每 TASK instructions SHA、每 TASK `skill_id`、狀態及選用 lock／audit reference；不得複製 TASK 規格或技能全文。
 2. [強制] TASK 狀態只使用 `pending`、`in_progress`、`pending_retry`、`blocked`、`completed`、`cancelled`；`overall_status` 必須由 Python 推導。
-3. [強制] 初版 v2 TASK collection 與 execution index 由 `task create` 使用同一已核准邏輯契約建立；create 要求 formal index、item targets 與 requirement-specific execution 目錄都不存在，依交易程序建立 items、formal index，再建立 execution 目錄與 canonical `index.json`。
+3. [強制] 初版 TASK collection 與 execution index 由 `task create` 使用同一已核准邏輯契約建立；create 要求 formal index、item targets 與 requirement-specific execution 目錄都不存在，依交易程序建立 items、formal index，再建立 execution 目錄與 canonical `index.json`。
 4. [強制] 規格鎖與 execution lock 互斥；部分失敗時保留現況與 lock，不自動回復或覆寫。
 5. [強制] 初版 index 的所有 TASK 狀態與 `overall_status` 均為 `pending`，不建立 `latest_attempt`、`status_reason`、lock、audit 或其他 execution record。
-6. [強制] create 部分失敗時不刪除或覆寫已完成內容；`task recover-create` 只有在既有 v2 bytes 與相同核准候選一致，且 execution 目錄不存在、為空或只含完全相同初始 index 時可使用，且須先取得使用者授權。
+6. [強制] create 部分失敗時不刪除或覆寫已完成內容；`task recover-create` 只有在既有 bytes 與相同核准候選一致，且 execution 目錄不存在、為空或只含完全相同初始 index 時可使用，且須先取得使用者授權。
 7. [強制] Validator 只驗證 contract；create／recover-create 都不執行 CMD 或 OP，也不建立 Attempt、execution lock、instruction audit 或規格升版交易。
 
 8. [強制] 已確認的既有規格同步修改由父 agent 呼叫私人 artifact editor，使用 `task spec-validate`、`task spec-update` 與另行授權的 `task spec-recover`；三者不新增公開 Work mode，且不得手寫正式 JSON 或執行 TASK。
 9. [強制] 同步修改先驗證整組候選與來源指紋，核准綁定 `approved_sha256`；交易保存前後規格、使用 `spec_update` 鎖，完成標記發布前阻擋 Execute。中斷保留現況，只能依相同候選與授權復原，不宣稱多檔案具檔案系統層級原子性。
 10. [強制] TASK `changes` 保存本次升版的單一變更與完整頂層 edits；舊版規格保存於不可改寫的規格交易紀錄。受影響 TASK 與下游完成狀態由 CLI 重新推導，保留 latest Attempt／Correction 指標及全部既有歷史檔案。
 
-## 7. Formal TASK collection v2 active contract
+## 7. Formal TASK collection active contract
 
 The rules in this section define the active contract for new TASK collections
-and ordinary formal revisions. V1 remains a compatible read, diagnosis,
-execution, handoff, progress, and explicit layout-migration source; it is not an
-ordinary write target.
+and ordinary formal revisions. Single-file TASK artifacts are unsupported.
 
-1. [強制] The formal v2 entry point is
+1. [強制] The formal entry point is
    `outputs/work/tasks/<requirement-id>/index.json`. Plan `artifacts.task` is the
-   only authoritative format and entry-point selection: `task.json` selects v1;
-   `index.json` selects v2. A path/schema mismatch is invalid.
-2. [強制] A formal v2 collection consists of one canonical
-   `work-task-index/v2` document and one canonical `work-task-item/v2` document
+   only authoritative entry-point selection. A path/schema mismatch is invalid.
+2. [強制] A formal collection consists of one canonical
+   `work-task-index/v1` document and one canonical `work-task-item/v1` document
    per referenced TASK at `tasks/<TASK-ID>.json`, relative to the directory that
    contains the formal index.
 3. [強制] The index required fields remain in this order: `schema`,
@@ -80,7 +77,7 @@ ordinary write target.
    positions. Each `tasks` entry contains exactly `id`, `path`, and
    `canonical_sha256`, in that order. The index does not duplicate TASK
    dependencies or TASK content.
-4. [強制] A TASK item begins with `schema: work-task-item/v2`, followed by the
+4. [強制] A TASK item begins with `schema: work-task-item/v1`, followed by the
    existing per-TASK fields in their canonical v1 order: required `id`, `title`,
    `skill_id`, `instruction_selection`, `traceability`, `goal`, `steps`, and
    `validations`, plus the existing optional fields in their established
@@ -97,15 +94,15 @@ ordinary write target.
    an unreferenced item is an integrity error. Transaction and immutable-history
    files remain outside this directory and are not inferred as collection items.
 8. [強制] `task_item_sha256` is SHA-256 over the exact UTF-8 bytes of one
-   canonical `work-task-item/v2` document. Each index reference
+   canonical `work-task-item/v1` document. Each index reference
    `canonical_sha256` equals that value. Because canonical rendering is required,
    the canonical and raw-byte SHA-256 values are identical for a valid item.
 9. [強制] `task_index_sha256` is SHA-256 over the exact UTF-8 bytes of the
-   canonical `work-task-index/v2` document. The index does not contain its own
+   canonical `work-task-index/v1` document. The index does not contain its own
    index or collection fingerprint.
 10. [強制] `task_collection_sha256` is SHA-256 over the canonical JSON bytes of
     an in-memory fingerprint object containing, in order, `schema` with value
-    `work-task-collection-fingerprint/v2`, `task_index_sha256`, and `items`.
+    `work-task-collection-fingerprint/v1`, `task_index_sha256`, and `items`.
     Each `items` entry contains `id` and `task_item_sha256` in formal index order.
     The fingerprint object is derived validation evidence and is not another
     stored formal artifact.
@@ -114,102 +111,18 @@ ordinary write target.
     dependency order and acyclicity, direct task-output references, Plan
     traceability coverage, shared decisions, instruction selections, file
     conflicts, step references, and Acceptance validation coverage.
-12. [強制] New formal specifications and ordinary formal revisions use v2.
-    Existing v1 specifications remain readable for validation, diagnosis,
-    execution, handoff, progress, and explicit layout migration, but ordinary v1
-    formal writes are rejected with migration guidance.
-13. [強制] Layout migration preserves the original v1 TASK fingerprint as
-    provenance and never rewrites existing Attempt or Correction source
-    fingerprints. After migration, the Plan's `artifacts.task` selects the v2
-    index even when the retained old `task.json` still exists; the retained file
-    is not a second formal entry point and is never deleted automatically.
+12. [強制] New formal specifications and ordinary formal revisions use the collection contract.
 
-### V2 formal index example
+### Contract descriptions and examples
 
-```json
-{
-  "schema": "work-task-index/v2",
-  "requirement_id": "example",
-  "spec_id": "TASK-SPEC-001",
-  "status": "confirmed",
-  "title": "Example TASK collection",
-  "summary": "Implement the confirmed example Plan.",
-  "artifacts": {
-    "plan": "outputs/work/plans/example.json",
-    "task": "outputs/work/tasks/example/index.json",
-    "execution": "outputs/work/executions/example"
-  },
-  "source_plan": {
-    "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "hierarchy_selection_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-  },
-  "instruction_selection": {
-    "selected_paths": [],
-    "references": [],
-    "sources": [],
-    "instructions_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-  },
-  "tasks": [
-    {
-      "id": "TASK-001",
-      "path": "tasks/TASK-001.json",
-      "canonical_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-    }
-  ],
-  "readiness": {
-    "status": "passed",
-    "spec_id": "TASK-SPEC-001"
-  }
-}
-```
-
-### V2 TASK item example
-
-```json
-{
-  "schema": "work-task-item/v2",
-  "id": "TASK-001",
-  "title": "Document the target collection contract",
-  "skill_id": null,
-  "instruction_selection": {
-    "selected_paths": [],
-    "references": [
-      "task.general.task-records"
-    ],
-    "sources": [],
-    "instructions_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-  },
-  "traceability": {
-    "goal_ids": [
-      "GOAL-001"
-    ],
-    "deliverable_ids": [
-      "DELIVERABLE-001"
-    ],
-    "acceptance_ids": [
-      "ACCEPTANCE-001"
-    ]
-  },
-  "goal": "Define the approved v2 contract.",
-  "steps": [
-    {
-      "id": "STEP-001",
-      "action": "Document and review the contract.",
-      "references": [
-        "VAL-001"
-      ]
-    }
-  ],
-  "validations": [
-    {
-      "id": "VAL-001",
-      "kind": "manual",
-      "confirmer": "user",
-      "criteria": "The target contract is complete and internally consistent.",
-      "acceptance_ids": [
-        "ACCEPTANCE-001"
-      ]
-    }
-  ]
-}
-```
+1. [強制] Query `<work-cli> contract describe work-task-index/v1` for the
+   formal index required and optional fields, canonical key order, constraints,
+   nested contract references, and current valid example.
+2. [強制] Query `<work-cli> contract describe work-task-item/v1` for the TASK
+   item structure and current valid example.
+3. [強制] Query
+   `<work-cli> contract describe work-task-collection-fingerprint/v1` for the
+   derived collection fingerprint structure and current valid example.
+4. [強制] Treat the registered Pydantic contracts as the structural source of
+   truth. Do not duplicate or independently maintain complete JSON structures in
+   instructions.
