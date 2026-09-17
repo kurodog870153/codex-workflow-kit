@@ -9,7 +9,10 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.correction import canonicalize_correction_contract
+from worklib.contracts.correction import (
+    canonicalize_correction_contract,
+    validate_correction_contract,
+)
 from worklib.foundation.errors import WorkError
 
 
@@ -55,6 +58,30 @@ class CorrectionContractTests(unittest.TestCase):
             context.exception.details["unknown"],
             ["execute_rules_sha256", "task_rules_sha256"],
         )
+
+    def test_accepts_v2_collection_fingerprints(self) -> None:
+        correction = copy.deepcopy(self.correction)
+        correction["schema"] = "work-correction/v2"
+        correction.update(
+            {
+                "task_collection_sha256": "1" * 64,
+                "task_index_sha256": "2" * 64,
+                "task_item_sha256": "3" * 64,
+            }
+        )
+
+        result = validate_correction_contract(correction)
+
+        self.assertEqual(result["schema"], "work-correction-validation/v2")
+
+    def test_rejects_v1_correction_with_v2_fingerprints(self) -> None:
+        correction = copy.deepcopy(self.correction)
+        correction["task_collection_sha256"] = "1" * 64
+
+        with self.assertRaises(WorkError) as context:
+            canonicalize_correction_contract(correction)
+
+        self.assertEqual(context.exception.code, "correction_invalid_fields")
 
 
 if __name__ == "__main__":

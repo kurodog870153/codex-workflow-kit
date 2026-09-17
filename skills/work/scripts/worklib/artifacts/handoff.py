@@ -8,6 +8,7 @@ from pathlib import Path
 from ..contracts.handoff import DIRECTION_STAGES, HANDOFF_MARKER, RETURN_FIELDS, validate_handoff_contract
 from ..contracts.plan import ID_PREFIXES, validate_plan_contract
 from ..contracts.task import validate_task_contract
+from .task_collection import load_task_artifact, task_artifact_format
 from ..contracts.attempt import render_attempt_contract, validate_attempt_file
 from ..contracts.execution_index import validate_execution_index
 from ..contracts.validation import strict_keys
@@ -15,7 +16,11 @@ from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import read_raw, raw_sha256
 from ..foundation.spec_update import require_no_spec_update
 from ..foundation.markdown import parse_json_contract
-from ..foundation.paths import resolve_project_relative_path, validate_execution_task_layout
+from ..foundation.paths import (
+    resolve_project_relative_path,
+    resolve_task_collection_item_path,
+    validate_execution_task_layout,
+)
 from ..skills.catalog import SkillRoot
 from ..skills.selection import selection_sha256
 from ..execution.context import find_task_row, validate_execution_identity
@@ -31,6 +36,7 @@ def _read_validated_plan(project_root, plan_path, user_config_root, skill_roots)
     validation = validate_plan_contract(
         raw, source=str(resolved), actual_plan_path=normalized, project_root=project_root,
         user_config_root=user_config_root, skill_roots=skill_roots,
+        _allow_task_index=True,
     )
     plan = parse_json_contract(raw, source=str(resolved))
     require_no_spec_update(project_root, plan["artifacts"]["execution"])
@@ -52,7 +58,16 @@ def _build_handoff(project_root, direction, requirement_id, artifacts, source, p
 def _require_unchanged_source(project_root, relative, resolved, raw, *, field):
     """Reject changed bytes or a redirected source path without changing state."""
     _, current = resolve_project_relative_path(project_root, relative, field=field)
-    if current != resolved or read_raw(current) != raw:
+    if current != resolved:
+        raise WorkError(ExitCode.ARTIFACT_INTEGRITY, "handoff_source_changed", "A source artifact changed during handoff construction.", {"field": field})
+    if isinstance(raw, dict):
+        unchanged = all(
+            read_raw(project_root / path) == snapshot
+            for path, snapshot in raw.items()
+        )
+    else:
+        unchanged = read_raw(current) == raw
+    if not unchanged:
         raise WorkError(ExitCode.ARTIFACT_INTEGRITY, "handoff_source_changed", "A source artifact changed during handoff construction.", {"field": field})
     if field == "plan_path":
         plan = parse_json_contract(raw, source=str(resolved))
@@ -72,11 +87,55 @@ def _require_known_affected_ids(contract, known_ids, *, code):
 def _read_validated_task(project_root, task_path, user_config_root, skill_roots, *, validate_file_state=True):
     normalized, resolved = resolve_project_relative_path(project_root, task_path, field="task_path")
     raw = read_raw(resolved)
-    validation = validate_task_contract(
-        raw, source=str(resolved), actual_task_path=normalized, project_root=project_root,
-        user_config_root=user_config_root, skill_roots=skill_roots, validate_file_state=validate_file_state,
-    )
-    return parse_json_contract(raw, source=str(resolved)), validation, resolved, raw
+    if task_artifact_format(normalized) == "v1":
+        validation = validate_task_contract(
+            raw,
+            source=str(resolved),
+            actual_task_path=normalized,
+            project_root=project_root,
+            user_config_root=user_config_root,
+            skill_roots=skill_roots,
+            validate_file_state=validate_file_state,
+        )
+        task = parse_json_contract(raw, source=str(resolved))
+        snapshot: object = raw
+    else:
+        validation = load_task_artifact(
+            project_root,
+            user_config_root,
+            normalized,
+            skill_roots=skill_roots,
+            validate_file_state=validate_file_state,
+        )
+        index = parse_json_contract(raw, source=str(resolved))
+        task = copy.deepcopy(validation["logical_contract"])
+        task["artifacts"]["task"] = normalized
+        task["source_plan"]["canonical_sha256"] = validation[
+            "source_plan_sha256"
+        ]
+        snapshot = {normalized: raw}
+        for reference in index["tasks"]:
+            _, item_path = resolve_task_collection_item_path(
+                project_root,
+                index["requirement_id"],
+                normalized,
+                reference["id"],
+                reference["path"],
+            )
+            snapshot[item_path] = read_raw(item_path)
+    return task, validation, resolved, snapshot
+
+
+def _task_fingerprints(validation, task_id=None):
+    if validation["schema"] == "work-task-collection-validation/v2":
+        result = {
+            "task_collection_sha256": validation["task_collection_sha256"],
+            "task_index_sha256": validation["task_index_sha256"],
+        }
+        if task_id is not None:
+            result["task_item_sha256"] = validation["task_item_sha256"][task_id]
+        return result
+    return {"task_sha256": validation["task_sha256"]}
 
 
 def _task_skill_id(validation, task_id):
@@ -123,7 +182,7 @@ def _require_no_execution_transaction(execution_path):
 def _execute_return_contract(project_root, direction, task, validation, task_id, skill_id, fingerprint, context, payload, plan, *, attempt_sha256=None):
     contract = _build_handoff(project_root, direction, validation["requirement_id"], task["artifacts"], {
         "task_spec_id": validation["spec_id"], "task_id": task_id,
-        "task_sha256": validation["task_sha256"],
+        **_task_fingerprints(validation, task_id),
         "task_instructions_sha256": validation["task_instructions_sha256"][task_id],
         "skill_id": skill_id, "execute_skill_selection_sha256": fingerprint,
         "execution_context": context,
@@ -236,7 +295,7 @@ def build_task_to_execute_handoff(
     _, plan_resolved, plan_raw = _read_task_source_plan(project_root, task, validation, user_config_root, skill_roots)
     contract = _build_handoff(project_root, "task_to_execute", validation["requirement_id"], task["artifacts"], {
         "task_spec_id": validation["spec_id"], "task_id": task_id,
-        "task_sha256": validation["task_sha256"],
+        **_task_fingerprints(validation, task_id),
         "task_instructions_sha256": validation["task_instructions_sha256"][task_id],
         "skill_id": skill_id,
         "skill_selection_sha256": validation["skill_selection_sha256"],
@@ -274,7 +333,7 @@ def build_task_to_plan_handoff(
     task, validation, resolved, raw = _read_validated_task(project_root, task_path, user_config_root, skill_roots)
     source = {
         "plan_sha256": validation["source_plan_sha256"], "task_spec_id": validation["spec_id"],
-        "task_sha256": validation["task_sha256"],
+        **_task_fingerprints(validation, task_id),
         "skill_selection_sha256": validation["skill_selection_sha256"],
     }
     if task_id is not None:

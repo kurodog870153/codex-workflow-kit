@@ -17,14 +17,12 @@ from worklib.execution.worktree import inspect_execute_worktree
 class ExecuteWorktreeTests(unittest.TestCase):
     @patch("worklib.execution.worktree.collect_git_status", return_value=[])
     @patch("worklib.execution.worktree.canonical_sha256", return_value="a" * 64)
-    @patch("worklib.execution.worktree.read_raw", return_value=b"task")
-    @patch("worklib.execution.worktree.parse_json_contract")
+    @patch("worklib.execution.worktree.load_task_execution_context")
     @patch("worklib.execution.worktree.execute_preflight")
     def test_forwards_instruction_fingerprints(
         self,
         mocked_preflight,
-        mocked_parse,
-        _mocked_read,
+        mocked_context,
         _mocked_sha256,
         _mocked_status,
     ) -> None:
@@ -43,15 +41,23 @@ class ExecuteWorktreeTests(unittest.TestCase):
             "execution_dir": "outputs/work/executions/example",
             "dependencies": [],
         }
-        mocked_parse.return_value = {"tasks": [{"id": "TASK-001"}]}
+        mocked_context.return_value = {
+            "contract": {"tasks": [{"id": "TASK-001"}]},
+            "validation": {
+                "schema": "work-task-validation/v1",
+                "task_sha256": hashlib.sha256(b"task").hexdigest(),
+            },
+            "sources": {},
+        }
 
-        result = inspect_execute_worktree(
-            project_root=REPO_ROOT,
-            user_config_root=str(REPO_ROOT),
-            raw_task_path="outputs/work/tasks/example/task.json",
-            raw_execution_dir="outputs/work/executions/example",
-            task_id="TASK-001",
-        )
+        with patch("worklib.execution.worktree.read_raw", return_value=b"task"):
+            result = inspect_execute_worktree(
+                project_root=REPO_ROOT,
+                user_config_root=str(REPO_ROOT),
+                raw_task_path="outputs/work/tasks/example/task.json",
+                raw_execution_dir="outputs/work/executions/example",
+                task_id="TASK-001",
+            )
 
         self.assertEqual(result["task_instructions_sha256"], "b" * 64)
         self.assertEqual(result["execute_instructions_sha256"], "c" * 64)

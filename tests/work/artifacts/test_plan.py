@@ -82,7 +82,9 @@ class InitialPlanPreparationTests(unittest.TestCase):
 
     def test_default_candidate_is_read_only_and_can_use_existing_create(self):
         result = self.prepare()
-        self.assertEqual(result["plan"], self.fixture.contract)
+        expected = copy.deepcopy(self.fixture.contract)
+        expected["artifacts"]["task"] = "outputs/work/tasks/example/index.json"
+        self.assertEqual(result["plan"], expected)
         self.assertEqual(list(self.root.iterdir()), [])
         created = create_plan_file(json.dumps(result["plan"]).encode(), source="candidate",
             raw_plan_path=result["path"], project_root=self.root, user_config_root=str(self.root))

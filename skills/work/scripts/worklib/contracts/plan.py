@@ -252,6 +252,7 @@ def validate_plan_contract(
     user_config_root: str,
     skill_roots: list[SkillRoot] | None = None,
     _historical_work_sources: bool = False,
+    _allow_task_index: bool = False,
 ) -> dict[str, object]:
     contract = parse_json_contract(raw, source=source)
     _strict_keys(
@@ -282,6 +283,7 @@ def validate_plan_contract(
         contract["requirement_id"],
         contract["artifacts"],
         actual_plan_path=actual_plan_path,
+        allow_task_index=_allow_task_index,
     )
     hierarchy_validation = validate_hierarchy_selection(
         contract["hierarchy_selection"],
@@ -419,6 +421,7 @@ def prepare_plan_json_contract(
         project_root=project_root,
         user_config_root=user_config_root,
         skill_roots=skill_roots,
+        _allow_task_index=str(contract.get("artifacts", {}).get("task", "")).endswith("/index.json"),
     )
     return validation, rendered
 
@@ -470,6 +473,7 @@ def validate_plan_file(
         project_root, raw_path, field="plan_path"
     )
     raw = read_raw(path)
+    contract = parse_json_contract(raw, source=str(path))
     return validate_plan_contract(
         raw,
         source=str(path),
@@ -477,4 +481,5 @@ def validate_plan_file(
         project_root=project_root,
         user_config_root=user_config_root,
         skill_roots=skill_roots,
+        _allow_task_index=str(contract.get("artifacts", {}).get("task", "")).endswith("/index.json"),
     )

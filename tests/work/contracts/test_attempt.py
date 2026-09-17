@@ -10,7 +10,10 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_ROOT = REPO_ROOT / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.attempt import canonicalize_attempt_contract
+from worklib.contracts.attempt import (
+    canonicalize_attempt_contract,
+    validate_attempt_contract,
+)
 from worklib.foundation.errors import WorkError
 
 
@@ -85,6 +88,40 @@ class AttemptContractTests(unittest.TestCase):
             context.exception.details["unknown"],
             ["execute_rules_sha256", "task_rules_sha256"],
         )
+
+    def test_accepts_v2_collection_fingerprints(self) -> None:
+        attempt = copy.deepcopy(self.attempt)
+        attempt["schema"] = "work-attempt/v2"
+        attempt.pop("task_sha256")
+        attempt.update(
+            {
+                "task_collection_sha256": "1" * 64,
+                "task_index_sha256": "2" * 64,
+                "task_item_sha256": "3" * 64,
+            }
+        )
+
+        result = validate_attempt_contract(attempt, project_root=REPO_ROOT)
+
+        self.assertEqual(result["schema"], "work-attempt-validation/v2")
+
+    def test_v2_rejects_v1_fingerprint_mixup(self) -> None:
+        attempt = copy.deepcopy(self.attempt)
+        attempt["schema"] = "work-attempt/v2"
+
+        with self.assertRaises(WorkError) as context:
+            canonicalize_attempt_contract(attempt, project_root=REPO_ROOT)
+
+        self.assertEqual(context.exception.code, "attempt_invalid_object_fields")
+        self.assertEqual(
+            context.exception.details["missing"],
+            [
+                "task_collection_sha256",
+                "task_index_sha256",
+                "task_item_sha256",
+            ],
+        )
+        self.assertEqual(context.exception.details["unknown"], ["task_sha256"])
 
 
 if __name__ == "__main__":

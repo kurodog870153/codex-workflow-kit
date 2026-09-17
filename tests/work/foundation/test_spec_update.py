@@ -14,10 +14,18 @@ sys.path.insert(0, str(SCRIPT_ROOT))
 from worklib.foundation.errors import WorkError
 from worklib.foundation.spec_update import (
     completion_marker_matches, require_idle_writer, require_no_spec_update, storage_path,
+    transaction_completion_state,
 )
 
 
 class CompletionMarkerTests(unittest.TestCase):
+    def test_completion_state_distinguishes_missing_and_corrupt_markers(self):
+        raw = b"journal\n"
+        marker = hashlib.sha256(raw).hexdigest().encode("ascii") + b"\n"
+        self.assertEqual(transaction_completion_state(raw, None), "incomplete")
+        self.assertEqual(transaction_completion_state(raw, b"bad\n"), "corrupt")
+        self.assertEqual(transaction_completion_state(raw, marker), "completed")
+
     def test_idle_probe_does_not_create_storage(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()

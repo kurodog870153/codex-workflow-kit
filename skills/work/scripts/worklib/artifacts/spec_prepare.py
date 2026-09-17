@@ -39,6 +39,18 @@ def prepare_specification(raw_request: bytes, *, project_root: Path,
     plan_path = nonempty_string(request["plan_path"], location="plan_path")
     original_plan = storage_path(project_root, plan_path).read_bytes()
     plan = _decode(original_plan)
+    declared_artifacts = plan.get("artifacts")
+    if (
+        not migration
+        and isinstance(declared_artifacts, dict)
+        and str(declared_artifacts.get("task", "")).endswith("/index.json")
+    ):
+        from .specification_v2 import prepare_v2
+        return prepare_v2(
+            raw_request, project_root=project_root,
+            user_config_root=user_config_root, skill_roots=skill_roots,
+            output_file=output_file,
+        )
     artifacts = validate_artifact_paths(project_root, plan.get("requirement_id"),
                                        plan.get("artifacts"), actual_plan_path=plan_path)
     require_no_spec_update(project_root, artifacts["execution"])

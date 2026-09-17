@@ -150,14 +150,24 @@ def _build_attempt(
     task_id = str(preflight["task_id"])
     row = _task_row(index, task_id)
     continuation = request.get("continuation")
+    is_collection = "task_collection_sha256" in preflight
+    source_fingerprints = (
+        {
+            "task_collection_sha256": preflight["task_collection_sha256"],
+            "task_index_sha256": preflight["task_index_sha256"],
+            "task_item_sha256": preflight["task_item_sha256"],
+        }
+        if is_collection
+        else {"task_sha256": preflight["task_sha256"]}
+    )
     contract: dict[str, Any] = {
-        "schema": "work-attempt/v1",
+        "schema": "work-attempt/v2" if is_collection else "work-attempt/v1",
         "attempt_id": attempt_id,
         "task_spec_id": preflight["task_spec_id"],
         "task_id": task_id,
         "skill_id": preflight["skill_id"],
         "status": "in_progress",
-        "task_sha256": preflight["task_sha256"],
+        **source_fingerprints,
         "task_instructions_sha256": preflight["task_instructions_sha256"],
         "execute_instructions_sha256": preflight["execute_instructions_sha256"],
         "hierarchy_selection_sha256": preflight["hierarchy_selection_sha256"],

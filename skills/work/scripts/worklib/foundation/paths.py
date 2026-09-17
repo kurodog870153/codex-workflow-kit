@@ -10,6 +10,7 @@ from .errors import ExitCode, WorkError
 REQUIREMENT_ID_PATTERN = re.compile(r"^[a-z0-9._-]+$")
 WORKFLOW_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 TRANSACTION_ID_PATTERN = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$")
+TASK_ITEM_ID_PATTERN = re.compile(r"^TASK-\d{3}$")
 WINDOWS_DEVICES = {
     "CON",
     "PRN",
@@ -242,12 +243,105 @@ def default_artifact_paths(project_root: Path, requirement_id: str) -> dict[str,
     requirement_id = validate_requirement_id(requirement_id)
     paths = {
         "plan": f"outputs/work/plans/{requirement_id}.json",
-        "task": f"outputs/work/tasks/{requirement_id}/task.json",
+        "task": f"outputs/work/tasks/{requirement_id}/index.json",
         "execution": f"outputs/work/executions/{requirement_id}",
     }
     for field, value in paths.items():
         resolve_project_relative_path(project_root, value, field=field)
     return paths
+
+
+def default_task_collection_artifact_paths(
+    project_root: Path, requirement_id: str
+) -> dict[str, str]:
+    """Return the active v2 TASK collection defaults."""
+    requirement_id = validate_requirement_id(requirement_id)
+    paths = {
+        "plan": f"outputs/work/plans/{requirement_id}.json",
+        "task": f"outputs/work/tasks/{requirement_id}/index.json",
+        "execution": f"outputs/work/executions/{requirement_id}",
+    }
+    for field, value in paths.items():
+        resolve_project_relative_path(project_root, value, field=field)
+    return paths
+
+
+def validate_task_collection_index_path(
+    project_root: Path,
+    requirement_id: str,
+    raw_index_path: str,
+) -> tuple[str, Path]:
+    requirement_id = validate_requirement_id(requirement_id)
+    normalized, resolved = resolve_project_relative_path(
+        project_root, raw_index_path, field="task_index_path"
+    )
+    index_path = Path(normalized)
+    if index_path.name != "index.json" or index_path.parent.name != requirement_id:
+        raise WorkError(
+            ExitCode.CONTRACT,
+            "task_index_path_requirement_mismatch",
+            "The TASK index path must end with <requirement-id>/index.json.",
+            {"path": normalized, "requirement_id": requirement_id},
+        )
+    return normalized, resolved
+
+
+def resolve_task_collection_item_path(
+    project_root: Path,
+    requirement_id: str,
+    raw_index_path: str,
+    task_id: str,
+    raw_item_path: str,
+) -> tuple[str, Path]:
+    if not isinstance(task_id, str) or not TASK_ITEM_ID_PATTERN.fullmatch(task_id):
+        raise WorkError(
+            ExitCode.CONTRACT,
+            "invalid_task_item_id",
+            "A TASK item ID must use TASK-NNN.",
+            {"task_id": task_id},
+        )
+    expected = f"tasks/{task_id}.json"
+    if raw_item_path != expected:
+        raise WorkError(
+            ExitCode.CONTRACT,
+            "task_item_path_mismatch",
+            "A TASK item path must exactly match tasks/<TASK-ID>.json.",
+            {"task_id": task_id, "expected": expected, "actual": raw_item_path},
+        )
+    normalized_index, _ = validate_task_collection_index_path(
+        project_root, requirement_id, raw_index_path
+    )
+    collection_relative = normalized_index.rsplit("/", 1)[0]
+    _, collection_path = resolve_project_relative_path(
+        project_root, collection_relative, field="task_collection_directory"
+    )
+    _, item_path = resolve_project_relative_path(
+        project_root,
+        f"{collection_relative}/{raw_item_path}",
+        field="task_item_path",
+    )
+    if not _is_within(item_path, collection_path):
+        raise WorkError(
+            ExitCode.CONTRACT,
+            "task_item_path_escapes_collection",
+            "The resolved TASK item path escapes the formal TASK directory.",
+            {"task_id": task_id, "path": raw_item_path},
+        )
+    return raw_item_path, item_path
+
+
+def validate_task_item_path_aliases(paths: dict[str, Path]) -> None:
+    aliases: dict[str, str] = {}
+    for task_id, path in paths.items():
+        identity = portable_path_identity(path)
+        if identity in aliases:
+            raise WorkError(
+                ExitCode.CONTRACT,
+                "task_item_path_alias",
+                "Two TASK items resolve to the same portable path identity.",
+                {"first": aliases[identity], "second": task_id},
+            )
+        aliases[identity] = task_id
 
 
 def validate_artifact_paths(
@@ -256,6 +350,7 @@ def validate_artifact_paths(
     artifacts: object,
     *,
     actual_plan_path: str,
+    allow_task_index: bool = False,
 ) -> dict[str, str]:
     requirement_id = validate_requirement_id(requirement_id)
     if not isinstance(artifacts, dict) or set(artifacts) != {"plan", "task", "execution"}:
@@ -291,11 +386,12 @@ def validate_artifact_paths(
             "plan_path_requirement_mismatch",
             "The Plan artifact path must end with the requirement ID and .json.",
         )
-    if task_path.name != "task.json" or task_path.parent.name != requirement_id:
+    task_names = {"task.json", "index.json"} if allow_task_index else {"task.json"}
+    if task_path.name not in task_names or task_path.parent.name != requirement_id:
         raise WorkError(
             ExitCode.CONTRACT,
             "task_path_requirement_mismatch",
-            "The TASK artifact path must end with <requirement-id>/task.json.",
+            "The TASK artifact path has the wrong requirement directory or filename.",
         )
     if execution_path.name != requirement_id:
         raise WorkError(

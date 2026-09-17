@@ -14,7 +14,7 @@ from ..contracts.correction import (
     validate_correction_file,
 )
 from ..foundation.errors import ExitCode, WorkError
-from .context import read_contract, find_task_row, validate_execution_identity
+from .context import read_contract, find_task_row, load_lifecycle_task_context, validate_execution_identity
 from ..contracts.execution_index import (
     derive_overall_status,
     render_execution_index,
@@ -193,17 +193,14 @@ def _load_context(
     normalized_execution, execution_path = resolve_project_relative_path(
         project_root, raw_execution_dir, field="execution_dir"
     )
-    task_raw = read_raw(task_path)
-    task_validation = validate_task_contract(
-        task_raw,
-        source=str(task_path),
-        actual_task_path=normalized_task,
+    normalized_task, task_path, task_contract, task_validation = load_lifecycle_task_context(
+        raw_task_path=raw_task_path,
         project_root=project_root,
         user_config_root=user_config_root,
-        validate_file_state=False,
+        task_id=task_id,
         skill_roots=skill_roots,
+        v1_validator=validate_task_contract,
     )
-    task_contract = parse_json_contract(task_raw, source=str(task_path))
     if (
         task_contract["artifacts"]["task"] != normalized_task
         or task_contract["artifacts"]["execution"] != normalized_execution
@@ -310,10 +307,26 @@ def create_correction(
     )
     correction = canonicalize_correction_contract(
         {
-            "schema": "work-correction/v1",
+            "schema": (
+                "work-correction/v2"
+                if attempt["schema"] == "work-attempt/v2"
+                else "work-correction/v1"
+            ),
             "correction_id": correction_id,
             "created_at": _timestamp(now),
             "target_attempt_id": attempt_id,
+            **(
+                {
+                    field: attempt[field]
+                    for field in (
+                        "task_collection_sha256",
+                        "task_index_sha256",
+                        "task_item_sha256",
+                    )
+                }
+                if attempt["schema"] == "work-attempt/v2"
+                else {}
+            ),
             "task_instructions_sha256": attempt["task_instructions_sha256"],
             "execute_instructions_sha256": attempt[
                 "execute_instructions_sha256"

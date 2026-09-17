@@ -26,7 +26,7 @@ from worklib.contracts.execution_index import build_initial_execution_index, ren
 from worklib.contracts.plan import render_plan_contract
 from worklib.contracts.task import render_task_contract, validate_task_contract
 from worklib.foundation import spec_transactions
-from worklib.foundation.errors import WorkError
+from worklib.foundation.errors import ExitCode, WorkError
 from worklib.foundation.spec_update import require_no_spec_update, state_writer
 from worklib.hierarchy.selection import build_hierarchy_selection
 from worklib.instructions.selection import build_instruction_selection
@@ -171,7 +171,7 @@ class SpecificationUpdateTests(FileInputTestCase):
             "approved_sha256": result["approved_sha256"],
         })
 
-    def test_prepare_plan_cli_utf8_file(self):
+    def test_prepare_plan_cli_requires_v1_layout_migration(self):
         request = self.prepare_request()
         request["edits"] = [{"artifact": "plan", "field": "summary", "before": "Original result",
                              "after": "確認的新結果", "affected_ids": ["GOAL-001"]}]
@@ -181,19 +181,9 @@ class SpecificationUpdateTests(FileInputTestCase):
         stdout = io.StringIO()
         code = main(["--project-root", str(self.root), "task", "spec-prepare", "--input-file", str(source),
                      "--user-config-root", str(self.root), "--output-file", str(output)], stdout=stdout)
-        self.assertEqual(code, 0, stdout.getvalue())
-        result = json.loads(stdout.getvalue())["data"]
-        raw = output.read_bytes()
-        self.assertFalse(raw.startswith(b"\xef\xbb\xbf"))
-        self.assertNotIn(b"\r", raw)
-        self.assertTrue(raw.endswith(b"\n"))
-        prepared = json.loads(raw)
-        self.assertEqual(prepared["plan"]["summary"], "確認的新結果")
-        self.assertEqual(prepared["task"]["source_plan"]["canonical_sha256"],
-                         digest(render_plan_contract(prepared["plan"])))
-        self.assertEqual(result["preview"], self.run_update(prepared))
-        self.assertEqual(len(result["preview"]["affected_task_ids"]), 3)
-        self.assertEqual(len(prepared["plan"]["changes"]), 1)
+        self.assertEqual(code, ExitCode.WORKFLOW_STATE, stdout.getvalue())
+        self.assertEqual(json.loads(stdout.getvalue())["reason_code"], "task_layout_migration_required")
+        self.assertFalse(output.exists())
 
     def test_prepare_rejects_invalid_edits_without_writes(self):
         for update in ({"before": "stale"}, {"task_id": "TASK-999"}, {"field": "id"},
@@ -766,19 +756,13 @@ class SpecificationUpdateTests(FileInputTestCase):
             self.run_update(request, "recover", preview["approved_sha256"])
         self.assertEqual(before, self.snapshot())
 
-    def test_cli_preview_and_update_use_fingerprint_bound_request(self):
+    def test_cli_spec_write_requires_v1_layout_migration(self):
         request = self.request()
         args = ["--project-root", str(self.root), "task", "spec-validate", "--input-file", "request.json", "--user-config-root", str(self.root)]
         output, errors = io.StringIO(), io.StringIO()
         code = main(self.input_arguments(args, json.dumps(request)), stdout=output, stderr=errors)
-        self.assertEqual(code, 0, errors.getvalue())
-        approval = json.loads(output.getvalue())["data"]["approved_sha256"]
-        args[3] = "spec-update"
-        args += ["--approved-sha256", approval]
-        output, errors = io.StringIO(), io.StringIO()
-        code = main(self.input_arguments(args, json.dumps(request)), stdout=output, stderr=errors)
-        self.assertEqual(code, 0, errors.getvalue())
-        self.assertEqual(json.loads(output.getvalue())["data"]["status"], "updated")
+        self.assertEqual(code, ExitCode.WORKFLOW_STATE, errors.getvalue())
+        self.assertEqual(json.loads(output.getvalue())["reason_code"], "task_layout_migration_required")
 
 
 

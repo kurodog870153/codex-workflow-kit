@@ -7,7 +7,7 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
-from .task import create_task_artifacts
+from .task import create_task_artifacts, prepare_task_collection_create
 from .task_draft import _render, read_task_draft, read_task_planning_index
 from ..contracts.plan import validate_plan_contract
 from ..contracts.task import prepare_task_json_contract
@@ -33,13 +33,19 @@ def assemble_task_drafts(
         raise WorkError(ExitCode.WORKFLOW_STATE, "draft_revision_conflict", "The reviewed planning revision is no longer current.")
     normalized, resolved = resolve_project_relative_path(project_root, plan_path, field="plan_path")
     raw_plan = read_raw(resolved)
+    plan = parse_json_contract(raw_plan, source=str(resolved))
+    plan_artifacts = plan.get("artifacts")
+    allow_task_index = (
+        isinstance(plan_artifacts, dict)
+        and str(plan_artifacts.get("task", "")).endswith("/index.json")
+    )
     plan_validation = validate_plan_contract(
         raw_plan, source=str(resolved), actual_plan_path=normalized, project_root=project_root,
         user_config_root=user_config_root, skill_roots=skill_roots,
+        _allow_task_index=allow_task_index,
     )
     if plan_validation["requirement_id"] != requirement_id or any(plan_validation[key] != value for key, value in index["source"].items()):
         raise WorkError(ExitCode.ARTIFACT_INTEGRITY, "draft_source_drift", "The planning source differs from the current validated Plan.")
-    plan = parse_json_contract(raw_plan, source=str(resolved))
     tasks = []
     for entry in sorted(index["tasks"], key=lambda item: item["id"]):
         if entry["status"] != "refined":
@@ -57,10 +63,20 @@ def assemble_task_drafts(
         "instruction_selection": build_task_document_instruction_selection([task["instruction_selection"] for task in tasks], skill_root=installed_work_root()),
         "tasks": tasks, "readiness": {"status": "passed", "spec_id": "TASK-SPEC-001"},
     }
-    validation, rendered = prepare_task_json_contract(
-        _render(contract), source="assembled drafts", actual_task_path=plan["artifacts"]["task"],
-        project_root=project_root, user_config_root=user_config_root, skill_roots=skill_roots,
-    )
+    if plan["artifacts"]["task"].endswith("/index.json"):
+        bundle = prepare_task_collection_create(
+            _render(contract), source="assembled drafts",
+            raw_plan_path=plan["artifacts"]["plan"],
+            raw_task_path=plan["artifacts"]["task"],
+            project_root=project_root, user_config_root=user_config_root,
+            skill_roots=skill_roots,
+        )
+        validation, rendered = bundle["validation"], bundle["approval_bytes"]
+    else:
+        validation, rendered = prepare_task_json_contract(
+            _render(contract), source="assembled drafts", actual_task_path=plan["artifacts"]["task"],
+            project_root=project_root, user_config_root=user_config_root, skill_roots=skill_roots,
+        )
     if read_task_planning_index(project_root, requirement_id) != index:
         raise WorkError(ExitCode.WORKFLOW_STATE, "draft_revision_conflict", "The planning index changed during assembly.")
     # Bind discussion versions (including notes) as well as the canonical TASK.
@@ -68,7 +84,16 @@ def assemble_task_drafts(
     return {
         "schema": "work-task-draft-assembly/v1", "status": "valid", "requirement_id": requirement_id,
         "revision": expected_revision, "approval_sha256": review,
-        "task_sha256": validation["task_sha256"], "contract": contract,
+        **(
+            {
+                "task_collection_sha256": validation["task_collection_sha256"],
+                "task_index_sha256": validation["task_index_sha256"],
+                "task_item_sha256": validation["task_item_sha256"],
+            }
+            if plan["artifacts"]["task"].endswith("/index.json")
+            else {"task_sha256": validation["task_sha256"]}
+        ),
+        "contract": contract,
     }
 
 

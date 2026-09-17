@@ -109,6 +109,59 @@ class ExecutionInstructionIndexTests(unittest.TestCase):
         self.assertEqual(context.exception.details["missing"], ["instructions_sha256"])
         self.assertEqual(context.exception.details["unknown"], ["rules_sha256"])
 
+    def v2_index(self) -> dict[str, object]:
+        return build_initial_execution_index(
+            {
+                "requirement_id": "example",
+                "spec_id": "TASK-SPEC-001",
+                "tasks": [{"id": "TASK-001", "skill_id": None}],
+            },
+            {
+                "schema": "work-task-collection-validation/v2",
+                "task_collection_sha256": "1" * 64,
+                "task_index_sha256": "2" * 64,
+                "task_item_sha256": {"TASK-001": "3" * 64},
+                "instructions_sha256": "4" * 64,
+                "task_instructions_sha256": {"TASK-001": "5" * 64},
+                "hierarchy_selection_sha256": "6" * 64,
+                "skill_selection_sha256": "7" * 64,
+                "task_skill_ids": {"TASK-001": None},
+            },
+        )
+
+    def test_builds_v2_index_with_collection_fingerprints(self) -> None:
+        index = self.v2_index()
+        result = self.validate(index)
+
+        self.assertEqual(index["schema"], "work-execution-index/v2")
+        self.assertEqual(index["task_collection_sha256"], "1" * 64)
+        self.assertEqual(index["task_index_sha256"], "2" * 64)
+        self.assertEqual(index["tasks"][0]["task_item_sha256"], "3" * 64)
+        self.assertNotIn("task_sha256", index)
+        self.assertEqual(result["schema"], "work-execution-index-validation/v2")
+
+    def test_v2_rejects_v1_fingerprint_mixup(self) -> None:
+        index = self.index()
+        index["schema"] = "work-execution-index/v2"
+
+        with self.assertRaises(WorkError) as context:
+            self.validate(index)
+
+        self.assertEqual(context.exception.code, "invalid_object_fields")
+        self.assertEqual(
+            context.exception.details["missing"],
+            ["task_collection_sha256", "task_index_sha256"],
+        )
+        self.assertEqual(context.exception.details["unknown"], ["task_sha256"])
+
+    def test_v2_accepts_source_v1_provenance(self) -> None:
+        index = self.v2_index()
+        index["source_v1_task_sha256"] = "8" * 64
+
+        result = self.validate(index)
+
+        self.assertEqual(result["schema"], "work-execution-index-validation/v2")
+
 
 class ExecutionInstructionAuditTests(unittest.TestCase):
     def index(self) -> dict[str, object]:

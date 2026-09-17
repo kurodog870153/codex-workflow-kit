@@ -56,8 +56,16 @@ def _record(raw: bytes, record_id: str, requirement_id: str, artifacts: dict[str
 
 def verify_specification(raw_request: bytes, *, project_root: Path,
                          user_config_root: str, skill_roots=None) -> dict[str, object]:
+    decoded = parse_json_contract(raw_request, source="specification verification request")
+    declared = decoded.get("artifacts") if isinstance(decoded, dict) else None
+    if isinstance(declared, dict) and str(declared.get("task", "")).endswith("/index.json"):
+        from .specification_v2 import verify_v2
+        return verify_v2(
+            raw_request, project_root=project_root,
+            user_config_root=user_config_root, skill_roots=skill_roots,
+        )
     request = strict_keys(
-        parse_json_contract(raw_request, source="specification verification request"),
+        decoded,
         location="spec_verify", required={"schema", "requirement_id", "artifacts", "record_id"},
     )
     if request["schema"] != "work-spec-verification-request/v1":

@@ -60,6 +60,11 @@ ROOT_REQUIRED = {
     "started_at",
     "records",
 }
+V2_FINGERPRINTS = {
+    "task_collection_sha256",
+    "task_index_sha256",
+    "task_item_sha256",
+}
 ROOT_OPTIONAL = {
     "continued_from",
     "carried_records",
@@ -77,6 +82,9 @@ ROOT_ORDER = (
     "skill_id",
     "status",
     "task_sha256",
+    "task_collection_sha256",
+    "task_index_sha256",
+    "task_item_sha256",
     "task_instructions_sha256",
     "execute_instructions_sha256",
     "hierarchy_selection_sha256",
@@ -464,14 +472,19 @@ def _validate_overall_result(
 def canonicalize_attempt_contract(
     contract: dict[str, Any], *, project_root: Path
 ) -> dict[str, Any]:
+    schema = contract.get("schema") if isinstance(contract, dict) else None
+    if schema == "work-attempt/v1":
+        required = ROOT_REQUIRED
+    elif schema == "work-attempt/v2":
+        required = (ROOT_REQUIRED - {"task_sha256"}) | V2_FINGERPRINTS
+    else:
+        _fail("attempt_invalid_schema", "The Attempt schema is invalid.")
     _strict_object(
         contract,
         location="attempt",
-        required=ROOT_REQUIRED,
+        required=required,
         optional=ROOT_OPTIONAL,
     )
-    if contract["schema"] != "work-attempt/v1":
-        _fail("attempt_invalid_schema", "The Attempt schema is invalid.")
     attempt_id = _identifier(
         contract["attempt_id"], location="attempt_id", pattern=ATTEMPT_PATTERN
     )
@@ -483,8 +496,13 @@ def canonicalize_attempt_contract(
     _identifier(contract["task_id"], location="task_id", pattern=TASK_PATTERN)
     if contract["skill_id"] is not None:
         _nonempty(contract["skill_id"], location="skill_id")
+    fingerprint_fields = (
+        sorted(V2_FINGERPRINTS)
+        if schema == "work-attempt/v2"
+        else ["task_sha256"]
+    )
     for field in (
-        "task_sha256",
+        *fingerprint_fields,
         "task_instructions_sha256",
         "execute_instructions_sha256",
         "hierarchy_selection_sha256",
@@ -650,7 +668,11 @@ def validate_attempt_contract(
 ) -> dict[str, object]:
     canonical = canonicalize_attempt_contract(contract, project_root=project_root)
     return {
-        "schema": "work-attempt-validation/v1",
+        "schema": (
+            "work-attempt-validation/v2"
+            if canonical["schema"] == "work-attempt/v2"
+            else "work-attempt-validation/v1"
+        ),
         "attempt_id": canonical["attempt_id"],
         "task_spec_id": canonical["task_spec_id"],
         "task_id": canonical["task_id"],

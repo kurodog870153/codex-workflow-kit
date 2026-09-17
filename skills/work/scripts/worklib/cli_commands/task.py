@@ -18,8 +18,9 @@ from ..artifacts.task_draft import (
     recover_task_planning,
     save_task_planning,
 )
-from ..contracts.task_diagnostics import diagnose_task_file
+from ..contracts.task_diagnostics import diagnose_task_collection, diagnose_task_file
 from ..contracts.task import validate_task_file, validate_task_json_contract
+from ..artifacts.task_collection import load_task_artifact, task_artifact_format
 from ..artifacts.task_draft_sources import check_task_draft_sources
 from ..artifacts.task_draft_list import update_task_planning_list
 from ..artifacts.task_draft_assembly import assemble_task_drafts, create_task_from_drafts
@@ -30,9 +31,27 @@ from ..artifacts.task_draft_prepare import initialize_task_planning_request, pre
 from ..contracts.validation import strict_keys
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.markdown import parse_json_contract
+from ..foundation.fingerprint import read_raw
+from ..foundation.spec_update import storage_path
 from ..skills.catalog import parse_skill_root
 from ..foundation.cli_io import FileInput
 from . import SubparserRegistry
+
+
+def _require_v2_write_path(path: object) -> None:
+    if not isinstance(path, str) or not path.endswith("/index.json"):
+        raise WorkError(
+            ExitCode.WORKFLOW_STATE,
+            "task_layout_migration_required",
+            "V1 TASK artifacts are read-only; run task layout-preflight and layout migration before writing.",
+        )
+
+
+def _require_v2_plan(project_root: Path, plan_path: object) -> None:
+    if not isinstance(plan_path, str):
+        _require_v2_write_path(None)
+    plan = parse_json_contract(read_raw(storage_path(project_root, plan_path)), source=plan_path)
+    _require_v2_write_path(plan.get("artifacts", {}).get("task") if isinstance(plan, dict) else None)
 
 
 def _add_draft_source_arguments(parser: argparse.ArgumentParser) -> None:
@@ -114,6 +133,14 @@ def register_task_commands(commands: SubparserRegistry) -> None:
         inspection.add_argument("--input-file", required=True)
         inspection.add_argument("--user-config-root", required=True)
         inspection.add_argument("--skill-root", action="append", default=[])
+
+    for name in ("layout-preflight", "layout-prepare", "layout-validate", "layout-apply", "layout-recover", "layout-verify"):
+        layout = task_commands.add_parser(name, help="Migrate a v1 TASK artifact to the v2 collection layout.")
+        layout.add_argument("--input-file", required=True)
+        layout.add_argument("--user-config-root", required=True)
+        layout.add_argument("--skill-root", action="append", default=[])
+        if name in {"layout-apply", "layout-recover"}:
+            layout.add_argument("--approved-sha256", required=True)
 
     draft_init = task_commands.add_parser("draft-init", help="Save an initial planning index from a JSON request file.")
     draft_init.add_argument("--input-file", required=True)
@@ -199,6 +226,14 @@ def run_task(
     project_root: Path,
     request: FileInput | None,
 ) -> dict[str, object]:
+    if arguments.task_command.startswith("layout-"):
+        from ..artifacts.layout_migration import layout_migration
+        return layout_migration(
+            request.raw, project_root=project_root, user_config_root=arguments.user_config_root,
+            skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
+            operation=arguments.task_command.removeprefix("layout-"),
+            approved_sha256=getattr(arguments, "approved_sha256", None),
+        )
     if arguments.task_command in {"draft-init-request", "draft-list-prepare"}:
         options = dict(plan_path=arguments.plan_path, user_config_root=arguments.user_config_root,
                        skill_roots=[parse_skill_root(root) for root in arguments.skill_root])
@@ -211,6 +246,10 @@ def run_task(
         return prepare_task_planning_request(project_root, arguments.requirement_id, payload,
             expected_revision=arguments.expected_revision, **options)
     if arguments.task_command in {"spec-prepare", "migrate-prepare", "repair-prepare"}:
+        if arguments.task_command == "spec-prepare":
+            _require_v2_plan(project_root, parse_json_contract(request.raw, source=request.source).get("plan_path"))
+        elif arguments.task_command == "repair-prepare":
+            _require_v2_write_path(parse_json_contract(request.raw, source=request.source).get("artifacts", {}).get("task"))
         prepare = {"spec-prepare": prepare_specification, "migrate-prepare": prepare_migration,
                    "repair-prepare": prepare_task_repair}[arguments.task_command]
         result = prepare(
@@ -251,6 +290,7 @@ def run_task(
                             "Migration preflight found blockers; review the complete report.", report)
         return report
     if arguments.task_command in {"repair-validate", "repair", "repair-recover"}:
+        _require_v2_write_path(parse_json_contract(request.raw, source=request.source).get("artifacts", {}).get("task"))
         return repair_task(
             request.raw, project_root=project_root, user_config_root=arguments.user_config_root,
             skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
@@ -258,6 +298,9 @@ def run_task(
             approved_sha256=getattr(arguments, "approved_sha256", None),
         )
     if arguments.task_command in {"spec-validate", "spec-update", "spec-recover", "migrate-validate", "migrate", "migrate-recover"}:
+        if not arguments.task_command.startswith("migrate"):
+            payload = parse_json_contract(request.raw, source=request.source)
+            _require_v2_write_path(payload.get("plan", {}).get("artifacts", {}).get("task"))
         result = update_specification(
             request.raw, project_root=project_root,
             user_config_root=arguments.user_config_root,
@@ -316,6 +359,8 @@ def run_task(
             recover=arguments.task_command == "draft-source-recover",
         )
     if arguments.task_command in {"draft-assemble", "draft-create"}:
+        if arguments.task_command == "draft-create":
+            _require_v2_plan(project_root, arguments.plan_path)
         metadata = parse_json_contract(request.raw, source=request.source)
         options = dict(expected_revision=arguments.expected_revision, plan_path=arguments.plan_path,
                        user_config_root=arguments.user_config_root, skill_roots=skill_roots)
@@ -331,6 +376,7 @@ def run_task(
             **_draft_selection_arguments(arguments),
         )
     if arguments.task_command in {"create", "recover-create"}:
+        _require_v2_write_path(arguments.task_path)
         operation = (
             create_task_artifacts
             if arguments.task_command == "create"
@@ -347,11 +393,19 @@ def run_task(
             skill_roots=skill_roots,
         )
     if arguments.task_command == "diagnose":
-        report = diagnose_task_file(
-            project_root, arguments.user_config_root, arguments.path,
-            plan_path=arguments.plan_path, execution_dir=arguments.execution_dir,
-            skill_roots=skill_roots,
-        )
+        if task_artifact_format(arguments.path) == "v2":
+            report = diagnose_task_collection(
+                project_root,
+                arguments.user_config_root,
+                arguments.path,
+                skill_roots=skill_roots,
+            )
+        else:
+            report = diagnose_task_file(
+                project_root, arguments.user_config_root, arguments.path,
+                plan_path=arguments.plan_path, execution_dir=arguments.execution_dir,
+                skill_roots=skill_roots,
+            )
         if not report["normal_use_allowed"]:
             raise WorkError(
                 ExitCode.CONTRACT, "task_diagnostics_failed",
@@ -365,13 +419,12 @@ def run_task(
                 "task_path_required",
                 "--task-path is required with --input-file.",
             )
-        return validate_task_json_contract(
-            request.raw,
-            source=request.source,
-            actual_task_path=arguments.task_path,
-            project_root=project_root,
-            user_config_root=arguments.user_config_root,
+        return load_task_artifact(
+            project_root,
+            arguments.user_config_root,
+            arguments.task_path,
             skill_roots=skill_roots,
+            raw=request.raw,
         )
     if arguments.task_path:
         raise WorkError(
@@ -379,7 +432,7 @@ def run_task(
             "unexpected_task_path",
             "--task-path is only valid with --input-file.",
         )
-    return validate_task_file(
+    return load_task_artifact(
         project_root,
         arguments.user_config_root,
         arguments.path,

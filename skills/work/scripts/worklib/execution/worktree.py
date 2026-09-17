@@ -6,9 +6,11 @@ import subprocess
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from ..artifacts.task_collection import load_task_execution_context
+
 from ..foundation.errors import ExitCode, WorkError
 from .preflight import execute_preflight
-from ..foundation.fingerprint import canonical_sha256, read_raw
+from ..foundation.fingerprint import canonical_sha256, raw_sha256, read_raw
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path
 from ..skills.catalog import SkillRoot
@@ -253,14 +255,46 @@ def inspect_execute_worktree(
     _, task_path = resolve_project_relative_path(
         project_root, normalized_task, field="task_path"
     )
-    task_raw = read_raw(task_path)
-    if hashlib.sha256(task_raw).hexdigest() != preflight["task_sha256"]:
+    if "task_collection_sha256" in preflight:
+        item_path = task_path.parent / "tasks" / f"{task_id}.json"
+        unchanged = (
+            raw_sha256(read_raw(task_path)) == preflight.get("task_index_sha256")
+            and raw_sha256(read_raw(item_path)) == preflight.get("task_item_sha256")
+        )
+    else:
+        unchanged = raw_sha256(read_raw(task_path)) == preflight.get("task_sha256")
+    if not unchanged:
         raise WorkError(
             ExitCode.ARTIFACT_INTEGRITY,
             "execute_worktree_task_changed",
             "The formal TASK changed after preflight.",
         )
-    task_contract = parse_json_contract(task_raw, source=str(task_path))
+    task_context = load_task_execution_context(
+        project_root,
+        user_config_root,
+        normalized_task,
+        task_id,
+        skill_roots=skill_roots,
+    )
+    validation = task_context["validation"]
+    assert isinstance(validation, dict)
+    fingerprints = (
+        {
+            "task_collection_sha256": validation["task_collection_sha256"],
+            "task_index_sha256": validation["task_index_sha256"],
+            "task_item_sha256": validation["task_item_sha256"][task_id],
+        }
+        if validation["schema"] == "work-task-execution-validation/v2"
+        else {"task_sha256": validation["task_sha256"]}
+    )
+    if any(preflight.get(key) != value for key, value in fingerprints.items()):
+        raise WorkError(
+            ExitCode.ARTIFACT_INTEGRITY,
+            "execute_worktree_task_changed",
+            "The formal TASK changed after preflight.",
+        )
+    task_contract = task_context["contract"]
+    assert isinstance(task_contract, dict)
     tasks = {item["id"]: item for item in task_contract["tasks"]}
     dependencies = list(preflight["dependencies"])
     records = collect_git_status(project_root)
@@ -304,7 +338,7 @@ def inspect_execute_worktree(
         "requirement_id": preflight["requirement_id"],
         "task_spec_id": preflight["task_spec_id"],
         "task_id": task_id,
-        "task_sha256": preflight["task_sha256"],
+        **{key: preflight[key] for key in fingerprints},
         "task_instructions_sha256": preflight["task_instructions_sha256"],
         "execute_instructions_sha256": preflight["execute_instructions_sha256"],
         "task_status": preflight["task_status"],

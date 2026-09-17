@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from .context import validate_execution_identity
+from ..artifacts.task_collection import load_task_execution_context
 from .recovery import REQUEST_SCHEMA, parse_execution_recovery_request, _validate_attempt_bytes, _validate_index_bytes
 from ..contracts.correction import canonicalize_correction_contract, render_correction_contract
 from ..contracts.task import validate_task_contract
@@ -54,11 +55,19 @@ def prepare_execution_recovery(raw, *, source, project_root: Path, user_config_r
         observed[relative] = raw_bytes
         return raw_bytes
 
-    task_raw = snapshot(task_relative)
-    task = parse_json_contract(task_raw, source=task_relative)
-    validation = validate_task_contract(task_raw, source=task_relative, actual_task_path=task_relative,
-        project_root=project_root, user_config_root=user_config_root, skill_roots=skill_roots,
-        validate_file_state=False)
+    task_context = load_task_execution_context(
+        project_root,
+        user_config_root,
+        task_relative,
+        task_id,
+        skill_roots=skill_roots,
+    )
+    task = task_context["contract"]
+    validation = task_context["validation"]
+    sources = task_context["sources"]
+    assert isinstance(task, dict) and isinstance(validation, dict)
+    assert isinstance(sources, dict)
+    observed.update(sources)
     if task["artifacts"]["task"] != task_relative or task["artifacts"]["execution"] != execution:
         _fail("recovery_prepare_artifact_paths", "Explicit paths do not match the formal TASK.")
     snapshot(task["artifacts"]["plan"])

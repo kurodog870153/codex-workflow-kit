@@ -43,6 +43,7 @@ def check_task_draft_sources(
     validation = validate_plan_contract(
         raw, source=str(resolved), actual_plan_path=normalized,
         project_root=project_root, user_config_root=user_config_root, skill_roots=skill_roots,
+        _allow_task_index=True,
     )
     if validation["requirement_id"] != requirement_id:
         raise WorkError(ExitCode.ARTIFACT_INTEGRITY, "draft_source_requirement_mismatch", "The Plan belongs to a different requirement.")

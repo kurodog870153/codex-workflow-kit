@@ -197,10 +197,16 @@ def _validate_source(value: object, direction: str) -> None:
             value,
             location="source",
             required={"stage", "plan_sha256", "task_spec_id", "skill_selection_sha256"},
-            optional={"task_id", "skill_id", "task_sha256"},
+            optional={
+                "task_id",
+                "skill_id",
+                "task_sha256",
+                "task_collection_sha256",
+                "task_index_sha256",
+                "task_item_sha256",
+            },
         )
-        if "task_sha256" in source:
-            _sha256(source["task_sha256"], location="source.task_sha256")
+        _validate_task_fingerprints(source, optional=True)
         _sha256(source["plan_sha256"], location="source.plan_sha256")
         _sha256(source["skill_selection_sha256"], location="source.skill_selection_sha256")
         _identifier(
@@ -219,7 +225,6 @@ def _validate_source(value: object, direction: str) -> None:
             "stage",
             "task_spec_id",
             "task_id",
-            "task_sha256",
             "task_instructions_sha256",
             "skill_id",
         }
@@ -227,8 +232,17 @@ def _validate_source(value: object, direction: str) -> None:
             required.update({"execution_context", "execute_skill_selection_sha256"})
         else:
             required.add("skill_selection_sha256")
-        source = _strict_object(value, location="source", required=required,
-                                optional={"attempt_sha256"} if direction.startswith("execute_to_") else set())
+        optional = {
+            "task_sha256",
+            "task_collection_sha256",
+            "task_index_sha256",
+            "task_item_sha256",
+        }
+        if direction.startswith("execute_to_"):
+            optional.add("attempt_sha256")
+        source = _strict_object(
+            value, location="source", required=required, optional=optional
+        )
         if "attempt_sha256" in source:
             _sha256(source["attempt_sha256"], location="source.attempt_sha256")
         _identifier(
@@ -237,7 +251,7 @@ def _validate_source(value: object, direction: str) -> None:
             pattern=TASK_SPEC_PATTERN,
         )
         _identifier(source["task_id"], location="source.task_id", pattern=TASK_PATTERN)
-        _sha256(source["task_sha256"], location="source.task_sha256")
+        _validate_task_fingerprints(source, optional=False)
         _sha256(
             source["task_instructions_sha256"],
             location="source.task_instructions_sha256",
@@ -260,6 +274,27 @@ def _validate_source(value: object, direction: str) -> None:
             "The Handoff source stage does not match its direction.",
             {"expected": expected_stage, "actual": source["stage"]},
         )
+
+
+def _validate_task_fingerprints(
+    source: dict[str, Any], *, optional: bool
+) -> None:
+    v1 = {"task_sha256"}
+    v2 = {"task_collection_sha256", "task_index_sha256"}
+    if "task_id" in source:
+        v2.add("task_item_sha256")
+    present = (v1 | v2 | {"task_item_sha256"}) & set(source)
+    if optional and not present:
+        return
+    if present not in (v1, v2):
+        raise WorkError(
+            ExitCode.CONTRACT,
+            "invalid_task_fingerprint_set",
+            "Handoff source TASK fingerprints must use one complete v1 or v2 set.",
+            {"fields": sorted(present)},
+        )
+    for field in sorted(present):
+        _sha256(source[field], location=f"source.{field}")
 
 
 def _validate_target(value: object, direction: str) -> None:
@@ -319,6 +354,7 @@ def validate_handoff_contract(
         actual_plan_path=contract["artifacts"].get("plan")
         if isinstance(contract["artifacts"], dict)
         else "",
+        allow_task_index=True,
     )
     if contract["artifacts"] != normalized_artifacts:
         raise WorkError(

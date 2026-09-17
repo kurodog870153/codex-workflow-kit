@@ -7,7 +7,7 @@
 ## 1. 路徑、TASK 與指紋
 
 1. [強制] Execute 只使用正式 TASK 或完整交接所確定的需求編號與 Plan、TASK、execution 三路徑，並於每次讀寫前套用共用 instruction-loading 的完整需求成品路徑安全檢查；不得由單一路徑推測、替換或重新決定。
-2. [強制] TASK SHA-256 由工具直接讀取 TASK 位元組，完全依共用 instruction-loading 的 canonical TASK fingerprint 計算；不得為計算而把全文載入模型或另訂正規化方式。
+2. [強制] V1 `task_sha256` 由工具直接讀取單檔 TASK 位元組；v2 分別驗證 `task_collection_sha256`、`task_index_sha256` 與目標 `task_item_sha256`。全部依共用 loader 與 canonical fingerprint 規則計算，不得為計算而把無關 item 全文載入模型或另訂正規化方式。
 3. [強制] Execute 依目標 TASK 的正式 `instruction_selection` 與共用 canonical instruction fingerprint 重新計算該 TASK 的 `TASK-INSTRUCTIONS-SHA-256`，第一個來源固定為共用 instruction-loading，並另核對 index 的文件層聯集值；無關 TASK 的來源變更不得阻擋目標 TASK。
 4. [強制] `EXECUTE-INSTRUCTIONS-SHA-256` 只涵蓋 Work Execute instructions 與適用 references；外部技能另以目標 TASK 的 `skill_id` 與 `execute_skill_selection_sha256` 固定身分，不得混入 Work hierarchy fingerprint。
 5. [強制] 來源只在 raw-byte duplicate 比對確認時省略；不得依字典排序、正規化內容相等或父 instructions 相等去重。
@@ -16,7 +16,7 @@
 
 ## 2. Index
 
-1. [強制] index 固定位於 execution 目錄的 `index.json`；`.work-*.tmp` 交易暫存檔同樣維持於 execution 根目錄。index 保存 TASK spec、TASK SHA、Plan `hierarchy_selection_sha256` 與 `skill_selection_sha256`、文件層 Task instructions SHA、選用 audit／lock、整體狀態及 TASK rows；不保存技能全文。
+1. [強制] execution index 固定位於 execution 目錄的 `index.json`，不同於 formal TASK index 與 draft index；`.work-*.tmp` 交易暫存檔同樣維持於 execution 根目錄。V2 index 保存 TASK spec、collection／formal-index fingerprints、各 TASK item fingerprint、Plan `hierarchy_selection_sha256` 與 `skill_selection_sha256`、文件層 Task instructions SHA、選用 audit／lock、整體狀態及 TASK rows；v1 歷史依其 schema 保留單一 `task_sha256`，不得重新標記。兩者都不保存技能全文。
 2. [強制] TASK row 固定包含 TASK ID、狀態、`skill_id` 與該 TASK 的 instructions SHA；最新 Attempt、Correction 或狀態原因只在存在時加入。
 3. [強制] TASK 狀態只使用「待執行」、「進行中」、「待重新執行」、「受阻」、「已完成」及「已取消」；全部取消時整體為已取消，否則忽略已取消 TASK 後精確判定待執行、已完成、受阻或進行中。
 4. [強制] 初始 Attempt execution lock 使用 `kind: execution`、`task_id`、`attempt_id`、`execute_instructions_sha256`；開始執行 CMD／OP／VAL 前才由後續紀錄交易加入 `record_id`。規格鎖與執行鎖互斥，任一執行鎖存在時不得建立其他 Attempt、Correction 或規格鎖。恢復與結案必須使用鎖所存原始 Execute 雜湊解讀該操作。
@@ -29,7 +29,8 @@
   "requirement_id": "example",
   "title": "Execution",
   "task_spec_id": "TASK-SPEC-001",
-  "task_sha256": "<task-sha>",
+  "task_collection_sha256": "<task-collection-sha>",
+  "task_index_sha256": "<task-index-sha>",
   "task_instructions_sha256": "<task-instructions-sha>",
   "hierarchy_selection_sha256": "<hierarchy-selection-sha>",
   "skill_selection_sha256": "<skill-selection-sha>",
@@ -39,7 +40,8 @@
       "id": "TASK-001",
       "status": "pending",
       "skill_id": null,
-      "instructions_sha256": "<task-001-instructions-sha>"
+      "instructions_sha256": "<task-001-instructions-sha>",
+      "task_item_sha256": "<task-001-item-sha>"
     }
   ]
 }

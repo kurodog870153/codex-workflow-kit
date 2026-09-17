@@ -8,6 +8,62 @@ originating Plan or Task role for [independent discussion progress](progress.md)
 The parent's progress saver can record that content without completing this
 transaction. Do not publish partial candidates or refresh hashes to permit saving.
 
+## Active TASK collection v2 revision boundary
+
+V2 is the active format for new formal specifications and ordinary revisions.
+The Plan's `artifacts.task` selects the formal entry point. `index.json` selects
+the v2 collection workflow; retained v1 `task.json` remains readable and
+executable but rejects ordinary writes with layout-migration guidance.
+
+1. A v2 specification revision treats the formal TASK index and every referenced
+   TASK item as one logical collection. Validation and approval cover the complete
+   candidate collection even when publication changes only one item.
+2. A v2 TASK change edit identifies its target with `artifact`. The allowed
+   values are `task_index` and `task_item`. A `task_item` edit requires the exact
+   `task_id`; a `task_index` edit rejects `task_id`. The edit `path` is a JSON
+   Pointer within the selected document, not within a reconstructed monolith.
+3. The existing add, replace, and remove evidence rules remain unchanged. Derived
+   fields, index references, item fingerprints, collection fingerprints,
+   readiness, and execution-index changes are generated and validated rather
+   than supplied as unreviewed manual edits.
+4. V2 preparation may avoid re-rendering unchanged items, but full candidate
+   validation still enforces every cross-TASK invariant. Unchanged item bytes and
+   fingerprints must remain identical.
+5. The v2 journal records a path-keyed variable file set for before and after
+   TASK collection bytes, together with Plan and execution-index bytes, affected
+   TASK IDs, execution history fingerprints, request evidence, and the approval
+   fingerprint. A completion marker binds the canonical journal SHA-256.
+6. Publication remains a recoverable logical transaction rather than a
+   filesystem-wide atomic rename. It publishes prepared item bytes before the
+   formal index commit point, publishes the synchronized execution index, and
+   only then writes the completion marker. An incomplete record blocks Execute.
+7. Recovery advances only files whose bytes are an exact recognized before,
+   after, or missing state from the approved journal. Conflicting or ambiguous
+   bytes remain a stop. Removed formal items stay recoverable through immutable
+   transaction evidence and are never destructively cleaned as part of ordinary
+   publication.
+8. V1-to-v2 layout migration uses the separate `task layout-preflight`,
+   `layout-prepare`, `layout-validate`, `layout-apply`, `layout-recover`, and
+   `layout-verify` commands; it must not reuse the existing Work-instruction
+   `migrate-*` request schemas or imply that historical Attempt and Correction
+   records have v2 fingerprints.
+9. The Plan's `artifacts.task` remains the sole format selector. After successful
+   verified migration it points to the v2 formal index. A retained v1
+   `task.json` is provenance only and ordinary v1 formal updates are rejected.
+
+The edit shape is:
+
+```json
+{
+  "artifact": "task_item",
+  "task_id": "TASK-001",
+  "operation": "replace",
+  "path": "/goal",
+  "before": "Deliver the result.",
+  "after": "Deliver the confirmed result."
+}
+```
+
 ## Prepare and review
 
 ### Optional field replacement preparation
@@ -132,10 +188,12 @@ For migration use the migration commands below with the same publication and rec
 3. Add the optional `source_plan_repair` object to `work-spec-migration-request/v1` with exactly `recorded_sha256` (the original TASK's stored `source_plan.canonical_sha256`), `actual_sha256` (the validated original Plan's canonical fingerprint) and `review` (a non-empty explanation of the cause, reviewed content, affected TASKs and confirmed baseline decision). Both hashes must match the original artifacts and must differ. These are canonical fingerprints; `expected` still contains raw-byte hashes of all three unchanged original files. Ordinary specification update requests reject this field. For example, using the actual 64-character fingerprints:
 
    ```json
-   "source_plan_repair": {
-     "recorded_sha256": "<original TASK source_plan.canonical_sha256>",
-     "actual_sha256": "<validated original Plan canonical SHA-256>",
-     "review": "Explain the mismatch, reviewed Plan/TASK content, affected TASKs and confirmed acceptance of this baseline."
+   {
+     "source_plan_repair": {
+       "recorded_sha256": "<original TASK source_plan.canonical_sha256>",
+       "actual_sha256": "<validated original Plan canonical SHA-256>",
+       "review": "Explain the mismatch, reviewed Plan/TASK content, affected TASKs and confirmed acceptance of this baseline."
+     }
    }
    ```
 

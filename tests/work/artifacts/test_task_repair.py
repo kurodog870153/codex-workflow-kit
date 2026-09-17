@@ -20,7 +20,7 @@ from worklib.artifacts import task_repair
 from worklib.cli import main
 from worklib.contracts.execution_index import render_execution_index
 from worklib.foundation import spec_transactions
-from worklib.foundation.errors import WorkError
+from worklib.foundation.errors import ExitCode, WorkError
 from worklib.foundation.spec_update import require_no_spec_update, state_writer
 
 
@@ -275,7 +275,7 @@ class TaskRepairTests(FileInputTestCase):
         self.assertEqual(path.read_bytes(), history)
         self.assertEqual(json.loads(self.index_path.read_bytes())["tasks"][0]["status"], "pending_retry")
 
-    def test_cli_uses_file_requests_and_json_stdout_on_success_and_failure(self):
+    def test_cli_repair_requires_v1_layout_migration(self):
         request = self.request()
         raw = b"\xef\xbb\xbf" + json.dumps(request).encode("utf-8")
         output = io.StringIO()
@@ -283,11 +283,5 @@ class TaskRepairTests(FileInputTestCase):
             "--project-root", str(self.root), "task", "repair-validate",
             "--input-file", self.input_file(raw), "--user-config-root", str(self.root),
         ]
-        self.assertEqual(main(args, stdout=output), 0)
-        preview = json.loads(output.getvalue())
-        self.assertEqual(preview["data"]["status"], "preview")
-        args[3] = "repair"
-        args.extend(["--approved-sha256", "0" * 64])
-        output = io.StringIO()
-        self.assertNotEqual(main(args, stdout=output), 0)
-        self.assertEqual(json.loads(output.getvalue())["reason_code"], "task_repair_approval_changed")
+        self.assertEqual(main(args, stdout=output), ExitCode.WORKFLOW_STATE)
+        self.assertEqual(json.loads(output.getvalue())["reason_code"], "task_layout_migration_required")

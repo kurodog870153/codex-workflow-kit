@@ -19,6 +19,7 @@ from ..foundation.runtime import installed_work_root
 from ..skills.catalog import SkillRoot
 from ..skills.selection import selection_sha256
 from ..contracts.task import validate_task_contract
+from ..artifacts.task_collection import load_task_execution_context
 from .instructions import BASE_EXECUTE_REFERENCES, RECOVERY_REFERENCE
 
 
@@ -241,10 +242,18 @@ def _require_index_identity(
     task: dict[str, Any],
     task_validation: dict[str, object],
 ) -> dict[str, dict[str, Any]]:
+    is_collection = task_validation["schema"] == "work-task-execution-validation/v2"
     expected_identity = {
         "requirement_id": task["requirement_id"],
         "task_spec_id": task["spec_id"],
-        "task_sha256": task_validation["task_sha256"],
+        **(
+            {
+                "task_collection_sha256": task_validation["task_collection_sha256"],
+                "task_index_sha256": task_validation["task_index_sha256"],
+            }
+            if is_collection
+            else {"task_sha256": task_validation["task_sha256"]}
+        ),
         "task_instructions_sha256": task_validation["instructions_sha256"],
         "hierarchy_selection_sha256": task_validation[
             "hierarchy_selection_sha256"
@@ -261,7 +270,11 @@ def _require_index_identity(
 
     task_instructions = task_validation["task_instructions_sha256"]
     assert isinstance(task_instructions, dict)
-    expected_ids = [item["id"] for item in task["tasks"]]
+    expected_ids = (
+        task_validation["task_ids"]
+        if is_collection
+        else [item["id"] for item in task["tasks"]]
+    )
     observed_ids = [item["id"] for item in index["tasks"]]
     if observed_ids != expected_ids:
         raise WorkError(
@@ -336,15 +349,16 @@ def execute_preflight(
             {"files": transaction_files},
         )
 
-    task_raw = read_raw(task_path)
-    task_contract, task_validation = _task_contract(
-        task_raw,
-        source=str(task_path),
-        task_path=normalized_task,
-        project_root=project_root,
-        user_config_root=user_config_root,
+    task_context = load_task_execution_context(
+        project_root,
+        user_config_root,
+        normalized_task,
+        task_id,
         skill_roots=skill_roots,
     )
+    task_contract = task_context["contract"]
+    task_validation = task_context["validation"]
+    assert isinstance(task_contract, dict) and isinstance(task_validation, dict)
     artifacts = task_contract["artifacts"]
     if (
         artifacts["task"] != normalized_task
@@ -483,6 +497,15 @@ def execute_preflight(
             "The Execute hierarchy does not match the target TASK hierarchy.",
         )
 
+    source_fingerprints = (
+        {
+            "task_collection_sha256": task_validation["task_collection_sha256"],
+            "task_index_sha256": task_validation["task_index_sha256"],
+            "task_item_sha256": task_validation["task_item_sha256"][task_id],
+        }
+        if task_validation["schema"] == "work-task-execution-validation/v2"
+        else {"task_sha256": task_validation["task_sha256"]}
+    )
     return {
         "schema": "work-execute-preflight/v1",
         "requirement_id": task_contract["requirement_id"],
@@ -497,7 +520,7 @@ def execute_preflight(
         "confirmed_inputs": confirmed,
         "inputs": input_readiness,
         "files": file_readiness,
-        "task_sha256": task_validation["task_sha256"],
+        **source_fingerprints,
         "hierarchy_selection_sha256": task_validation[
             "hierarchy_selection_sha256"
         ],

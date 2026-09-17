@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import copy
 import json
 import sys
 import tempfile
@@ -33,7 +34,9 @@ class PlanCliTests(FileInputTestCase):
         self.assertEqual(stderr.getvalue(), "")
         data = json.loads(stdout.getvalue())["data"]
         self.assertEqual(data["schema"], "work-plan-prepare/v1")
-        self.assertEqual(data["plan"], fixture.fixture.contract)
+        expected = copy.deepcopy(fixture.fixture.contract)
+        expected["artifacts"]["task"] = "outputs/work/tasks/example/index.json"
+        self.assertEqual(data["plan"], expected)
         self.assertEqual(data["validation"]["schema"], "work-plan-validation/v1")
         self.assertEqual(list(fixture.root.iterdir()), [])
 

@@ -212,6 +212,13 @@ def _preview(record):
 
 def repair_task(raw_request, *, project_root: Path, user_config_root: str,
                 skill_roots=None, operation="validate", approved_sha256=None):
+    envelope = parse_json_contract(raw_request, source="TASK repair request")
+    if isinstance(envelope, dict) and envelope.get("schema") == "work-task-repair-request/v2":
+        from .task_repair_v2 import repair_v2
+        return repair_v2(
+            raw_request, project_root=project_root, user_config_root=user_config_root,
+            skill_roots=skill_roots, operation=operation, approved_sha256=approved_sha256,
+        )
     if operation not in {"validate", "apply", "recover"}:
         _fail("task_repair_operation", "Unknown repair operation.")
     request = _request(raw_request, project_root)
