@@ -229,7 +229,7 @@ def validate_execution_task_layout(
             "execution_legacy_layout_unsupported",
             "Flat Attempt and Correction files are unsupported; use "
             "<TASK-ID>/<ATTEMPT-ID>/attempt.json and its corrections/ directory. "
-            "No files were migrated.",
+            "No files were changed.",
             {"path": raw_task_directory, "files": legacy_files},
         )
     return task_directory
@@ -254,7 +254,7 @@ def default_artifact_paths(project_root: Path, requirement_id: str) -> dict[str,
 def default_task_collection_artifact_paths(
     project_root: Path, requirement_id: str
 ) -> dict[str, str]:
-    """Return the active v2 TASK collection defaults."""
+    """Return the active TASK collection defaults."""
     requirement_id = validate_requirement_id(requirement_id)
     paths = {
         "plan": f"outputs/work/plans/{requirement_id}.json",

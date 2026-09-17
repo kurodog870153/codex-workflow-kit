@@ -3,7 +3,6 @@ from __future__ import annotations
 import copy
 import json
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -13,6 +12,7 @@ SKILL_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work"
 sys.path.insert(0, str(SKILL_ROOT / "scripts"))
 
 from worklib.contracts.attempt import validate_attempt_file
+from tests.work.contracts import test_task_collection
 from worklib.contracts.correction import validate_correction_file
 from worklib.contracts.execution_index import (
     build_initial_execution_index,
@@ -26,63 +26,52 @@ from worklib.execution.record_begin import begin_record
 from worklib.execution.record_finish import finish_record
 from worklib.execution.recovery import recover_execution
 from worklib.foundation.errors import ExitCode, WorkError
-from worklib.foundation.markdown import render_json_contract
-from worklib.instructions.selection import build_instruction_selection
+from worklib.services.instruction_selection import build_instruction_selection
+from worklib.services.task_collection import load_task_collection
 
 
 class ExecutionOutputLayoutTests(unittest.TestCase):
     def setUp(self) -> None:
-        temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(temporary.cleanup)
-        self.project = Path(temporary.name).resolve()
-        self.execution = self.project / "execution"
-        self.execution.mkdir()
-        self.task_directory = self.execution / "TASK-001"
-        self.attempt_path = self.task_directory / "ATTEMPT-001" / "attempt.json"
-        self.index_path = self.execution / "index.json"
-        task_selection = build_instruction_selection(
-            skill_root=SKILL_ROOT,
-            mode="task",
-            selected_paths=[],
-            reference_names=["task.general.task-records"],
+        fixture = test_task_collection.TaskCollectionTests(
+            "test_loads_complete_collection_and_rejects_single_file_artifact"
         )
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        self.project = fixture.root
+        self.validation = load_task_collection(
+            self.project, str(self.project), fixture.index_path
+        )
+        self.contract = self.validation["collection_contract"]
+        self.execution_relative = self.contract["artifacts"]["execution"]
+        self.execution = self.project / self.execution_relative
+        self.execution.mkdir(parents=True, exist_ok=True)
+        self.task_directory = self.execution / "TASK-001"
+        self.attempt_relative = (
+            f"{self.execution_relative}/TASK-001/ATTEMPT-001/attempt.json"
+        )
+        self.attempt_path = self.project / self.attempt_relative
+        self.index_path = self.execution / "index.json"
+        task_selection = self.contract["tasks"][0]["instruction_selection"]
         execute_selection = build_instruction_selection(
             skill_root=SKILL_ROOT,
             mode="execute",
-            selected_paths=[],
+            selected_paths=task_selection["selected_paths"],
             reference_names=["execute.general.execution-records"],
         )
-        self.contract = {
-            "requirement_id": "example",
-            "spec_id": "TASK-SPEC-001",
-            "artifacts": {"task": "task.json", "execution": "execution"},
-            "tasks": [{
-                "id": "TASK-001",
-                "skill_id": None,
-                "instruction_selection": task_selection,
-                "validations": [{"id": "VAL-001"}],
-            }],
-        }
-        self.validation = {
-            "task_sha256": "a" * 64,
-            "instructions_sha256": "b" * 64,
-            "task_instructions_sha256": {
-                "TASK-001": task_selection["instructions_sha256"],
-            },
-            "hierarchy_selection_sha256": "f" * 64,
-            "skill_selection_sha256": "d" * 64,
-            "task_skill_ids": {"TASK-001": None},
-        }
         self.preflight = {
-            "task_spec_id": "TASK-SPEC-001",
+            "task_spec_id": self.contract["spec_id"],
             "task_id": "TASK-001",
             "skill_id": None,
-            "task_sha256": self.validation["task_sha256"],
+            "task_collection_sha256": self.validation["task_collection_sha256"],
+            "task_index_sha256": self.validation["task_index_sha256"],
+            "task_item_sha256": self.validation["task_item_sha256"]["TASK-001"],
             "task_instructions_sha256": task_selection["instructions_sha256"],
             "execute_instructions_sha256": execute_selection["instructions_sha256"],
-            "hierarchy_selection_sha256": "f" * 64,
-            "execute_skill_selection": {"selection_sha256": "d" * 64},
-            "execution_dir": "execution",
+            "hierarchy_selection_sha256": self.validation["hierarchy_selection_sha256"],
+            "execute_skill_selection": {
+                "selection_sha256": self.validation["skill_selection_sha256"]
+            },
+            "execution_dir": self.execution_relative,
             "snapshot_sha256": "e" * 64,
         }
         self.request = {
@@ -91,23 +80,13 @@ class ExecutionOutputLayoutTests(unittest.TestCase):
         }
         self.common = {
             "project_root": self.project,
-            "user_config_root": temporary.name,
-            "raw_task_path": "task.json",
-            "raw_execution_dir": "execution",
+            "user_config_root": str(self.project),
+            "raw_task_path": fixture.index_path,
+            "raw_execution_dir": self.execution_relative,
             "task_id": "TASK-001",
         }
-        (self.project / "task.json").write_bytes(render_json_contract(self.contract))
         index = build_initial_execution_index(self.contract, self.validation)
         self.index_path.write_bytes(render_execution_index(index))
-        # Isolate upstream Plan/TASK and Git review. All artifact reads, writes,
-        # canonical validation, instruction checks, locks, and recovery are real.
-        for module in ("record_begin", "record_finish", "attempt_close", "correction"):
-            mocked = patch(
-                f"worklib.execution.{module}.validate_task_contract",
-                return_value=self.validation,
-            )
-            mocked.start()
-            self.addCleanup(mocked.stop)
 
     def start(self, request=None):
         with patch(
@@ -182,7 +161,7 @@ class ExecutionOutputLayoutTests(unittest.TestCase):
     def test_lifecycle_groups_corrections_and_preserves_closed_attempt(self) -> None:
         result = self.start()
         self.assertEqual(
-            result["attempt_path"], "execution/TASK-001/ATTEMPT-001/attempt.json"
+            result["attempt_path"], self.attempt_relative
         )
         self.assertFalse((self.attempt_path.parent / "corrections").exists())
         self.finish_validation()
@@ -191,7 +170,7 @@ class ExecutionOutputLayoutTests(unittest.TestCase):
         for number in (1, 2):
             result = self.correct()
             expected = (
-                "execution/TASK-001/ATTEMPT-001/corrections/"
+                f"{self.execution_relative}/TASK-001/ATTEMPT-001/corrections/"
                 f"ATTEMPT-001-CORRECTION-{number:03d}.json"
             )
             self.assertEqual(result["correction_path"], expected)
@@ -219,7 +198,9 @@ class ExecutionOutputLayoutTests(unittest.TestCase):
         recovery_selection = build_instruction_selection(
             skill_root=SKILL_ROOT,
             mode="execute",
-            selected_paths=[],
+            selected_paths=self.contract["tasks"][0]["instruction_selection"][
+                "selected_paths"
+            ],
             reference_names=[
                 "execute.general.execution-records",
                 "execute.general.execution-recovery",
@@ -228,7 +209,8 @@ class ExecutionOutputLayoutTests(unittest.TestCase):
         self.preflight["execute_instructions_sha256"] = recovery_selection["instructions_sha256"]
         result = self.start(request)
         self.assertEqual(
-            result["attempt_path"], "execution/TASK-001/ATTEMPT-002/attempt.json"
+            result["attempt_path"],
+            f"{self.execution_relative}/TASK-001/ATTEMPT-002/attempt.json",
         )
         attempt = json.loads((self.project / result["attempt_path"]).read_bytes())
         self.assertEqual(attempt["continued_from"], "ATTEMPT-001")
@@ -270,7 +252,7 @@ class ExecutionOutputLayoutTests(unittest.TestCase):
         self.assertFalse(self.attempt_path.exists())
         self.assertEqual(self.recover_start()["status"], "recovered")
         validate_attempt_file(
-            self.project, "execution/TASK-001/ATTEMPT-001/attempt.json"
+            self.project, self.attempt_relative
         )
 
     def test_start_rejects_existing_empty_attempt_directory_without_writing(self) -> None:
@@ -313,15 +295,22 @@ class ExecutionOutputLayoutTests(unittest.TestCase):
         legacy.write_bytes(self.attempt_path.read_bytes())
         with self.assertRaises(WorkError) as context:
             validate_attempt_file(
-                self.project, "execution/TASK-001/ATTEMPT-001.json"
+                self.project,
+                f"{self.execution_relative}/TASK-001/ATTEMPT-001.json",
             )
         self.assertEqual(context.exception.code, "attempt_filename_mismatch")
 
     def test_attempt_validator_checks_attempt_and_task_directory_identity(self) -> None:
         self.start()
         for relative, error in (
-            ("execution/TASK-001/ATTEMPT-002/attempt.json", "attempt_parent_attempt_mismatch"),
-            ("execution/TASK-002/ATTEMPT-001/attempt.json", "attempt_parent_task_mismatch"),
+            (
+                f"{self.execution_relative}/TASK-001/ATTEMPT-002/attempt.json",
+                "attempt_parent_attempt_mismatch",
+            ),
+            (
+                f"{self.execution_relative}/TASK-002/ATTEMPT-001/attempt.json",
+                "attempt_parent_task_mismatch",
+            ),
         ):
             with self.subTest(path=relative):
                 path = self.project / relative
@@ -338,8 +327,8 @@ class ExecutionOutputLayoutTests(unittest.TestCase):
         created = self.correct()
         raw = (self.project / created["correction_path"]).read_bytes()
         for relative in (
-            "execution/TASK-001/ATTEMPT-001-CORRECTION-001.json",
-            "execution/TASK-001/ATTEMPT-002/corrections/ATTEMPT-001-CORRECTION-001.json",
+            f"{self.execution_relative}/TASK-001/ATTEMPT-001-CORRECTION-001.json",
+            f"{self.execution_relative}/TASK-001/ATTEMPT-002/corrections/ATTEMPT-001-CORRECTION-001.json",
         ):
             with self.subTest(path=relative):
                 path = self.project / relative

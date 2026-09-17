@@ -6,8 +6,8 @@ Use this workflow for Task. Independent discussion restoration follows the progr
 
 ## Independent discussion progress
 
-1. For `$work task -- resume <requirement-id>`, follow [discussion progress](progress.md) before the saved-planning entry point. Restore the Task discussion even when its formal Plan is stale or migration is incomplete. Review current sources and any referenced structured draft before relying on decisions; only Task conducts continued discussion.
-2. When the user asks to preserve the current discussion, return the complete content and continuation point to the parent for its private progress saver. Missing formal decisions or blocked migration do not prevent this independent save. Do not initialize or change a structured planning index to make progress saving possible.
+1. For `$work task -- resume <requirement-id>`, follow [discussion progress](progress.md) before the saved-planning entry point. Restore the Task discussion even when its formal Plan is stale is incomplete. Review current sources and any referenced structured draft before relying on decisions; only Task conducts continued discussion.
+2. When the user asks to preserve the current discussion, return the complete content and continuation point to the parent for its private progress saver. Missing formal decisions or blocked revision do not prevent this independent save. Do not initialize or change a structured planning index to make progress saving possible.
 
 ## Saved planning entry point
 
@@ -36,19 +36,19 @@ Use this workflow for Task. Independent discussion restoration follows the progr
 
 ## Use the deterministic TASK contract
 
-1. For saved planning, use `task draft-assemble` and `task draft-create` as defined in the checkpoint reference. Review the complete assembled logical result and bind approval to its fingerprint. Initial formalization emits a v2 formal index plus one item file per TASK. For an existing v2 specification revision, use the specification-update workflow; an existing v1 specification must first use explicit layout migration.
+1. For saved planning, use `task draft-assemble` and `task draft-create` as defined in the checkpoint reference. Review the complete assembled logical result and bind approval to its fingerprint. Initial formalization emits a formal index plus one item file per TASK. For an existing specification revision, use the specification-update workflow.
 2. Use only English keys, enums, IDs, statuses, paths, references, and hashes. Semantic strings may use the user's language.
 3. Before requesting formal approval, save the complete logical object as the request file and invoke `task validate --input-file "<request-path>" --task-path "<task-index-path>"` with every source Plan `--skill-root`.
 4. Require a successful result containing the canonical TASK collection, index, item, and instruction fingerprints. Treat any nonzero exit code as a hard stop; do not repair, rewrite, retry, or reinterpret a rejected contract without new user direction.
 5. For initial saved planning, use `task draft-create` after fingerprint-bound approval. Direct complete-contract creation uses the identical approved `task create` request with the same skill roots. Do not assemble or write TASK or index JSON manually.
-6. `task create` exclusively creates the canonical v2 TASK index, all referenced item files, and the initial execution index. Treat an existing target or partial failure as a hard stop.
+6. `task create` exclusively creates the canonical TASK index, all referenced item files, and the initial execution index. Treat an existing target or partial failure as a hard stop.
 7. Use `<python-command> "<skill-root>/scripts/work.py" --project-root "<project-root>" task recover-create --input-file "<request-path>" --plan-path "<plan-path>" --task-path "<task-path>" --execution-dir "<execution-dir>"` only after the user explicitly authorizes recovery and only with the identical approved JSON and three paths.
 8. Neither validation, creation, nor recovery executes CMD or OP or creates an Attempt, execution lock, instruction audit, or specification-update transaction.
 
 ## Request coordinated revision
 
-1. For confirmed changes to existing formal artifacts or confirmed Work instruction migration, follow [the shared coordinated revision procedure](../instruction-loading.md#coordinated-formal-artifact-revision). Initial creation and cross-session handoffs retain the procedures in this workflow.
-2. Task discussion resolves new technical or specification decisions returned by the editor. Send confirmed decisions back through the parent so the editor can complete the same migration; Task does not independently publish migrated Plan, TASK or index files.
+1. For confirmed changes to existing formal artifacts, follow [the shared coordinated revision procedure](../instruction-loading.md#coordinated-formal-artifact-revision). Initial creation and cross-session handoffs retain the procedures in this workflow.
+2. Task discussion resolves new technical or specification decisions returned by the editor. Send confirmed decisions back through the parent so the editor can complete the same revision; Task does not independently publish revised Plan, TASK or index files.
 
 ## Use deterministic handoffs
 

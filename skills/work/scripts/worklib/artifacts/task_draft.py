@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from ..contracts.task_draft import validate_task_draft, validate_task_planning_index
+from ..contracts.task_draft_models import TaskDraftRecoveryContract, TaskDraftSaveContract
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path, validate_requirement_id
@@ -248,10 +249,10 @@ def save_task_planning(
                 mirror_status = "updated"
         except (OSError, WorkError):
             mirror_status = "stale"
-    return {
+    return TaskDraftSaveContract.model_validate({
         "schema": "work-task-draft-save/v1", "requirement_id": requirement_id,
         "revision": revision, "status": "saved", "mirror_status": mirror_status,
-    }
+    }).to_canonical_dict()
 
 
 def recover_task_planning(
@@ -326,8 +327,8 @@ Incomplete history and display copies are left untouched.
                 {"revision": revision, "recovery_required": True},
             ) from error
         status = "recovered"
-    return {
+    return TaskDraftRecoveryContract.model_validate({
         "schema": "work-task-draft-recovery/v1", "requirement_id": requirement_id,
         "revision": revision, "status": status,
         "display_copy": "not_updated" if draft_raw is not None else "not_applicable",
-    }
+    }).to_canonical_dict()

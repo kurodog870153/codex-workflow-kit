@@ -12,9 +12,8 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from tests.work.contracts import test_task_collection
-from worklib.artifacts.spec_prepare import prepare_specification
-from worklib.artifacts.specification import update_specification
-from worklib.artifacts.task_collection import (
+from worklib.services.specification import prepare_specification, update_specification
+from worklib.services.task_collection import (
     load_task_collection,
     load_task_execution_context,
 )
@@ -37,7 +36,7 @@ TASK_COUNT = 100
 class LargeTaskCollectionIOTests(unittest.TestCase):
     def setUp(self) -> None:
         fixture = test_task_collection.TaskCollectionTests(
-            "test_loads_complete_v2_collection_and_v1_artifact"
+            "test_loads_complete_collection_and_rejects_single_file_artifact"
         )
         fixture.setUp()
         self.addCleanup(fixture.doCleanups)
@@ -83,7 +82,7 @@ class LargeTaskCollectionIOTests(unittest.TestCase):
         validation = load_task_collection(
             self.root, str(self.root), self.index_path
         )
-        self.execution_dir = validation["logical_contract"]["artifacts"][
+        self.execution_dir = validation["collection_contract"]["artifacts"][
             "execution"
         ]
         execution_path = self.root / self.execution_dir / "index.json"
@@ -91,7 +90,7 @@ class LargeTaskCollectionIOTests(unittest.TestCase):
         execution_path.write_bytes(
             render_execution_index(
                 build_initial_execution_index(
-                    validation["logical_contract"], validation
+                    validation["collection_contract"], validation
                 )
             )
         )
@@ -108,12 +107,14 @@ class LargeTaskCollectionIOTests(unittest.TestCase):
             return raw
 
         with patch(
-            "worklib.artifacts.task_collection.read_raw", side_effect=measured
+            "worklib.infrastructure.task_collection.read_raw", side_effect=measured
         ):
             result = operation()
         return result, paths, byte_count
 
-    def test_execute_reads_only_target_dependency_closure(self) -> None:
+    def test_execute_validates_all_items_but_exposes_target_dependency_closure(
+        self,
+    ) -> None:
         target = f"TASK-{TASK_COUNT:03d}"
         context, execute_paths, execute_bytes = self._measure_collection_reads(
             lambda: load_task_execution_context(
@@ -124,7 +125,11 @@ class LargeTaskCollectionIOTests(unittest.TestCase):
             )
         )
         execute_names = [path.name for path in execute_paths]
-        self.assertEqual(execute_names, ["index.json", f"{target}.json", "TASK-001.json"])
+        self.assertEqual(
+            execute_names,
+            ["index.json", f"{target}.json", "TASK-001.json"]
+            + [f"TASK-{number:03d}.json" for number in range(2, TASK_COUNT)],
+        )
         self.assertEqual(
             [task["id"] for task in context["contract"]["tasks"]],
             ["TASK-001", target],
@@ -136,8 +141,8 @@ class LargeTaskCollectionIOTests(unittest.TestCase):
             )
         )
         self.assertEqual(len(full_paths), TASK_COUNT + 1)
-        self.assertGreater(full_bytes, execute_bytes)
-        self.assertNotIn("TASK-050.json", execute_names)
+        self.assertEqual(full_bytes, execute_bytes)
+        self.assertIn("TASK-050.json", execute_names)
 
     def test_single_item_update_preserves_unrelated_item_bytes(self) -> None:
         target = f"TASK-{TASK_COUNT:03d}"

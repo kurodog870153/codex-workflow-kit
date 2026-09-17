@@ -22,4 +22,4 @@ Read and apply [the shared private role rules](../instruction-loading.md#shared-
 
 ## Coordinated artifact revision
 
-1. For confirmed changes to existing formal artifacts or confirmed Work instruction migration, follow [the shared coordinated revision procedure](../instruction-loading.md#coordinated-formal-artifact-revision). Return the request through the parent and resume only after source revalidation.
+1. For confirmed changes to existing formal artifacts, follow [the shared coordinated revision procedure](../instruction-loading.md#coordinated-formal-artifact-revision). Return the request through the parent and resume only after source revalidation.

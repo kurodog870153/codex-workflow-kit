@@ -22,7 +22,7 @@ from worklib.cli import main
 from worklib.contracts.progress import validate_progress_contract
 from worklib.foundation.errors import ExitCode
 from worklib.foundation.markdown import render_json_contract
-from worklib.foundation.spec_update import state_writer
+from worklib.infrastructure.writer_lock import state_writer
 
 
 class ProgressCliTests(FileInputTestCase):
@@ -57,7 +57,7 @@ class ProgressCliTests(FileInputTestCase):
             "mode": "plan", "revision": 1, "status": "discussion_only",
             "title": "保存尚未完成的討論", "request": "先記錄目前共識，稍後繼續。",
             "current_task_id": None, "context": {"scope": ["需求規劃"]},
-            "source_status": ["Migration is pending; acceptance decisions are missing."],
+            "source_status": ["Revision is pending; acceptance decisions are missing."],
             "notes": ["具體討論細節。"], "confirmed_decisions": [{"statement": "保留已確認需求。"}],
             "tentative": ["候選驗收方式尚未決定。"], "open_questions": ["哪些結果可供觀察？"],
             "next_discussion_point": "繼續確認驗收結果。",
@@ -141,7 +141,7 @@ class ProgressCliTests(FileInputTestCase):
         # neither require their validity nor touch any of them.
         for relative, raw in {
             "outputs/work/plans/example.json": b'{"old_instruction_sources":true}\n',
-            "outputs/work/tasks/example/task.json": b'{"migration":"incomplete"}\n',
+            "outputs/work/tasks/example/task.json": b'{"revision":"incomplete"}\n',
             "outputs/work/tasks/example/drafts/index.json": b'{"source":"stale"}\n',
             "outputs/work/executions/example/index.json": b'{"lock":{"kind":"spec_update"}}\n',
             "outputs/work/executions/example/.work-spec-update-SPEC-UPDATE-001.json": b"unfinished transaction",
@@ -222,7 +222,7 @@ class ProgressCliTests(FileInputTestCase):
         previous = self.read()
         self.progress["revision"] = 2
         approval = self.preview(expected_revision=1)["approved_sha256"]
-        with patch("worklib.artifacts.progress.os.replace", side_effect=OSError("interrupted")):
+        with patch("worklib.infrastructure.progress_storage.replace_progress_file", side_effect=OSError("interrupted")):
             error = self.save(expected_revision=1, approval=approval, expected_code=ExitCode.IO_FAILURE)
         self.assertEqual(error["reason_code"], "progress_save_interrupted")
         self.assertEqual(self.read(), previous)
@@ -238,7 +238,7 @@ class ProgressCliTests(FileInputTestCase):
             path.write_bytes(raw[:10])
             raise OSError("disk full")
 
-        with patch("worklib.artifacts.progress._write", side_effect=short_write):
+        with patch("worklib.infrastructure.progress_storage.write_progress_bytes", side_effect=short_write):
             self.save(approval=approval, expected_code=ExitCode.IO_FAILURE)
         self.assertEqual(self.read(expected_code=ExitCode.WORKFLOW_STATE)["reason_code"], "progress_not_saved")
         self.assertEqual(self.preview(expected_code=ExitCode.WORKFLOW_STATE)["reason_code"], "progress_save_pending")

@@ -9,7 +9,7 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.skills.catalog import SkillRoot, build_skill_catalog
+from worklib.services.skill_catalog import SkillRoot, build_skill_catalog
 
 
 SKILL = """---

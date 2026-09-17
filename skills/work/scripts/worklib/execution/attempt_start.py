@@ -12,6 +12,11 @@ from ..contracts.attempt import (
     render_attempt_contract,
     validate_attempt_file,
 )
+from ..contracts.attempt_start_models import (
+    AttemptStartContract,
+    AttemptStartRecoveryContract,
+    AttemptStartRequestContract,
+)
 from ..foundation.errors import ExitCode, WorkError
 from .preflight import execute_preflight
 from .worktree import (
@@ -24,21 +29,36 @@ from ..contracts.execution_index import (
 from ..foundation.fingerprint import read_raw
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path, validate_execution_task_layout
-from ..skills.catalog import SkillRoot
-from .attempt_start_request import parse_attempt_start_request
-from .attempt_start_transactions import (
+from ..services.skill_catalog import SkillRoot
+from ..infrastructure.attempt_start_storage import (
     raise_transaction_error as _raise_transaction_error,
     read_index as _read_index,
     replace_index as _replace_index,
     transaction_path as _transaction_path,
-    validate_snapshot as _validate_snapshot,
     write_exclusive as _write_exclusive,
 )
+from .worktree import collect_git_status, worktree_snapshot_sha256
 
 
 TRANSACTION_PATTERN = re.compile(
     r"^\.work-attempt-start-(TASK-\d{3})-(ATTEMPT-\d{3})-(lock|started)\.tmp$"
 )
+
+
+def _validate_snapshot(
+    *, project_root: Path, execution_dir: str, expected: str
+) -> None:
+    actual = worktree_snapshot_sha256(
+        collect_git_status(project_root), execution_dir=execution_dir
+    )
+    if actual != expected:
+        _error(
+            ExitCode.ARTIFACT_INTEGRITY,
+            "attempt_start_worktree_snapshot_changed",
+            "The Git worktree snapshot changed after review.",
+            expected=expected,
+            actual=actual,
+        )
 
 
 def _error(
@@ -150,18 +170,13 @@ def _build_attempt(
     task_id = str(preflight["task_id"])
     row = _task_row(index, task_id)
     continuation = request.get("continuation")
-    is_collection = "task_collection_sha256" in preflight
-    source_fingerprints = (
-        {
-            "task_collection_sha256": preflight["task_collection_sha256"],
-            "task_index_sha256": preflight["task_index_sha256"],
-            "task_item_sha256": preflight["task_item_sha256"],
-        }
-        if is_collection
-        else {"task_sha256": preflight["task_sha256"]}
-    )
+    source_fingerprints = {
+        "task_collection_sha256": preflight["task_collection_sha256"],
+        "task_index_sha256": preflight["task_index_sha256"],
+        "task_item_sha256": preflight["task_item_sha256"],
+    }
     contract: dict[str, Any] = {
-        "schema": "work-attempt/v2" if is_collection else "work-attempt/v1",
+        "schema": "work-attempt/v1",
         "attempt_id": attempt_id,
         "task_spec_id": preflight["task_spec_id"],
         "task_id": task_id,
@@ -443,7 +458,7 @@ def start_attempt(
     skill_roots: list[SkillRoot] | None = None,
     now: datetime | None = None,
 ) -> dict[str, object]:
-    request = parse_attempt_start_request(raw_request, source=source)
+    request = AttemptStartRequestContract.parse_request(raw_request, source=source).to_canonical_dict()
     worktree = inspect_execute_worktree(
         project_root=project_root,
         user_config_root=user_config_root,
@@ -514,7 +529,7 @@ def start_attempt(
             started_temporary=started_temporary,
             attempt_id=attempt_id,
         )
-    return {
+    return AttemptStartContract.model_validate({
         "schema": "work-attempt-start/v1",
         "task_id": task_id,
         "attempt_id": attempt_id,
@@ -522,7 +537,7 @@ def start_attempt(
         "index_path": index_relative,
         "status": "started",
         "lock_status": "held",
-    }
+    }).to_canonical_dict()
 
 
 def _recovery_candidate(
@@ -567,7 +582,7 @@ def recover_attempt_start(
     skill_roots: list[SkillRoot] | None = None,
     now: datetime | None = None,
 ) -> dict[str, object]:
-    request = parse_attempt_start_request(raw_request, source=source)
+    request = AttemptStartRequestContract.parse_request(raw_request, source=source).to_canonical_dict()
     execution_dir, execution_path, index_relative, index_path = _paths(
         project_root, raw_execution_dir
     )
@@ -687,7 +702,7 @@ def recover_attempt_start(
             started_temporary=started_temporary,
             attempt_id=attempt_id,
         )
-    return {
+    return AttemptStartRecoveryContract.model_validate({
         "schema": "work-attempt-start-recovery/v1",
         "task_id": task_id,
         "attempt_id": attempt_id,
@@ -695,4 +710,4 @@ def recover_attempt_start(
         "index_path": index_relative,
         "status": "recovered",
         "lock_status": "held",
-    }
+    }).to_canonical_dict()

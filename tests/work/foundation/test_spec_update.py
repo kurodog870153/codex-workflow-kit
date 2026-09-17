@@ -13,7 +13,7 @@ sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.foundation.errors import WorkError
 from worklib.foundation.spec_update import (
-    completion_marker_matches, require_idle_writer, require_no_spec_update, storage_path,
+    completion_marker_matches, require_no_spec_update, storage_path,
     transaction_completion_state,
 )
 
@@ -25,12 +25,6 @@ class CompletionMarkerTests(unittest.TestCase):
         self.assertEqual(transaction_completion_state(raw, None), "incomplete")
         self.assertEqual(transaction_completion_state(raw, b"bad\n"), "corrupt")
         self.assertEqual(transaction_completion_state(raw, marker), "completed")
-
-    def test_idle_probe_does_not_create_storage(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory).resolve()
-            require_idle_writer(root, "execution")
-            self.assertEqual(list(root.iterdir()), [])
 
     def test_storage_rejects_hardlink_aliases(self):
         with tempfile.TemporaryDirectory() as directory:

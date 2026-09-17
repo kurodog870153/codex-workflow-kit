@@ -2,23 +2,21 @@
 
 Load only for the private artifact editor after confirmed discussion requires coordinated revision of existing formal artifacts. This is not an invocation mode. Initial Plan creation and saved Task planning keep their existing workflows; a checkpoint is not a formal TASK and must not be promoted automatically.
 
-When the user wants to preserve unfinished revision or migration discussion,
+When the user wants to preserve unfinished revision discussion,
 return the retained content and blocking evidence through the parent to the
 originating Plan or Task role for [independent discussion progress](progress.md).
 The parent's progress saver can record that content without completing this
 transaction. Do not publish partial candidates or refresh hashes to permit saving.
 
-## Active TASK collection v2 revision boundary
+## Active TASK collection revision boundary
 
-V2 is the active format for new formal specifications and ordinary revisions.
-The Plan's `artifacts.task` selects the formal entry point. `index.json` selects
-the v2 collection workflow; retained v1 `task.json` remains readable and
-executable but rejects ordinary writes with layout-migration guidance.
+The Plan's `artifacts.task` selects the formal `index.json` entry point.
+Single-file `task.json` artifacts are unsupported.
 
-1. A v2 specification revision treats the formal TASK index and every referenced
+1. A specification revision treats the formal TASK index and every referenced
    TASK item as one logical collection. Validation and approval cover the complete
    candidate collection even when publication changes only one item.
-2. A v2 TASK change edit identifies its target with `artifact`. The allowed
+2. A TASK change edit identifies its target with `artifact`. The allowed
    values are `task_index` and `task_item`. A `task_item` edit requires the exact
    `task_id`; a `task_index` edit rejects `task_id`. The edit `path` is a JSON
    Pointer within the selected document, not within a reconstructed monolith.
@@ -26,10 +24,10 @@ executable but rejects ordinary writes with layout-migration guidance.
    fields, index references, item fingerprints, collection fingerprints,
    readiness, and execution-index changes are generated and validated rather
    than supplied as unreviewed manual edits.
-4. V2 preparation may avoid re-rendering unchanged items, but full candidate
+4. Preparation may avoid re-rendering unchanged items, but full candidate
    validation still enforces every cross-TASK invariant. Unchanged item bytes and
    fingerprints must remain identical.
-5. The v2 journal records a path-keyed variable file set for before and after
+5. The journal records a path-keyed variable file set for before and after
    TASK collection bytes, together with Plan and execution-index bytes, affected
    TASK IDs, execution history fingerprints, request evidence, and the approval
    fingerprint. A completion marker binds the canonical journal SHA-256.
@@ -42,27 +40,7 @@ executable but rejects ordinary writes with layout-migration guidance.
    bytes remain a stop. Removed formal items stay recoverable through immutable
    transaction evidence and are never destructively cleaned as part of ordinary
    publication.
-8. V1-to-v2 layout migration uses the separate `task layout-preflight`,
-   `layout-prepare`, `layout-validate`, `layout-apply`, `layout-recover`, and
-   `layout-verify` commands; it must not reuse the existing Work-instruction
-   `migrate-*` request schemas or imply that historical Attempt and Correction
-   records have v2 fingerprints.
-9. The Plan's `artifacts.task` remains the sole format selector. After successful
-   verified migration it points to the v2 formal index. A retained v1
-   `task.json` is provenance only and ordinary v1 formal updates are rejected.
-
-The edit shape is:
-
-```json
-{
-  "artifact": "task_item",
-  "task_id": "TASK-001",
-  "operation": "replace",
-  "path": "/goal",
-  "before": "Deliver the result.",
-  "after": "Deliver the confirmed result."
-}
-```
+8. The Plan's `artifacts.task` remains the sole formal collection entry point.
 
 ## Prepare and review
 
@@ -70,34 +48,20 @@ The edit shape is:
 
 For confirmed ordinary revisions, `task spec-prepare` can assemble the complete
 request and validate the derived Plan, TASK and execution index in memory. It does
-not publish formal artifacts or authorize execution, migration or repair.
+not publish formal artifacts or authorize execution or repair.
 
-Supply a UTF-8 `work-spec-prepare-request/v1` file, for example:
-
-```json
-{
-  "schema": "work-spec-prepare-request/v1",
-  "plan_path": "outputs/work/plans/example.json",
-  "reason": "Confirmed acceptance wording",
-  "edits": [
-    {
-      "artifact": "task",
-      "task_id": "TASK-001",
-      "field": "goal",
-      "before": "Deliver the result",
-      "after": "Deliver the confirmed result"
-    }
-  ]
-}
-```
+Supply a UTF-8 `work-spec-prepare-request/v1` file. Query
+`<work-cli> contract describe work-spec-prepare-request/v1` for its required
+and optional fields, canonical key order, edit structure, constraints, nested
+contract references, and current valid example. Treat the registered Pydantic
+contract as the structural source of truth; do not duplicate or independently
+maintain complete JSON structures in this workflow.
 
 1. This initial interface replaces existing fields only. Plan fields are `title`, `summary`,  `goals`, `scope`, `constraints`, `dependencies`, `risks`, `milestones`, `deliverables`, `acceptance_criteria` and `decisions`; each Plan edit also requires confirmed `affected_ids` referencing Plan items. TASK document fields are `title`, `summary`, `decisions` and `execution_defaults`. With `task_id`, editable TASK  fields are `title`, `goal`, `traceability`, `dependencies`, `steps`, `validations`, `commands` and `operations`.
 2. `before` must exactly match the existing JSON value. Unknown TASK IDs, repeated targets, unchanged values and protected fields are rejected. Arrays are replaced as complete field values. `affected_ids` is required only for Plan edits and is rejected on TASK edits. Rejections identify the zero-based edit index, artifact, field and TASK ID when supplied; invalid fields list the allowed fields, while a stale `before` reports only the current value fingerprint. TASK IDs, sources, selections, history and index fields cannot be edited through this interface. No missing semantic decisions are inferred.
 3. Version, Plan binding and exact change evidence are assembled automatically. The existing specification validator determines affected TASKs and index states. The response contains `data.request` and `data.preview`; the latter includes the complete candidates and `approved_sha256`. Review all three candidates.
 4. Without `--output-file`, preparation is read-only. With it, only a new request file is created after validation; existing files are never overwritten. Keep input, output and retained response files in the same requirement-owned specification transaction workspace. Paths for input/output files are relative to the process cwd. Parent directories must already exist. Output uses UTF-8 without BOM and LF. If writing is interrupted, retain the partial file and stop; it is not an approved publication request.
 5. Use the saved request with `spec-validate`, then obtain or reuse continuation approval for its exact preview before `spec-update`. If the user requested a discussion checkpoint for this continuation, prepare and validate that complete progress candidate before confirmation and bind the same confirmation to both displayed fingerprints. After approval, publish, run the derived read-only verification and save the identical prevalidated checkpoint without routine confirmation between successful steps. Retain the identical requests for separately authorized recovery. Preparation preserves the existing recoverable logical transaction; it does not make publication filesystem-wide atomic.
-
-Add `--summary` to `spec-prepare` or `spec-validate` when stdout must contain only the stable `work-specification-summary/v1` review index: status, record ID, approval fingerprint, affected TASK IDs, exact changed-field paths and file readiness. Prepare summaries also report the output file. The summary omits the complete request, candidates and migration evidence; it helps locate review evidence but never replaces review of the complete saved request and all three candidates before approval. Omit `--summary` to retain the existing complete response. The same option and boundary apply to `spec-update`, `migrate-prepare`, `migrate-validate` and `migrate`. Preparation also returns `transport` identifying `data.request`, its schema and the optional output file, plus a `next_step` naming the matching validation command. Validation retains the exact same request as input and returns the matching publish command with its approval fingerprint. These fields describe transport only; they do not grant write approval or permit skipping complete-candidate review.
 
 macOS example (replace the explicit paths):
 
@@ -117,7 +81,6 @@ JSON through shell interpolation, redirection or pipelines.
 
 ### Complete candidate validation
 
-1. First apply [the shared TASK diagnostic gate](../instruction-loading.md#validate-before-relying-on-a-formal-task). Diagnostic reads do not authorize a repair preview or transaction; the supported migration exceptions below remain narrow. Preserve the explicit requirement ID and all three confirmed artifact paths. Read the formal Plan, TASK and index; retain their raw-byte SHA-256 values as expected.plan_sha256, expected.task_sha256 and expected.index_sha256. Formal source JSON must already be canonical. Stop for any lock, ongoing Attempt, unresolved transaction or unknown user edits. Work instruction source drift requires the migration procedure below.
 2. Build one work-spec-update-request/v1 object with exactly schema, reason, expected, plan and task. The latter two are complete candidate objects, including an unchanged Plan when appropriate. Do not supply a candidate execution index.
 3. Preserve Plan change history and append change evidence when Plan changes. Use the Plan renderer/validator to obtain its canonical fingerprint; put it in the candidate TASK source reference. Do not write the Plan separately to make TASK validation pass.
 4. Increment TASK spec exactly once. Preserve existing TASK IDs; append new IDs after the highest existing ID. Existing TASK removal, requirement/path renaming and cancelled-TASK lifecycle changes are outside this transaction.
@@ -133,16 +96,10 @@ JSON through shell interpolation, redirection or pipelines.
 
 ## Publish and recover
 
-For migration use the migration commands below with the same publication and recovery guarantees.
-
 1. Obtain or reuse explicit continuation approval bound to this complete candidate and approved_sha256, plus the distinct progress fingerprint when a checkpoint is included. Run the identical request and root arguments through task spec-update --input-file "<request-path>" --approved-sha256 <approved-sha256>. A changed source, candidate, history or included checkpoint invalidates the applicable approval.
 2. Work CLI mutations share a process-released OS mutex in .work-state-writer.lock; the publisher rechecks sources after acquisition. This coordinates Work writers, not unrelated editors, which must remain paused during publication. The command first preserves original/proposed bytes in an exclusive .work-spec-update-SPEC-UPDATE-nnn.json transaction record, acquires the existing spec_update index lock, replaces Plan and TASK, publishes the synchronized index, and writes a fingerprinted completion marker. Execution is blocked while any record lacks its valid completion marker. This is a recoverable logical transaction, not a filesystem-wide atomic rename.
 3. Require status updated and report its spec, affected TASKs and checks. A normal
    update returns a complete `work-spec-verification-request/v1` and names `task
-   spec-verify` as its next step. A successful migration returns
-   a complete `work-migration-verify-request/v1` under `verification_request` and
-   names `task migrate-verify` as the next step; transport that object unchanged
-   instead of reusing the migration candidate. Transaction records retain old/new
    specifications; Attempt and Correction files are never rewritten. No CMD, OP,
    VAL or implementation is executed.
 4. On interruption preserve every current file, record, temporary and lock. Report the observed state and obtain separate recovery authorization. Only then use the identical request, roots and approved fingerprint with task spec-recover --input-file "<request-path>" --approved-sha256 <approved-sha256>.
@@ -160,7 +117,6 @@ For migration use the migration commands below with the same publication and rec
 2. The verifier checks the canonical ordinary-update journal and completion marker,
    exact installed Plan/TASK/index bytes, current formal contracts and source binding,
    derived transaction evidence, preserved execution history, all transaction
-   completion states and concurrent changes. Migration journals are rejected and
    retain their separate verification procedure.
 3. Success returns `work-spec-verification/v1`, `verified: true`, verification scope
    `exact_specification_result`, `execution_authorized: false` and next step
@@ -170,129 +126,3 @@ For migration use the migration commands below with the same publication and rec
    revision or execution history change can make an older record inapplicable; inspect
    the cause rather than rolling back or reusing a stale request. Verification never
    grants Execute approval or modifies formal, transaction, history or Git state.
-
-## Migrate formal v1 specifications to current Work instructions
-
-1. When current Work sources or a formal TASK source Plan fingerprint mismatch block validation of an existing work-plan/v1 or work-task/v1, read the old canonical artifacts without rewriting them. Migration requires the formal Plan, TASK and execution index together. Only the explicitly reviewed binding repair below may accept a mismatched original source Plan fingerprint. It does not migrate an active Attempt or unsupported contract schema, repair other corrupt artifacts, or authorize changes to requirement identity, skill selection or hierarchy contracts.
-2. Load current Plan, Task and Execute instructions and selected references. Compare their source metadata with the stored selections. Review every existing specification against the new guidance: revise goals, acceptance, steps, validations, execution settings and other affected content as needed. Clarify new decisions with the user. Merely replacing source hashes does not establish semantic compliance.
-3. Build complete candidate Plan and TASK objects using current instruction selections (including the TASK document source union). Follow all revision/version/change-evidence rules above. Use schema work-spec-migration-request/v1 and add instruction_review with exactly plan, task and execute, each a non-empty explanation of reviewed guidance, resulting revisions or why existing content remains suitable. Include all TASK IDs in affected evidence; migration conservatively reopens previously completed work for review/retry.
-4. Run task migrate-validate --input-file "<request-path>" --user-config-root "<user-config-root>" with the same global project and skill-root arguments as spec-validate. This read-only preview checks the old stored source metadata and union, canonical artifacts, cross-artifact fingerprints and index identities without requiring old Work source bytes. An original source Plan fingerprint mismatch requires the exact reviewed exception below; other contract checks remain enforced. Old aggregate content hashes cannot be independently recomputed without those bytes; expected raw fingerprints and explicit review bind acceptance of that historical baseline.
-5. Candidates undergo normal current-source validation. Review the complete candidate set, TASK edits, migration.plan_edits, affected states, instruction_review and migration.execute_instruction_selections. CLI contract validation cannot prove natural-language compliance. The approval fingerprint covers the original/proposed artifacts, review evidence, execution history and current normal/retry Execute source snapshots.
-6. Obtain continuation approval for that complete result and, when included, the separately previewed progress checkpoint. Send the identical request through task migrate --input-file "<request-path>" --user-config-root "<user-config-root>" --approved-sha256 <approved-sha256>. On interruption preserve all state and use task migrate-recover with the identical request and approval only after recovery authorization. These commands share the specification transaction journal, execution lock and writer mutex; they never publish independent Plan/TASK edits.
-7. Immediately run the migration verification procedure below for the installed transaction without another routine confirmation. After verification passes, save and read back the included prevalidated checkpoint, if any, then normal spec-validate/spec-update are available again. Resume through Execute preflight; old Attempt and Correction files keep their original source fingerprints and are not relabeled as complying with new guidance. The new index carries current specification identities; subsequent Attempts capture current Execute sources. Structured Task draft checkpoints still require their separate source-update workflow.
-
-## Reviewed source Plan binding repair
-
-1. A `source_plan_fingerprint_mismatch` reports `source` (`original TASK` or `candidate TASK` in migration), `task_path`, `plan_path`, `recorded_sha256` and `actual_sha256`. An original mismatch occurs before candidate validation. Re-rendering the candidate cannot repair that baseline. For a candidate mismatch, bind the candidate TASK to the fully rendered candidate Plan and regenerate its exact change evidence; this exception never applies to candidates.
-2. Before accepting an original mismatch, explain its cause, review the complete original Plan and TASK and their semantic differences, and obtain explicit confirmation to use that Plan as the migration baseline. Unknown edits or unresolved requirements remain stops. If the formerly referenced Plan cannot be recovered, disclose that historical equivalence cannot be established and obtain explicit acceptance of the reviewed current baseline. Do not infer acceptance from a hash or an earlier source-drift-only approval.
-3. Add the optional `source_plan_repair` object to `work-spec-migration-request/v1` with exactly `recorded_sha256` (the original TASK's stored `source_plan.canonical_sha256`), `actual_sha256` (the validated original Plan's canonical fingerprint) and `review` (a non-empty explanation of the cause, reviewed content, affected TASKs and confirmed baseline decision). Both hashes must match the original artifacts and must differ. These are canonical fingerprints; `expected` still contains raw-byte hashes of all three unchanged original files. Ordinary specification update requests reject this field. For example, using the actual 64-character fingerprints:
-
-   ```json
-   {
-     "source_plan_repair": {
-       "recorded_sha256": "<original TASK source_plan.canonical_sha256>",
-       "actual_sha256": "<validated original Plan canonical SHA-256>",
-       "review": "Explain the mismatch, reviewed Plan/TASK content, affected TASKs and confirmed acceptance of this baseline."
-     }
-   }
-   ```
-
-4. The exception permits only that exact fingerprint pair during historical TASK validation. It does not rewrite or normalize the original TASK, relax its canonical format, hierarchy, skill, traceability or stored instruction checks, or bypass index identity, locks, active Attempts or transaction checks. The index must still match the original TASK's actual fingerprint. Full candidate validation and version/change evidence remain mandatory, including the candidate TASK's binding to the candidate Plan. Complete missing implementation files, commands, operations and automated validations when required by current guidance; binding repair alone does not make a TASK executable.
-5. Review `migration.source_plan_repair` together with the complete candidate set and other migration evidence. The approval fingerprint and transaction journal bind the repair evidence, original bytes, candidate bytes and execution history. Missing, stale or unnecessary evidence is rejected without writing. Applying requires the identical preview and approval; recovery requires the identical request, including repair evidence, and the existing separate recovery authorization. Original mismatched bytes remain in the journal; Attempt and Correction history remain unchanged. Normal validation and Execute preflight after publication use the strictly validated new binding.
-
-## Migration preflight
-
-1. Before preparing migration candidates, run the read-only `task migrate-preflight --input-file "<request-path>" --user-config-root "<user-config-root>"` with the normal global project root and confirmed skill roots. The UTF-8 request (with at most one BOM) contains exactly `schema: "work-migration-preflight-request/v1"`, `requirement_id` and `artifacts` with all three confirmed Plan/TASK/execution paths. No candidate, revision increment or approval fingerprint is required.
-2. Parse stdout on both success and failure. Response data uses `work-migration-preflight/v1`. Blocked prerequisites return exit 4 and `migration_preflight_blocked`, with the complete report in data. `current` means no observed Work selection drift; `review_required` means the historical baseline is structurally eligible for content review. Neither is migration write approval. TASK-SPEC-001 is a revision, not an obsolete schema.
-3. Review raw/canonical fingerprints, current and historical TASK diagnostics, Plan/TASK source differences, normal/retry Execute selections, execution rows, transaction inventory and Git visibility. Historical metadata consistency cannot establish authenticity of unavailable old source bytes; `historical_content_verified` remains false. Non-Git workspaces or unavailable Git report `not_checked` without hiding document findings. Git visibility is informational, not permission to change ignore rules or stage artifacts.
-4. A Plan binding mismatch remains blocked with an explicit baseline decision; preflight never supplies or approves the reviewed binding exception. Return that evidence to the parent and follow the existing reviewed-source-plan-binding procedure if the user accepts it. Malformed files follow TASK diagnosis/repair first. Missing prerequisites remain `not_checked`; do not infer that later semantic checks passed.
-5. Locks, active execution, cancelled TASK lifecycle conflicts, unavailable current sources and incomplete or unreadable transactions block candidate preparation. Completed transactions are listed with their matching SHA-256 marker evidence; preflight does not replay them or certify every historical journal field. It is not the post-migration verification command.
-6. After resolving blockers and reviewing current guidance, use `migrate-prepare` below to assemble the full migration request. Its preview runs the same validation as `migrate-validate`. Preflight is a snapshot and does not replace validation or authorize apply/recovery.
-
-### Preparing reviewed migration edits
-
-1. Run `task migrate-prepare --input-file "<edits-path>" --output-file "<new-request-path>" --user-config-root "<user-config-root>"` with the normal global project root and confirmed skill roots. Omit `--output-file` for a read-only JSON response; when supplied it exclusively creates the request file and cannot overwrite an existing file. Formal artifacts remain unchanged.
-2. Supply `schema: "work-migration-prepare-request/v1"`, `plan_path`, a confirmed `reason`, and `edits` using the ordinary `spec-prepare` field replacement format above. `edits` may be empty when guidance review requires only source changes. Supply `instruction_review` with nonempty `plan`, `task`, and `execute` explanations; the program cannot establish semantic compliance from these strings.
-3. Supply `instruction_choices: {"plan": {"selected_paths": [], "references": [...]}, "tasks": {"TASK-001": {"selected_paths": [], "references": [...]}}}` with every existing TASK ID exactly once and explicit confirmed paths and reference names. Empty selected paths mean general-only. The program builds current snapshots, their ordered document union, Plan change evidence, source binding, next TASK spec/change IDs, exact field changes and source fingerprints. Do not supply instruction snapshots as edits. Requirement paths, hierarchy and skill decisions remain subject to existing migration validation.
-4. If the original Plan binding is broken, supply the existing `source_plan_repair` object with the explicitly reviewed `recorded_sha256`, `actual_sha256` and `review`. Preparation never invents acceptance or fills these hashes. A preflight binding blocker is retained in the response; the migration validator checks the narrow repair exception and all other prerequisites before returning any candidate.
-5. Review `request`, `preview` and `preflight`. The preview includes affected TASK states, current Execute selections and `approved_sha256`. The output file contains only `request`; without that file, transport `data.request` unchanged to `migrate-validate`/`migrate`, never the surrounding response. Source drift, stale edits, invalid reviews, active writers and unfinished transactions block preparation. Approval and authorized recovery follow the existing migration procedure.
-
-### Windows migration command sequence
-
-On Windows PowerShell, invoke the installed Python CLI directly and keep JSON in
-UTF-8 files in one requirement-owned migration transaction workspace. Replace every placeholder below with the same confirmed paths and
-repeat every confirmed `--skill-root` argument on each command that accepts it.
-Do not reconstruct candidates from an earlier response or transport JSON through
-PowerShell interpolation, redirection or pipelines.
-
-1. Save a `work-migration-preflight-request/v1` file containing the confirmed
-   requirement ID and Plan, TASK and execution paths, then inspect the baseline:
-
-   ```text
-   py -3 "C:\skills\work\scripts\work.py" --project-root "C:\project" task migrate-preflight --input-file "C:\project\outputs\work\transactions\example\migration\20260915T103000Z-a1b2c3d4\migration-preflight-request.json" --user-config-root "C:\user-config"
-   ```
-
-2. After review, create a fresh `work-migration-prepare-request/v1` file. TASK
-   edits contain `artifact`, optional `task_id`, `field`, exact current `before`
-   and reviewed `after`; they must not contain `affected_ids`. Only Plan edits
-   require confirmed `affected_ids`. Use preparation to create the complete
-   migration request instead of copying or editing an old candidate:
-
-   ```text
-   py -3 "C:\skills\work\scripts\work.py" --project-root "C:\project" task migrate-prepare --input-file "C:\project\outputs\work\transactions\example\migration\20260915T103000Z-a1b2c3d4\migration-prepare.json" --output-file "C:\project\outputs\work\transactions\example\migration\20260915T103000Z-a1b2c3d4\migration-candidate.json" --user-config-root "C:\user-config"
-   ```
-
-   A stale `before` is not repairable by changing a fingerprint. Reload the
-   current formal artifact, review the actual field, and prepare a new edits file.
-   Validate JSON with the installed Python JSON support when an independent parse
-   check is needed. Windows PowerShell `ConvertFrom-Json` does not accept `-Depth`;
-   do not depend on that parameter or manually repair trailing commas.
-
-3. Validate exactly the request file created by preparation and review the full
-   response, including all candidates and its `approved_sha256`:
-
-   ```text
-   py -3 "C:\skills\work\scripts\work.py" --project-root "C:\project" task migrate-validate --input-file "C:\project\outputs\work\transactions\example\migration\20260915T103000Z-a1b2c3d4\migration-candidate.json" --user-config-root "C:\user-config"
-   ```
-
-4. After explicit approval of that exact validation result, publish with the
-   identical request, roots and approval fingerprint. Any regenerated request or
-   source change requires validation and approval again:
-
-   ```text
-   py -3 "C:\skills\work\scripts\work.py" --project-root "C:\project" task migrate --input-file "C:\project\outputs\work\transactions\example\migration\20260915T103000Z-a1b2c3d4\migration-candidate.json" --user-config-root "C:\user-config" --approved-sha256 "<approved-sha256>"
-   ```
-
-5. Preserve `data.verification_request` from the successful publish response as
-   an unchanged UTF-8 JSON file using the caller's trusted JSON serializer. Do not
-   reuse `migration-request.json`, the preparation response or a hand-built record
-   ID. Run verification with that distinct request:
-
-   ```text
-   py -3 "C:\skills\work\scripts\work.py" --project-root "C:\project" task migrate-verify --input-file "C:\project\outputs\work\transactions\example\migration\20260915T103000Z-a1b2c3d4\migration-verify-request.json" --user-config-root "C:\user-config"
-   ```
-
-6. Only after verification returns `verified: true`, resume the separately
-   authorized execution workflow. Execute preflight still requires the confirmed
-   user configuration root; migration verification does not supply or default it:
-
-   ```text
-   py -3 "C:\skills\work\scripts\work.py" --project-root "C:\project" execute preflight --task-path "outputs\work\tasks\example.json" --execution-dir "outputs\work\execution\example" --task-id "TASK-001" --user-config-root "C:\user-config"
-   ```
-
-## Migration verification
-
-1. After a successful migration or its explicitly authorized recovery, run the read-only `task migrate-verify --input-file "<request-path>" --user-config-root "<user-config-root>"` with the same global project root and confirmed skill-root arguments. The request contains exactly `schema: "work-migration-verify-request/v1"`, `requirement_id`, the three confirmed `artifacts` paths and `record_id: "SPEC-UPDATE-nnn"`. Use the actual returned record ID; do not infer it from filenames or increment it. Input remains UTF-8 with no BOM or one leading BOM.
-2. Parse stdout for both success and failure. Response data uses `work-migration-verification/v1`. Success returns exit 0 with `verified=true`; failed or unavailable required checks return exit 5 and reason `migration_verification_failed`, with the full report in data. Show numbered failed checks and `not_checked` dependencies together.
-3. The verifier checks current Plan/TASK contracts and index bindings, canonical/raw fingerprints, all execution row statuses, Attempt/Correction contracts and their index references, transaction inventory, the selected canonical journal and its exact SHA-256 completion marker. It reuses read-only migration preparation to reproduce the saved baseline, candidate, change evidence, derived index and current normal/retry Execute selections. The historical binding exception remains limited to the exact saved reviewed request. It never calls apply or recovery.
-4. Verification scope is `exact_migration_result`: current Plan, TASK and index bytes must equal the selected journal's after snapshot, and execution history must equal its preserved snapshot. A later legitimate specification revision, new Attempt or Correction may change that state; report the mismatch and inspect its cause rather than declaring the earlier migration corrupt or rolling anything back. Use the latest applicable migration record for verification immediately after publication. No old Attempt is relabeled with current fingerprints.
-5. Missing, malformed or inconsistent journals/markers, incomplete transactions, active execution, invalid history, unavailable current sources and concurrent changes prevent a verified result. A matching .done marker alone is insufficient: it is completion evidence, not a signature or proof of semantic correctness. Report diagnostics even when the journal is unreadable. Source and history snapshots and writer state are rechecked before returning.
-6. Git visibility covers Plan, TASK, index, journal and completion marker. Report tracked, untracked or ignored files and whether Git sees changes. Missing Git or a non-Git workspace is informational `not_checked`; it does not hide artifact validation or modify tracking/ignore rules. Invoke the Python CLI directly without shell chaining or redirection.
-7. Verification is read-only and grants no execution, write or recovery permission. On failure preserve the evidence, stop before any included checkpoint save, and return the failed step, completed writes and report to the parent for a user decision. Do not retry, roll back or recover automatically. After success save and read back any included prevalidated checkpoint, then reload sources and perform normal Execute preflight and execution authorization. If the user wants to save an additional copy of the JSON report outside the retained transaction workspace, that remains a separately authorized file operation.
-# Completed migration boundaries
-
-Migration record IDs derive from the target TASK spec number. Repeating an identical completed request is rejected with `migration_already_completed`; changing its request while retaining that record ID returns `migration_record_conflict`. Reusing the completed request's three source fingerprints under another record ID returns `migration_source_already_used`. These checks also run under the publication mutex. No completed journal is overwritten.
-
-A missing or mismatched `.done` requires explicit recovery through the existing recovery workflow. An orphan completion marker is rejected. Never repair these conditions by repeating ordinary migration apply.
-
-Preflight and verification report `verification_selection`: `latest_completed_record_id` follows the numeric spec sequence, while `applicable_record_id` requires a unique exact match of current Plan, TASK and index bytes against a completed migration. Later execution or edits can leave no applicable record. This selection is a lookup hint, not verification success or execution authorization. Verification still requires an explicit record ID and all evidence checks. Old and new completed journals may coexist; an old receipt does not certify a newer state.

@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/work/script
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from contracts import test_progress as fixtures
-from worklib.artifacts.progress import prepare_progress, preview_progress, read_progress, save_progress
+from worklib.services.progress import prepare_progress, preview_progress, read_progress, save_progress
 from worklib.foundation.errors import WorkError
 
 

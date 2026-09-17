@@ -7,10 +7,7 @@ from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import read_raw
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path
-from ..artifacts.task_collection import (
-    load_task_execution_context,
-    task_artifact_format,
-)
+from ..services.task_collection import load_task_execution_context
 
 
 def _error(
@@ -47,34 +44,20 @@ def load_lifecycle_task_context(
     raw_task_path: str,
     task_id: str,
     skill_roots: object,
-    v1_validator: object,
 ) -> tuple[str, Path, dict[str, Any], dict[str, object]]:
     normalized, path = resolve_project_relative_path(
         project_root, raw_task_path, field="task_path"
     )
-    if task_artifact_format(normalized) == "v2":
-        context = load_task_execution_context(
-            project_root,
-            user_config_root,
-            normalized,
-            task_id,
-            skill_roots=skill_roots,
-        )
-        contract = context["contract"]
-        validation = context["validation"]
-        assert isinstance(contract, dict) and isinstance(validation, dict)
-        return normalized, path, contract, validation
-    raw = read_raw(path)
-    validation = v1_validator(
-        raw,
-        source=str(path),
-        actual_task_path=normalized,
-        project_root=project_root,
-        user_config_root=user_config_root,
-        validate_file_state=False,
+    context = load_task_execution_context(
+        project_root,
+        user_config_root,
+        normalized,
+        task_id,
         skill_roots=skill_roots,
     )
-    contract = parse_json_contract(raw, source=str(path))
+    contract = context["contract"]
+    validation = context["validation"]
+    assert isinstance(contract, dict) and isinstance(validation, dict)
     return normalized, path, contract, validation
 
 
@@ -86,18 +69,10 @@ def validate_execution_identity(
     attempt: dict[str, Any],
     task_id: str,
 ) -> dict[str, Any]:
-    is_collection = task_validation.get("schema") in {
-        "work-task-collection-validation/v2",
-        "work-task-execution-validation/v2",
+    source_fingerprints = {
+        "task_collection_sha256": task_validation["task_collection_sha256"],
+        "task_index_sha256": task_validation["task_index_sha256"],
     }
-    source_fingerprints = (
-        {
-            "task_collection_sha256": task_validation["task_collection_sha256"],
-            "task_index_sha256": task_validation["task_index_sha256"],
-        }
-        if is_collection
-        else {"task_sha256": task_validation["task_sha256"]}
-    )
     expected_index = {
         "requirement_id": task_contract["requirement_id"],
         "task_spec_id": task_contract["spec_id"],
@@ -116,11 +91,7 @@ def validate_execution_identity(
             expected=expected_index,
             actual=observed_index,
         )
-    expected_ids = (
-        task_validation["task_ids"]
-        if is_collection
-        else [item["id"] for item in task_contract["tasks"]]
-    )
+    expected_ids = task_validation["task_ids"]
     if [item["id"] for item in index["tasks"]] != expected_ids:
         _error(
             ExitCode.ARTIFACT_INTEGRITY,
@@ -140,11 +111,7 @@ def validate_execution_identity(
         "task_spec_id": task_contract["spec_id"],
         "task_id": task_id,
         **source_fingerprints,
-        **(
-            {"task_item_sha256": task_validation["task_item_sha256"][task_id]}
-            if is_collection
-            else {}
-        ),
+        "task_item_sha256": task_validation["task_item_sha256"][task_id],
         "task_instructions_sha256": task_instructions[task_id],
         "hierarchy_selection_sha256": task_validation[
             "hierarchy_selection_sha256"

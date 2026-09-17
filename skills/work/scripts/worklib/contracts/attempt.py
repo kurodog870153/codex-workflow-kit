@@ -3,9 +3,12 @@ from __future__ import annotations
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar, Literal
+
+from pydantic import Field, ValidationError
 
 from .command_correction import canonicalize_command_correction
+from .base import WorkContract
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.markdown import (
     parse_json_contract,
@@ -52,18 +55,15 @@ ROOT_REQUIRED = {
     "task_id",
     "skill_id",
     "status",
-    "task_sha256",
+    "task_collection_sha256",
+    "task_index_sha256",
+    "task_item_sha256",
     "task_instructions_sha256",
     "execute_instructions_sha256",
     "hierarchy_selection_sha256",
     "execute_skill_selection_sha256",
     "started_at",
     "records",
-}
-V2_FINGERPRINTS = {
-    "task_collection_sha256",
-    "task_index_sha256",
-    "task_item_sha256",
 }
 ROOT_OPTIONAL = {
     "continued_from",
@@ -81,7 +81,6 @@ ROOT_ORDER = (
     "task_id",
     "skill_id",
     "status",
-    "task_sha256",
     "task_collection_sha256",
     "task_index_sha256",
     "task_item_sha256",
@@ -99,6 +98,88 @@ ROOT_ORDER = (
     "reason",
     "ended_at",
 )
+
+
+class AttemptContract(WorkContract):
+    contract_id: ClassVar[str] = "work-attempt/v1"
+    contract_kind: ClassVar[Literal["artifact"]] = "artifact"
+    canonical_order: ClassVar[tuple[str, ...]] = ROOT_ORDER
+    contract_example: ClassVar[dict[str, Any]] = {
+        "schema": "work-attempt/v1", "attempt_id": "ATTEMPT-001",
+        "task_spec_id": "TASK-SPEC-001", "task_id": "TASK-001",
+        "skill_id": None, "status": "in_progress",
+        "task_collection_sha256": "a" * 64, "task_index_sha256": "b" * 64,
+        "task_item_sha256": "c" * 64, "task_instructions_sha256": "d" * 64,
+        "execute_instructions_sha256": "e" * 64,
+        "hierarchy_selection_sha256": "f" * 64,
+        "execute_skill_selection_sha256": "0" * 64,
+        "started_at": "2026-09-01T10:00+08:00", "records": [],
+    }
+
+    schema_: Literal["work-attempt/v1"] = Field(alias="schema")
+    attempt_id: Any
+    task_spec_id: Any
+    task_id: Any
+    skill_id: Any
+    status: Any
+    task_collection_sha256: Any
+    task_index_sha256: Any
+    task_item_sha256: Any
+    task_instructions_sha256: Any
+    execute_instructions_sha256: Any
+    hierarchy_selection_sha256: Any
+    execute_skill_selection_sha256: Any
+    started_at: Any
+    continued_from: Any | None = None
+    carried_records: Any | None = None
+    modified_files: Any | None = None
+    records: Any
+    overall_result: Any | None = None
+    final_type: Any | None = None
+    reason: Any | None = None
+    ended_at: Any | None = None
+
+
+class AttemptValidationContract(WorkContract):
+    contract_id: ClassVar[str] = "work-attempt-validation/v1"
+    contract_kind: ClassVar[Literal["response"]] = "response"
+    canonical_order: ClassVar[tuple[str, ...]] = (
+        "schema", "attempt_id", "task_spec_id", "task_id", "status",
+        "record_count", "result",
+    )
+    contract_example: ClassVar[dict[str, Any]] = {
+        "schema": "work-attempt-validation/v1",
+        "attempt_id": "ATTEMPT-001",
+        "task_spec_id": "TASK-SPEC-001",
+        "task_id": "TASK-001",
+        "status": "in_progress",
+        "record_count": 0,
+        "result": "valid",
+    }
+
+    schema_: Literal["work-attempt-validation/v1"] = Field(alias="schema")
+    attempt_id: str
+    task_spec_id: str
+    task_id: str
+    status: Literal["in_progress", "completed", "stopped", "blocked"]
+    record_count: int
+    result: Literal["valid"]
+
+
+def _attempt_model(contract: object) -> dict[str, Any]:
+    try:
+        return AttemptContract.model_validate(contract).to_canonical_dict()
+    except ValidationError as error:
+        issues = error.errors(include_url=False, include_context=False, include_input=False)
+        missing = sorted(str(issue["loc"][-1]) for issue in issues if issue["type"] == "missing")
+        unknown = sorted(str(issue["loc"][-1]) for issue in issues if issue["type"] == "extra_forbidden")
+        if missing or unknown:
+            _fail(
+                "attempt_invalid_object_fields",
+                "The JSON object has missing or unknown fields.",
+                location="attempt", missing=missing, unknown=unknown,
+            )
+        raise
 
 
 def _fail(code: str, message: str, **details: object) -> None:
@@ -473,18 +554,9 @@ def canonicalize_attempt_contract(
     contract: dict[str, Any], *, project_root: Path
 ) -> dict[str, Any]:
     schema = contract.get("schema") if isinstance(contract, dict) else None
-    if schema == "work-attempt/v1":
-        required = ROOT_REQUIRED
-    elif schema == "work-attempt/v2":
-        required = (ROOT_REQUIRED - {"task_sha256"}) | V2_FINGERPRINTS
-    else:
+    if schema != "work-attempt/v1":
         _fail("attempt_invalid_schema", "The Attempt schema is invalid.")
-    _strict_object(
-        contract,
-        location="attempt",
-        required=required,
-        optional=ROOT_OPTIONAL,
-    )
+    contract = _attempt_model(contract)
     attempt_id = _identifier(
         contract["attempt_id"], location="attempt_id", pattern=ATTEMPT_PATTERN
     )
@@ -496,13 +568,10 @@ def canonicalize_attempt_contract(
     _identifier(contract["task_id"], location="task_id", pattern=TASK_PATTERN)
     if contract["skill_id"] is not None:
         _nonempty(contract["skill_id"], location="skill_id")
-    fingerprint_fields = (
-        sorted(V2_FINGERPRINTS)
-        if schema == "work-attempt/v2"
-        else ["task_sha256"]
-    )
     for field in (
-        *fingerprint_fields,
+        "task_collection_sha256",
+        "task_index_sha256",
+        "task_item_sha256",
         "task_instructions_sha256",
         "execute_instructions_sha256",
         "hierarchy_selection_sha256",
@@ -667,19 +736,15 @@ def validate_attempt_contract(
     contract: dict[str, Any], *, project_root: Path
 ) -> dict[str, object]:
     canonical = canonicalize_attempt_contract(contract, project_root=project_root)
-    return {
-        "schema": (
-            "work-attempt-validation/v2"
-            if canonical["schema"] == "work-attempt/v2"
-            else "work-attempt-validation/v1"
-        ),
-        "attempt_id": canonical["attempt_id"],
-        "task_spec_id": canonical["task_spec_id"],
-        "task_id": canonical["task_id"],
-        "status": canonical["status"],
-        "record_count": len(canonical["records"]),
-        "result": "valid",
-    }
+    return AttemptValidationContract(
+        schema="work-attempt-validation/v1",
+        attempt_id=canonical["attempt_id"],
+        task_spec_id=canonical["task_spec_id"],
+        task_id=canonical["task_id"],
+        status=canonical["status"],
+        record_count=len(canonical["records"]),
+        result="valid",
+    ).to_canonical_dict()
 
 
 def render_attempt_contract(

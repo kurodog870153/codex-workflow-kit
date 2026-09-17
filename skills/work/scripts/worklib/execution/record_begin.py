@@ -1,21 +1,44 @@
 from __future__ import annotations
 
 import copy
-import os
 from pathlib import Path
 from typing import Any
 
 from ..contracts.attempt import validate_attempt_file
+from ..contracts.record_models import RecordBeginContract
+from ..infrastructure.atomic_replace import TransactionErrors, prepare_and_replace
 from ..foundation.errors import ExitCode, WorkError
 from ..contracts.execution_index import render_execution_index, validate_execution_index
-from ..foundation.fingerprint import read_raw
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path
-from ..skills.catalog import SkillRoot
-from ..contracts.task import validate_task_contract
+from ..services.skill_catalog import SkillRoot
 from .context import read_contract, find_task_row, load_lifecycle_task_context, validate_execution_identity
 from .instructions import validate_execute_instructions
 from .records import BASE_RECORD_PATTERN, next_record_id, formal_record_kind
+
+
+LOCK_UPDATE_ERRORS = TransactionErrors(
+    transaction_present=(
+        "record_begin_transaction_present",
+        "A record-begin transaction already requires recovery.",
+    ),
+    prepare_failed=(
+        "record_begin_prepare_failed",
+        "The record-begin index update could not be prepared.",
+    ),
+    source_changed=(
+        "record_begin_index_changed",
+        "The execution index changed during record begin.",
+    ),
+    replace_failed=(
+        "record_begin_replace_failed",
+        "The prepared record-begin index could not be installed.",
+    ),
+    write_mismatch=(
+        "record_begin_write_mismatch",
+        "The stored execution index does not match the prepared bytes.",
+    ),
+)
 
 
 
@@ -37,67 +60,19 @@ def _write_lock_update(
 ) -> None:
     rendered = render_execution_index(target_index)
     validate_execution_index(rendered, source="generated record-begin index")
-    try:
-        with temporary_path.open("xb") as output:
-            output.write(rendered)
-            output.flush()
-            os.fsync(output.fileno())
-    except FileExistsError as error:
-        raise WorkError(
-            ExitCode.LOCK_CONFLICT,
-            "record_begin_transaction_present",
-            "A record-begin transaction already requires recovery.",
-            {
-                "path": str(temporary_path),
-                "recovery_required": True,
-                "transaction_stage": "lock_update_prepared",
-            },
-        ) from error
-    except OSError as error:
-        details: dict[str, object] = {"path": str(temporary_path)}
-        if temporary_path.exists():
-            details.update(
-                {
-                    "recovery_required": True,
-                    "transaction_stage": "lock_update_partial",
-                }
-            )
-        raise WorkError(
-            ExitCode.IO_FAILURE,
-            "record_begin_prepare_failed",
-            "The record-begin index update could not be prepared.",
-            details,
-        ) from error
-    if read_raw(index_path) != index_raw:
-        _error(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "record_begin_index_changed",
-            "The execution index changed during record begin.",
-            path=str(temporary_path),
-            recovery_required=True,
-            transaction_stage="lock_update_prepared",
-        )
-    try:
-        os.replace(temporary_path, index_path)
-    except OSError as error:
-        raise WorkError(
-            ExitCode.IO_FAILURE,
-            "record_begin_replace_failed",
-            "The prepared record-begin index could not be installed.",
-            {
-                "path": str(temporary_path),
-                "recovery_required": True,
-                "transaction_stage": "lock_update_prepared",
-            },
-        ) from error
-    stored = read_raw(index_path)
-    validate_execution_index(stored, source=str(index_path))
-    if stored != rendered:
-        _error(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "record_begin_write_mismatch",
-            "The stored execution index does not match the prepared bytes.",
-        )
+    prepare_and_replace(
+        source_path=index_path,
+        source_bytes=index_raw,
+        target_bytes=rendered,
+        temporary_path=temporary_path,
+        stage="lock_update_prepared",
+        partial_stage="lock_update_partial",
+        errors=LOCK_UPDATE_ERRORS,
+        validate_stored=lambda stored: validate_execution_index(
+            stored, source=str(index_path)
+        ),
+        mismatch_recovery_required=False,
+    )
 
 
 def begin_record(
@@ -149,7 +124,6 @@ def begin_record(
         user_config_root=user_config_root,
         task_id=task_id,
         skill_roots=skill_roots,
-        v1_validator=validate_task_contract,
     )
     if (
         task_contract["artifacts"]["task"] != normalized_task
@@ -246,7 +220,7 @@ def begin_record(
         target_index=updated_index,
         temporary_path=temporary_path,
     )
-    return {
+    return RecordBeginContract.model_validate({
         "schema": "work-record-begin/v1",
         "task_id": task_id,
         "attempt_id": attempt_id,
@@ -255,4 +229,4 @@ def begin_record(
         "record_kind": record_kind,
         "index_path": index_relative,
         "lock_status": "record_reserved",
-    }
+    }).to_canonical_dict()

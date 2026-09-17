@@ -11,10 +11,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from contracts import test_task as fixtures
 from contracts.test_progress import discussion
-from worklib.contracts.delegation import MARKERS, validate_delegation
+from worklib.services.delegation import MARKERS, validate_delegation
 from worklib.foundation.errors import WorkError
-from worklib.instructions.selection import build_instruction_selection
-from worklib.skills.selection import SKILL_FIELDS, selection_sha256
+from worklib.services.instruction_selection import build_instruction_selection
+from worklib.services.skill_selection import SKILL_FIELDS, selection_sha256
 
 
 class DelegationTests(unittest.TestCase):

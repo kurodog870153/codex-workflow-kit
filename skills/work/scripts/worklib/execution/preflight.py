@@ -4,11 +4,12 @@ import re
 from pathlib import Path
 from typing import Any
 
+from ..contracts.execution_inspection_models import ExecutePreflightContract
 from ..foundation.spec_update import require_no_spec_update
 from ..foundation.errors import ExitCode, WorkError
 from ..contracts.execution_index import validate_execution_index
 from ..foundation.fingerprint import read_raw
-from ..instructions.selection import build_instruction_selection
+from ..services.instruction_selection import build_instruction_selection
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import (
     portable_path_identity,
@@ -16,10 +17,9 @@ from ..foundation.paths import (
     validate_execution_task_layout,
 )
 from ..foundation.runtime import installed_work_root
-from ..skills.catalog import SkillRoot
-from ..skills.selection import selection_sha256
-from ..contracts.task import validate_task_contract
-from ..artifacts.task_collection import load_task_execution_context
+from ..services.skill_catalog import SkillRoot
+from ..services.skill_selection import selection_sha256
+from ..services.task_collection import load_task_execution_context
 from .instructions import BASE_EXECUTE_REFERENCES, RECOVERY_REFERENCE
 
 
@@ -215,45 +215,16 @@ def _validate_file_lifecycle(
     return results
 
 
-def _task_contract(
-    raw: bytes,
-    *,
-    source: str,
-    task_path: str,
-    project_root: Path,
-    user_config_root: str,
-    skill_roots: list[SkillRoot] | None = None,
-) -> tuple[dict[str, Any], dict[str, object]]:
-    validation = validate_task_contract(
-        raw,
-        source=source,
-        actual_task_path=task_path,
-        project_root=project_root,
-        user_config_root=user_config_root,
-        validate_file_state=False,
-        skill_roots=skill_roots,
-    )
-    contract = parse_json_contract(raw, source=source)
-    return contract, validation
-
-
-def _require_index_identity(
+def require_index_identity(
     index: dict[str, Any],
     task: dict[str, Any],
     task_validation: dict[str, object],
 ) -> dict[str, dict[str, Any]]:
-    is_collection = task_validation["schema"] == "work-task-execution-validation/v2"
     expected_identity = {
         "requirement_id": task["requirement_id"],
         "task_spec_id": task["spec_id"],
-        **(
-            {
-                "task_collection_sha256": task_validation["task_collection_sha256"],
-                "task_index_sha256": task_validation["task_index_sha256"],
-            }
-            if is_collection
-            else {"task_sha256": task_validation["task_sha256"]}
-        ),
+        "task_collection_sha256": task_validation["task_collection_sha256"],
+        "task_index_sha256": task_validation["task_index_sha256"],
         "task_instructions_sha256": task_validation["instructions_sha256"],
         "hierarchy_selection_sha256": task_validation[
             "hierarchy_selection_sha256"
@@ -270,11 +241,7 @@ def _require_index_identity(
 
     task_instructions = task_validation["task_instructions_sha256"]
     assert isinstance(task_instructions, dict)
-    expected_ids = (
-        task_validation["task_ids"]
-        if is_collection
-        else [item["id"] for item in task["tasks"]]
-    )
+    expected_ids = task_validation["task_ids"]
     observed_ids = [item["id"] for item in index["tasks"]]
     if observed_ids != expected_ids:
         raise WorkError(
@@ -383,7 +350,7 @@ def execute_preflight(
     index_raw = read_raw(index_path)
     index_validation = validate_execution_index(index_raw, source=str(index_path))
     index_contract = parse_json_contract(index_raw, source=str(index_path))
-    index_rows = _require_index_identity(
+    index_rows = require_index_identity(
         index_contract, task_contract, task_validation
     )
 
@@ -497,16 +464,12 @@ def execute_preflight(
             "The Execute hierarchy does not match the target TASK hierarchy.",
         )
 
-    source_fingerprints = (
-        {
-            "task_collection_sha256": task_validation["task_collection_sha256"],
-            "task_index_sha256": task_validation["task_index_sha256"],
-            "task_item_sha256": task_validation["task_item_sha256"][task_id],
-        }
-        if task_validation["schema"] == "work-task-execution-validation/v2"
-        else {"task_sha256": task_validation["task_sha256"]}
-    )
-    return {
+    source_fingerprints = {
+        "task_collection_sha256": task_validation["task_collection_sha256"],
+        "task_index_sha256": task_validation["task_index_sha256"],
+        "task_item_sha256": task_validation["task_item_sha256"][task_id],
+    }
+    return ExecutePreflightContract.model_validate({
         "schema": "work-execute-preflight/v1",
         "requirement_id": task_contract["requirement_id"],
         "task_spec_id": task_contract["spec_id"],
@@ -530,4 +493,4 @@ def execute_preflight(
         "execute_skill_selection": execute_skill_selection,
         "index_sha256": index_validation["index_sha256"],
         "eligibility": "passed",
-    }
+    }).to_canonical_dict()

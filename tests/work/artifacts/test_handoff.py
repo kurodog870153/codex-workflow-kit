@@ -16,20 +16,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from cli_support import FileInputTestCase
 
-from worklib.artifacts.handoff import build_plan_to_task_handoff, build_task_to_execute_handoff, build_task_to_plan_handoff
-from worklib.artifacts.handoff import verify_return_handoff
+from worklib.services.handoff import build_plan_to_task_handoff, build_task_to_execute_handoff, build_task_to_plan_handoff
+from worklib.services.handoff import verify_return_handoff
 from worklib.cli import main
 from worklib.contracts.handoff import validate_handoff_contract
-from worklib.contracts.plan import render_plan_contract, validate_plan_file
-from worklib.contracts.task import render_task_contract, validate_task_file
+from worklib.services.plan_validation import render_plan_contract, validate_plan_file
+from worklib.contracts.task_collection_semantics import render_task_contract
+from worklib.artifacts.task import prepare_task_collection_create
+from worklib.services.task_collection import load_task_collection
 from worklib.foundation.errors import ExitCode, WorkError
-from worklib.hierarchy.selection import build_hierarchy_selection
-from worklib.instructions.work_selection import build_work_instruction_selection
-from worklib.instructions.selection import build_instruction_selection
-from worklib.instructions.task_selection import build_task_document_instruction_selection
-from worklib.skills.selection import selection_sha256
-from worklib.artifacts.handoff import build_execute_return_handoff, build_preflight_return_handoff
-from worklib.artifacts.handoff import verify_plan_to_task_handoff, verify_task_to_execute_handoff
+from worklib.foundation.fingerprint import read_raw
+from worklib.services.hierarchy_selection import build_hierarchy_selection
+from worklib.services.instruction_work_selection import build_work_instruction_selection
+from worklib.services.instruction_selection import build_instruction_selection
+from worklib.services.instruction_task_selection import build_task_document_instruction_selection
+from worklib.services.skill_selection import selection_sha256
+from worklib.services.handoff import build_execute_return_handoff, build_preflight_return_handoff
+from worklib.services.handoff import verify_plan_to_task_handoff, verify_task_to_execute_handoff
 from worklib.contracts.attempt import render_attempt_contract
 from worklib.contracts.execution_index import build_initial_execution_index, render_execution_index, derive_overall_status
 
@@ -60,17 +63,16 @@ class HandoffArtifactTests(FileInputTestCase):
             self.verify_return(self.build_return(task_id="TASK-002"), task_id="TASK-001")
         self.assertEqual(caught.exception.code, "handoff_source_mismatch")
 
-    def test_verify_task_return_rejects_same_spec_changed_content_and_legacy_hash(self):
+    def test_verify_task_return_rejects_same_spec_changed_content_and_missing_collection_hash(self):
         self.write_task()
         contract = self.build_return()
         legacy = copy.deepcopy(contract)
-        del legacy["source"]["task_sha256"]
-        self.assertEqual(validate_handoff_contract(legacy, project_root=self.root)["status"], "valid")
+        del legacy["source"]["task_collection_sha256"]
         with self.assertRaises(WorkError) as caught:
-            self.verify_return(legacy)
-        self.assertEqual(caught.exception.code, "handoff_source_mismatch")
+            validate_handoff_contract(legacy, project_root=self.root)
+        self.assertEqual(caught.exception.code, "invalid_object_fields")
         self.task["summary"] = "Changed under the same spec ID"
-        self.task_path.write_bytes(render_task_contract(self.task))
+        self._write_task_collection()
         with self.assertRaises(WorkError) as caught:
             self.verify_return(contract)
         self.assertEqual(caught.exception.code, "handoff_source_mismatch")
@@ -147,7 +149,7 @@ class HandoffArtifactTests(FileInputTestCase):
         self.plan = {
             "schema": "work-plan/v1", "requirement_id": "example", "status": "confirmed",
             "title": "Plan", "summary": "Result",
-            "artifacts": {"plan": "outputs/work/plans/example.json", "task": "outputs/work/tasks/example/task.json", "execution": "outputs/work/executions/example"},
+            "artifacts": {"plan": "outputs/work/plans/example.json", "task": "outputs/work/tasks/example/index.json", "execution": "outputs/work/executions/example"},
             "hierarchy_selection": build_hierarchy_selection({"decision": "general_only", "selections": []}, skill_root=work_root),
             "work_instruction_selection": build_work_instruction_selection(skill_root=work_root, mode="plan", selected_paths=[]),
             "skill_selection": {"schema": "work-skill-selection/v1", "decision": "base_only", "skills": [], "selection_sha256": selection_sha256("base_only", [])},
@@ -220,13 +222,13 @@ class HandoffArtifactTests(FileInputTestCase):
         self.assertEqual(error.exception.code, "spec_update_pending")
 
     def test_handoff_rechecks_specification_transaction_before_return(self):
-        from worklib.artifacts.handoff import _build_handoff
+        from worklib.services.handoff import _build_handoff
         before = self.snapshot()
         journals = []
         def start_transaction(*args, **kwargs):
             journals.append(self.write_spec_journal())
             return _build_handoff(*args, **kwargs)
-        with patch("worklib.artifacts.handoff._build_handoff", side_effect=start_transaction):
+        with patch("worklib.services.handoff._build_handoff", side_effect=start_transaction):
             with self.assertRaises(WorkError) as error:
                 build_plan_to_task_handoff(self.root, self.request, plan_path=self.plan["artifacts"]["plan"], user_config_root=str(self.root))
         self.assertEqual(error.exception.code, "spec_update_pending")
@@ -275,7 +277,7 @@ class HandoffArtifactTests(FileInputTestCase):
         self.write_task()
         handoff = self.build_execute()
         self.task["summary"] = "Revised task summary"
-        self.task_path.write_bytes(render_task_contract(self.task))
+        self._write_task_collection()
         with self.assertRaises(WorkError) as error:
             self.verify_received_task(handoff)
         self.assertEqual(error.exception.code, "handoff_source_mismatch")
@@ -290,7 +292,8 @@ class HandoffArtifactTests(FileInputTestCase):
         self.write_task()
         original = self.build_execute()
         fields = {"task_spec_id": "TASK-SPEC-999", "skill_id": "unknown",
-                  "task_sha256": "0" * 64, "task_instructions_sha256": "0" * 64,
+                  "task_collection_sha256": "0" * 64, "task_index_sha256": "0" * 64,
+                  "task_item_sha256": "0" * 64, "task_instructions_sha256": "0" * 64,
                   "skill_selection_sha256": "0" * 64}
         for field, value in fields.items():
             handoff = copy.deepcopy(original)
@@ -298,7 +301,7 @@ class HandoffArtifactTests(FileInputTestCase):
             with self.subTest(field=field), self.assertRaises(WorkError) as error:
                 self.verify_received_task(handoff)
             self.assertEqual(error.exception.code, "handoff_source_mismatch")
-        for field, path in (("plan", "custom/example.json"), ("task", "custom/tasks/example/task.json"), ("execution", "custom/executions/example")):
+        for field, path in (("plan", "custom/example.json"), ("task", "custom/tasks/example/index.json"), ("execution", "custom/executions/example")):
             handoff = copy.deepcopy(original)
             handoff["artifacts"][field] = path
             with self.subTest(field=field), self.assertRaises(WorkError) as error:
@@ -325,13 +328,13 @@ class HandoffArtifactTests(FileInputTestCase):
             def changed(path):
                 reads.append(path)
                 return b"changed" if path == target and reads.count(path) > 1 else read_raw(path)
-            with self.subTest(target=target), patch("worklib.artifacts.handoff.read_raw", side_effect=changed):
+            with self.subTest(target=target), patch("worklib.services.handoff.read_raw", side_effect=changed):
                 with self.assertRaises(WorkError) as error:
                     self.verify_received_task(handoff)
             self.assertEqual(error.exception.code, "handoff_source_changed")
 
     def test_verify_received_task_cli_uses_custom_paths(self):
-        self.plan["artifacts"] = {"plan": "custom/example.json", "task": "custom/tasks/example/task.json", "execution": "custom/executions/example"}
+        self.plan["artifacts"] = {"plan": "custom/example.json", "task": "custom/tasks/example/index.json", "execution": "custom/executions/example"}
         self.write_plan()
         self.write_task()
         handoff = self.build_execute("TASK-002")
@@ -367,7 +370,7 @@ class HandoffArtifactTests(FileInputTestCase):
             with self.subTest(field=field), self.assertRaises(WorkError) as error:
                 self.verify_received_plan(handoff)
             self.assertEqual(error.exception.code, "handoff_source_mismatch")
-        for field, path in (("plan", "custom/example.json"), ("task", "custom/tasks/example/task.json"), ("execution", "custom/executions/example")):
+        for field, path in (("plan", "custom/example.json"), ("task", "custom/tasks/example/index.json"), ("execution", "custom/executions/example")):
             handoff = copy.deepcopy(original)
             handoff["artifacts"][field] = path
             with self.subTest(field=field), self.assertRaises(WorkError) as error:
@@ -377,7 +380,7 @@ class HandoffArtifactTests(FileInputTestCase):
     def test_verify_received_plan_rejects_wrong_requirement_and_unknown_ids(self):
         handoff = self.build()
         handoff["requirement_id"] = "other"
-        handoff["artifacts"] = {"plan": "custom/other.json", "task": "custom/tasks/other/task.json", "execution": "custom/executions/other"}
+        handoff["artifacts"] = {"plan": "custom/other.json", "task": "custom/tasks/other/index.json", "execution": "custom/executions/other"}
         with self.assertRaises(WorkError) as error:
             self.verify_received_plan(handoff)
         self.assertEqual(error.exception.code, "handoff_source_mismatch")
@@ -404,13 +407,13 @@ class HandoffArtifactTests(FileInputTestCase):
 
     def test_verify_received_plan_rejects_source_change_during_read(self):
         handoff = self.build()
-        with patch("worklib.artifacts.handoff.read_raw", side_effect=[self.plan_path.read_bytes(), b"changed"]):
+        with patch("worklib.services.handoff.read_raw", side_effect=[self.plan_path.read_bytes(), b"changed"]):
             with self.assertRaises(WorkError) as error:
                 self.verify_received_plan(handoff)
         self.assertEqual(error.exception.code, "handoff_source_changed")
 
     def test_verify_received_plan_cli_with_custom_paths(self):
-        self.plan["artifacts"] = {"plan": "custom/example.json", "task": "custom/tasks/example/task.json", "execution": "custom/executions/example"}
+        self.plan["artifacts"] = {"plan": "custom/example.json", "task": "custom/tasks/example/index.json", "execution": "custom/executions/example"}
         self.write_plan()
         handoff = self.build()
         before = self.snapshot()
@@ -436,15 +439,28 @@ class HandoffArtifactTests(FileInputTestCase):
             "validations": [{"id": "VAL-001", "kind": "manual", "confirmer": "User", "criteria": "Result is observable", "acceptance_ids": ["ACCEPTANCE-001"]}],
         } for number, selection in enumerate(selections, 1)]
         self.task = {
-            "schema": "work-task/v1", "requirement_id": "example", "spec_id": "TASK-SPEC-001", "status": "confirmed",
+            "schema": "work-task-collection-projection/v1", "requirement_id": "example", "spec_id": "TASK-SPEC-001", "status": "confirmed",
             "title": "Formal TASK", "summary": "Result", "artifacts": copy.deepcopy(self.plan["artifacts"]),
             "source_plan": {"canonical_sha256": checked["plan_sha256"], "hierarchy_selection_sha256": checked["hierarchy_selection_sha256"]},
             "instruction_selection": build_task_document_instruction_selection(selections, skill_root=SCRIPT_ROOT.parent),
             "tasks": tasks, "readiness": {"status": "passed", "spec_id": "TASK-SPEC-001"},
         }
-        self.task_path = self.root / self.task["artifacts"]["task"]
-        self.task_path.parent.mkdir(parents=True, exist_ok=True)
-        self.task_path.write_bytes(render_task_contract(self.task))
+        self._write_task_collection()
+
+    def _write_task_collection(self):
+        bundle = prepare_task_collection_create(
+            render_task_contract(self.task), source="handoff fixture",
+            raw_plan_path=self.task["artifacts"]["plan"],
+            raw_task_path=self.task["artifacts"]["task"],
+            project_root=self.root, user_config_root=str(self.root),
+        )
+        self.task_path = self.root / bundle["normalized_index"]
+        item_directory = self.task_path.parent / "tasks"
+        item_directory.mkdir(parents=True, exist_ok=True)
+        self.task_path.write_bytes(bundle["index_raw"])
+        for task_id, raw in bundle["items"].items():
+            item_directory.joinpath(f"{task_id}.json").write_bytes(raw)
+        return bundle["validation"]
 
     def build_execute(self, task_id="TASK-001", request=None):
         before = self.snapshot()
@@ -465,12 +481,14 @@ class HandoffArtifactTests(FileInputTestCase):
 
     def write_closed_execution(self, status="stopped"):
         self.write_task()
-        checked = validate_task_file(self.root, str(self.root), self.task["artifacts"]["task"])
+        checked = load_task_collection(self.root, str(self.root), self.task["artifacts"]["task"])
         self.index = build_initial_execution_index(self.task, checked)
         self.attempt = {
             "schema": "work-attempt/v1", "attempt_id": "ATTEMPT-001",
             "task_spec_id": self.task["spec_id"], "task_id": "TASK-001", "skill_id": None,
-            "status": status, "task_sha256": checked["task_sha256"],
+            "status": status, "task_collection_sha256": checked["task_collection_sha256"],
+            "task_index_sha256": checked["task_index_sha256"],
+            "task_item_sha256": checked["task_item_sha256"]["TASK-001"],
             "task_instructions_sha256": checked["task_instructions_sha256"]["TASK-001"],
             "hierarchy_selection_sha256": checked["hierarchy_selection_sha256"],
             "execute_instructions_sha256": build_instruction_selection(
@@ -494,7 +512,7 @@ class HandoffArtifactTests(FileInputTestCase):
 
     def write_unstarted_execution(self):
         self.write_task()
-        checked = validate_task_file(self.root, str(self.root), self.task["artifacts"]["task"])
+        checked = load_task_collection(self.root, str(self.root), self.task["artifacts"]["task"])
         self.index = build_initial_execution_index(self.task, checked)
         self.index_path = self.root / self.task["artifacts"]["execution"] / "index.json"
         self.index_path.parent.mkdir(parents=True, exist_ok=True)
@@ -537,8 +555,8 @@ class HandoffArtifactTests(FileInputTestCase):
         self.write_unstarted_execution()
         self.task["tasks"][0]["inputs"] = [{"id": "INPUT-001", "kind": "user_provided",
                                             "source": "User specification", "precondition": "User confirms detail"}]
-        self.task_path.write_bytes(render_task_contract(self.task))
-        checked = validate_task_file(self.root, str(self.root), self.task["artifacts"]["task"])
+        self._write_task_collection()
+        checked = load_task_collection(self.root, str(self.root), self.task["artifacts"]["task"])
         self.index = build_initial_execution_index(self.task, checked)
         self.index_path.write_bytes(render_execution_index(self.index))
         with self.assertRaises(WorkError) as error:
@@ -569,7 +587,7 @@ class HandoffArtifactTests(FileInputTestCase):
         self.assertEqual(error.exception.code, "handoff_execution_recovery_required")
 
     def test_preflight_return_rejects_index_identity_and_skill_drift(self):
-        for field in ("task_sha256", "skill_selection_sha256"):
+        for field in ("task_collection_sha256", "task_index_sha256"):
             self.write_unstarted_execution()
             self.index[field] = "0" * 64
             self.index_path.write_bytes(render_execution_index(self.index))
@@ -598,7 +616,7 @@ class HandoffArtifactTests(FileInputTestCase):
             def changed(path):
                 reads.append(path)
                 return b"changed" if path == target and reads.count(path) > 1 else read_raw(path)
-            with self.subTest(target=target), patch("worklib.artifacts.handoff.read_raw", side_effect=changed):
+            with self.subTest(target=target), patch("worklib.services.handoff.read_raw", side_effect=changed):
                 with self.assertRaises(WorkError):
                     self.build_preflight_return()
 
@@ -611,7 +629,7 @@ class HandoffArtifactTests(FileInputTestCase):
             if len(calls) == 2:
                 return self.root
             return validate_execution_task_layout(root, relative)
-        with patch("worklib.artifacts.handoff.validate_execution_task_layout", side_effect=observed):
+        with patch("worklib.services.handoff.validate_execution_task_layout", side_effect=observed):
             with self.assertRaises(WorkError) as error:
                 self.build_preflight_return()
         self.assertEqual(error.exception.code, "handoff_attempt_artifacts_present")
@@ -659,7 +677,7 @@ class HandoffArtifactTests(FileInputTestCase):
                     self.assertEqual(result["source"]["execute_skill_selection_sha256"], self.attempt["execute_skill_selection_sha256"])
 
     def test_execution_return_rejects_stale_identity_and_skill_fingerprints(self):
-        for field in ("task_sha256", "task_instructions_sha256", "execute_instructions_sha256", "execute_skill_selection_sha256", "skill_id"):
+        for field in ("task_collection_sha256", "task_index_sha256", "task_item_sha256", "task_instructions_sha256", "execute_instructions_sha256", "execute_skill_selection_sha256", "skill_id"):
             self.write_closed_execution()
             self.attempt[field] = "wrong" if field == "skill_id" else "0" * 64
             self.save_execution()
@@ -691,7 +709,7 @@ class HandoffArtifactTests(FileInputTestCase):
 
     def test_execution_return_rejects_index_drift_and_transactions(self):
         self.write_closed_execution()
-        self.index["task_sha256"] = "0" * 64
+        self.index["task_collection_sha256"] = "0" * 64
         self.save_execution()
         with self.assertRaises(WorkError):
             self.build_execution_return()
@@ -709,7 +727,7 @@ class HandoffArtifactTests(FileInputTestCase):
             def changed(path):
                 reads.append(path)
                 return b"changed" if path == target and reads.count(path) > 1 else read_raw(path)
-            with self.subTest(target=target), patch("worklib.artifacts.handoff.read_raw", side_effect=changed):
+            with self.subTest(target=target), patch("worklib.services.handoff.read_raw", side_effect=changed):
                 with self.assertRaises(WorkError):
                     self.build_execution_return()
 
@@ -735,11 +753,12 @@ class HandoffArtifactTests(FileInputTestCase):
 
     def test_task_return_derives_specification_source_without_inventing_target(self):
         self.write_task()
-        checked = validate_task_file(self.root, str(self.root), self.task["artifacts"]["task"])
+        checked = load_task_collection(self.root, str(self.root), self.task["artifacts"]["task"])
         request = self.return_request()
         result = self.build_return(request=request)
         self.assertEqual(result["source"], {"stage": "task", "task_spec_id": "TASK-SPEC-001",
-                                           "task_sha256": checked["task_sha256"],
+                                           "task_collection_sha256": checked["task_collection_sha256"],
+                                           "task_index_sha256": checked["task_index_sha256"],
                                            "plan_sha256": checked["source_plan_sha256"], "skill_selection_sha256": checked["skill_selection_sha256"]})
         self.assertEqual(result["target"], {"stage": "plan"})
         for field, value in request.items():
@@ -804,15 +823,27 @@ class HandoffArtifactTests(FileInputTestCase):
 
     def test_task_return_rejects_changes_during_construction(self):
         self.write_task()
-        task_raw, plan_raw = self.task_path.read_bytes(), self.plan_path.read_bytes()
-        for reads in ([task_raw, plan_raw, task_raw + b"\n"], [task_raw, plan_raw, task_raw, plan_raw + b"\n"]):
-            with patch("worklib.artifacts.handoff.read_raw", side_effect=reads):
+        for target in (self.task_path, self.plan_path):
+            reads = 0
+
+            def changing_read(path):
+                nonlocal reads
+                raw = read_raw(path)
+                if Path(path).resolve() == target.resolve():
+                    reads += 1
+                    if reads > 1:
+                        return raw + b"\n"
+                return raw
+
+            with self.subTest(target=target), patch(
+                "worklib.services.handoff.read_raw", side_effect=changing_read
+            ):
                 with self.assertRaises(WorkError) as context:
                     self.build_return()
             self.assertEqual(context.exception.code, "handoff_source_changed")
 
     def test_task_return_cli_round_trips_with_custom_paths(self):
-        self.plan["artifacts"] = {"plan": "custom/plans/example.json", "task": "custom/tasks/example/task.json", "execution": "custom/executions/example"}
+        self.plan["artifacts"] = {"plan": "custom/plans/example.json", "task": "custom/tasks/example/index.json", "execution": "custom/executions/example"}
         self.write_plan()
         self.write_task()
         before = self.snapshot()
@@ -829,12 +860,15 @@ class HandoffArtifactTests(FileInputTestCase):
 
     def test_execute_handoff_uses_selected_task_fingerprint(self):
         self.write_task()
-        checked = validate_task_file(self.root, str(self.root), self.task["artifacts"]["task"])
+        checked = load_task_collection(self.root, str(self.root), self.task["artifacts"]["task"])
         first = self.build_execute()
         second = self.build_execute("TASK-002")
         self.assertEqual(first["source"], {
             "stage": "task", "task_spec_id": "TASK-SPEC-001", "task_id": "TASK-001", "skill_id": None,
-            "task_sha256": checked["task_sha256"], "task_instructions_sha256": checked["task_instructions_sha256"]["TASK-001"],
+            "task_collection_sha256": checked["task_collection_sha256"],
+            "task_index_sha256": checked["task_index_sha256"],
+            "task_item_sha256": checked["task_item_sha256"]["TASK-001"],
+            "task_instructions_sha256": checked["task_instructions_sha256"]["TASK-001"],
             "skill_selection_sha256": checked["skill_selection_sha256"],
         })
         self.assertNotEqual(first["source"]["task_instructions_sha256"], second["source"]["task_instructions_sha256"])
@@ -865,44 +899,57 @@ class HandoffArtifactTests(FileInputTestCase):
 
     def test_execute_handoff_rejects_task_or_plan_changed_during_build(self):
         self.write_task()
-        task_raw, plan_raw = self.task_path.read_bytes(), self.plan_path.read_bytes()
-        for reads in ([task_raw, plan_raw, task_raw + b"\n"], [task_raw, plan_raw, task_raw, plan_raw + b"\n"]):
-            with patch("worklib.artifacts.handoff.read_raw", side_effect=reads):
+        for target in (self.task_path, self.plan_path):
+            reads = 0
+
+            def changing_read(path):
+                nonlocal reads
+                raw = read_raw(path)
+                if Path(path).resolve() == target.resolve():
+                    reads += 1
+                    if reads > 1:
+                        return raw + b"\n"
+                return raw
+
+            with self.subTest(target=target), patch(
+                "worklib.services.handoff.read_raw", side_effect=changing_read
+            ):
                 with self.assertRaises(WorkError) as context:
                     self.build_execute()
             self.assertEqual(context.exception.code, "handoff_source_changed")
 
     def test_execute_handoff_detects_plan_change_between_validations(self):
         self.write_task()
-        checked = validate_task_file(self.root, str(self.root), self.task["artifacts"]["task"])
+        checked = load_task_collection(self.root, str(self.root), self.task["artifacts"]["task"])
         self.plan["summary"] = "Changed source"
         self.write_plan()
-        with patch("worklib.artifacts.handoff.validate_task_contract", return_value=checked):
+        with patch("worklib.services.handoff.load_task_collection", return_value=checked):
             with self.assertRaises(WorkError) as context:
                 self.build_execute()
         self.assertEqual(context.exception.code, "handoff_source_changed")
 
     def test_execute_handoff_uses_validated_skill_binding(self):
         self.write_task()
-        checked = validate_task_file(self.root, str(self.root), self.task["artifacts"]["task"])
+        checked = load_task_collection(self.root, str(self.root), self.task["artifacts"]["task"])
         checked["task_skill_ids"]["TASK-002"] = "repo:confirmed-skill"
-        with patch("worklib.artifacts.handoff.validate_task_contract", return_value=checked):
+        with patch("worklib.services.handoff.load_task_collection", return_value=checked):
             self.assertEqual(self.build_execute("TASK-002")["source"]["skill_id"], "repo:confirmed-skill")
 
     def test_execute_handoff_rejects_unconfirmed_or_noncanonical_task(self):
         self.write_task()
-        self.task["status"] = "draft"
-        self.task_path.write_bytes(render_task_contract(self.task))
+        index = json.loads(self.task_path.read_bytes())
+        index["status"] = "draft"
+        self.task_path.write_bytes(json.dumps(index).encode("utf-8"))
         with self.assertRaises(WorkError) as context:
             self.build_execute()
-        self.assertEqual(context.exception.code, "invalid_task_identity")
-        self.task["status"] = "confirmed"
+        self.assertEqual(context.exception.code, "invalid_contract_value")
+        self.write_task()
         self.task_path.write_bytes(json.dumps(self.task).encode("utf-8"))
         with self.assertRaises(WorkError):
             self.build_execute()
 
     def test_execute_handoff_cli_uses_custom_paths_and_round_trips(self):
-        self.plan["artifacts"] = {"plan": "custom/plans/example.json", "task": "custom/tasks/example/task.json", "execution": "custom/executions/example"}
+        self.plan["artifacts"] = {"plan": "custom/plans/example.json", "task": "custom/tasks/example/index.json", "execution": "custom/executions/example"}
         self.write_plan()
         self.write_task()
         before = self.snapshot()
@@ -941,7 +988,7 @@ class HandoffArtifactTests(FileInputTestCase):
         self.assertFalse((self.root / self.plan["artifacts"]["execution"]).exists())
 
     def test_custom_artifact_paths_come_from_plan(self):
-        self.plan["artifacts"] = {"plan": "custom/plans/example.json", "task": "custom/tasks/example/task.json", "execution": "custom/executions/example"}
+        self.plan["artifacts"] = {"plan": "custom/plans/example.json", "task": "custom/tasks/example/index.json", "execution": "custom/executions/example"}
         self.write_plan()
         self.assertEqual(self.build()["artifacts"], self.plan["artifacts"])
 
@@ -992,14 +1039,14 @@ class HandoffArtifactTests(FileInputTestCase):
 
     def test_rejects_plan_changed_during_construction(self):
         raw = self.plan_path.read_bytes()
-        with patch("worklib.artifacts.handoff.read_raw", side_effect=[raw, raw + b"\n"]):
+        with patch("worklib.services.handoff.read_raw", side_effect=[raw, raw + b"\n"]):
             with self.assertRaises(WorkError) as context:
                 self.build()
         self.assertEqual(context.exception.code, "handoff_source_changed")
 
     def test_rejects_plan_path_redirected_during_construction(self):
         relative = self.plan["artifacts"]["plan"]
-        with patch("worklib.artifacts.handoff.resolve_project_relative_path", side_effect=[(relative, self.plan_path), (relative, self.root / "other.json")]):
+        with patch("worklib.services.handoff.resolve_project_relative_path", side_effect=[(relative, self.plan_path), (relative, self.root / "other.json")]):
             with self.assertRaises(WorkError) as context:
                 self.build()
         self.assertEqual(context.exception.code, "handoff_source_changed")

@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar, Literal
+
+from pydantic import Field
+
+from .base import WorkContract
 
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.markdown import parse_json_contract
@@ -40,6 +44,59 @@ RETURN_FIELDS = {
     "affected_ids",
     "validation_requirements",
 }
+
+
+class HandoffContract(WorkContract):
+    contract_id: ClassVar[str] = "work-handoff/v1"
+    contract_kind: ClassVar[Literal["artifact"]] = "artifact"
+    canonical_order: ClassVar[tuple[str, ...]] = (
+        "schema", "marker", "direction", "requirement_id", "artifacts", "source",
+        "target", "summary", "confirmed_approach", "requested_changes", "preserve",
+        "affected_ids", "validation_requirements",
+    )
+    contract_example: ClassVar[dict[str, Any]] = {
+        "schema": "work-handoff/v1", "marker": "WORK-HANDOFF",
+        "direction": "plan_to_task", "requirement_id": "example", "artifacts": {},
+        "source": {}, "target": {}, "summary": "Continue.", "affected_ids": ["GOAL-001"],
+    }
+    schema_: Literal["work-handoff/v1"] = Field(alias="schema")
+    marker: Literal["WORK-HANDOFF"]
+    direction: Literal["plan_to_task", "task_to_execute", "execute_to_task", "task_to_plan", "execute_to_plan"]
+    requirement_id: str
+    artifacts: dict[str, str]
+    source: dict[str, Any]
+    target: dict[str, Any]
+    summary: str
+    confirmed_approach: str | None = None
+    requested_changes: list[str] | None = None
+    preserve: list[str] | None = None
+    affected_ids: list[str] | None = None
+    validation_requirements: list[str] | None = None
+
+
+class HandoffValidationContract(WorkContract):
+    contract_id: ClassVar[str] = "work-handoff-validation/v1"
+    contract_kind: ClassVar[Literal["response"]] = "response"
+    canonical_order: ClassVar[tuple[str, ...]] = ("schema", "marker", "direction", "requirement_id", "source_stage", "target_stage", "status")
+    contract_example: ClassVar[dict[str, Any]] = {"schema": "work-handoff-validation/v1", "marker": "WORK-HANDOFF", "direction": "plan_to_task", "requirement_id": "example", "source_stage": "plan", "target_stage": "task", "status": "valid"}
+    schema_: Literal["work-handoff-validation/v1"] = Field(alias="schema")
+    marker: Literal["WORK-HANDOFF"]
+    direction: str
+    requirement_id: str
+    source_stage: str
+    target_stage: str
+    status: Literal["valid"]
+
+
+class HandoffSourceValidationContract(HandoffValidationContract):
+    contract_id: ClassVar[str] = "work-handoff-source-validation/v1"
+    contract_kind: ClassVar[Literal["response"]] = "response"
+    canonical_order: ClassVar[tuple[str, ...]] = ("schema", "marker", "direction", "requirement_id", "source_stage", "target_stage", "status", "plan_path", "task_path", "source")
+    contract_example: ClassVar[dict[str, Any]] = {**HandoffValidationContract.contract_example, "schema": "work-handoff-source-validation/v1", "plan_path": "outputs/work/plans/example.json", "source": {}}
+    schema_: Literal["work-handoff-source-validation/v1"] = Field(alias="schema")
+    plan_path: str | None = None
+    task_path: str | None = None
+    source: dict[str, Any]
 
 
 def _strict_object(
@@ -196,17 +253,21 @@ def _validate_source(value: object, direction: str) -> None:
         source = _strict_object(
             value,
             location="source",
-            required={"stage", "plan_sha256", "task_spec_id", "skill_selection_sha256"},
+            required={
+                "stage",
+                "plan_sha256",
+                "task_spec_id",
+                "task_collection_sha256",
+                "task_index_sha256",
+                "skill_selection_sha256",
+            },
             optional={
                 "task_id",
                 "skill_id",
-                "task_sha256",
-                "task_collection_sha256",
-                "task_index_sha256",
                 "task_item_sha256",
             },
         )
-        _validate_task_fingerprints(source, optional=True)
+        _validate_task_fingerprints(source)
         _sha256(source["plan_sha256"], location="source.plan_sha256")
         _sha256(source["skill_selection_sha256"], location="source.skill_selection_sha256")
         _identifier(
@@ -225,6 +286,9 @@ def _validate_source(value: object, direction: str) -> None:
             "stage",
             "task_spec_id",
             "task_id",
+            "task_collection_sha256",
+            "task_index_sha256",
+            "task_item_sha256",
             "task_instructions_sha256",
             "skill_id",
         }
@@ -232,12 +296,7 @@ def _validate_source(value: object, direction: str) -> None:
             required.update({"execution_context", "execute_skill_selection_sha256"})
         else:
             required.add("skill_selection_sha256")
-        optional = {
-            "task_sha256",
-            "task_collection_sha256",
-            "task_index_sha256",
-            "task_item_sha256",
-        }
+        optional = set()
         if direction.startswith("execute_to_"):
             optional.add("attempt_sha256")
         source = _strict_object(
@@ -251,7 +310,7 @@ def _validate_source(value: object, direction: str) -> None:
             pattern=TASK_SPEC_PATTERN,
         )
         _identifier(source["task_id"], location="source.task_id", pattern=TASK_PATTERN)
-        _validate_task_fingerprints(source, optional=False)
+        _validate_task_fingerprints(source)
         _sha256(
             source["task_instructions_sha256"],
             location="source.task_instructions_sha256",
@@ -276,21 +335,20 @@ def _validate_source(value: object, direction: str) -> None:
         )
 
 
-def _validate_task_fingerprints(
-    source: dict[str, Any], *, optional: bool
-) -> None:
-    v1 = {"task_sha256"}
-    v2 = {"task_collection_sha256", "task_index_sha256"}
+def _validate_task_fingerprints(source: dict[str, Any]) -> None:
+    expected = {"task_collection_sha256", "task_index_sha256"}
     if "task_id" in source:
-        v2.add("task_item_sha256")
-    present = (v1 | v2 | {"task_item_sha256"}) & set(source)
-    if optional and not present:
-        return
-    if present not in (v1, v2):
+        expected.add("task_item_sha256")
+    present = {
+        "task_collection_sha256",
+        "task_index_sha256",
+        "task_item_sha256",
+    } & set(source)
+    if present != expected:
         raise WorkError(
             ExitCode.CONTRACT,
             "invalid_task_fingerprint_set",
-            "Handoff source TASK fingerprints must use one complete v1 or v2 set.",
+            "Handoff source TASK fingerprints must match the TASK collection identity.",
             {"fields": sorted(present)},
         )
     for field in sorted(present):

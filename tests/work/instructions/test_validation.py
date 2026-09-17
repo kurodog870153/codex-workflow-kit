@@ -9,7 +9,7 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.foundation.errors import WorkError
-from worklib.instructions.validation import sha256, strict_object, string_array
+from worklib.services.instruction_validation import sha256, strict_object, string_array
 
 
 class InstructionValidationTests(unittest.TestCase):

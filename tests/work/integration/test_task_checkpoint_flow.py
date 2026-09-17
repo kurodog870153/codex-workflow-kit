@@ -19,10 +19,10 @@ from worklib.foundation.errors import ExitCode
 
 class TaskCheckpointFlowTests(FileInputTestCase):
     def setUp(self):
-        from worklib.hierarchy.selection import build_hierarchy_selection
-        from worklib.instructions.selection import build_instruction_selection
-        from worklib.instructions.work_selection import build_work_instruction_selection
-        from worklib.skills.selection import selection_sha256
+        from worklib.services.hierarchy_selection import build_hierarchy_selection
+        from worklib.services.instruction_selection import build_instruction_selection
+        from worklib.services.instruction_work_selection import build_work_instruction_selection
+        from worklib.services.skill_selection import selection_sha256
 
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
@@ -97,7 +97,7 @@ class TaskCheckpointFlowTests(FileInputTestCase):
                 "--plan-path", self.plan["artifacts"]["plan"], "--user-config-root", str(self.root)]
 
     def test_checkpoint_changes_and_approval_across_fresh_processes(self):
-        from worklib.contracts.plan import render_plan_contract
+        from worklib.services.plan_validation import render_plan_contract
 
         # First session ends mid-discussion; a new process retrieves the question.
         discussion = copy.deepcopy(self.draft)

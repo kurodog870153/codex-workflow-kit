@@ -11,12 +11,12 @@ sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.artifacts.task_draft import save_task_planning
 from worklib.artifacts.task_draft_sources import check_task_draft_sources
-from worklib.contracts.plan import render_plan_contract, validate_plan_file
+from worklib.services.plan_validation import render_plan_contract, validate_plan_file
 from worklib.foundation.errors import ExitCode, WorkError
-from worklib.hierarchy.selection import build_hierarchy_selection
-from worklib.instructions.selection import build_instruction_selection
-from worklib.instructions.work_selection import build_work_instruction_selection
-from worklib.skills.selection import selection_sha256
+from worklib.services.hierarchy_selection import build_hierarchy_selection
+from worklib.services.instruction_selection import build_instruction_selection
+from worklib.services.instruction_work_selection import build_work_instruction_selection
+from worklib.services.skill_selection import selection_sha256
 
 
 class TaskDraftSourceTests(unittest.TestCase):

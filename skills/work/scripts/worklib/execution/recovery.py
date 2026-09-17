@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import copy
-import os
-import re
 from pathlib import Path
 from typing import Any
 
 from ..contracts.attempt import render_attempt_contract, validate_attempt_file
 from ..contracts.command_correction import canonicalize_command_correction
+from ..contracts.recovery_models import ExecutionRecoveryContract, ExecutionRecoveryRequestContract
 from ..foundation.errors import ExitCode, WorkError
 from .attempt_close import (
     build_closed_attempt,
@@ -22,11 +21,13 @@ from ..contracts.execution_index import render_execution_index, validate_executi
 from ..foundation.fingerprint import read_raw
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path
-from ..skills.catalog import SkillRoot
-from ..contracts.task import validate_task_contract
+from ..infrastructure.recovery_storage import (
+    install_recovery_target as _install,
+    prepare_recovery_target as _prepare,
+)
+from ..services.skill_catalog import SkillRoot
 
 
-REQUEST_SCHEMA = "work-execution-recovery-request/v1"
 TRANSACTIONS = {
     "record_begin",
     "command_correction",
@@ -34,7 +35,6 @@ TRANSACTIONS = {
     "attempt_close",
     "correction",
 }
-ATTEMPT_PATTERN = re.compile(r"^ATTEMPT-\d{3}$")
 
 
 def _error(
@@ -44,75 +44,6 @@ def _error(
     **details: object,
 ) -> None:
     raise WorkError(exit_code, code, message, details or None)
-
-
-def parse_execution_recovery_request(raw: bytes, *, source: str) -> dict[str, Any]:
-    request = parse_json_contract(raw, source=source)
-    if not isinstance(request, dict):
-        _error(
-            ExitCode.CONTRACT,
-            "execution_recovery_expected_object",
-            "A JSON object is required.",
-        )
-    required = {"schema", "transaction", "attempt_id", "transaction_files"}
-    missing = sorted(required - set(request))
-    unknown = sorted(set(request) - required)
-    if missing or unknown:
-        _error(
-            ExitCode.CONTRACT,
-            "execution_recovery_invalid_fields",
-            "The execution-recovery request has missing or unknown fields.",
-            missing=missing,
-            unknown=unknown,
-        )
-    if request["schema"] != REQUEST_SCHEMA:
-        _error(
-            ExitCode.CONTRACT,
-            "execution_recovery_invalid_schema",
-            "The execution-recovery request schema is invalid.",
-        )
-    if request["transaction"] not in TRANSACTIONS:
-        _error(
-            ExitCode.CONTRACT,
-            "execution_recovery_invalid_transaction",
-            "transaction is not supported by general execution recovery.",
-            transaction=request["transaction"],
-        )
-    if not isinstance(request["attempt_id"], str) or not ATTEMPT_PATTERN.fullmatch(
-        request["attempt_id"]
-    ):
-        _error(
-            ExitCode.CONTRACT,
-            "execution_recovery_invalid_attempt_id",
-            "attempt_id must use the canonical ATTEMPT-nnn format.",
-        )
-    files = request["transaction_files"]
-    if not isinstance(files, list):
-        _error(
-            ExitCode.CONTRACT,
-            "execution_recovery_invalid_file_list",
-            "transaction_files must be an array.",
-        )
-    if any(
-        not isinstance(item, str)
-        or not item
-        or Path(item).name != item
-        or "/" in item
-        or "\\" in item
-        for item in files
-    ):
-        _error(
-            ExitCode.CONTRACT,
-            "execution_recovery_invalid_file_name",
-            "Every transaction file must be a plain non-empty file name.",
-        )
-    if files != sorted(files) or len(files) != len(set(files)):
-        _error(
-            ExitCode.CONTRACT,
-            "execution_recovery_noncanonical_file_list",
-            "transaction_files must be unique and sorted.",
-        )
-    return request
 
 
 def _read_json_contract(path: Path) -> tuple[bytes, dict[str, Any]]:
@@ -137,93 +68,6 @@ def _validate_index_bytes(raw: bytes, *, source: str) -> dict[str, Any]:
     validate_execution_index(raw, source=source)
     contract = parse_json_contract(raw, source=source)
     return contract
-
-
-def _prepare(path: Path, expected: bytes) -> None:
-    if path.exists():
-        if read_raw(path) != expected:
-            _error(
-                ExitCode.ARTIFACT_INTEGRITY,
-                "execution_recovery_prepared_bytes_mismatch",
-                "The prepared transaction bytes do not match the canonical target.",
-                path=str(path),
-            )
-        return
-    try:
-        with path.open("xb") as output:
-            output.write(expected)
-            output.flush()
-            os.fsync(output.fileno())
-    except OSError as error:
-        details: dict[str, object] = {"path": str(path)}
-        if path.exists():
-            details.update(
-                {
-                    "recovery_required": True,
-                    "transaction_stage": "recovery_target_partial",
-                }
-            )
-        raise WorkError(
-            ExitCode.IO_FAILURE,
-            "execution_recovery_prepare_failed",
-            "The canonical recovery target could not be prepared.",
-            details,
-        ) from error
-    if read_raw(path) != expected:
-        _error(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "execution_recovery_prepared_bytes_mismatch",
-            "The prepared transaction bytes do not match the canonical target.",
-            path=str(path),
-            recovery_required=True,
-            transaction_stage="recovery_target_prepared",
-        )
-
-
-def _install(
-    temporary: Path,
-    target: Path,
-    *,
-    expected: bytes,
-    source_bytes: bytes,
-    stage: str,
-) -> None:
-    if read_raw(temporary) != expected:
-        _error(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "execution_recovery_prepared_bytes_mismatch",
-            "The prepared transaction bytes do not match the canonical target.",
-            path=str(temporary),
-        )
-    if read_raw(target) != source_bytes:
-        _error(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "execution_recovery_source_changed",
-            "A recovery source changed before replacement.",
-            path=str(target),
-        )
-    try:
-        os.replace(temporary, target)
-    except OSError as error:
-        raise WorkError(
-            ExitCode.IO_FAILURE,
-            "execution_recovery_replace_failed",
-            "The verified recovery target could not be installed.",
-            {
-                "path": str(temporary),
-                "recovery_required": True,
-                "transaction_stage": stage,
-            },
-        ) from error
-    if read_raw(target) != expected:
-        _error(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "execution_recovery_stored_bytes_mismatch",
-            "The installed recovery bytes do not match the verified target.",
-            path=str(target),
-            recovery_required=True,
-            transaction_stage=stage,
-        )
 
 
 def _expected_files(execution_path: Path) -> list[str]:
@@ -618,7 +462,9 @@ def recover_execution(
     task_id: str,
     skill_roots: list[SkillRoot] | None = None,
 ) -> dict[str, object]:
-    request = parse_execution_recovery_request(raw, source=source)
+    request = ExecutionRecoveryRequestContract.parse_request(
+        raw, source=source
+    ).to_canonical_dict()
     normalized_task, task_path = resolve_project_relative_path(
         project_root, raw_task_path, field="task_path"
     )
@@ -666,7 +512,6 @@ def recover_execution(
         user_config_root=user_config_root,
         task_id=task_id,
         skill_roots=skill_roots,
-        v1_validator=validate_task_contract,
     )
     if (
         task_contract["artifacts"]["task"] != normalized_task
@@ -776,4 +621,4 @@ def recover_execution(
         "status": "recovered",
     }
     result.update(details)
-    return result
+    return ExecutionRecoveryContract.model_validate(result).to_canonical_dict()

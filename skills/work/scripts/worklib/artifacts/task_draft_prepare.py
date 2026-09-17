@@ -7,18 +7,19 @@ from pathlib import Path
 
 from .task_draft import _path, read_task_planning_index, save_task_planning
 from .task_draft_list import _prepare_list
-from ..contracts.plan import validate_plan_contract
+from ..services.plan_validation import validate_plan_contract
 from ..contracts.task_draft import SOURCE_FIELDS, validate_task_planning_index
+from ..contracts.task_draft_models import TaskDraftPrepareContract
 from ..contracts.validation import nonempty_string, strict_keys
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import read_raw
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path
 from ..foundation.runtime import installed_work_root
-from ..hierarchy.selection import validate_task_hierarchy_paths
-from ..instructions.draft_selection import resolve_draft_instruction_selection, validate_draft_instruction_selection
-from ..instructions.selection import build_instruction_selection
-from ..skills.catalog import SkillRoot
+from ..services.hierarchy_selection import validate_task_hierarchy_paths
+from ..services.instruction_draft_selection import resolve_draft_instruction_selection, validate_draft_instruction_selection
+from ..services.instruction_selection import build_instruction_selection
+from ..services.skill_catalog import SkillRoot
 
 
 BOUNDARY_FIELDS = {"id", "title", "goal", "scope", "skill_id", "dependencies"}
@@ -138,9 +139,9 @@ def prepare_task_planning_request(
         _fail("draft_instruction_drift", "TASK instruction sources changed during preparation.")
     if previous and read_task_planning_index(project_root, requirement_id) != previous:
         _fail("draft_revision_conflict", "The planning index changed during preparation.")
-    return {"schema": "work-task-draft-prepare/v1", "status": "prepared", "request": prepared_request,
+    return TaskDraftPrepareContract.model_validate({"schema": "work-task-draft-prepare/v1", "status": "prepared", "request": prepared_request,
             "index": preview, "affected_task_ids": affected,
-            "drafts": {task_id: parse_json_contract(content, source=task_id) for task_id, content in drafts.items()}}
+            "drafts": {task_id: parse_json_contract(content, source=task_id) for task_id, content in drafts.items()}}).to_canonical_dict()
 
 
 def initialize_task_planning_request(project_root: Path, requirement_id: str, request: object, *,

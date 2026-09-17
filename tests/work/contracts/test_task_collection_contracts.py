@@ -44,7 +44,7 @@ def selection(*, document: bool = False) -> dict[str, object]:
 
 def item() -> dict[str, object]:
     return {
-        "schema": "work-task-item/v2",
+        "schema": "work-task-item/v1",
         "id": "TASK-001",
         "title": "Modify source",
         "skill_id": None,
@@ -84,7 +84,7 @@ class TaskCollectionContractTests(unittest.TestCase):
             self.item_raw, source="test item", expected_task_id="TASK-001"
         )["task_item_sha256"]
         self.index: dict[str, object] = {
-            "schema": "work-task-index/v2",
+            "schema": "work-task-index/v1",
             "requirement_id": "example",
             "spec_id": "TASK-SPEC-001",
             "status": "confirmed",
@@ -136,7 +136,7 @@ class TaskCollectionContractTests(unittest.TestCase):
         rendered_item = render_task_item_contract(dict(reversed(self.item.items())))
         rendered_index = render_task_index_contract(dict(reversed(self.index.items())))
 
-        self.assertTrue(rendered_item.startswith(b'{\n  "schema": "work-task-item/v2"'))
+        self.assertTrue(rendered_item.startswith(b'{\n  "schema": "work-task-item/v1"'))
         self.assertIn(
             b'"id": "TASK-001",\n      "path": "tasks/TASK-001.json",\n      "canonical_sha256"',
             rendered_index,

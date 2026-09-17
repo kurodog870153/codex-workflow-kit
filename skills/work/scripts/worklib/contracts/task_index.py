@@ -4,6 +4,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from pydantic import ValidationError
+
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_sha256
 from ..foundation.markdown import (
@@ -18,8 +20,9 @@ from ..foundation.paths import (
     validate_task_collection_index_path,
     validate_task_item_path_aliases,
 )
-from ..instructions.historical import stored_selection
+from ..services.instruction_history import stored_selection
 from .task_ordering import order_task_index_contract
+from .task_collection_models import TaskIndexContract, TaskIndexValidationContract
 from .task_structure import TOP_OPTIONAL, TOP_REQUIRED
 from .validation import nonempty_string, sha256, strict_keys
 
@@ -132,7 +135,11 @@ def _validate_changes(value: object, *, spec_id: str, task_ids: set[str]) -> Non
 
 
 def render_task_index_contract(contract: dict[str, Any]) -> bytes:
-    return render_json_contract(order_task_index_contract(contract))
+    try:
+        checked = TaskIndexContract.model_validate(contract).to_canonical_dict()
+    except ValidationError as error:
+        raise TaskIndexContract._work_error(error) from error
+    return render_json_contract(order_task_index_contract(checked))
 
 
 def validate_task_index_contract(
@@ -142,10 +149,9 @@ def validate_task_index_contract(
     actual_index_path: str,
     project_root: Path,
 ) -> dict[str, object]:
-    contract = parse_json_contract(raw, source=source)
+    model = TaskIndexContract.parse_json_bytes(raw, source=source)
+    contract = model.to_canonical_dict()
     strict_keys(contract, location="task_index", required=TOP_REQUIRED, optional=TOP_OPTIONAL)
-    if contract["schema"] != "work-task-index/v2" or contract["status"] != "confirmed":
-        raise WorkError(ExitCode.CONTRACT, "invalid_task_index_identity", "Invalid TASK index schema or status.")
     requirement_id = nonempty_string(contract["requirement_id"], location="requirement_id")
     spec_id = nonempty_string(contract["spec_id"], location="spec_id")
     spec_match = SPEC_ID_PATTERN.fullmatch(spec_id)
@@ -242,12 +248,12 @@ def validate_task_index_contract(
 
     ordered = order_task_index_contract(contract)
     require_canonical_json_contract(raw, contract=ordered, source=source)
-    return {
-        "schema": "work-task-index-validation/v2",
+    return TaskIndexValidationContract.model_validate({
+        "schema": "work-task-index-validation/v1",
         "requirement_id": requirement_id,
         "spec_id": spec_id,
         "task_ids": task_ids,
         "task_paths": {task_id: raw_tasks[index]["path"] for index, task_id in enumerate(task_ids)},
         "task_item_sha256": {task_id: raw_tasks[index]["canonical_sha256"] for index, task_id in enumerate(task_ids)},
         "task_index_sha256": canonical_sha256(raw, source=source),
-    }
+    }).to_canonical_dict()

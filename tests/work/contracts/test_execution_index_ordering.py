@@ -26,13 +26,23 @@ class ExecutionIndexOrderingTests(unittest.TestCase):
                 ],
                 "overall_status": "in_progress",
                 "schema": "work-execution-index/v1",
+                "task_index_sha256": "b" * 64,
+                "task_collection_sha256": "a" * 64,
                 "aaa": 1,
             }
         )
 
         self.assertEqual(
             list(ordered),
-            ["schema", "overall_status", "tasks", "aaa", "zzz"],
+            [
+                "schema",
+                "task_collection_sha256",
+                "task_index_sha256",
+                "overall_status",
+                "tasks",
+                "aaa",
+                "zzz",
+            ],
         )
         task = ordered["tasks"][0]
         self.assertEqual(

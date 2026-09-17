@@ -11,7 +11,7 @@ SCRIPT_ROOT = REPO_ROOT / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.foundation.errors import WorkError
-from worklib.execution.attempt_start import _build_attempt, _lock
+from worklib.execution.attempt_start import _build_attempt, _lock, _validate_snapshot
 from worklib.contracts.execution_index import (
     build_initial_execution_index,
     render_execution_index,
@@ -20,12 +20,30 @@ from worklib.contracts.execution_index import (
 
 
 class ExecuteInstructionAttemptStartTests(unittest.TestCase):
+    @patch("worklib.execution.attempt_start.worktree_snapshot_sha256", return_value="actual")
+    @patch("worklib.execution.attempt_start.collect_git_status", return_value=[])
+    def test_snapshot_mismatch_reports_expected_and_actual(
+        self, _mocked_status, _mocked_snapshot
+    ) -> None:
+        with self.assertRaises(WorkError) as context:
+            _validate_snapshot(
+                project_root=REPO_ROOT,
+                execution_dir="outputs/work/executions/example",
+                expected="expected",
+            )
+
+        self.assertEqual(context.exception.code, "attempt_start_worktree_snapshot_changed")
+        self.assertEqual(context.exception.details["expected"], "expected")
+        self.assertEqual(context.exception.details["actual"], "actual")
+
     def preflight(self) -> dict[str, object]:
         return {
             "task_spec_id": "TASK-SPEC-001",
             "task_id": "TASK-001",
             "skill_id": None,
-            "task_sha256": "a" * 64,
+            "task_collection_sha256": "a" * 64,
+            "task_index_sha256": "1" * 64,
+            "task_item_sha256": "2" * 64,
             "task_instructions_sha256": "b" * 64,
             "execute_instructions_sha256": "c" * 64,
             "hierarchy_selection_sha256": "f" * 64,
@@ -41,7 +59,10 @@ class ExecuteInstructionAttemptStartTests(unittest.TestCase):
                 "tasks": [{"id": "TASK-001", "skill_id": None}],
             },
             {
-                "task_sha256": "a" * 64,
+                "schema": "work-task-collection-validation/v1",
+                "task_collection_sha256": "a" * 64,
+                "task_index_sha256": "1" * 64,
+                "task_item_sha256": {"TASK-001": "2" * 64},
                 "instructions_sha256": "d" * 64,
                 "task_instructions_sha256": {"TASK-001": "b" * 64},
                 "hierarchy_selection_sha256": "f" * 64,
@@ -64,6 +85,10 @@ class ExecuteInstructionAttemptStartTests(unittest.TestCase):
     def test_builds_attempt_with_instruction_fingerprints(self) -> None:
         attempt = self.attempt()
 
+        self.assertEqual(attempt["schema"], "work-attempt/v1")
+        self.assertEqual(attempt["task_collection_sha256"], "a" * 64)
+        self.assertEqual(attempt["task_index_sha256"], "1" * 64)
+        self.assertEqual(attempt["task_item_sha256"], "2" * 64)
         self.assertEqual(attempt["task_instructions_sha256"], "b" * 64)
         self.assertEqual(attempt["execute_instructions_sha256"], "c" * 64)
         self.assertEqual(attempt["hierarchy_selection_sha256"], "f" * 64)
@@ -71,6 +96,7 @@ class ExecuteInstructionAttemptStartTests(unittest.TestCase):
         self.assertEqual(attempt["execute_skill_selection_sha256"], "e" * 64)
         self.assertNotIn("task_rules_sha256", attempt)
         self.assertNotIn("execute_rules_sha256", attempt)
+        self.assertNotIn("task_sha256", attempt)
 
     @patch("worklib.execution.attempt_start._load_source_attempt")
     def test_continuation_rejects_changed_skill_identity(self, mocked_load) -> None:

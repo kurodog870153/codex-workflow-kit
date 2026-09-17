@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, ClassVar, Literal
+
+from pydantic import Field, ValidationError
 
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_sha256
@@ -12,6 +14,7 @@ from ..foundation.markdown import (
 )
 from .execution_index_ordering import order_execution_index
 from .command_correction import canonicalize_command_correction
+from .base import WorkContract
 from .validation import (
     nonempty_string as _nonempty_string,
     sha256 as _sha256,
@@ -36,6 +39,66 @@ TASK_STATUSES = {
     "completed",
     "cancelled",
 }
+
+
+class ExecutionIndexContract(WorkContract):
+    contract_id: ClassVar[str] = "work-execution-index/v1"
+    contract_kind: ClassVar[Literal["artifact"]] = "artifact"
+    canonical_order: ClassVar[tuple[str, ...]] = (
+        "schema", "requirement_id", "title", "task_spec_id",
+        "task_collection_sha256", "task_index_sha256",
+        "task_instructions_sha256", "hierarchy_selection_sha256",
+        "skill_selection_sha256", "latest_task_instruction_audit", "lock",
+        "overall_status", "tasks",
+    )
+    contract_example: ClassVar[dict[str, Any]] = {
+        "schema": "work-execution-index/v1",
+        "requirement_id": "example",
+        "title": "Execution",
+        "task_spec_id": "TASK-SPEC-001",
+        "task_collection_sha256": "a" * 64,
+        "task_index_sha256": "b" * 64,
+        "task_instructions_sha256": "c" * 64,
+        "hierarchy_selection_sha256": "d" * 64,
+        "skill_selection_sha256": "e" * 64,
+        "overall_status": "pending",
+        "tasks": [{
+            "id": "TASK-001", "status": "pending", "skill_id": None,
+            "task_item_sha256": "f" * 64, "instructions_sha256": "0" * 64,
+        }],
+    }
+
+    schema_: Literal["work-execution-index/v1"] = Field(alias="schema")
+    requirement_id: Any
+    title: Any
+    task_spec_id: Any
+    task_collection_sha256: Any
+    task_index_sha256: Any
+    task_instructions_sha256: Any
+    hierarchy_selection_sha256: Any
+    skill_selection_sha256: Any
+    latest_task_instruction_audit: Any | None = None
+    lock: Any | None = None
+    overall_status: Any
+    tasks: Any
+
+
+def _execution_index_model(contract: object) -> dict[str, Any]:
+    try:
+        return ExecutionIndexContract.model_validate(contract).to_canonical_dict()
+    except ValidationError as error:
+        issues = error.errors(include_url=False, include_context=False, include_input=False)
+        missing = sorted(str(issue["loc"][-1]) for issue in issues if issue["type"] == "missing")
+        unknown = sorted(str(issue["loc"][-1]) for issue in issues if issue["type"] == "extra_forbidden")
+        if missing or unknown:
+            raise WorkError(
+                ExitCode.CONTRACT, "invalid_object_fields",
+                "The JSON object has missing or unknown fields.",
+                {"location": "execution_index", "missing": missing, "unknown": unknown},
+            ) from error
+        raise
+
+
 def derive_overall_status(statuses: list[str]) -> str:
     active = [status for status in statuses if status != "cancelled"]
     if not active:
@@ -63,15 +126,8 @@ def build_initial_execution_index(
     assert isinstance(task_instructions, dict)
     task_skill_ids = task_validation["task_skill_ids"]
     assert isinstance(task_skill_ids, dict)
-    is_collection = (
-        task_validation.get("schema") == "work-task-collection-validation/v2"
-    )
     result = {
-        "schema": (
-            "work-execution-index/v2"
-            if is_collection
-            else "work-execution-index/v1"
-        ),
+        "schema": "work-execution-index/v1",
         "requirement_id": task_contract["requirement_id"],
         "title": "Execution",
         "task_spec_id": task_contract["spec_id"],
@@ -86,27 +142,14 @@ def build_initial_execution_index(
                 "id": task["id"],
                 "status": "pending",
                 "skill_id": task_skill_ids[task["id"]],
-                **(
-                    {
-                        "task_item_sha256": task_validation[
-                            "task_item_sha256"
-                        ][task["id"]]
-                    }
-                    if is_collection
-                    else {}
-                ),
+                "task_item_sha256": task_validation["task_item_sha256"][task["id"]],
                 "instructions_sha256": task_instructions[task["id"]],
             }
             for task in task_contract["tasks"]
         ],
     }
-    if is_collection:
-        result["task_collection_sha256"] = task_validation[
-            "task_collection_sha256"
-        ]
-        result["task_index_sha256"] = task_validation["task_index_sha256"]
-    else:
-        result["task_sha256"] = task_validation["task_sha256"]
+    result["task_collection_sha256"] = task_validation["task_collection_sha256"]
+    result["task_index_sha256"] = task_validation["task_index_sha256"]
     return order_execution_index(result)
 
 
@@ -119,38 +162,15 @@ def validate_execution_index(
     contract = parse_json_contract(raw, source=source)
     schema = contract.get("schema") if isinstance(contract, dict) else None
     if schema == "work-execution-index/v1":
-        fingerprint_fields = {"task_sha256"}
-        fingerprint_optional: set[str] = set()
-    elif schema == "work-execution-index/v2":
         fingerprint_fields = {"task_collection_sha256", "task_index_sha256"}
-        fingerprint_optional = {"source_v1_task_sha256"}
+        fingerprint_optional: set[str] = set()
     else:
         raise WorkError(
             ExitCode.CONTRACT,
             "invalid_execution_index_schema",
             "Invalid execution index schema.",
         )
-    index = _strict_keys(
-        contract,
-        location="execution_index",
-        required={
-            "schema",
-            "requirement_id",
-            "title",
-            "task_spec_id",
-            *fingerprint_fields,
-            "task_instructions_sha256",
-            "hierarchy_selection_sha256",
-            "skill_selection_sha256",
-            "overall_status",
-            "tasks",
-        },
-        optional={
-            "latest_task_instruction_audit",
-            "lock",
-            *fingerprint_optional,
-        },
-    )
+    index = _execution_index_model(contract)
     title = _nonempty_string(index["title"], location="title")
     if "\n" in title or "\r" in title:
         raise WorkError(
@@ -307,11 +327,7 @@ def validate_execution_index(
     previous = 0
     statuses: list[str] = []
     for position, raw_task in enumerate(raw_tasks):
-        task_fingerprint_fields = (
-            {"task_item_sha256"}
-            if schema == "work-execution-index/v2"
-            else set()
-        )
+        task_fingerprint_fields = {"task_item_sha256"}
         task = _strict_keys(
             raw_task,
             location=f"tasks[{position}]",
@@ -417,11 +433,7 @@ def validate_execution_index(
         source=source,
     )
     return {
-        "schema": (
-            "work-execution-index-validation/v2"
-            if schema == "work-execution-index/v2"
-            else "work-execution-index-validation/v1"
-        ),
+        "schema": "work-execution-index-validation/v1",
         "requirement_id": index["requirement_id"],
         "task_spec_id": index["task_spec_id"],
         "overall_status": index["overall_status"],

@@ -32,7 +32,7 @@ class RecordBeginTests(unittest.TestCase):
 
     @patch("worklib.execution.record_begin.validate_execution_index")
     @patch("worklib.execution.record_begin.render_execution_index", return_value=b"new")
-    @patch("worklib.execution.record_begin.read_raw", side_effect=[b"old", b"new"])
+    @patch("worklib.infrastructure.atomic_replace.read_raw", side_effect=[b"old", b"new"])
     def test_lock_update_replaces_unchanged_index_atomically(
         self,
         mocked_read,

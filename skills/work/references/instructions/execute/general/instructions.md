@@ -21,7 +21,7 @@ metadata:
 
 ## 2. 唯讀前置檢查
 
-1. [強制] 建立 Attempt 前須確認 TASK-SPEC；v2 的 collection、formal index 與目標 item SHA（v1 則為原 TASK SHA）；Plan `hierarchy_selection_sha256` 與 `skill_selection_sha256`；execution index 與目標 TASK 的 hierarchy、`skill_id`、技能 snapshot／bundle、Execute mode、Work instruction fingerprints、TASK 狀態、相依、必要輸入、檔案現況、工作區差異、路徑邊界與既有鎖均符合正式 TASK。
+1. [強制] 建立 Attempt 前須確認 TASK-SPEC；collection、formal index 與目標 item SHA；Plan `hierarchy_selection_sha256` 與 `skill_selection_sha256`；execution index 與目標 TASK 的 hierarchy、`skill_id`、技能 snapshot／bundle、Execute mode、Work instruction fingerprints、TASK 狀態、相依、必要輸入、檔案現況、工作區差異、路徑邊界與既有鎖均符合正式 TASK。
 2. [強制] TASK 的目標、檔案、步驟、CMD／OP、VAL、風險、版本、Swagger 或其他適用契約有缺漏、矛盾、占位符或需由 Execute 推論時，視為規格缺陷並停止，不得自行補足。
 3. [強制] 目標 TASK 的 instruction sources 或內容與 index 該 TASK 的 `TASK-INSTRUCTIONS-SHA-256` 不同時，不得修改成果或未授權寫入紀錄；先唯讀回報預期值、觀察值、來源差異與影響，再取得使用者明確授權，才可只建立「已停止／指令已變更」Attempt、更新 index 為受阻並交回 Task 稽核。未授權時維持原狀。
 4. [強制] 既有差異只有在路徑與內容都可由核准 TASK、有效 Attempt／Correction 或本次已知前序成果逐項解釋時才能繼續；可能屬於使用者或無法判定時停止。

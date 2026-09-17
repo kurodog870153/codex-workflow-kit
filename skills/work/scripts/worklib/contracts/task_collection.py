@@ -8,14 +8,18 @@ from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_sha256, read_raw
 from ..foundation.markdown import parse_json_contract, render_json_contract
 from ..foundation.paths import resolve_project_relative_path
-from ..skills.catalog import SkillRoot
-from .plan import render_plan_contract, validate_plan_contract
-from .task import render_task_contract, validate_task_contract
+from ..services.skill_catalog import SkillRoot
+from ..services.plan_validation import validate_plan_contract
+from .task_collection_semantics import render_task_contract, validate_task_contract
 from .task_index import validate_task_index_contract
 from .task_item import validate_task_item_contract
+from .task_collection_models import (
+    TaskCollectionFingerprintContract, TaskCollectionProjectionContract,
+    TaskCollectionValidationContract,
+)
 
 
-def _legacy_changes(value: object) -> object:
+def _semantic_changes(value: object) -> object:
     if not isinstance(value, list):
         return value
     result: list[object] = []
@@ -40,7 +44,7 @@ def _legacy_changes(value: object) -> object:
     return result
 
 
-def _logical_v1_contract(
+def _semantic_projection(
     index: dict[str, Any],
     items: list[dict[str, Any]],
     *,
@@ -52,7 +56,7 @@ def _logical_v1_contract(
         for key, value in index.items()
         if key not in {"schema", "tasks", "changes"}
     }
-    contract["schema"] = "work-task/v1"
+    contract["schema"] = "work-task-collection-projection/v1"
     contract["artifacts"] = {**index["artifacts"], "task": task_path}
     contract["source_plan"] = {
         **index["source_plan"],
@@ -63,26 +67,8 @@ def _logical_v1_contract(
         for item in items
     ]
     if "changes" in index:
-        contract["changes"] = _legacy_changes(index["changes"])
+        contract["changes"] = _semantic_changes(index["changes"])
     return contract
-
-
-def _shadow_plan(
-    raw: bytes,
-    *,
-    source: str,
-    task_path: str,
-) -> tuple[dict[str, Any], bytes]:
-    plan = parse_json_contract(raw, source=source)
-    artifacts = plan.get("artifacts")
-    if not isinstance(artifacts, dict):
-        raise WorkError(
-            ExitCode.CONTRACT,
-            "invalid_artifact_paths",
-            "The Plan artifacts must be an object.",
-        )
-    shadow = {**plan, "artifacts": {**artifacts, "task": task_path}}
-    return shadow, render_plan_contract(shadow)
 
 
 def validate_task_collection_contract(
@@ -176,42 +162,34 @@ def validate_task_collection_contract(
             "The TASK collection identity or artifacts do not match the source Plan.",
         )
 
-    collection_directory = actual_index_path.rsplit("/", 1)[0]
-    legacy_task_path = f"{collection_directory}/task.json"
-    _, shadow_plan_raw = _shadow_plan(
-        source_plan_raw,
-        source="TASK collection source Plan",
-        task_path=legacy_task_path,
-    )
-    shadow_plan_sha = canonical_sha256(shadow_plan_raw, source="logical v1 source Plan")
-    logical_contract = _logical_v1_contract(
+    semantic_contract = TaskCollectionProjectionContract.model_validate(_semantic_projection(
         index,
         items,
-        task_path=legacy_task_path,
-        source_plan_sha256=shadow_plan_sha,
-    )
-    logical_validation = validate_task_contract(
-        render_task_contract(logical_contract),
-        source="logical v1 TASK collection",
-        actual_task_path=legacy_task_path,
+        task_path=actual_index_path,
+        source_plan_sha256=actual_plan_sha,
+    )).to_canonical_dict()
+    semantic_validation = validate_task_contract(
+        render_task_contract(semantic_contract),
+        source="TASK collection semantic projection",
+        actual_task_path=actual_index_path,
         project_root=project_root,
         user_config_root=user_config_root,
         validate_file_state=validate_file_state,
         skill_roots=skill_roots,
-        _source_plan_raw=shadow_plan_raw,
+        _source_plan_raw=source_plan_raw,
     )
 
-    fingerprint = {
-        "schema": "work-task-collection-fingerprint/v2",
+    fingerprint = TaskCollectionFingerprintContract.model_validate({
+        "schema": "work-task-collection-fingerprint/v1",
         "task_index_sha256": index_validation["task_index_sha256"],
         "items": [
             {"id": task_id, "task_item_sha256": item_sha256[task_id]}
             for task_id in expected_ids
         ],
-    }
+    }).to_canonical_dict()
     collection_sha256 = hashlib.sha256(render_json_contract(fingerprint)).hexdigest()
-    return {
-        "schema": "work-task-collection-validation/v2",
+    return TaskCollectionValidationContract.model_validate({
+        "schema": "work-task-collection-validation/v1",
         "requirement_id": index["requirement_id"],
         "spec_id": index["spec_id"],
         "task_ids": expected_ids,
@@ -220,10 +198,10 @@ def validate_task_collection_contract(
         "task_item_sha256": item_sha256,
         "task_collection_sha256": collection_sha256,
         "source_plan_sha256": actual_plan_sha,
-        "instructions_sha256": logical_validation["instructions_sha256"],
-        "task_instructions_sha256": logical_validation["task_instructions_sha256"],
-        "task_skill_ids": logical_validation["task_skill_ids"],
+        "instructions_sha256": semantic_validation["instructions_sha256"],
+        "task_instructions_sha256": semantic_validation["task_instructions_sha256"],
+        "task_skill_ids": semantic_validation["task_skill_ids"],
         "hierarchy_selection_sha256": plan_validation["hierarchy_selection_sha256"],
         "skill_selection_sha256": plan_validation["skill_selection_sha256"],
-        "logical_contract": logical_contract,
-    }
+        "collection_contract": semantic_contract,
+    }).to_canonical_dict()

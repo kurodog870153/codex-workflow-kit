@@ -9,6 +9,7 @@ from ..contracts.attempt import (
     render_attempt_contract,
     validate_attempt_file,
 )
+from ..contracts.record_models import RecordFinishContract, RecordFinishRequestContract
 from ..foundation.errors import ExitCode, WorkError
 from .context import read_contract, find_task_row, load_lifecycle_task_context, validate_execution_identity
 from .instructions import validate_execute_instructions
@@ -17,10 +18,8 @@ from ..contracts.execution_index import render_execution_index, validate_executi
 from ..foundation.fingerprint import read_raw
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path
-from ..skills.catalog import SkillRoot
-from ..contracts.task import validate_task_contract
-from .record_finish_request import parse_record_finish_request
-from .transactions import TransactionErrors, prepare_and_replace
+from ..services.skill_catalog import SkillRoot
+from ..infrastructure.atomic_replace import TransactionErrors, prepare_and_replace
 
 
 TRANSACTION_ERRORS = TransactionErrors(
@@ -174,7 +173,9 @@ def finish_record(
     task_id: str,
     skill_roots: list[SkillRoot] | None = None,
 ) -> dict[str, object]:
-    request = parse_record_finish_request(raw_request, source=source)
+    request = RecordFinishRequestContract.parse_request(
+        raw_request, source=source
+    ).to_canonical_dict()
     normalized_task, task_path = resolve_project_relative_path(
         project_root, raw_task_path, field="task_path"
     )
@@ -208,7 +209,6 @@ def finish_record(
         user_config_root=user_config_root,
         task_id=task_id,
         skill_roots=skill_roots,
-        v1_validator=validate_task_contract,
     )
     if (
         task_contract["artifacts"]["task"] != normalized_task
@@ -360,7 +360,7 @@ def finish_record(
         if transaction_error is error:
             raise
         raise transaction_error from error
-    return {
+    return RecordFinishContract.model_validate({
         "schema": "work-record-finish/v1",
         "task_id": task_id,
         "attempt_id": attempt_id,
@@ -370,4 +370,4 @@ def finish_record(
         "index_path": index_relative,
         "record_status": "recorded",
         "lock_status": "attempt_held",
-    }
+    }).to_canonical_dict()

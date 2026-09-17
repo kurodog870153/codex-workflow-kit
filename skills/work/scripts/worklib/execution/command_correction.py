@@ -1,26 +1,46 @@
 from __future__ import annotations
 
 import copy
-import os
 from pathlib import Path
 from typing import Any
 
 from ..contracts.attempt import validate_attempt_file
 from ..contracts.command_correction import canonicalize_command_correction
+from ..contracts.command_models import CommandCorrectionContract, CommandCorrectionRequestContract
+from ..infrastructure.atomic_replace import TransactionErrors, prepare_and_replace
 from ..foundation.errors import ExitCode, WorkError
 from .context import read_contract, find_task_row, load_lifecycle_task_context, validate_execution_identity
 from .instructions import validate_execute_instructions
 from .records import next_record_id, formal_record_kind
 from ..contracts.execution_index import render_execution_index, validate_execution_index
 from ..foundation.fingerprint import read_raw
-from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path
-from ..skills.catalog import SkillRoot
-from ..contracts.task import validate_task_contract
+from ..services.skill_catalog import SkillRoot
 from .commands import formal_command
 
 
-REQUEST_SCHEMA = "work-command-correction-request/v1"
+LOCK_UPDATE_ERRORS = TransactionErrors(
+    transaction_present=(
+        "command_correction_transaction_present",
+        "A command-correction transaction already requires recovery.",
+    ),
+    prepare_failed=(
+        "command_correction_prepare_failed",
+        "The command-correction index update could not be prepared.",
+    ),
+    source_changed=(
+        "command_correction_index_changed",
+        "The execution index changed during command correction.",
+    ),
+    replace_failed=(
+        "command_correction_replace_failed",
+        "The prepared command-correction index could not be installed.",
+    ),
+    write_mismatch=(
+        "command_correction_stored_bytes_mismatch",
+        "The installed command-correction index bytes are not canonical.",
+    ),
+)
 
 
 def _error(
@@ -32,56 +52,6 @@ def _error(
     raise WorkError(exit_code, code, message, details or None)
 
 
-def parse_command_correction_request(raw: bytes, *, source: str) -> dict[str, Any]:
-    request = parse_json_contract(raw, source=source)
-    if not isinstance(request, dict):
-        _error(
-            ExitCode.CONTRACT,
-            "command_correction_expected_object",
-            "A JSON object is required.",
-        )
-    required = {
-        "schema",
-        "record_id",
-        "original_command",
-        "actual_command",
-        "reason",
-        "authorization_evidence",
-    }
-    missing = sorted(required - set(request))
-    unknown = sorted(set(request) - required)
-    if missing or unknown:
-        _error(
-            ExitCode.CONTRACT,
-            "command_correction_invalid_fields",
-            "The command-correction request has missing or unknown fields.",
-            missing=missing,
-            unknown=unknown,
-        )
-    if request["schema"] != REQUEST_SCHEMA:
-        _error(
-            ExitCode.CONTRACT,
-            "command_correction_invalid_schema",
-            "The command-correction request schema is invalid.",
-        )
-    record_id = request["record_id"]
-    if not isinstance(record_id, str) or not record_id.startswith("CMD-"):
-        _error(
-            ExitCode.CONTRACT,
-            "command_correction_invalid_record_id",
-            "record_id must identify a reserved CMD record.",
-            record_id=record_id,
-        )
-    correction = canonicalize_command_correction(
-        {field: request[field] for field in required - {"schema", "record_id"}}
-    )
-    return {
-        "schema": REQUEST_SCHEMA,
-        "record_id": record_id,
-        "correction": correction,
-    }
-
-
 def _write_index_update(
     *,
     index_path: Path,
@@ -91,67 +61,16 @@ def _write_index_update(
 ) -> None:
     rendered = render_execution_index(target_index)
     validate_execution_index(rendered, source="generated command-correction index")
-    try:
-        with temporary_path.open("xb") as output:
-            output.write(rendered)
-            output.flush()
-            os.fsync(output.fileno())
-    except FileExistsError as error:
-        raise WorkError(
-            ExitCode.LOCK_CONFLICT,
-            "command_correction_transaction_present",
-            "A command-correction transaction already requires recovery.",
-            {
-                "path": str(temporary_path),
-                "recovery_required": True,
-                "transaction_stage": "lock_update_prepared",
-            },
-        ) from error
-    except OSError as error:
-        details: dict[str, object] = {"path": str(temporary_path)}
-        if temporary_path.exists():
-            details.update(
-                {
-                    "recovery_required": True,
-                    "transaction_stage": "lock_update_partial",
-                }
-            )
-        raise WorkError(
-            ExitCode.IO_FAILURE,
-            "command_correction_prepare_failed",
-            "The command-correction index update could not be prepared.",
-            details,
-        ) from error
-    if read_raw(index_path) != index_raw:
-        _error(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "command_correction_index_changed",
-            "The execution index changed during command correction.",
-            path=str(temporary_path),
-            recovery_required=True,
-            transaction_stage="lock_update_prepared",
-        )
-    try:
-        os.replace(temporary_path, index_path)
-    except OSError as error:
-        raise WorkError(
-            ExitCode.IO_FAILURE,
-            "command_correction_replace_failed",
-            "The prepared command-correction index could not be installed.",
-            {
-                "path": str(temporary_path),
-                "recovery_required": True,
-                "transaction_stage": "lock_update_prepared",
-            },
-        ) from error
-    if read_raw(index_path) != rendered:
-        _error(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "command_correction_stored_bytes_mismatch",
-            "The installed command-correction index bytes are not canonical.",
-            recovery_required=True,
-            transaction_stage="lock_updated",
-        )
+    prepare_and_replace(
+        source_path=index_path,
+        source_bytes=index_raw,
+        target_bytes=rendered,
+        temporary_path=temporary_path,
+        stage="lock_update_prepared",
+        partial_stage="lock_update_partial",
+        mismatch_stage="lock_updated",
+        errors=LOCK_UPDATE_ERRORS,
+    )
 
 
 def record_command_correction(
@@ -165,7 +84,9 @@ def record_command_correction(
     task_id: str,
     skill_roots: list[SkillRoot] | None = None,
 ) -> dict[str, object]:
-    request = parse_command_correction_request(raw, source=source)
+    request = CommandCorrectionRequestContract.parse_request(
+        raw, source=source
+    ).to_execution_dict()
     normalized_task, task_path = resolve_project_relative_path(
         project_root, raw_task_path, field="task_path"
     )
@@ -199,7 +120,6 @@ def record_command_correction(
         user_config_root=user_config_root,
         task_id=task_id,
         skill_roots=skill_roots,
-        v1_validator=validate_task_contract,
     )
     if (
         task_contract["artifacts"]["task"] != normalized_task
@@ -333,7 +253,7 @@ def record_command_correction(
         temporary_path=temporary_path,
     )
     validate_execution_index(read_raw(index_path), source=str(index_path))
-    return {
+    return CommandCorrectionContract.model_validate({
         "schema": "work-command-correction/v1",
         "task_id": task_id,
         "attempt_id": attempt_id,
@@ -341,4 +261,4 @@ def record_command_correction(
         "index_path": index_relative,
         "correction_status": "recorded",
         "lock_status": "record_reserved",
-    }
+    }).to_canonical_dict()

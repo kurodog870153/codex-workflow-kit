@@ -10,10 +10,16 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from pydantic import ValidationError
+
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.paths import validate_requirement_id
-from ..instructions.draft_selection import validate_draft_instruction_selection
+from ..services.instruction_draft_selection import validate_draft_instruction_selection
 from .task_dependencies import resolve_task_dependencies
+from .task_draft_models import (
+    TaskDraftContract, TaskDraftValidationContract,
+    TaskPlanningIndexContract, TaskPlanningIndexValidationContract,
+)
 from .validation import nonempty_string, sha256, strict_keys
 
 
@@ -26,6 +32,31 @@ SOURCE_FIELDS = {"plan_sha256", "hierarchy_selection_sha256", "skill_selection_s
 
 def _reject(code: str, message: str, location: str) -> None:
     raise WorkError(ExitCode.CONTRACT, code, message, {"location": location})
+
+
+def _model_error(error: ValidationError, contract: type[TaskDraftContract] | type[TaskPlanningIndexContract]) -> WorkError:
+    issue = error.errors(include_url=False, include_context=False, include_input=False)[0]
+    if issue["type"] in {"missing", "extra_forbidden"}:
+        return contract._work_error(error)
+    parts = tuple(issue["loc"])
+    location = "".join(
+        f"[{part}]" if isinstance(part, int) else f".{part}" if position else str(part)
+        for position, part in enumerate(parts)
+    ) or "contract"
+    field = next((part for part in reversed(parts) if isinstance(part, str)), "")
+    if field == "schema":
+        return WorkError(ExitCode.CONTRACT, "invalid_draft_schema", "A planning contract schema is required.", {"location": location})
+    if field in {"revision", "boundary_revision", "save_revision"}:
+        return WorkError(ExitCode.CONTRACT, "invalid_draft_revision", "A positive integer revision is required.", {"location": location})
+    if field in {"task_id", "id"}:
+        return WorkError(ExitCode.CONTRACT, "invalid_draft_task_id", "A TASK-NNN identifier is required.", {"location": location})
+    if field.endswith("sha256"):
+        return WorkError(ExitCode.CONTRACT, "invalid_sha256", "A lowercase SHA-256 fingerprint is required.", {"location": location})
+    if field == "status":
+        return WorkError(ExitCode.CONTRACT, "invalid_draft_status", "A planning status is required.", {"location": location})
+    if field in {"notes", "tentative", "open_questions", "confirmed_decisions", "scope", "dependencies", "retired_task_ids"}:
+        return WorkError(ExitCode.CONTRACT, "invalid_draft_array", "A text array with the required cardinality is required.", {"location": location})
+    return contract._work_error(error)
 
 
 def _revision(value: object, location: str) -> None:
@@ -61,12 +92,10 @@ def _identity(value: dict[str, Any], schema: str) -> None:
 
 def validate_task_planning_index(value: object) -> dict[str, object]:
     """Validate only the index, without loading any per-TASK draft or skill."""
-    index = strict_keys(
-        value,
-        location="index",
-        required={"schema", "requirement_id", "revision", "source", "current_task_id", "tasks"},
-        optional={"retired_task_ids"},
-    )
+    try:
+        index = TaskPlanningIndexContract.model_validate(value).to_canonical_dict()
+    except ValidationError as error:
+        raise _model_error(error, TaskPlanningIndexContract) from error
     _identity(index, INDEX_SCHEMA)
     _revision(index["revision"], "revision")
     if not isinstance(index["tasks"], list) or not index["tasks"]:
@@ -126,14 +155,14 @@ def validate_task_planning_index(value: object) -> dict[str, object]:
         current = _task_id(index["current_task_id"], "current_task_id")
         if current not in task_ids:
             _reject("unknown_current_task", "The resume TASK must exist in the index.", "current_task_id")
-    return {
+    return TaskPlanningIndexValidationContract.model_validate({
         "schema": "work-task-planning-index-validation/v1",
         "requirement_id": index["requirement_id"],
         "revision": index["revision"],
         "task_count": len(task_ids),
         "task_order": order,
         "status": "valid",
-    }
+    }).to_canonical_dict()
 
 
 def validate_task_draft(value: object, *, index: object) -> dict[str, object]:
@@ -145,16 +174,10 @@ Revisions describe data versions; neither revisions nor status grant authority.
 """
     validate_task_planning_index(index)
     assert isinstance(index, dict)
-    draft = strict_keys(
-        value,
-        location="draft",
-        required={
-            "schema", "requirement_id", "task_id", "revision", "boundary_revision",
-            "source", "instructions_sha256", "status", "notes", "confirmed_decisions",
-            "tentative", "open_questions", "next_discussion_point",
-        },
-        optional={"task_candidate"},
-    )
+    try:
+        draft = TaskDraftContract.model_validate(value).to_canonical_dict()
+    except ValidationError as error:
+        raise _model_error(error, TaskDraftContract) from error
     _identity(draft, DRAFT_SCHEMA)
     task_id = _task_id(draft["task_id"], "task_id")
     _revision(draft["revision"], "revision")
@@ -203,11 +226,11 @@ Revisions describe data versions; neither revisions nor status grant authority.
             selection = candidate.get("instruction_selection")
             if not isinstance(selection, dict) or selection.get("instructions_sha256") != entry["instructions_sha256"]:
                 _reject("task_candidate_boundary_mismatch", "The candidate instruction fingerprint differs from the index.", "instruction_selection")
-    return {
+    return TaskDraftValidationContract.model_validate({
         "schema": "work-task-draft-validation/v1",
         "requirement_id": draft["requirement_id"],
         "task_id": task_id,
         "revision": draft["revision"],
         "planning_status": draft["status"],
         "status": "valid",
-    }
+    }).to_canonical_dict()

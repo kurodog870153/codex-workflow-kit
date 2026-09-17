@@ -5,16 +5,17 @@ from __future__ import annotations
 from pathlib import Path
 
 from .task_draft import read_task_draft_from_index, read_task_planning_index
-from ..contracts.plan import validate_plan_contract
+from ..contracts.task_draft_models import TaskDraftSourceCheckContract
+from ..services.plan_validation import validate_plan_contract
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import read_raw
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path
 from ..foundation.runtime import installed_work_root
-from ..hierarchy.selection import validate_task_hierarchy_paths
-from ..instructions.selection import build_instruction_selection
-from ..instructions.draft_selection import resolve_draft_instruction_selection
-from ..skills.catalog import SkillRoot
+from ..services.hierarchy_selection import validate_task_hierarchy_paths
+from ..services.instruction_selection import build_instruction_selection
+from ..services.instruction_draft_selection import resolve_draft_instruction_selection
+from ..services.skill_catalog import SkillRoot
 
 
 def check_task_draft_sources(
@@ -72,10 +73,10 @@ def check_task_draft_sources(
         raise WorkError(ExitCode.ARTIFACT_INTEGRITY, "draft_instruction_drift", "The current TASK instruction fingerprint differs from the saved selection.", {"task_id": task_id})
     if read_task_planning_index(project_root, requirement_id) != index:
         raise WorkError(ExitCode.WORKFLOW_STATE, "draft_revision_conflict", "The planning index changed while its sources were checked.")
-    return {
+    return TaskDraftSourceCheckContract.model_validate({
         "schema": "work-task-draft-source-check/v1", "status": "valid",
         "requirement_id": requirement_id, "task_id": task_id, "revision": index["revision"],
         "source": dict(index["source"]), "skill_id": skill_id,
         "instructions_sha256": selection["instructions_sha256"],
         "instruction_selection": selected,
-    }
+    }).to_canonical_dict()

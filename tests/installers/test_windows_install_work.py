@@ -15,14 +15,16 @@ INSTALLER = REPOSITORY_ROOT / "os-scripts" / "windows" / "install-work.bat"
 
 @unittest.skipUnless(os.name == "nt", "Windows installer integration tests")
 class WindowsWorkInstallerTests(unittest.TestCase):
-    def test_installer_requires_pyyaml_without_installing_it(self) -> None:
+    def test_installer_requires_python_dependencies_without_installing_them(self) -> None:
         content = INSTALLER.read_text(encoding="utf-8")
 
         self.assertIn('!python_command! -c "import yaml" <nul', content)
-        self.assertEqual(content.count("<nul >nul 2>nul"), 4)
-        self.assertEqual(content.count("call :validate_pyyaml"), 3)
-        self.assertNotIn("goto validate_pyyaml", content)
+        self.assertIn('!python_command! -c "import pydantic" <nul', content)
+        self.assertIn("sys.version_info >= (3, 14)", content)
+        self.assertEqual(content.count("<nul >nul 2>nul"), 5)
+        self.assertEqual(content.count("call :validate_python_dependencies"), 3)
         self.assertIn("PyYAML is required.", content)
+        self.assertIn("Pydantic is required.", content)
         self.assertIn("does not install Python packages automatically", content)
         self.assertNotIn("pip install", content.lower())
 
@@ -64,7 +66,7 @@ class WindowsWorkInstallerTests(unittest.TestCase):
         self.assertTrue((work / "scripts" / "work.py").is_file())
         self.assertTrue((work / "scripts" / "worklib" / "cli.py").is_file())
         self.assertTrue(
-            (work / "scripts" / "worklib" / "hierarchy" / "selection.py").is_file()
+            (work / "scripts" / "worklib" / "services" / "hierarchy_selection.py").is_file()
         )
         self.assertFalse((work / "scripts" / "worklib" / "rules.py").exists())
         self.assertFalse((work / "scripts" / "tests").exists())
@@ -154,7 +156,7 @@ class WindowsWorkInstallerTests(unittest.TestCase):
         source = REPOSITORY_ROOT / "skills" / "work"
         expected = {}
         for path in source.rglob("*"):
-            if not path.is_file() or "__pycache__" in path.parts:
+            if not path.is_file() or "__pycache__" in path.parts or path.name == ".DS_Store":
                 continue
             relative = path.relative_to(source)
             if path.name == "rules.py" or path.suffix == ".pyc":
@@ -231,7 +233,12 @@ class WindowsWorkInstallerTests(unittest.TestCase):
             self.assertIn("Previously installed branches and stale files will be kept", result.stdout)
             source = REPOSITORY_ROOT / "skills" / "work"
             for path in source.rglob("*"):
-                if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc":
+                if (
+                    path.is_file()
+                    and "__pycache__" not in path.parts
+                    and path.suffix != ".pyc"
+                    and path.name != ".DS_Store"
+                ):
                     self.assertEqual(
                         (work / path.relative_to(source)).read_bytes(),
                         path.read_bytes(),
@@ -261,7 +268,7 @@ class WindowsWorkInstallerTests(unittest.TestCase):
                     shutil.copy2(INSTALLER, installer)
                     source = REPOSITORY_ROOT / "skills" / "work"
                     for path in source.rglob("*"):
-                        if not path.is_file() or "__pycache__" in path.parts:
+                        if not path.is_file() or "__pycache__" in path.parts or path.name == ".DS_Store":
                             continue
                         relative = path.relative_to(source)
                         if relative.as_posix() == missing:

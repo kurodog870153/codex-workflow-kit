@@ -8,7 +8,7 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.plan_ordering import order_plan_contract
+from worklib.services.plan_ordering import order_plan_contract
 
 
 class PlanOrderingTests(unittest.TestCase):

@@ -13,12 +13,13 @@ from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path, validate_artifact_paths
 from ..foundation.runtime import installed_work_root
 from ..foundation.spec_update import storage_path
-from ..instructions.historical import stored_document_selection
-from ..instructions.selection import validate_instruction_selection
-from ..instructions.task_selection import validate_task_document_instruction_selection
+from ..services.instruction_history import stored_document_selection
+from ..services.instruction_selection import validate_instruction_selection
+from ..services.instruction_task_selection import validate_task_document_instruction_selection
 from .execution_index import build_initial_execution_index, validate_execution_index
-from .plan import validate_plan_contract
+from ..services.plan_validation import validate_plan_contract
 from .task_structure import inspect_task_structure
+from .task_collection_models import TaskCollectionDiagnosticsContract
 
 
 class Diagnostics:
@@ -61,7 +62,7 @@ class Diagnostics:
             category = "format_repair"
             suggestion = "Preview a lossless canonical UTF-8 rendering before requesting write approval."
         elif name.startswith("instructions"):
-            category = "migration_review"
+            category = "source_review"
         self.issues.append({
             "stage": name, "code": error.code, "location": location,
             "category": category, "message": error.message,
@@ -207,224 +208,6 @@ def _execution_state(report, project_root, execution_dir, *, index_raw=None, ign
     return value
 
 
-def diagnose_task_contract(
-    raw: bytes | None, *, source: str, actual_task_path: str,
-    project_root: Path, user_config_root: str, skill_roots=None,
-    plan_path: str | None = None, execution_dir: str | None = None,
-    validate_file_state: bool = False, _source_plan_raw: bytes | None = None,
-    _historical_work_sources: bool = False, _reviewed_source_plan_binding=None,
-    _contract_error: WorkError | None = None, _read_error: WorkError | None = None,
-    _index_raw: bytes | None = None, _ignored_repair_record: str | None = None,
-) -> dict[str, Any]:
-    from .task import _validate_task_contract, render_task_contract
-    from .execution_index import build_initial_execution_index
-
-    report = Diagnostics()
-    if _read_error is not None:
-        report.failure("file", _read_error, location=actual_task_path)
-    else:
-        report.checks.append({"name": "file", "status": "passed"})
-    text = None
-    if raw is not None:
-        text = report.check("encoding", lambda: decode_utf8(raw, source=source))
-    else:
-        report.skip("encoding", "file")
-    document = None
-    if text is not None:
-        document = report.check("json", lambda: _json_document(text, raw))
-        report.check("normalization", lambda: _normalization(text, raw))
-    else:
-        report.skip("json", "encoding")
-        report.skip("normalization", "encoding")
-
-    if document is not None:
-        issues = inspect_task_structure(document)
-        report.issues.extend(issues)
-        report.checks.append({"name": "structure", "status": "failed" if issues else "passed"})
-
-        def artifact_paths():
-            if not isinstance(document.get("requirement_id"), str):
-                _reject("invalid_requirement_id", "The requirement ID must be a string.")
-            return validate_artifact_paths(
-                project_root, document.get("requirement_id"), document.get("artifacts"),
-                actual_plan_path=plan_path or (
-                    document["artifacts"].get("plan") if isinstance(document.get("artifacts"), dict) else ""
-                ),
-            )
-
-        artifacts = report.check("artifact_paths", artifact_paths, location="/artifacts")
-        if artifacts is not None:
-            report.check("task_path_binding", lambda: _same(
-                artifacts["task"], actual_task_path, "task_artifact_path_mismatch",
-                "The TASK artifact path differs from the selected file.",
-            ), location="/artifacts/task")
-            if plan_path is None:
-                plan_path = artifacts["plan"]
-            if execution_dir is None:
-                execution_dir = artifacts["execution"]
-            else:
-                report.check("execution_path_binding", lambda: _same(
-                    artifacts["execution"], execution_dir, "task_execution_path_mismatch",
-                    "The selected execution directory differs from the TASK.",
-                ), location="/artifacts/execution")
-        if report.passed("structure"):
-            report.check("canonical", lambda: _same(
-                raw == render_task_contract(document), True, "noncanonical_json_contract",
-                "The stored TASK does not match canonical field order and serialization.",
-            ))
-        else:
-            report.skip("canonical", "structure")
-    else:
-        report.skip("structure", "json")
-        report.skip("artifact_paths", "json")
-        report.skip("canonical", "structure")
-
-    def plan():
-        normalized, path = resolve_project_relative_path(project_root, plan_path, field="plan_path")
-        plan_raw = _source_plan_raw if _source_plan_raw is not None else read_raw(path)
-        return validate_plan_contract(
-            plan_raw, source="TASK diagnostic Plan", actual_plan_path=normalized,
-            project_root=project_root, user_config_root=user_config_root, skill_roots=skill_roots,
-            _historical_work_sources=_historical_work_sources,
-        )
-
-    plan_result = report.check("plan", plan, location=plan_path) if plan_path is not None else report.skip("plan", "artifact_paths")
-    if plan_result is not None and document is not None and isinstance(document.get("source_plan"), dict):
-        for field, expected in (
-            ("canonical_sha256", plan_result["plan_sha256"]),
-            ("hierarchy_selection_sha256", plan_result["hierarchy_selection_sha256"]),
-        ):
-            report.check("plan_binding:" + field, lambda field=field, expected=expected: _same(
-                document["source_plan"].get(field), expected, "source_plan_fingerprint_mismatch",
-                "The TASK source binding differs from the validated Plan.",
-            ), location="/source_plan/" + field)
-    else:
-        report.skip("plan_binding", "plan", "source_plan")
-
-    if document is not None and isinstance(document.get("tasks"), list):
-        tasks = document["tasks"]
-        selections = []
-        valid_selections = True
-        for index, task in enumerate(tasks):
-            if not isinstance(task, dict) or "instruction_selection" not in task:
-                report.skip("instructions:" + str(index), "structure")
-                valid_selections = False
-                continue
-            selection = task["instruction_selection"]
-            selections.append(selection)
-            if _historical_work_sources:
-                from ..instructions.historical import stored_selection
-                operation = lambda selection=selection: stored_selection(selection)
-            else:
-                operation = lambda selection=selection, index=index: validate_instruction_selection(
-                    selection, skill_root=installed_work_root(), mode="task",
-                    location=f"tasks[{index}].instruction_selection",
-                )
-            value = report.check("instructions:" + str(index), operation,
-                                 location=f"/tasks/{index}/instruction_selection")
-            valid_selections &= value is not None
-        if valid_selections and selections and isinstance(document.get("instruction_selection"), dict):
-            operation = (
-                lambda: stored_document_selection(document["instruction_selection"], selections)
-            ) if _historical_work_sources else (
-                lambda: validate_task_document_instruction_selection(
-                    document["instruction_selection"], selections, skill_root=installed_work_root(),
-                )
-            )
-            report.check("instructions_union", operation, location="/instruction_selection")
-        else:
-            report.skip("instructions_union", "instructions", "structure")
-    else:
-        report.skip("instructions", "structure")
-
-    contract_result = None
-    if _contract_error is not None:
-        report.failure("contract", _contract_error)
-    elif raw is not None and report.passed("structure"):
-        contract_result = report.check("contract", lambda: _validate_task_contract(
-            raw, source=source, actual_task_path=actual_task_path,
-            project_root=project_root, user_config_root=user_config_root, skill_roots=skill_roots,
-            validate_file_state=validate_file_state, _source_plan_raw=_source_plan_raw,
-            _historical_work_sources=_historical_work_sources,
-            _reviewed_source_plan_binding=_reviewed_source_plan_binding,
-        ))
-    else:
-        report.skip("contract", "structure")
-    if not report.passed("contract"):
-        report.skip("remaining_contract_checks", "contract")
-
-    index = _execution_state(report, project_root, execution_dir,
-                             index_raw=_index_raw, ignored_record=_ignored_repair_record)
-    if index is not None and document is not None and text is not None:
-        bindings = {
-            "task_sha256": canonical_sha256(raw, source=source),
-            "task_spec_id": document.get("spec_id"),
-            "requirement_id": document.get("requirement_id"),
-        }
-        for field, expected in bindings.items():
-            report.check("index_binding:" + field, lambda field=field, expected=expected: _same(
-                index[field], expected, "task_index_binding_mismatch",
-                "The execution index differs from the TASK document.",
-            ), location="/index/" + field)
-    else:
-        report.skip("index_binding", "index", "json")
-
-    if index is not None and contract_result is not None:
-        expected_index = build_initial_execution_index(document, contract_result)
-        for field in ("task_instructions_sha256", "hierarchy_selection_sha256", "skill_selection_sha256"):
-            report.check("index_binding:" + field, lambda field=field: _same(
-                index[field], expected_index[field], "task_index_binding_mismatch",
-                "The execution index source binding differs from the TASK.",
-            ), location="/index/" + field)
-        report.check("index_binding:tasks", lambda: _same(
-            [{key: row[key] for key in ("id", "skill_id", "instructions_sha256")} for row in index["tasks"]],
-            [{key: row[key] for key in ("id", "skill_id", "instructions_sha256")} for row in expected_index["tasks"]],
-            "task_index_rows_mismatch", "Execution rows differ from the validated TASK identities.",
-        ), location="/index/tasks")
-    else:
-        report.skip("index_binding:sources_and_rows", "index", "contract")
-    required_bindings = [
-        check for check in report.checks
-        if "binding" in check["name"] or check["name"] == "artifact_paths"
-    ]
-    allowed = (report.passed("contract") and report.passed("transactions")
-               and all(check["status"] == "passed" for check in required_bindings))
-    return {
-        "schema": "work-task-diagnostics/v1",
-        "status": "valid" if allowed else "blocked",
-        "task_path": actual_task_path,
-        "raw_sha256": hashlib.sha256(raw).hexdigest() if raw is not None else None,
-        "format_status": (
-            "passed" if all(report.passed(name) for name in ("encoding", "json", "normalization"))
-            else "failed" if any(report.status(name) == "failed" for name in ("encoding", "json", "normalization"))
-            else "not_checked"
-        ),
-        "structure_status": report.status("structure"),
-        "contract_status": report.status("contract"),
-        "normal_use_allowed": allowed,
-        "repair_mode": "review_required" if report.passed("repair_state") else "diagnose_only",
-        "checks": report.checks,
-        "issues": report.issues,
-    }
-
-
-def diagnose_task_file(
-    project_root: Path, user_config_root: str, raw_path: str, *,
-    plan_path: str | None = None, execution_dir: str | None = None, skill_roots=None,
-) -> dict[str, Any]:
-    raw, error = None, None
-    normalized, path = resolve_project_relative_path(project_root, raw_path, field="task_path")
-    try:
-        raw = read_raw(path)
-    except WorkError as caught:
-        error = caught
-    return diagnose_task_contract(
-        raw, source=str(path), actual_task_path=normalized, project_root=project_root,
-        user_config_root=user_config_root, plan_path=plan_path, execution_dir=execution_dir,
-        skill_roots=skill_roots, _read_error=error,
-    )
-
-
 def diagnose_task_collection(
     project_root: Path,
     user_config_root: str,
@@ -432,7 +215,7 @@ def diagnose_task_collection(
     *,
     skill_roots=None,
 ) -> dict[str, Any]:
-    """Diagnose a v2 collection without repairing or publishing any artifact."""
+    """Diagnose a TASK collection without repairing or publishing any artifact."""
     from .task_collection import validate_task_collection_contract
     from .task_index import render_task_index_contract, validate_task_index_contract
     from .task_item import render_task_item_contract, validate_task_item_contract
@@ -485,7 +268,7 @@ def diagnose_task_collection(
             "index:schema",
             lambda: _same(
                 index_document.get("schema"),
-                "work-task-index/v2",
+                "work-task-index/v1",
                 "invalid_task_index_schema",
                 "The formal TASK index schema is invalid.",
             ),
@@ -772,7 +555,7 @@ def diagnose_task_collection(
         if execution_validation is not None:
             execution_contract = parse_json_contract(execution_raw, source=execution)
             expected = build_initial_execution_index(
-                collection_validation["logical_contract"], collection_validation,
+                collection_validation["collection_contract"], collection_validation,
             )
             expected_binding = {
                 "task_spec_id": expected["task_spec_id"],
@@ -803,10 +586,10 @@ def diagnose_task_collection(
         report.skip("execution:file", "collection:contract")
         report.skip("execution:contract", "execution:file")
         report.skip("execution:binding", "execution:contract")
-    report.skip("execution_index_binding", "v2_execution_index_contract")
+    report.skip("execution_index_binding", "collection_execution_index_contract")
     allowed = collection_validation is not None
-    return {
-        "schema": "work-task-collection-diagnostics/v2",
+    return TaskCollectionDiagnosticsContract.model_validate({
+        "schema": "work-task-collection-diagnostics/v1",
         "status": "valid" if allowed else "blocked",
         "task_path": raw_index_path,
         "raw_sha256": hashlib.sha256(index_raw).hexdigest() if index_raw is not None else None,
@@ -823,4 +606,4 @@ def diagnose_task_collection(
         "repair_mode": "review_required",
         "checks": report.checks,
         "issues": report.issues,
-    }
+    }).to_canonical_dict()

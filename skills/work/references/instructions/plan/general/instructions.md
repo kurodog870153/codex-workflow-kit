@@ -41,98 +41,13 @@ metadata:
 1. [強制] 正式文件使用單一純 JSON object，固定使用 `schema: work-plan/v1` 與 `status: confirmed`，不得包含 Markdown 標題、code fence 或額外文字。
 2. [強制] JSON keys、enums、IDs、statuses、paths、references 及 hashes 使用英文；`summary`、`statement`、`reason` 等不由 Python 解讀的語意文字可使用繁體中文。Required keys、optional keys、nested fields、ID 格式、references、雙向 Deliverable／Acceptance 關聯及 instruction fingerprint 完全以 Work Python validator 為準，不得另訂同義欄位。
 3. [強制] 需求編號只能使用小寫英數、`.`、`_`、`-`，並須通過共用 instruction-loading 的跨 Windows、macOS、Linux 檔名限制；只能沿用使用者目前輸入或正式交接明列的值，不得由檔名、目錄或其他對話推測。
-4. [強制] Plan、正式 TASK v2 入口與 execution 預設分別位於 `outputs/work/plans/<requirement-id>.json`、`outputs/work/tasks/<requirement-id>/index.json`、`outputs/work/executions/<requirement-id>/`；任一項改用非預設路徑時，使用者須同時確認三個專案相對路徑與同一需求編號，不得由單一路徑推導其他路徑。既有 v1 `task.json` 只能由已驗證 Plan 明列，且一般寫入前必須先完成 layout migration。
+4. [強制] Plan、正式 TASK 入口與 execution 預設分別位於 `outputs/work/plans/<requirement-id>.json`、`outputs/work/tasks/<requirement-id>/index.json`、`outputs/work/executions/<requirement-id>/`；任一項改用非預設路徑時，使用者須同時確認三個專案相對路徑與同一需求編號，不得由單一路徑推導其他路徑。單檔 `task.json` 不受支援。
 5. [強制] 每次讀寫前須完整套用共用 instruction-loading 的需求成品路徑安全檢查，不得在本層縮減、另訂或只沿用前一階段的檢查結果；無法確認時維持對話草案。
 6. [強制] 已確認完整草案後，尚無明確需求編號時，需求編號必須是寫入前最後一項問題；使用者選定有效編號即授權建立該正式 Plan，不得再追加未揭露內容。若已為獨立進度文件確認編號，沿用該編號並另外取得完整正式 Plan 的寫入核准；先前的進度保存或編號確認不構成正式化授權。
 7. [強制] 初次寫入只確認一次需求編號；後續 Task 只有在使用者目前輸入或正式規格交接已明列有效需求編號時才能沿用且不得重問，未明列時仍須詢問。
 8. [強制] `artifacts` 永遠明列 Plan、TASK 與 execution 三個 project-relative paths；`hierarchy_selection` 保存已確認跨模式葉節點、各模式 metadata、推薦原因與選擇雜湊；`work_instruction_selection` 保存原始 `selected_paths`、Plan 實際載入的 `resolved_paths`、`sources`、`references` 與 `instructions_sha256`；`skill_selection` 保存外部技能快照。每個 instruction source 只保存 `kind`、`logical_name` 與 `canonical_sha256`，不得保存絕對路徑。
 9. [強制] 正式寫入前以 stdin 模式驗證純 JSON，核准後由 Work Python CLI 的 `plan create` 使用固定欄位順序、二格縮排、UTF-8、NFC、LF、無 BOM 與恰好一個尾端換行渲染並 exclusive create；不得由 AI 手動組合或寫入正式 JSON。寫入後以 path 模式重新驗證，兩次 canonical Plan 與 instruction fingerprints 必須一致。任一次失敗立即停止，不得自行修補。
-
-```json
-{
-  "schema": "work-plan/v1",
-  "requirement_id": "example",
-  "status": "confirmed",
-  "title": "<Plan title>",
-  "summary": "<summary>",
-  "artifacts": {
-    "plan": "outputs/work/plans/example.json",
-    "task": "outputs/work/tasks/example/index.json",
-    "execution": "outputs/work/executions/example"
-  },
-  "hierarchy_selection": {
-    "schema": "work-hierarchy-selection/v1",
-    "decision": "general_only",
-    "selected_paths": [],
-    "entries": [],
-    "catalog_sha256": "<64-lowercase-hex>",
-    "selection_sha256": "<64-lowercase-hex>"
-  },
-  "work_instruction_selection": {
-    "selected_paths": [],
-    "resolved_paths": [
-      "general"
-    ],
-    "sources": [
-      {
-        "kind": "workflow",
-        "logical_name": "work.instruction-loading",
-        "canonical_sha256": "<64-lowercase-hex>"
-      },
-      {
-        "kind": "instruction",
-        "logical_name": "plan.general",
-        "canonical_sha256": "<64-lowercase-hex>"
-      }
-    ],
-    "references": [],
-    "instructions_sha256": "<64-lowercase-hex>"
-  },
-  "skill_selection": {
-    "schema": "work-skill-selection/v1",
-    "decision": "base_only",
-    "skills": [],
-    "selection_sha256": "<64-lowercase-hex>"
-  },
-  "goals": [
-    {
-      "id": "GOAL-001",
-      "statement": "<goal>"
-    }
-  ],
-  "scope": [
-    {
-      "id": "SCOPE-001",
-      "kind": "in_scope",
-      "statement": "<scope>",
-      "goal_ids": [
-        "GOAL-001"
-      ]
-    }
-  ],
-  "deliverables": [
-    {
-      "id": "DELIVERABLE-001",
-      "statement": "<deliverable>",
-      "goal_ids": [
-        "GOAL-001"
-      ],
-      "acceptance_ids": [
-        "ACCEPTANCE-001"
-      ]
-    }
-  ],
-  "acceptance_criteria": [
-    {
-      "id": "ACCEPTANCE-001",
-      "statement": "<observable result>",
-      "deliverable_ids": [
-        "DELIVERABLE-001"
-      ]
-    }
-  ]
-}
-```
+10. [強制] 需要查閱正式 Plan 的 required／optional fields、canonical key order、欄位限制、巢狀 contract references 或最新有效範例時，執行 `<work-cli> contract describe work-plan/v1` 並以 registry 回傳內容為準；不得在 instruction 複製或自行維護完整 JSON 結構。
 
 ## 4. 變更與同步
 

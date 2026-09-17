@@ -10,6 +10,7 @@ from ..contracts.attempt import (
     render_attempt_contract,
     validate_attempt_file,
 )
+from ..contracts.attempt_close_models import AttemptCloseContract, AttemptCloseRequestContract
 from ..foundation.errors import ExitCode, WorkError
 from .context import read_contract, find_task_row, load_lifecycle_task_context, validate_execution_identity
 from .instructions import BASE_EXECUTE_REFERENCES, RECOVERY_REFERENCE
@@ -19,15 +20,13 @@ from ..contracts.execution_index import (
     validate_execution_index,
 )
 from ..foundation.fingerprint import read_raw
-from ..instructions.selection import build_instruction_selection
+from ..services.instruction_selection import build_instruction_selection
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path
 from ..foundation.runtime import installed_work_root
-from ..skills.catalog import SkillRoot
-from ..contracts.task import validate_task_contract
-from .attempt_close_request import parse_attempt_close_request
+from ..services.skill_catalog import SkillRoot
 from .completion import validate_completed_coverage
-from .transactions import TransactionErrors, prepare_and_replace
+from ..infrastructure.atomic_replace import TransactionErrors, prepare_and_replace
 
 
 TRANSACTION_ERRORS = TransactionErrors(
@@ -216,7 +215,7 @@ def close_attempt(
     now: datetime | None = None,
     skill_roots: list[SkillRoot] | None = None,
 ) -> dict[str, object]:
-    request = parse_attempt_close_request(raw, source=source)
+    request = AttemptCloseRequestContract.parse_request(raw, source=source).to_canonical_dict()
     normalized_task, task_path = resolve_project_relative_path(
         project_root, raw_task_path, field="task_path"
     )
@@ -248,7 +247,6 @@ def close_attempt(
         user_config_root=user_config_root,
         task_id=task_id,
         skill_roots=skill_roots,
-        v1_validator=validate_task_contract,
     )
     if (
         task_contract["artifacts"]["task"] != normalized_task
@@ -397,7 +395,7 @@ def close_attempt(
         if transaction_error is error:
             raise
         raise transaction_error from error
-    return {
+    return AttemptCloseContract.model_validate({
         "schema": "work-attempt-close/v1",
         "task_id": task_id,
         "attempt_id": attempt_id,
@@ -407,4 +405,4 @@ def close_attempt(
         "task_status": task_status,
         "overall_status": updated_index["overall_status"],
         "lock_status": "released",
-    }
+    }).to_canonical_dict()

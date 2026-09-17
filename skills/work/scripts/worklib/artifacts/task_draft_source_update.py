@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .task_draft import _decode, _error, _path, _read, _render, _write, read_task_draft_from_index, read_task_planning_index, read_task_planning_revision
-from ..contracts.plan import validate_plan_contract
+from ..services.plan_validation import validate_plan_contract
 from ..contracts.task_draft import validate_task_draft, validate_task_planning_index
 from ..contracts.validation import nonempty_string, strict_keys
 from ..foundation.errors import ExitCode, WorkError
@@ -17,10 +17,10 @@ from ..foundation.fingerprint import read_raw
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path
 from ..foundation.runtime import installed_work_root
-from ..hierarchy.selection import validate_task_hierarchy_paths
-from ..instructions.selection import build_instruction_selection
-from ..instructions.draft_selection import validate_draft_instruction_selection
-from ..skills.catalog import SkillRoot
+from ..services.hierarchy_selection import validate_task_hierarchy_paths
+from ..services.instruction_selection import build_instruction_selection
+from ..services.instruction_draft_selection import validate_draft_instruction_selection
+from ..services.skill_catalog import SkillRoot
 
 
 def update_task_draft_sources(

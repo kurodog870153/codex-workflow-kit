@@ -29,7 +29,7 @@ validate_python_runtime() {
         if ! command -v "$candidate" >/dev/null 2>&1; then
             continue
         fi
-        if ! "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' </dev/null >/dev/null 2>&1; then
+        if ! "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 14) else 1)' </dev/null >/dev/null 2>&1; then
             continue
         fi
         if ! "$candidate" -c 'import yaml' </dev/null >/dev/null 2>&1; then
@@ -37,10 +37,15 @@ validate_python_runtime() {
             printf 'The installer does not install Python packages automatically.\n' >&2
             return 1
         fi
+        if ! "$candidate" -c 'import pydantic' </dev/null >/dev/null 2>&1; then
+            printf 'Error: Pydantic is required. Install the latest Pydantic for %s and run this installer again.\n' "$candidate" >&2
+            printf 'The installer does not install Python packages automatically.\n' >&2
+            return 1
+        fi
         return 0
     done
 
-    printf 'Error: Python 3.10 or newer is required. Install Python and run this installer again.\n' >&2
+    printf 'Error: Python 3.14 or newer is required. Install Python and run this installer again.\n' >&2
     printf 'The installer does not install Python packages automatically.\n' >&2
     return 1
 }

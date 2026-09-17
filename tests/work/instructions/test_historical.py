@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/work/scripts"))
 
 from worklib.foundation.errors import WorkError
-from worklib.instructions.historical import stored_document_selection, stored_selection
+from worklib.services.instruction_history import stored_document_selection, stored_selection
 
 
 def selection(name="task.general", fingerprint="a"):

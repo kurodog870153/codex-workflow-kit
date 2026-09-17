@@ -17,7 +17,7 @@ def discussion():
         "mode": "task", "revision": 1, "status": "discussion_only",
         "title": "Discussion", "request": "Retain unfinished decisions",
         "current_task_id": "TASK-001", "context": {"missing_plan": True},
-        "source_status": ["Migration pending"], "notes": ["Reviewed evidence"],
+        "source_status": ["Revision pending"], "notes": ["Reviewed evidence"],
         "confirmed_decisions": [{"statement": "Keep scope", "rationale": "User decision"}],
         "tentative": ["Proposed approach"], "open_questions": ["Which validation?"],
         "next_discussion_point": "Confirm validation",

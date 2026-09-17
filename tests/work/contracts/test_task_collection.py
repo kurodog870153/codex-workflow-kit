@@ -10,12 +10,12 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from tests.work.contracts.test_task import TaskInstructionContractTests
-from worklib.artifacts.task_collection import (
-    load_task_artifact,
-    load_task_closure,
+from worklib.services.task_collection import (
     load_task_collection,
+    load_task_closure,
+    load_task_execution_context,
 )
-from worklib.contracts.plan import render_plan_contract, validate_plan_contract
+from worklib.services.plan_validation import render_plan_contract, validate_plan_contract
 from worklib.contracts.task_index import render_task_index_contract
 from worklib.contracts.task_item import render_task_item_contract, validate_task_item_contract
 from worklib.foundation.errors import WorkError
@@ -48,14 +48,14 @@ class TaskCollectionTests(unittest.TestCase):
         logical["artifacts"]["task"] = self.index_path  # type: ignore[index]
         logical["source_plan"]["canonical_sha256"] = plan_validation["plan_sha256"]  # type: ignore[index]
         raw_task = logical.pop("tasks")[0]  # type: ignore[union-attr,index]
-        self.item = {"schema": "work-task-item/v2", **raw_task}
+        self.item = {"schema": "work-task-item/v1", **raw_task}
         self.item_raw = render_task_item_contract(self.item)
         item_validation = validate_task_item_contract(
             self.item_raw, source="test item", expected_task_id="TASK-001"
         )
         self.index = {
             **logical,
-            "schema": "work-task-index/v2",
+            "schema": "work-task-index/v1",
             "tasks": [
                 {
                     "id": "TASK-001",
@@ -71,7 +71,7 @@ class TaskCollectionTests(unittest.TestCase):
         index_file.write_bytes(self.index_raw)
         item_file.write_bytes(self.item_raw)
 
-    def test_loads_complete_v2_collection_and_v1_artifact(self) -> None:
+    def test_loads_complete_collection_and_rejects_single_file_artifact(self) -> None:
         collection = load_task_collection(
             self.root, str(self.root), self.index_path
         )
@@ -93,14 +93,12 @@ class TaskCollectionTests(unittest.TestCase):
         )
         contract = copy.deepcopy(self.fixture.contract)
         contract["source_plan"]["canonical_sha256"] = plan_validation["plan_sha256"]  # type: ignore[index]
-        from worklib.contracts.task import render_task_contract
+        from worklib.contracts.task_collection_semantics import render_task_contract
         legacy_file = legacy_root / self.legacy_path
         legacy_file.parent.mkdir(parents=True, exist_ok=True)
         legacy_file.write_bytes(render_task_contract(contract))
-        validation = load_task_artifact(
-            legacy_root, str(legacy_root), self.legacy_path
-        )
-        self.assertEqual(validation["schema"], "work-task-validation/v1")
+        with self.assertRaises(WorkError):
+            load_task_collection(legacy_root, str(legacy_root), self.legacy_path)
 
     def test_rejects_missing_or_orphan_items(self) -> None:
         item_file = self.root / self.index_path
@@ -149,6 +147,49 @@ class TaskCollectionTests(unittest.TestCase):
         closure = load_task_closure(self.root, self.index_path, "TASK-002")
 
         self.assertEqual(list(closure), ["TASK-001", "TASK-002"])
+
+    def test_execution_context_validates_all_items_but_exposes_target_closure(self) -> None:
+        second = copy.deepcopy(self.item)
+        second["id"] = "TASK-002"
+        second_raw = render_task_item_contract(second)
+        second_validation = validate_task_item_contract(
+            second_raw, source="test item", expected_task_id="TASK-002"
+        )
+        index = copy.deepcopy(self.index)
+        index["tasks"].append(  # type: ignore[union-attr]
+            {
+                "id": "TASK-002",
+                "path": "tasks/TASK-002.json",
+                "canonical_sha256": second_validation["task_item_sha256"],
+            }
+        )
+        (self.root / self.index_path).write_bytes(render_task_index_contract(index))
+        (self.root / self.index_path).parent.joinpath(
+            "tasks/TASK-002.json"
+        ).write_bytes(second_raw)
+
+        context = load_task_execution_context(
+            self.root,
+            str(self.root),
+            self.index_path,
+            "TASK-001",
+        )
+
+        contract = context["contract"]
+        validation = context["validation"]
+        self.assertEqual(
+            [task["id"] for task in contract["tasks"]],  # type: ignore[index]
+            ["TASK-001"],
+        )
+        self.assertEqual(validation["task_ids"], ["TASK-001", "TASK-002"])  # type: ignore[index]
+        self.assertEqual(
+            set(validation["task_item_sha256"]),  # type: ignore[index]
+            {"TASK-001", "TASK-002"},
+        )
+        self.assertEqual(
+            set(validation["task_instructions_sha256"]),  # type: ignore[index]
+            {"TASK-001", "TASK-002"},
+        )
 
     def test_closure_does_not_read_unrelated_item(self) -> None:
         second = copy.deepcopy(self.item)

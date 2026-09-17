@@ -21,7 +21,7 @@ class TaskStructureTests(unittest.TestCase):
         by_location = {item["location"]: item for item in issues}
         self.assertEqual(by_location["/title"]["category"], "decision_required")
         self.assertEqual(by_location["/tasks/0/goal"]["code"], "empty_text")
-        self.assertEqual(by_location["/tasks/0/rules_sha256"]["category"], "migration_review")
+        self.assertEqual(by_location["/tasks/0/rules_sha256"]["category"], "source_review")
         self.assertEqual(by_location["/a~0~1b"]["code"], "unknown_field")
         self.assertEqual(value, before)
 
