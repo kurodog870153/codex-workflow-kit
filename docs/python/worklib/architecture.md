@@ -270,6 +270,7 @@ models
 5. 每個垂直切片應依序完成 Model、單一功能 Service、Business Service、Controller 與測試。
 6. 大型功能若無法安全原子遷移，必須在執行前拆成更小 Task，不得留下半套架構。
 7. 公開 Schema ID、欄位順序、錯誤碼、檔案 bytes、fingerprint 及安全限制預設保持不變。
+8. TASK-007 暫時允許 `services.progress.validation` 只匯入 `contracts.validation`；此例外僅限 `nonempty_string`、`strict_keys` 與 `sha256`，不得擴張，並由 TASK-034 遷移遺留使用者後移除。
 
 ## 13. TASK-003 自動檢查契約
 
@@ -289,6 +290,7 @@ models
 12. 架構檢查必須解析相對匯入、`__init__.py` 重匯出及 package 入口。
 13. 遷移期間，舊目錄以明確 allowlist 管理；allowlist 只能減少，不能無理由擴張。
 14. 所有層都可以匯入 Protocol；Protocol 只能匯入自身模組或 Python 標準函式庫。
+15. 遷移 allowlist 目前只包含 `services.progress.validation -> contracts.validation`，移除條件為 TASK-034 完成共用驗證工具遷移。
 
 ## 14. Review 檢查表
 

@@ -10,6 +10,9 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 WORKLIB_ROOT = PROJECT_ROOT / "skills" / "work" / "scripts" / "worklib"
 LEGACY_ROOTS = {"artifacts", "contracts", "execution"}
+LEGACY_SERVICE_EXCEPTIONS = {
+    ("worklib.services.progress.validation", "worklib.contracts.validation"),
+}
 
 
 @dataclass(frozen=True)
@@ -181,6 +184,8 @@ def architecture_violations(root: Path, *, include_controllers: bool = False) ->
             target_scope = _target_scope(edge.target)
             if target_scope is None:
                 continue
+            if (edge.source, edge.target) in LEGACY_SERVICE_EXCEPTIONS:
+                continue
             reason = _import_violation(source_scope, target_scope)
             if reason:
                 result.append(
@@ -281,6 +286,15 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             violations = architecture_violations(root)
             self.assertEqual(len(violations), 1)
             self.assertIn("worklib.services.alpha -> worklib.services.beta", violations[0])
+
+    def test_only_recorded_progress_validation_legacy_import_is_allowed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write(root, "services/progress/validation.py", "from worklib.contracts.validation import strict_keys\n")
+            self.write(root, "services/progress/read.py", "from worklib.contracts.validation import strict_keys\n")
+            violations = architecture_violations(root)
+            self.assertEqual(len(violations), 1)
+            self.assertIn("worklib.services.progress.read", violations[0])
 
     def test_business_services_cannot_import_each_other(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

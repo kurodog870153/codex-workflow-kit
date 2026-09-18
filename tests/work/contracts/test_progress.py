@@ -7,7 +7,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/work/scripts"))
 
-from worklib.contracts.progress import validate_progress_contract
+from worklib.contracts.progress import validate_progress_contract as legacy_validate_progress_contract
+from worklib.services.progress.validation import validate_progress_contract
 from worklib.foundation.errors import WorkError
 
 
@@ -25,6 +26,9 @@ def discussion():
 
 
 class ProgressContractTests(unittest.TestCase):
+    def test_legacy_validation_export_preserves_identity(self):
+        self.assertIs(legacy_validate_progress_contract, validate_progress_contract)
+
     def test_historical_context_is_retained_without_aliasing_input(self):
         value = discussion()
         value["context"] = {"skill_selection": {"unavailable": True}, "command": "do not run"}
