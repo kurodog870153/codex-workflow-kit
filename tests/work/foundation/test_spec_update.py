@@ -11,10 +11,10 @@ from unittest.mock import patch
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.foundation.errors import WorkError
-from worklib.foundation.spec_update import (
-    completion_marker_matches, require_no_spec_update, storage_path,
-    transaction_completion_state,
+from worklib.models.common.errors import WorkError
+from worklib.technical.infrastructure.specification_storage import storage_path
+from worklib.services.specification.transaction import (
+    completion_marker_matches, require_no_spec_update, transaction_completion_state,
 )
 
 

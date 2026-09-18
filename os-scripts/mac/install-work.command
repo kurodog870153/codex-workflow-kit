@@ -236,7 +236,7 @@ install_base() {
     local relative
     while IFS= read -r -d '' source_file; do
         relative="${source_file#"$source_work/"}"
-        if [[ "$source_file" == */__pycache__/* || "${source_file##*/}" == "rules.py" ]]; then
+        if [[ "$source_file" == */__pycache__/* || "$relative" == "scripts/worklib/rules.py" ]]; then
             continue
         fi
         copy_file "$relative" || return 1

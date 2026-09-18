@@ -66,9 +66,75 @@ class MacWorkInstallerTests(unittest.TestCase):
             self.assertTrue((work / "references" / "subagents" / f"{mode}.md").is_file())
         self.assertTrue((work / "scripts" / "work.py").is_file())
         self.assertTrue((work / "scripts" / "worklib" / "cli.py").is_file())
-        self.assertTrue(
-            (work / "scripts" / "worklib" / "services" / "hierarchy_selection.py").is_file()
-        )
+        for relative in (
+            "models/instruction/__init__.py",
+            "models/instruction/catalog.py",
+            "models/instruction/contracts.py",
+            "models/instruction/source.py",
+            "models/hierarchy/__init__.py",
+            "models/hierarchy/contracts.py",
+            "services/hierarchy/__init__.py",
+            "services/hierarchy/fingerprint.py",
+            "services/hierarchy/ordering.py",
+            "services/hierarchy/path.py",
+            "services/hierarchy/selection.py",
+            "services/hierarchy/validation.py",
+            "business_services/hierarchy/__init__.py",
+            "services/instruction/__init__.py",
+            "services/instruction/catalog.py",
+            "models/contract/__init__.py",
+            "models/contract/catalog.py",
+            "models/task_collection/repair.py",
+            "services/contract/__init__.py",
+            "services/contract/catalog.py",
+            "business_services/contract/__init__.py",
+            "services/task/draft/__init__.py",
+            "services/task/draft/storage.py",
+            "services/task/draft/validation.py",
+            "services/task/task_diagnostics/__init__.py",
+            "services/task/task_diagnostics/evaluation.py",
+            "services/task/task_diagnostics/inspection.py",
+            "services/task/task_diagnostics/report.py",
+            "business_services/task/diagnostics.py",
+            "services/instruction/hierarchy.py",
+            "services/instruction/history.py",
+            "services/instruction/root.py",
+            "services/instruction/selection.py",
+            "services/instruction/source.py",
+            "services/instruction/task_selection.py",
+            "services/instruction/validation.py",
+            "services/instruction/work_selection.py",
+            "business_services/instruction/__init__.py",
+            "models/plan/__init__.py",
+            "models/plan/contracts.py",
+            "models/task_collection/__init__.py",
+            "models/task_collection/contracts.py",
+            "models/execution/__init__.py",
+            "models/execution/deviation.py",
+            "models/execution/authorization.py",
+            "services/attempt/__init__.py",
+            "services/attempt/authorization.py",
+            "models/execution/attempt.py",
+            "services/attempt/validation.py",
+            "models/execution/index.py",
+            "services/plan/__init__.py",
+            "services/plan/document.py",
+            "services/plan/ordering.py",
+            "services/plan/persistence/__init__.py",
+            "services/plan/validation.py",
+            "business_services/plan/__init__.py",
+            "models/handoff/__init__.py",
+            "models/handoff/contracts.py",
+            "services/handoff/__init__.py",
+            "services/handoff/build.py",
+            "services/handoff/execution.py",
+            "services/handoff/fingerprint.py",
+            "services/handoff/source_io/__init__.py",
+            "services/handoff/validation.py",
+            "services/handoff/verification.py",
+            "business_services/handoff/__init__.py",
+        ):
+            self.assertTrue((work / "scripts" / "worklib" / relative).is_file())
         self.assertFalse((work / "scripts" / "worklib" / "rules.py").exists())
         self.assertFalse((work / "scripts" / "tests").exists())
         self.assertFalse((work / "plan").exists())
@@ -154,7 +220,7 @@ class MacWorkInstallerTests(unittest.TestCase):
             if not path.is_file() or "__pycache__" in path.parts or path.name == ".DS_Store":
                 continue
             relative = path.relative_to(source)
-            if path.name == "rules.py" or path.suffix == ".pyc":
+            if relative.as_posix() == "scripts/worklib/rules.py" or path.suffix == ".pyc":
                 continue
             if relative.parts[:2] == ("references", "instructions"):
                 owner = path.parent

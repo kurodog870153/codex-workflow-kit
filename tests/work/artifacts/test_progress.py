@@ -11,8 +11,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/work/script
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from contracts import test_progress as fixtures
-from worklib.services.progress import prepare_progress, preview_progress, read_progress, save_progress
-from worklib.foundation.errors import WorkError
+from worklib.business_services.progress import prepare_progress as _prepare_progress
+from worklib.business_services.progress import preview_progress as _preview_progress
+from worklib.business_services.progress import read_progress, save_progress as _save_progress
+from worklib.technical.infrastructure.json_contract import render_json_contract
+
+def preview_progress(root, value, *, expected_revision):
+    return _preview_progress(root, render_json_contract(value), source="test", expected_revision=expected_revision)
+
+def prepare_progress(root, value, **kwargs):
+    return _prepare_progress(root, render_json_contract(value), source="test", **kwargs)
+
+def save_progress(root, value, **kwargs):
+    return _save_progress(root, render_json_contract(value), source="test", **kwargs)
+from worklib.models.common.errors import WorkError
 
 
 class ProgressStorageTests(unittest.TestCase):

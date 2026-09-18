@@ -11,17 +11,23 @@ SKILL_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work"
 SCRIPT_ROOT = SKILL_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.foundation.errors import ExitCode, WorkError
-from worklib.execution.context import (
+from worklib.models.common.errors import ExitCode, WorkError
+from worklib.business_services.execution.context import (
     find_task_row,
     read_contract,
     validate_execution_identity,
 )
-from worklib.contracts.execution_index import build_initial_execution_index
-from worklib.services.instruction_selection import build_instruction_selection
+from worklib.services.execution.context.identity import (
+    validate_execution_identity as service_validate_execution_identity,
+)
+from worklib.services.attempt import build_initial_execution_index
+from worklib.business_services.instruction import build_instruction_selection
 
 
 class ExecutionContextTests(unittest.TestCase):
+    def test_service_entry_reexports_identity_symbol(self) -> None:
+        self.assertIs(validate_execution_identity, service_validate_execution_identity)
+
     def setUp(self) -> None:
         self.task_selection = build_instruction_selection(
             skill_root=SKILL_ROOT,

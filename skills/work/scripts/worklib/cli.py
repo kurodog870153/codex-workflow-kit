@@ -21,15 +21,15 @@ from .controllers.task import register_task_commands, run_task
 from .controllers.delegation import register_delegation_commands, run_delegation
 from .controllers.contract import register_contract_commands, run_contract
 from .controllers.invocation import register_invocation_commands, run_invocation
-from .foundation.errors import ExitCode, WorkError
-from .foundation.fingerprint import fingerprint_file
-from .foundation.jsonio import write_json
-from .foundation.paths import (
+from .models.common.errors import ExitCode, WorkError
+from .technical.infrastructure.file_io import fingerprint_file
+from .technical.foundation.jsonio import write_json
+from .technical.infrastructure.work_paths import (
     default_artifact_paths,
     resolve_project_relative_path,
     resolve_root,
 )
-from .infrastructure.cli_io import FileInput, error_response, read_input_file, success_response
+from .technical.infrastructure.cli_io import FileInput, error_response, read_input_file, success_response
 
 
 class HelpRequested(Exception):

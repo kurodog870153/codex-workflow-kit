@@ -3,13 +3,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ..contracts.correction import (
-    render_correction_json_contract,
-    validate_correction_file,
-    validate_correction_json_contract,
-)
-from ..infrastructure.cli_io import FileInput
-from . import SubparserRegistry
+from ..business_services.correction import handle_correction_request
+from . import RequestInput, SubparserRegistry
 
 
 def register_correction_commands(commands: SubparserRegistry) -> None:
@@ -30,14 +25,6 @@ def register_correction_commands(commands: SubparserRegistry) -> None:
 def run_correction(
     arguments: argparse.Namespace,
     project_root: Path,
-    request: FileInput | None,
+    request: RequestInput | None,
 ) -> dict[str, object]:
-    if arguments.correction_command == "render":
-        return render_correction_json_contract(
-            request.raw, source=request.source
-        )
-    if arguments.input_file:
-        return validate_correction_json_contract(
-            request.raw, source=request.source
-        )
-    return validate_correction_file(project_root, arguments.path)
+    return handle_correction_request(arguments, project_root, request)

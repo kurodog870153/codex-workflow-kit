@@ -13,9 +13,9 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts
 sys.path.insert(0, str(SCRIPT_ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from worklib.services.plan import create_plan_file, prepare_initial_plan
+from worklib.business_services.plan import create_plan_file, prepare_initial_plan
 from contracts import test_plan as fixtures
-from worklib.foundation.errors import ExitCode, WorkError
+from worklib.models.common.errors import ExitCode, WorkError
 
 
 class PlanArtifactTests(unittest.TestCase):
@@ -30,10 +30,10 @@ class PlanArtifactTests(unittest.TestCase):
             }
             rendered = b"canonical plan"
             with patch(
-                "worklib.services.plan.prepare_plan_json_contract",
+                "worklib.business_services.plan.prepare_plan_json_contract",
                 return_value=(validation, rendered),
             ), patch(
-                "worklib.services.plan.validate_plan_file",
+                "worklib.business_services.plan.validate_plan_file",
                 return_value=validation,
             ):
                 result = create_plan_file(
@@ -135,14 +135,14 @@ class InitialPlanPreparationTests(unittest.TestCase):
         self.assertEqual(path.read_bytes(), b"preserve existing Plan")
 
     def test_instruction_drift_is_rejected_by_final_validator(self):
-        from worklib.services.instruction_work_selection import build_work_instruction_selection
+        from worklib.services.instruction.work_selection import build_work_instruction_selection
 
-        def stale(**kwargs):
-            result = build_work_instruction_selection(**kwargs)
+        def stale(loaded):
+            result = build_work_instruction_selection(loaded)
             result["instructions_sha256"] = "0" * 64
             return result
 
-        with patch("worklib.services.plan.build_work_instruction_selection", side_effect=stale):
+        with patch("worklib.business_services.plan.build_work_selection", side_effect=stale):
             with self.assertRaises(WorkError):
                 self.prepare()
         self.assertEqual(list(self.root.iterdir()), [])

@@ -1,18 +1,8 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 
-from ..services.handoff import build_plan_to_task_handoff, build_task_to_execute_handoff, build_task_to_plan_handoff
-from ..services.handoff import build_execute_return_handoff, build_preflight_return_handoff
-from ..services.handoff import verify_plan_to_task_handoff, verify_task_to_execute_handoff, verify_return_handoff
-from ..services.handoff import (
-    render_handoff_json_contract,
-    validate_handoff_json_contract,
-)
-from ..infrastructure.cli_io import FileInput
-from ..foundation.markdown import parse_json_contract
-from ..services.skill_catalog import parse_skill_root
+from ..workflows.handoff import run_handoff
 from . import SubparserRegistry
 
 
@@ -60,58 +50,3 @@ def register_handoff_commands(commands: SubparserRegistry) -> None:
             context = verify.add_mutually_exclusive_group(required=True)
             context.add_argument("--attempt-id")
             context.add_argument("--preflight", action="store_true")
-
-
-def run_handoff(
-    arguments: argparse.Namespace,
-    project_root: Path,
-    request: FileInput | None,
-) -> dict[str, object]:
-    if arguments.handoff_command in {"verify-task-to-plan", "verify-execute-to-plan", "verify-execute-to-task"}:
-        return verify_return_handoff(
-            project_root, parse_json_contract(request.raw, source=request.source),
-            direction=arguments.handoff_command.removeprefix("verify-").replace("-", "_"),
-            plan_path=arguments.plan_path, task_path=arguments.task_path, task_id=arguments.task_id,
-            attempt_id=getattr(arguments, "attempt_id", None), preflight=getattr(arguments, "preflight", False),
-            user_config_root=arguments.user_config_root,
-            skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
-        )
-    if arguments.handoff_command == "verify-task-to-execute":
-        return verify_task_to_execute_handoff(
-            project_root, parse_json_contract(request.raw, source=request.source),
-            task_path=arguments.task_path, task_id=arguments.task_id, user_config_root=arguments.user_config_root,
-            skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
-        )
-    if arguments.handoff_command == "verify-plan-to-task":
-        return verify_plan_to_task_handoff(
-            project_root, parse_json_contract(request.raw, source=request.source),
-            plan_path=arguments.plan_path, user_config_root=arguments.user_config_root,
-            skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
-        )
-    if arguments.handoff_command in {"build-plan-to-task", "build-task-to-execute", "build-task-to-plan", "build-execute-to-task", "build-execute-to-plan"}:
-        request = parse_json_contract(request.raw, source=request.source)
-        common = {"user_config_root": arguments.user_config_root, "skill_roots": [parse_skill_root(root) for root in arguments.skill_root]}
-        if arguments.handoff_command.startswith("build-execute-"):
-            if arguments.preflight:
-                return build_preflight_return_handoff(
-                    project_root, request, direction=arguments.handoff_command.removeprefix("build-").replace("-", "_"),
-                    task_path=arguments.task_path, task_id=arguments.task_id, **common,
-                )
-            return build_execute_return_handoff(
-                project_root, request, direction=arguments.handoff_command.removeprefix("build-").replace("-", "_"),
-                task_path=arguments.task_path, task_id=arguments.task_id, attempt_id=arguments.attempt_id, **common,
-            )
-        if arguments.handoff_command == "build-plan-to-task":
-            return build_plan_to_task_handoff(project_root, request, plan_path=arguments.plan_path, **common)
-        operation = build_task_to_plan_handoff if arguments.handoff_command == "build-task-to-plan" else build_task_to_execute_handoff
-        return operation(project_root, request, task_path=arguments.task_path, task_id=arguments.task_id, **common)
-    operation = (
-        validate_handoff_json_contract
-        if arguments.handoff_command == "validate"
-        else render_handoff_json_contract
-    )
-    return operation(
-        request.raw,
-        source=request.source,
-        project_root=project_root,
-    )

@@ -11,9 +11,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from contracts import test_task as fixtures
 from contracts.test_progress import discussion
-from worklib.services.delegation import MARKERS, validate_delegation
-from worklib.foundation.errors import WorkError
-from worklib.services.instruction_selection import build_instruction_selection
+from worklib.business_services.delegation import validate_delegation
+from worklib.services.delegation import MARKERS, validate_delegation_envelope
+from worklib.models.common.errors import WorkError
+from worklib.business_services.instruction import build_instruction_selection
 from worklib.services.skill_selection import SKILL_FIELDS, selection_sha256
 
 
@@ -84,6 +85,21 @@ class DelegationTests(unittest.TestCase):
         value = self.envelope()
         with self.assertRaises(WorkError):
             validate_delegation(value, role="execute", sender="parent", project_root=self.root, skill_root=fixtures.SKILL_ROOT)
+
+    def test_envelope_service_validates_without_cross_feature_context(self):
+        value = self.envelope()
+        envelope, request, mode, context, resume = validate_delegation_envelope(
+            value,
+            role="plan",
+            sender="parent",
+            project_root=self.root,
+            skill_root=fixtures.SKILL_ROOT,
+        )
+        self.assertIs(envelope, value)
+        self.assertEqual(request, "Confirmed role request")
+        self.assertEqual(mode, "plan")
+        self.assertIs(context, value["context"])
+        self.assertFalse(resume)
 
     def test_missing_role_context_is_rejected(self):
         for role in MARKERS:

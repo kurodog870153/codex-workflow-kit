@@ -295,9 +295,9 @@ if errorlevel 1 exit /b 1
 call :copy_file "scripts\work.py"
 if errorlevel 1 exit /b 1
 for /r "%source_work%\scripts\worklib" %%F in (*.py) do (
-    if /i not "%%~nxF"=="rules.py" (
-        set "python_relative=%%~fF"
-        set "python_relative=!python_relative:%source_work%\=!"
+    set "python_relative=%%~fF"
+    set "python_relative=!python_relative:%source_work%\=!"
+    if /i not "!python_relative!"=="scripts\worklib\rules.py" (
         call :copy_file "!python_relative!"
         if errorlevel 1 exit /b 1
     )

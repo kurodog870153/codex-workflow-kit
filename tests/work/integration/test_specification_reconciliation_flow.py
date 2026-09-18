@@ -10,8 +10,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/work/scripts"))
 
-from worklib.contracts.execution_deviation_models import ExecutionDeviationContract
-from worklib.services.specification_reconciliation import preview_specification_reconciliation
+from worklib.models.execution import ExecutionDeviationContract
+from worklib.workflows.task import preview_specification_reconciliation
 
 
 class SpecificationReconciliationFlowTests(unittest.TestCase):
@@ -30,8 +30,8 @@ class SpecificationReconciliationFlowTests(unittest.TestCase):
             nested = {"schema": "work-spec-migration-preview/v1", "status": "ready", "documents": [], "diffs": [],
                       "validator_results": [], "relationship_results": [], "unresolved_items": [],
                       "fingerprint": "a" * 64, "writable_ready": True}
-            with patch("worklib.services.specification_reconciliation.render_attempt_json_contract", return_value=attempt), \
-                 patch("worklib.services.specification_reconciliation.preview_specification_migration", return_value=nested):
+            with patch("worklib.business_services.specification.reconciliation.render_attempt_json_contract", return_value=attempt), \
+                 patch("worklib.business_services.specification.reconciliation.preview_specification_migration", return_value=nested):
                 result = preview_specification_reconciliation(json.dumps(request).encode(), project_root=root, user_config_root=str(root))
             self.assertEqual(result["selected_deviation_ids"], ["DEVIATION-001"])
             self.assertEqual(target.read_bytes(), b"immutable attempt\n")

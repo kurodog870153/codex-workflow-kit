@@ -9,9 +9,9 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from tests.work.contracts import test_task_collection
-from worklib.artifacts import task as task_artifact
-from worklib.foundation.errors import WorkError
-from worklib.foundation.markdown import render_json_contract
+from worklib.business_services.task import creation as task_artifact
+from worklib.models.common.errors import WorkError
+from worklib.technical.infrastructure.json_contract import render_json_contract
 
 
 class TaskCollectionCreateTests(unittest.TestCase):

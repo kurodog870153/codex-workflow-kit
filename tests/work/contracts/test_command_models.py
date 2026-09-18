@@ -11,13 +11,20 @@ sys.path.insert(0, str(SCRIPT_ROOT))
 
 from pydantic import ValidationError
 
-from worklib.contracts.command_models import (
+from worklib.models.execution.command import (
     CommandCorrectionRequestContract, CommandPreviewContract,
 )
-from worklib.foundation.errors import WorkError
+from worklib.models.execution.command import (
+    CommandCorrectionRequestContract as LegacyCommandCorrectionRequestContract,
+)
+from worklib.models.common.errors import WorkError
+from worklib.services.command.validation import parse_command_correction_request
 
 
 class CommandCorrectionRequestTests(unittest.TestCase):
+    def test_legacy_export_preserves_class_identity(self) -> None:
+        self.assertIs(LegacyCommandCorrectionRequestContract, CommandCorrectionRequestContract)
+
     def request(self) -> dict[str, object]:
         return {
             "schema": "work-command-correction-request/v1",
@@ -28,7 +35,7 @@ class CommandCorrectionRequestTests(unittest.TestCase):
         }
 
     def parse(self, request: dict[str, object]) -> dict[str, object]:
-        return CommandCorrectionRequestContract.parse_request(
+        return parse_command_correction_request(
             json.dumps(request).encode("utf-8"), source="stdin"
         ).to_execution_dict()
 

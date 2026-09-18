@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/work/scripts"))
 
-from worklib.contracts.specification_migration_models import (
+from worklib.models.specification.migration import (
     SpecificationMigrationPreviewContract, SpecificationMigrationPreviewRequestContract,
     SpecificationMigrationPublicationContract,
 )

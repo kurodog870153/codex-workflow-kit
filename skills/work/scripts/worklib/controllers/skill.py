@@ -3,9 +3,7 @@ from __future__ import annotations
 import argparse
 
 from . import SubparserRegistry
-from ..infrastructure.cli_io import FileInput
-from ..services.skill import build_selection, catalog, snapshot, validate_selection
-from ..services.skill_catalog import parse_skill_root
+from ..business_services.skill import build_selection, catalog, snapshot, validate_selection
 
 
 def register_skill_commands(commands: SubparserRegistry) -> None:
@@ -25,11 +23,11 @@ def register_skill_commands(commands: SubparserRegistry) -> None:
     build_parser.add_argument("--input-file", required=True)
 
 
-def run_skills(arguments: argparse.Namespace, request: FileInput | None) -> dict[str, object]:
+def run_skills(arguments: argparse.Namespace, request) -> dict[str, object]:
     if arguments.skills_command == "selection-build":
-        return build_selection(request.raw, source=request.source, roots=[parse_skill_root(root) for root in arguments.root])
+        return build_selection(request.raw, source=request.source, roots=arguments.root)
     if arguments.skills_command == "selection-validate":
-        return validate_selection(request.raw, roots=[parse_skill_root(root) for root in arguments.root])
+        return validate_selection(request.raw, roots=arguments.root)
     if arguments.skills_command == "catalog":
-        return catalog([parse_skill_root(root) for root in arguments.root], disabled_sources=set(arguments.disabled_source))
-    return snapshot(parse_skill_root(arguments.root), arguments.source)
+        return catalog(arguments.root, disabled_sources=set(arguments.disabled_source))
+    return snapshot(arguments.root, arguments.source)

@@ -19,10 +19,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from cli_support import FileInputTestCase
 
 from worklib.cli import main
-from worklib.contracts.progress import validate_progress_contract
-from worklib.foundation.errors import ExitCode
-from worklib.foundation.markdown import render_json_contract
-from worklib.infrastructure.writer_lock import state_writer
+from worklib.services.progress.validation import validate_progress_contract
+from worklib.models.common.errors import ExitCode
+from worklib.technical.infrastructure.json_contract import render_json_contract
+from worklib.technical.infrastructure.writer_lock import state_writer
 
 
 class ProgressCliTests(FileInputTestCase):
@@ -222,7 +222,7 @@ class ProgressCliTests(FileInputTestCase):
         previous = self.read()
         self.progress["revision"] = 2
         approval = self.preview(expected_revision=1)["approved_sha256"]
-        with patch("worklib.infrastructure.progress_storage.replace_progress_file", side_effect=OSError("interrupted")):
+        with patch("worklib.technical.infrastructure.progress_storage._replace_progress_file", side_effect=OSError("interrupted")):
             error = self.save(expected_revision=1, approval=approval, expected_code=ExitCode.IO_FAILURE)
         self.assertEqual(error["reason_code"], "progress_save_interrupted")
         self.assertEqual(self.read(), previous)
@@ -238,7 +238,7 @@ class ProgressCliTests(FileInputTestCase):
             path.write_bytes(raw[:10])
             raise OSError("disk full")
 
-        with patch("worklib.infrastructure.progress_storage.write_progress_bytes", side_effect=short_write):
+        with patch("worklib.technical.infrastructure.progress_storage._write_progress_bytes", side_effect=short_write):
             self.save(approval=approval, expected_code=ExitCode.IO_FAILURE)
         self.assertEqual(self.read(expected_code=ExitCode.WORKFLOW_STATE)["reason_code"], "progress_not_saved")
         self.assertEqual(self.preview(expected_code=ExitCode.WORKFLOW_STATE)["reason_code"], "progress_save_pending")

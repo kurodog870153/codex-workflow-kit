@@ -13,25 +13,24 @@ from unittest.mock import patch
 SKILL_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work"
 sys.path.insert(0, str(SKILL_ROOT / "scripts"))
 
-from worklib.contracts.attempt import render_attempt_contract, validate_attempt_file
-from worklib.contracts.attempt_authorization_models import authorization_sha256, minimal_authorization
+from worklib.services.attempt import render_attempt_contract, validate_attempt_file
+from worklib.services.attempt import authorization_sha256, minimal_authorization
 from tests.work.contracts import test_task_collection
-from worklib.contracts.execution_index import (
+from worklib.services.attempt.validation import (
     build_initial_execution_index,
     render_execution_index,
     validate_execution_index,
 )
-from worklib.contracts.execution_deviation_models import ExecutionDeviationProposalContract
-from worklib.execution.attempt_close import close_attempt
-from worklib.execution.deviation import record_execution_deviation
-from worklib.execution.record_finish import finish_record
-from worklib.execution.recovery import recover_execution
-from worklib.foundation.errors import ExitCode, WorkError
-from worklib.foundation.markdown import (
+from worklib.models.execution import ExecutionDeviationProposalContract
+from worklib.workflows.execution import close_attempt
+from worklib.workflows.execution import finish_record, record_execution_deviation
+from worklib.workflows.execution import recover_execution
+from worklib.models.common.errors import ExitCode, WorkError
+from worklib.technical.infrastructure.json_contract import (
     parse_json_contract,
 )
-from worklib.services.task_collection import load_task_collection
-from worklib.services.instruction_selection import build_instruction_selection
+from worklib.business_services.task import load_task_collection
+from worklib.business_services.instruction import build_instruction_selection
 
 
 class ExecutionTransactionRecoveryTests(unittest.TestCase):
@@ -109,7 +108,7 @@ class ExecutionTransactionRecoveryTests(unittest.TestCase):
                 "approved_sha256": approved_sha256,
             }
             preparation = patch(
-                "worklib.execution.deviation._prepare_execution_deviation",
+                "worklib.business_services.execution.deviation._prepare_execution_deviation",
                 return_value={
                     "proposal": request,
                     "preview_sha256": approved_sha256,

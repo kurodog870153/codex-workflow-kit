@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from cli_support import FileInputTestCase
 
 from worklib.cli import build_parser, main
-from worklib.foundation.errors import ExitCode, WorkError
+from worklib.models.common.errors import ExitCode, WorkError
 
 
 class ExecuteCliTests(FileInputTestCase):

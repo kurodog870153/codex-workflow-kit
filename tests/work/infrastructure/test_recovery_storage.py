@@ -11,8 +11,8 @@ from unittest.mock import patch
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.foundation.errors import ExitCode, WorkError
-from worklib.infrastructure.recovery_storage import (
+from worklib.models.common.errors import ExitCode, WorkError
+from worklib.technical.infrastructure.recovery_storage import (
     install_recovery_target,
     prepare_recovery_target,
 )
@@ -27,7 +27,7 @@ class RecoveryStorageTests(unittest.TestCase):
     def test_prepare_is_durable_and_idempotent(self) -> None:
         path = self.root / "prepared.tmp"
         with patch(
-            "worklib.infrastructure.recovery_storage.os.fsync", wraps=os.fsync
+            "worklib.technical.infrastructure.recovery_storage.os.fsync", wraps=os.fsync
         ) as sync:
             prepare_recovery_target(path, b"expected")
         sync.assert_called_once()
@@ -50,7 +50,7 @@ class RecoveryStorageTests(unittest.TestCase):
         target = self.root / "target.json"
         temporary.write_bytes(b"expected")
         target.write_bytes(b"changed")
-        with patch("worklib.infrastructure.recovery_storage.os.replace") as replace:
+        with patch("worklib.technical.infrastructure.recovery_storage.os.replace") as replace:
             with self.assertRaises(WorkError) as context:
                 install_recovery_target(
                     temporary,
@@ -69,7 +69,7 @@ class RecoveryStorageTests(unittest.TestCase):
         target.write_bytes(b"original")
         failure = OSError("interrupted")
         with patch(
-            "worklib.infrastructure.recovery_storage.os.replace",
+            "worklib.technical.infrastructure.recovery_storage.os.replace",
             side_effect=failure,
         ):
             with self.assertRaises(WorkError) as context:

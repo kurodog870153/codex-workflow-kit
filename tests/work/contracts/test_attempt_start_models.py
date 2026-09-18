@@ -9,14 +9,16 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.attempt_start_models import AttemptStartRequestContract
-from worklib.contracts.attempt_authorization_models import minimal_authorization
-from worklib.foundation.errors import WorkError
+from worklib.models.execution.attempt_start import AttemptStartRequestContract as LegacyAttemptStartRequestContract
+from worklib.services.attempt import minimal_authorization
+from worklib.models.common.errors import WorkError
+from worklib.models.execution.attempt_start import AttemptStartRequestContract
+from worklib.services.attempt.start_validation import parse_attempt_start_request
 
 
 class AttemptStartRequestTests(unittest.TestCase):
     def parse(self, request: dict[str, object]) -> dict[str, object]:
-        return AttemptStartRequestContract.parse_request(
+        return parse_attempt_start_request(
             json.dumps(request).encode("utf-8"), source="stdin"
         ).to_canonical_dict()
 
@@ -26,6 +28,9 @@ class AttemptStartRequestTests(unittest.TestCase):
             "worktree_snapshot_sha256": "a" * 64,
             "authorization": minimal_authorization(),
         }
+
+    def test_legacy_export_preserves_class_identity(self) -> None:
+        self.assertIs(LegacyAttemptStartRequestContract, AttemptStartRequestContract)
 
     def test_parses_request_without_continuation(self) -> None:
         request = self.base_request()

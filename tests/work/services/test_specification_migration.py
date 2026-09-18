@@ -10,8 +10,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/work/scripts"))
 
-from worklib.foundation.fingerprint import raw_sha256
-from worklib.services.specification_migration import preview_specification_migration, publish_specification_migration
+from worklib.technical.foundation.fingerprint import raw_sha256
+from worklib.workflows.task import preview_specification_migration, publish_specification_migration
 
 
 class SpecificationMigrationPreviewTests(unittest.TestCase):
@@ -46,9 +46,9 @@ class SpecificationMigrationPreviewTests(unittest.TestCase):
                            "task_item_sha256": {"TASK-001": "3" * 64}}
 
     def preview(self):
-        with patch("worklib.services.specification_migration.validate_plan_contract", return_value={}), \
-             patch("worklib.services.specification_migration.validate_task_collection_contract", return_value=self.collection), \
-             patch("worklib.services.specification_migration.validate_execution_index", return_value={}):
+        with patch("worklib.workflows.task.validate_plan_contract", return_value={}), \
+             patch("worklib.workflows.task.validate_task_collection_contract", return_value=self.collection), \
+             patch("worklib.business_services.specification.migration.validate_execution_index", return_value={}):
             return preview_specification_migration(json.dumps(self.request).encode(), project_root=self.root,
                                                    user_config_root=str(self.root), skill_roots=[])
 
@@ -76,9 +76,9 @@ class SpecificationMigrationPreviewTests(unittest.TestCase):
 
     def test_apply_publishes_and_recovery_reuses_identical_journal(self):
         preview = self.preview()
-        with patch("worklib.services.specification_migration.validate_plan_contract", return_value={}), \
-             patch("worklib.services.specification_migration.validate_task_collection_contract", return_value=self.collection), \
-             patch("worklib.services.specification_migration.validate_execution_index", return_value={}):
+        with patch("worklib.workflows.task.validate_plan_contract", return_value={}), \
+             patch("worklib.workflows.task.validate_task_collection_contract", return_value=self.collection), \
+             patch("worklib.business_services.specification.migration.validate_execution_index", return_value={}):
             result = publish_specification_migration(
                 json.dumps(self.request).encode(), project_root=self.root, user_config_root=str(self.root),
                 skill_roots=[], operation="apply", approved_sha256=preview["fingerprint"],

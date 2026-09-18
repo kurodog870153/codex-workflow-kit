@@ -10,11 +10,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/work/script
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from artifacts import test_task_draft_sources as fixtures
-from worklib.artifacts.task_draft import read_task_planning_index, save_task_planning, recover_task_planning
-from worklib.artifacts.task_draft_list import update_task_planning_list
-from worklib.artifacts.task_draft_prepare import initialize_task_planning_request, prepare_task_planning_request
-from worklib.services.plan_validation import render_plan_contract
-from worklib.foundation.errors import WorkError
+from worklib.services.task.draft.storage import read_task_planning_index, save_task_planning, recover_task_planning
+from worklib.business_services.task.draft_list import update_task_planning_list
+from worklib.workflows.task import initialize_task_planning_request, prepare_task_planning_request
+from worklib.business_services.plan import render_plan_contract
+from worklib.models.common.errors import WorkError
 
 
 class DraftPreparationTests(unittest.TestCase):
@@ -86,7 +86,7 @@ class DraftPreparationTests(unittest.TestCase):
         self.assertEqual(self.snapshot(), before)
 
     def test_interrupted_init_exposes_exact_recovery_index(self):
-        with patch("worklib.artifacts.task_draft.os.replace", side_effect=OSError("interrupted")):
+        with patch("worklib.services.task.draft.storage.os.replace", side_effect=OSError("interrupted")):
             with self.assertRaises(WorkError) as caught:
                 self.initialize()
         index = caught.exception.details["prepared_index"]

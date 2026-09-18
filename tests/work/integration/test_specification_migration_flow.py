@@ -10,11 +10,11 @@ sys.path.insert(0, str(SCRIPT_ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from contracts import test_task_collection as fixtures
-from worklib.contracts.execution_index import build_initial_execution_index, render_execution_index
-from worklib.foundation.fingerprint import raw_sha256
-from worklib.foundation.markdown import parse_json_contract
-from worklib.services.specification_migration import preview_specification_migration, publish_specification_migration
-from worklib.services.task_collection import load_task_collection
+from worklib.services.attempt import build_initial_execution_index, render_execution_index
+from worklib.technical.foundation.fingerprint import raw_sha256
+from worklib.technical.infrastructure.json_contract import parse_json_contract
+from worklib.workflows.task import preview_specification_migration, publish_specification_migration
+from worklib.business_services.task import load_task_collection
 
 
 class SpecificationMigrationFlowTests(unittest.TestCase):

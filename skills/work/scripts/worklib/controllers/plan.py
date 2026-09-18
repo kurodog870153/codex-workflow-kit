@@ -3,11 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ..services.plan import create_plan_file, prepare_initial_plan
-from ..services.plan_validation import validate_plan_file, validate_plan_json_contract
-from ..foundation.errors import ExitCode, WorkError
-from ..services.skill_catalog import parse_skill_root
-from ..infrastructure.cli_io import FileInput
+from ..business_services.plan import create_plan_file, parse_roots, prepare_initial_plan, validate_plan_request
 from . import SubparserRegistry
 
 
@@ -37,45 +33,25 @@ def register_plan_commands(commands: SubparserRegistry) -> None:
 def run_plan(
     arguments: argparse.Namespace,
     project_root: Path,
-    request: FileInput | None,
+    request: object | None,
 ) -> dict[str, object]:
-    skill_roots = [parse_skill_root(root) for root in arguments.skill_root]
+    skill_roots = parse_roots(arguments.skill_root)
+    raw = getattr(request, "raw", None)
+    source = getattr(request, "source", None)
     if arguments.plan_command == "prepare":
-        return prepare_initial_plan(request.raw, source=request.source, project_root=project_root,
+        return prepare_initial_plan(raw, source=source, project_root=project_root,
                                     user_config_root=arguments.user_config_root, skill_roots=skill_roots)
     if arguments.plan_command == "create":
         return create_plan_file(
-            request.raw,
-            source=request.source,
+            raw,
+            source=source,
             raw_plan_path=arguments.plan_path,
             project_root=project_root,
             user_config_root=arguments.user_config_root,
             skill_roots=skill_roots,
         )
     if arguments.input_file:
-        if not arguments.plan_path:
-            raise WorkError(
-                ExitCode.CLI_USAGE,
-                "plan_path_required",
-                "--plan-path is required with --input-file.",
-            )
-        return validate_plan_json_contract(
-            request.raw,
-            source=request.source,
-            actual_plan_path=arguments.plan_path,
-            project_root=project_root,
-            user_config_root=arguments.user_config_root,
-            skill_roots=skill_roots,
-        )
-    if arguments.plan_path:
-        raise WorkError(
-            ExitCode.CLI_USAGE,
-            "unexpected_plan_path",
-            "--plan-path is only valid with --input-file.",
-        )
-    return validate_plan_file(
-        project_root,
-        arguments.user_config_root,
-        arguments.path,
-        skill_roots=skill_roots,
-    )
+        pass
+    return validate_plan_request(input_file=bool(arguments.input_file), plan_path=arguments.plan_path,
+        path=arguments.path, raw=raw, source=source, project_root=project_root,
+        user_config_root=arguments.user_config_root, skill_roots=skill_roots)

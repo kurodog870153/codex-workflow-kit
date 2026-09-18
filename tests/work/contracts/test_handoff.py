@@ -11,8 +11,8 @@ SCRIPT_ROOT = REPO_ROOT / "skills" / "work" / "scripts"
 if str(SCRIPT_ROOT) not in sys.path:
     sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.foundation.errors import WorkError
-from worklib.contracts.handoff import validate_handoff_contract
+from worklib.models.common.errors import WorkError
+from worklib.services.handoff import validate_handoff_contract
 
 
 class HandoffInstructionContractTests(unittest.TestCase):

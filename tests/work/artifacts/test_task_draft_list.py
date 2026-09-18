@@ -10,9 +10,9 @@ from unittest.mock import patch
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills/work/scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.artifacts.task_draft import read_task_draft, read_task_planning_index, save_task_planning
-from worklib.artifacts.task_draft_list import update_task_planning_list
-from worklib.foundation.errors import WorkError
+from worklib.services.task.draft.storage import read_task_draft, read_task_planning_index, save_task_planning
+from worklib.business_services.task.draft_list import update_task_planning_list
+from worklib.models.common.errors import WorkError
 
 
 class TaskDraftListTests(unittest.TestCase):
@@ -96,7 +96,7 @@ class TaskDraftListTests(unittest.TestCase):
 
     def test_interrupted_update_recovers_exact_content(self):
         self.proposed["tasks"][0]["goal"] = "Changed"
-        with patch("worklib.artifacts.task_draft_list.os.replace", side_effect=OSError("interrupted")):
+        with patch("worklib.business_services.task.draft_list.os.replace", side_effect=OSError("interrupted")):
             with self.assertRaises(WorkError):
                 self.update()
         self.assertEqual(read_task_planning_index(self.root, "example"), self.before)

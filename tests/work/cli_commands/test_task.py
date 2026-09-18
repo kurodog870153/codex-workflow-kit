@@ -17,8 +17,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from cli_support import FileInputTestCase
 
 from worklib.cli import build_parser, main
-from worklib.controllers.task import _specification_summary
-from worklib.foundation.errors import ExitCode, WorkError
+from worklib.business_services.task.workflow import _specification_summary
+from worklib.models.common.errors import ExitCode, WorkError
+from worklib.workflows.task import TaskDraftOperations
 
 
 class TaskCliTests(FileInputTestCase):
@@ -27,7 +28,7 @@ class TaskCliTests(FileInputTestCase):
             root = Path(temporary).resolve()
             result = {"schema": "work-task-collection-validation/v1"}
             with patch(
-                "worklib.controllers.task.load_task_collection",
+                "worklib.business_services.task.workflow.load_task_collection",
                 return_value=result,
             ) as load:
                 output, error = io.StringIO(), io.StringIO()
@@ -169,7 +170,7 @@ class TaskCliTests(FileInputTestCase):
                 with self.subTest(task_id=task_id):
                     output, error = io.StringIO(), io.StringIO()
                     extra = [] if task_id is None else ["--task-id", task_id]
-                    with patch("worklib.controllers.task.task_draft_status", return_value={"next_action": "confirm_start"}) as operation:
+                    with patch("worklib.business_services.task.workflow.task_draft_status", return_value={"next_action": "confirm_start"}) as operation:
                         code = main(["--project-root", str(root), "task", "draft-status", "--requirement-id", "example", *extra], stdout=output, stderr=error)
                     self.assertEqual((code, error.getvalue()), (ExitCode.SUCCESS, ""))
                     self.assertEqual(json.loads(output.getvalue())["data"]["next_action"], "confirm_start")
@@ -183,7 +184,7 @@ class TaskCliTests(FileInputTestCase):
                     with self.subTest(command=command, selection=selection):
                         output, error = io.StringIO(), io.StringIO()
                         request = {"status": "in_progress", "notes": ["Discussion"]}
-                        with patch("worklib.controllers.task.save_task_draft_request", return_value={"status": "saved"}) as operation:
+                        with patch("worklib.business_services.task.workflow.save_task_draft_request", return_value={"status": "saved"}) as operation:
                             code = main(self.input_arguments([
                                 "--project-root", str(root), "task", command, "--input-file", "request.json",
                                 "--requirement-id", "example", "--task-id", "TASK-001",
@@ -197,6 +198,7 @@ class TaskCliTests(FileInputTestCase):
                             plan_path="outputs/work/plans/example.json", user_config_root=str(root),
                             skill_roots=[], selected_paths=paths, reference_names=["task.general.task-records"],
                             recover=command == "draft-recover-request",
+                            operations=TaskDraftOperations,
                         )
 
     def test_single_draft_request_requires_input_file_and_rejects_conflicting_selection(self) -> None:
@@ -219,7 +221,7 @@ class TaskCliTests(FileInputTestCase):
                 with self.subTest(command=command):
                     output, error = io.StringIO(), io.StringIO()
                     request = {"reason": "Reviewed", "selections": {"TASK-001": {"selected_paths": [], "references": []}}}
-                    with patch("worklib.controllers.task.update_task_draft_sources", return_value={"status": "saved"}) as operation:
+                    with patch("worklib.business_services.task.workflow.update_task_draft_sources", return_value={"status": "saved"}) as operation:
                         code = main(self.input_arguments([
                             "--project-root", str(root), "task", command, "--input-file", "request.json",
                             "--requirement-id", "example", "--expected-revision", "2",
@@ -228,7 +230,7 @@ class TaskCliTests(FileInputTestCase):
                     self.assertEqual(code, ExitCode.SUCCESS)
                     operation.assert_called_once_with(root, "example", request, expected_revision=2,
                         plan_path="outputs/work/plans/example.json", user_config_root=str(root), skill_roots=[],
-                        recover=command == "draft-source-recover")
+                        recover=command == "draft-source-recover", operations=TaskDraftOperations)
 
     def test_assembly_commands_dispatch_metadata_and_approval(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -245,17 +247,17 @@ class TaskCliTests(FileInputTestCase):
                         arguments += ["--approved-sha256", "a" * 64]
                         extra["approved_sha256"] = "a" * 64
                     metadata = {"title": "TASK", "summary": "Result"}
-                    with patch("worklib.controllers.task." + name, return_value={"status": "valid"}) as operation:
+                    with patch("worklib.business_services.task.workflow." + name, return_value={"status": "valid"}) as operation:
                         code = main(self.input_arguments(arguments, json.dumps(metadata)), stdout=output, stderr=error)
                     self.assertEqual(code, ExitCode.SUCCESS)
-                    operation.assert_called_once_with(root, "example", metadata, expected_revision=2, plan_path="outputs/work/plans/example.json", user_config_root=str(root), skill_roots=[], **extra)
+                    operation.assert_called_once_with(root, "example", metadata, expected_revision=2, plan_path="outputs/work/plans/example.json", user_config_root=str(root), skill_roots=[], operations=TaskDraftOperations, **extra)
     def test_list_update_and_recovery_dispatch(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
             for command in ("draft-list-update", "draft-list-recover"):
                 with self.subTest(command=command):
                     output, error = io.StringIO(), io.StringIO()
-                    with patch("worklib.controllers.task.update_task_planning_list", return_value={"status": "saved"}) as operation:
+                    with patch("worklib.business_services.task.workflow.update_task_planning_list", return_value={"status": "saved"}) as operation:
                         code = main(self.input_arguments([
                             "--project-root", str(root), "task", command,
                             "--input-file", "request.json", "--expected-revision", "3",
@@ -273,7 +275,7 @@ class TaskCliTests(FileInputTestCase):
                 with self.subTest(selection=selection):
                     stdout, stderr = io.StringIO(), io.StringIO()
                     result = {"schema": "work-task-draft-source-check/v1", "status": "valid"}
-                    with patch("worklib.controllers.task.check_task_draft_sources", return_value=result) as check:
+                    with patch("worklib.business_services.task.workflow.check_task_draft_sources", return_value=result) as check:
                         code = main([
                             "--project-root", str(root), "task", "draft-check",
                             "--requirement-id", "example", "--task-id", "TASK-001",
@@ -289,6 +291,7 @@ class TaskCliTests(FileInputTestCase):
                         plan_path="outputs/work/plans/example.json", user_config_root=str(root),
                         skill_roots=[], selected_paths=expected_paths,
                         reference_names=["task.general.task-records"],
+                        operations=TaskDraftOperations,
                     )
 
     def test_draft_commands_dispatch_missing_flags_as_saved_selection(self) -> None:
@@ -298,7 +301,7 @@ class TaskCliTests(FileInputTestCase):
                 with self.subTest(command=command):
                     output, error = io.StringIO(), io.StringIO()
                     extra = [] if command == "draft-check" else ["--input-file", "request.json"]
-                    with patch("worklib.controllers.task." + function, return_value={"status": "valid"}) as operation:
+                    with patch("worklib.business_services.task.workflow." + function, return_value={"status": "valid"}) as operation:
                         code = main(self.input_arguments([
                             "--project-root", str(root), "task", command,
                             "--requirement-id", "example", "--task-id", "TASK-001",
@@ -381,7 +384,7 @@ class TaskCliTests(FileInputTestCase):
                     arguments = [command if value == "COMMAND" else value for value in common]
                     result = {"schema": "work-task-create/v1", "status": "created"}
                     output, error = io.StringIO(), io.StringIO()
-                    with patch("worklib.controllers.task." + operation_name, return_value=result) as operation:
+                    with patch("worklib.business_services.task.workflow." + operation_name, return_value=result) as operation:
                         code = main(self.input_arguments(arguments, "{}"), stdout=output, stderr=error)
                     self.assertEqual((code, error.getvalue()), (ExitCode.SUCCESS, ""))
                     self.assertEqual(json.loads(output.getvalue())["data"], result)
@@ -405,7 +408,12 @@ class TaskCliTests(FileInputTestCase):
                 ("repair_task", ["repair-validate", "--input-file", "request.json"], {"artifacts": legacy_artifacts}),
             ]
             for operation_name, arguments, payload in cases:
-                with self.subTest(command=arguments[0]), patch("worklib.controllers.task." + operation_name) as operation:
+                module = (
+                    "worklib.business_services.task.workflow"
+                    if operation_name == "create_task_artifacts"
+                    else "worklib.workflows.task"
+                )
+                with self.subTest(command=arguments[0]), patch(module + "." + operation_name) as operation:
                     output = io.StringIO()
                     code = main(self.input_arguments([
                         "--project-root", str(root), "task", *arguments,
@@ -570,7 +578,7 @@ class TaskDraftCliTests(FileInputTestCase):
         for revision, payload, expected_draft in ((0, self.index, None), (1, self.proposal(), self.draft)):
             with self.subTest(revision=revision):
                 result = {"schema": "work-task-draft-recovery/v1", "status": "recovered"}
-                with patch("worklib.controllers.task.recover_task_planning", return_value=result) as recover:
+                with patch("worklib.business_services.task.workflow.recover_task_planning", return_value=result) as recover:
                     code, output, error = self.invoke(["draft-recover", "--input-file", "request.json", "--expected-revision", str(revision)], payload)
                 self.assertEqual((code, error), (ExitCode.SUCCESS, ""))
                 self.assertEqual(json.loads(output)["data"], result)

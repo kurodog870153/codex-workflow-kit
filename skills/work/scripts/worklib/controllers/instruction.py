@@ -4,8 +4,7 @@ import argparse
 from pathlib import Path
 
 from . import SubparserRegistry
-from ..foundation.runtime import installed_work_root
-from ..services.instruction import catalog, load, resolve, select
+from ..business_services.instruction import catalog, instruction_root, load, resolve, select
 
 
 def register_instruction_commands(commands: SubparserRegistry) -> None:
@@ -24,7 +23,7 @@ def register_instruction_commands(commands: SubparserRegistry) -> None:
 
 
 def run_instructions(arguments: argparse.Namespace, project_root: Path) -> dict[str, object]:
-    skill_root = installed_work_root()
+    skill_root = instruction_root()
     if arguments.instructions_command == "catalog":
         return catalog(skill_root, arguments.mode)
     if arguments.instructions_command == "load":

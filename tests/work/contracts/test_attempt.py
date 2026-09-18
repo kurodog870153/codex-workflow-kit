@@ -10,14 +10,14 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_ROOT = REPO_ROOT / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.attempt import (
-    AttemptValidationContract,
+from worklib.models.execution.attempt import AttemptValidationContract
+from worklib.services.attempt.validation import (
     canonicalize_attempt_contract,
     validate_attempt_contract,
 )
-from worklib.foundation.errors import WorkError
-from worklib.contracts.execution_deviation_models import ExecutionDeviationContract
-from worklib.contracts.attempt_authorization_models import authorization_sha256, minimal_authorization
+from worklib.models.common.errors import WorkError
+from worklib.models.execution import ExecutionDeviationContract
+from worklib.services.attempt import authorization_sha256, minimal_authorization
 
 
 class AttemptContractTests(unittest.TestCase):

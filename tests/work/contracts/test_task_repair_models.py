@@ -9,13 +9,13 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/work/scripts"))
 
-from worklib.services.task_repair import prepare_task_repair, repair_task
-from worklib.contracts.registry import registry
-from worklib.contracts.task_repair_models import (
+from worklib.workflows.task import prepare_task_repair, repair_task
+from worklib.services.contract import registry
+from worklib.models.task_collection.repair import (
     TaskRepairPrepareContract, TaskRepairPrepareRequestContract,
     TaskRepairContract, TaskRepairRequestContract,
 )
-from worklib.foundation.errors import WorkError
+from worklib.models.common.errors import WorkError
 
 
 class TaskRepairContractTests(unittest.TestCase):
@@ -35,7 +35,7 @@ class TaskRepairContractTests(unittest.TestCase):
                  {**TaskRepairPrepareRequestContract.contract_example, "task_items": {}},
                  {**TaskRepairPrepareRequestContract.contract_example, "unexpected": True}]
         for request in cases:
-            with self.subTest(request=request), patch("worklib.services.task_repair._sources") as sources:
+            with self.subTest(request=request), patch("worklib.business_services.task.repair._sources") as sources:
                 with self.assertRaises(WorkError):
                     prepare_task_repair(json.dumps(request).encode(), project_root=Path("."), user_config_root=".")
                 sources.assert_not_called()
@@ -44,7 +44,7 @@ class TaskRepairContractTests(unittest.TestCase):
         for invalid in ("A" * 64, "0" * 63, 1, False):
             request = copy.deepcopy(TaskRepairRequestContract.contract_example)
             request["expected"]["index.json"] = invalid
-            with self.subTest(invalid=invalid), patch("worklib.services.task_repair.diagnose_task_collection") as diagnose:
+            with self.subTest(invalid=invalid), patch("worklib.workflows.task.diagnose_task_collection") as diagnose:
                 with self.assertRaises(WorkError) as caught:
                     repair_task(json.dumps(request).encode(), project_root=Path("."), user_config_root=".")
                 self.assertEqual(caught.exception.code, "task_repair_expected")

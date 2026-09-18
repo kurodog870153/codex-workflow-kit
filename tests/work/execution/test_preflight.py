@@ -11,26 +11,33 @@ SKILL_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work"
 SCRIPT_ROOT = SKILL_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.foundation.errors import WorkError
-from worklib.execution.preflight import execute_preflight
-from worklib.contracts.execution_index import (
+from worklib.models.common.errors import WorkError
+from worklib.workflows.execution import execute_preflight
+from worklib.business_services.execution.preflight import require_index_identity
+from worklib.services.preflight.validation import (
+    require_index_identity as service_require_index_identity,
+)
+from worklib.services.attempt.validation import (
     build_initial_execution_index,
     render_execution_index,
 )
-from worklib.services.instruction_selection import build_instruction_selection
-from worklib.services.plan_validation import render_plan_contract, validate_plan_file
+from worklib.business_services.instruction import build_instruction_selection
+from worklib.business_services.plan import render_plan_contract, validate_plan_file
 from worklib.services.skill_catalog import SkillRoot, snapshot_catalog_skill
 from worklib.services.skill_selection import selection_sha256
-from worklib.contracts.task_collection_semantics import render_task_contract
-from worklib.artifacts.task import prepare_task_collection_create
-from worklib.services.instruction_task_selection import (
+from worklib.business_services.task.document import render_task_contract
+from worklib.business_services.task.creation import prepare_task_collection_create
+from worklib.business_services.instruction import (
     build_task_document_instruction_selection,
 )
-from worklib.services.instruction_work_selection import build_work_instruction_selection
-from worklib.services.hierarchy_selection import build_hierarchy_selection
+from worklib.business_services.instruction import build_work_instruction_selection
+from worklib.business_services.hierarchy import build_hierarchy_selection
 
 
 class ExecuteInstructionPreflightTests(unittest.TestCase):
+    def test_preflight_reexports_index_identity_validation(self) -> None:
+        self.assertIs(require_index_identity, service_require_index_identity)
+
     def setUp(self) -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary_directory.cleanup)
@@ -344,7 +351,7 @@ Instructions
 
     def test_preflight_uses_collection_fingerprints(self) -> None:
         from tests.work.contracts.test_task_collection import TaskCollectionTests
-        from worklib.services.task_collection import load_task_collection
+        from worklib.business_services.task import load_task_collection
 
         fixture = TaskCollectionTests(
             "test_loads_complete_collection_and_rejects_single_file_artifact"

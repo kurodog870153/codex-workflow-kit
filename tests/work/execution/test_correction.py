@@ -10,15 +10,15 @@ SKILL_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work"
 SCRIPT_ROOT = SKILL_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.foundation.errors import WorkError
-from worklib.execution.correction import _build_lock
-from worklib.execution.instructions import validate_execute_instructions
-from worklib.contracts.execution_index import (
+from worklib.models.common.errors import WorkError
+from worklib.business_services.execution.correction import _build_lock
+from worklib.workflows.execution import validate_execute_instructions
+from worklib.services.attempt.validation import (
     build_initial_execution_index,
     render_execution_index,
     validate_execution_index,
 )
-from worklib.services.instruction_selection import build_instruction_selection
+from worklib.business_services.instruction import build_instruction_selection
 
 
 class ExecuteInstructionCorrectionTests(unittest.TestCase):

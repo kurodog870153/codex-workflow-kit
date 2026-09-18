@@ -10,8 +10,9 @@ from unittest.mock import patch
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.execution.record_begin import _write_lock_update, begin_record
-from worklib.foundation.errors import ExitCode, WorkError
+from worklib.business_services.execution.record_begin import _write_lock_update
+from worklib.workflows.execution import begin_record
+from worklib.models.common.errors import ExitCode, WorkError
 
 
 class RecordBeginTests(unittest.TestCase):
@@ -30,9 +31,9 @@ class RecordBeginTests(unittest.TestCase):
         self.assertEqual(context.exception.code, "record_begin_invalid_base_record_id")
         self.assertEqual(context.exception.details["record_id"], "CMD-1")
 
-    @patch("worklib.execution.record_begin.validate_execution_index")
-    @patch("worklib.execution.record_begin.render_execution_index", return_value=b"new")
-    @patch("worklib.infrastructure.atomic_replace.read_raw", side_effect=[b"old", b"new"])
+    @patch("worklib.business_services.execution.record_begin.validate_execution_index")
+    @patch("worklib.business_services.execution.record_begin.render_execution_index", return_value=b"new")
+    @patch("worklib.technical.infrastructure.atomic_replace.read_raw", side_effect=[b"old", b"new"])
     def test_lock_update_replaces_unchanged_index_atomically(
         self,
         mocked_read,

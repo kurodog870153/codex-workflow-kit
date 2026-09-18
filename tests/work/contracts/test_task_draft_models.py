@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/work/scripts"))
 
-from worklib.contracts.task_draft_models import TaskDraftContract, TaskPlanningIndexContract
+from worklib.models.task_draft import TaskDraftContract, TaskPlanningIndexContract
 
 
 SOURCE = {

@@ -8,8 +8,8 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.command_correction import canonicalize_command_correction
-from worklib.foundation.errors import WorkError
+from worklib.services.attempt.validation import canonicalize_command_correction
+from worklib.models.common.errors import WorkError
 
 
 class CommandCorrectionContractTests(unittest.TestCase):

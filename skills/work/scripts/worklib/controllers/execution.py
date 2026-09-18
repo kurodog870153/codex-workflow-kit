@@ -3,10 +3,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from . import SubparserRegistry
-from ..infrastructure.cli_io import FileInput
-from ..services.execution import execution_service
-from ..services.skill_catalog import parse_skill_root
+from . import RequestInput, SubparserRegistry
+from ..workflows.execution import execution_service
 
 
 def _add_execution_context_arguments(parser: argparse.ArgumentParser) -> None:
@@ -61,7 +59,7 @@ def register_execute_commands(commands: SubparserRegistry) -> None:
 def run_execute(
     arguments: argparse.Namespace,
     project_root: Path,
-    request: FileInput | None,
+    request: RequestInput | None,
 ) -> dict[str, object]:
     return execution_service.execute(
         arguments.execute_command,
@@ -70,7 +68,7 @@ def run_execute(
         raw_task_path=arguments.task_path,
         raw_execution_dir=arguments.execution_dir,
         task_id=arguments.task_id,
-        skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
+        skill_roots=arguments.skill_root,
         raw_request=request.raw if request is not None else None,
         source=request.source if request is not None else None,
         confirmed_inputs=getattr(arguments, "confirmed_input", None),

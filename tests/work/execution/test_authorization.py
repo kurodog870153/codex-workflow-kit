@@ -9,11 +9,9 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.attempt_authorization_models import (
-    REAPPROVAL_CONDITIONS,
-    minimal_authorization,
-)
-from worklib.execution.authorization import (
+from worklib.models.execution import REAPPROVAL_CONDITIONS
+from worklib.services.attempt import minimal_authorization
+from worklib.services.authorization.rules import (
     authorization_evidence,
     require_deviation,
     require_modified_files,
@@ -21,7 +19,7 @@ from worklib.execution.authorization import (
     require_result_evidence,
     require_retry_evidence,
 )
-from worklib.foundation.errors import WorkError
+from worklib.models.common.errors import WorkError
 
 
 class AttemptAuthorizationFlowTests(unittest.TestCase):

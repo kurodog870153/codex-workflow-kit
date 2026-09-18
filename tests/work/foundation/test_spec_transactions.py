@@ -10,9 +10,10 @@ from unittest.mock import patch
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.foundation import spec_transactions as transactions
-from worklib.foundation.errors import ExitCode, WorkError
-from worklib.contracts.spec_transaction import encode_snapshot, transaction_approval_sha256
+from worklib.technical.infrastructure import specification_storage as transactions
+from worklib.models.common.errors import ExitCode, WorkError
+from worklib.services.specification import transaction as publication
+from worklib.services.specification.transaction import encode_snapshot, transaction_approval_sha256
 
 
 class SpecificationTransactionTests(unittest.TestCase):
@@ -108,12 +109,12 @@ class SpecificationTransactionTests(unittest.TestCase):
         (self.root / "b.json").write_bytes(b"old-b")
         journal = self.root / "journal.json"
         marker = self.root / "journal.json.done"
-        transactions.write_journal(journal, self.journal())
-        result = transactions.publish_journal(self.root, "journal.json", "journal.json.done")
+        publication.write_journal(journal, self.journal())
+        result = publication.publish_journal(self.root, "journal.json", "journal.json.done")
         self.assertEqual(result["status"], "published")
         self.assertEqual((self.root / "a.json").read_bytes(), b"new-a")
         self.assertEqual((self.root / "b.json").read_bytes(), b"new-b")
-        self.assertEqual(transactions.publish_journal(self.root, "journal.json", "journal.json.done")["status"], "already_published")
+        self.assertEqual(publication.publish_journal(self.root, "journal.json", "journal.json.done")["status"], "already_published")
 
     def test_interruption_recovery_and_concurrent_change(self):
         for changed in (False, True):
@@ -121,8 +122,8 @@ class SpecificationTransactionTests(unittest.TestCase):
                 root = Path(directory).resolve()
                 (root / "a.json").write_bytes(b"old-a")
                 (root / "b.json").write_bytes(b"old-b")
-                transactions.write_journal(root / "journal.json", self.journal())
-                original = transactions._replace_journal
+                publication.write_journal(root / "journal.json", self.journal())
+                original = publication.replace_journal
                 calls = 0
                 def interrupt(*args, **kwargs):
                     nonlocal calls
@@ -131,15 +132,15 @@ class SpecificationTransactionTests(unittest.TestCase):
                     if calls == 1:
                         raise OSError("interrupted")
                     return result
-                with patch.object(transactions, "_replace_journal", side_effect=interrupt), self.assertRaises(OSError):
-                    transactions.publish_journal(root, "journal.json", "journal.json.done")
+                with patch.object(publication, "replace_journal", side_effect=interrupt), self.assertRaises(OSError):
+                    publication.publish_journal(root, "journal.json", "journal.json.done")
                 if changed:
                     (root / "b.json").write_bytes(b"external")
                     self.assert_code_at_root(root, "spec_transaction_concurrent_change")
                 else:
-                    self.assertEqual(transactions.publish_journal(root, "journal.json", "journal.json.done")["status"], "published")
+                    self.assertEqual(publication.publish_journal(root, "journal.json", "journal.json.done")["status"], "published")
 
     def assert_code_at_root(self, root, code):
         with self.assertRaises(WorkError) as caught:
-            transactions.publish_journal(root, "journal.json", "journal.json.done")
+            publication.publish_journal(root, "journal.json", "journal.json.done")
         self.assertEqual(caught.exception.code, code)

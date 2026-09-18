@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -10,19 +11,68 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_ROOT = REPO_ROOT / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.foundation.errors import WorkError
-from worklib.execution.attempt_start import _build_attempt, _lock, _validate_snapshot
-from worklib.contracts.execution_index import (
+from worklib.models.common.errors import ExitCode, WorkError
+from worklib.business_services.execution.attempt_start import (
+    _build_attempt,
+    _lock,
+    _raise_transaction_error,
+    _transaction_stage,
+    _validate_snapshot,
+)
+from worklib.services.attempt.lock import build_execution_lock
+from worklib.services.attempt.validation import (
     build_initial_execution_index,
     render_execution_index,
     validate_execution_index,
 )
-from worklib.contracts.attempt_authorization_models import minimal_authorization
+from worklib.services.attempt import minimal_authorization
 
 
 class ExecuteInstructionAttemptStartTests(unittest.TestCase):
-    @patch("worklib.execution.attempt_start.worktree_snapshot_sha256", return_value="actual")
-    @patch("worklib.execution.attempt_start.collect_git_status", return_value=[])
+    def test_transaction_stage_and_error_recovery_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            index_path = directory / "index.json"
+            attempt_path = directory / "attempt.json"
+            lock_temporary = directory / "lock.tmp"
+            started_temporary = directory / "started.tmp"
+            index_path.write_bytes(render_execution_index(self.index()))
+
+            self.assertEqual(
+                _transaction_stage(
+                    index_path=index_path,
+                    attempt_path=attempt_path,
+                    lock_temporary=lock_temporary,
+                    started_temporary=started_temporary,
+                    attempt_id="ATTEMPT-001",
+                ),
+                "not_started",
+            )
+            attempt_path.write_bytes(b"attempt")
+            original = WorkError(
+                ExitCode.IO_FAILURE, "write_failed", "Write failed."
+            )
+            with self.assertRaises(WorkError) as context:
+                _raise_transaction_error(
+                    original,
+                    index_path=index_path,
+                    attempt_path=attempt_path,
+                    lock_temporary=lock_temporary,
+                    started_temporary=started_temporary,
+                    attempt_id="ATTEMPT-001",
+                )
+
+            self.assertTrue(context.exception.details["recovery_required"])
+            self.assertEqual(
+                context.exception.details["transaction_stage"],
+                "attempt_created",
+            )
+
+    def test_legacy_lock_symbol_uses_attempt_lock_service(self) -> None:
+        self.assertIs(_lock, build_execution_lock)
+
+    @patch("worklib.business_services.execution.attempt_start.worktree_snapshot_sha256", return_value="actual")
+    @patch("worklib.business_services.execution.attempt_start.collect_git_status", return_value=[])
     def test_snapshot_mismatch_reports_expected_and_actual(
         self, _mocked_status, _mocked_snapshot
     ) -> None:
@@ -99,7 +149,7 @@ class ExecuteInstructionAttemptStartTests(unittest.TestCase):
         self.assertNotIn("execute_rules_sha256", attempt)
         self.assertNotIn("task_sha256", attempt)
 
-    @patch("worklib.execution.attempt_start._load_source_attempt")
+    @patch("worklib.business_services.execution.attempt_start._load_source_attempt")
     def test_continuation_rejects_changed_skill_identity(self, mocked_load) -> None:
         index = self.index()
         row = index["tasks"][0]  # type: ignore[index]

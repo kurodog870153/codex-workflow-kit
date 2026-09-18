@@ -17,11 +17,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from cli_support import FileInputTestCase
 from worklib.cli import build_parser, main
-from worklib.contracts.attempt import canonicalize_attempt_contract
-from worklib.contracts.attempt_authorization_models import authorization_sha256, minimal_authorization
-from worklib.contracts.correction import canonicalize_correction_contract
-from worklib.foundation.errors import ExitCode
-from worklib.foundation.markdown import render_json_contract
+from worklib.services.attempt import canonicalize_attempt_contract
+from worklib.services.attempt import authorization_sha256, minimal_authorization
+from worklib.services.correction.document import canonicalize_correction_contract
+from worklib.models.common.errors import ExitCode
+from worklib.technical.infrastructure.json_contract import render_json_contract
 
 
 class CliFileTransportTests(FileInputTestCase):
@@ -74,7 +74,7 @@ class CliFileTransportTests(FileInputTestCase):
 
     def test_unreadable_file_retains_io_error_category(self):
         path = self.input_file("{}")
-        with patch("worklib.infrastructure.cli_io.Path.read_bytes", side_effect=PermissionError):
+        with patch("worklib.technical.infrastructure.cli_io.Path.read_bytes", side_effect=PermissionError):
             response = self.invoke("attempt", "render", "--input-file", path, expected_code=ExitCode.IO_FAILURE)
         self.assertEqual(response["reason_code"], "input_file_read_failed")
 

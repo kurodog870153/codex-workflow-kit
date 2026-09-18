@@ -9,13 +9,18 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.recovery_models import ExecutionRecoveryRequestContract
-from worklib.foundation.errors import WorkError
+from worklib.models.execution.recovery import ExecutionRecoveryRequestContract
+from worklib.models.execution.recovery import ExecutionRecoveryRequestContract as LegacyExecutionRecoveryRequestContract
+from worklib.services.recovery.validation import parse_execution_recovery_request
+from worklib.models.common.errors import WorkError
 
 
 class ExecutionRecoveryRequestContractTests(unittest.TestCase):
+    def test_legacy_export_preserves_class_identity(self) -> None:
+        self.assertIs(LegacyExecutionRecoveryRequestContract, ExecutionRecoveryRequestContract)
+
     def parse(self, value: object) -> dict[str, object]:
-        return ExecutionRecoveryRequestContract.parse_request(
+        return parse_execution_recovery_request(
             json.dumps(value).encode(), source="test"
         ).to_canonical_dict()
 

@@ -9,8 +9,7 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.foundation.errors import WorkError
-from worklib.foundation.fingerprint import instructions_sha256
+from worklib.technical.foundation.fingerprint import instructions_sha256
 
 
 def expected_sha256(
@@ -60,29 +59,6 @@ class InstructionFingerprintTests(unittest.TestCase):
             with self.subTest(kind=kind):
                 digest = instructions_sha256("plan", [(kind, f"test.{kind}", b"x\n")])
                 self.assertEqual(len(digest), 64)
-
-    def test_invalid_scope_is_rejected(self) -> None:
-        with self.assertRaises(WorkError) as context:
-            instructions_sha256("build", self.sources)
-        self.assertEqual(context.exception.code, "invalid_instruction_scope")
-
-    def test_invalid_kind_is_rejected(self) -> None:
-        with self.assertRaises(WorkError) as context:
-            instructions_sha256("task", [("agents", "task.general", b"x\n")])
-        self.assertEqual(context.exception.code, "invalid_instruction_kind")
-
-    def test_invalid_logical_name_and_content_are_rejected(self) -> None:
-        with self.assertRaises(WorkError) as name_context:
-            instructions_sha256("execute", [("instruction", "", b"x\n")])
-        self.assertEqual(
-            name_context.exception.code,
-            "invalid_instruction_logical_name",
-        )
-
-        with self.assertRaises(WorkError) as content_context:
-            instructions_sha256("execute", [("instruction", "execute.general", "x")])  # type: ignore[list-item]
-        self.assertEqual(content_context.exception.code, "invalid_instruction_content")
-
 
 if __name__ == "__main__":
     unittest.main()

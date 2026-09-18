@@ -13,12 +13,12 @@ sys.path.insert(0, str(SCRIPT_ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from contracts import test_task_collection as fixtures
-from worklib.services.task_collection import load_task_collection
-from worklib.contracts.execution_index import build_initial_execution_index, render_execution_index
-from worklib.services.plan_validation import render_plan_contract
-from worklib.contracts.task_index import render_task_index_contract
-from worklib.foundation.fingerprint import raw_sha256
-from worklib.foundation.markdown import parse_json_contract
+from worklib.business_services.task import load_task_collection
+from worklib.services.attempt import build_initial_execution_index, render_execution_index
+from worklib.business_services.plan import render_plan_contract
+from worklib.business_services.task.index import render_task_index_contract
+from worklib.technical.foundation.fingerprint import raw_sha256
+from worklib.technical.infrastructure.json_contract import parse_json_contract
 
 
 class WorkflowContinuationFlowTests(unittest.TestCase):

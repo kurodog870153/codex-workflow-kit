@@ -12,15 +12,15 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from tests.work.contracts import test_task_collection
-from worklib.services.specification import prepare_specification, update_specification, verify_specification
-from worklib.contracts.execution_index import (
+from worklib.workflows.task import prepare_specification, update_specification, verify_specification
+from worklib.services.attempt.validation import (
     build_initial_execution_index,
     render_execution_index,
 )
-from worklib.foundation import spec_transactions
-from worklib.foundation.errors import WorkError
-from worklib.contracts.specification_models import SpecificationUpdateRequestContract
-from worklib.services.task_collection import load_task_collection
+from worklib.models.common.errors import WorkError
+from worklib.models.specification.contracts import SpecificationUpdateRequestContract
+from worklib.services.specification import transaction as spec_transactions
+from worklib.business_services.task import load_task_collection
 
 
 class SpecificationCollectionUpdateTests(unittest.TestCase):
@@ -91,7 +91,7 @@ class SpecificationCollectionUpdateTests(unittest.TestCase):
                                   "path": "/goal", "before": current["goal"], "after": current["goal"] + " recovered"}])
         request = json.dumps(prepared["request"]).encode()
         approval = prepared["preview"]["approved_sha256"]
-        original = spec_transactions._replace_journal
+        original = spec_transactions.replace_journal
         calls = 0
         def interrupt(*args, **kwargs):
             nonlocal calls
@@ -100,7 +100,7 @@ class SpecificationCollectionUpdateTests(unittest.TestCase):
             if calls == 1:
                 raise OSError("simulated interruption")
             return result
-        with patch.object(spec_transactions, "_replace_journal", side_effect=interrupt), self.assertRaises(WorkError) as caught:
+        with patch.object(spec_transactions, "replace_journal", side_effect=interrupt), self.assertRaises(WorkError) as caught:
             update_specification(request, operation="apply", approved_sha256=approval, **self.common)
         self.assertEqual(caught.exception.code, "spec_update_interrupted")
         self.assertTrue(caught.exception.details["recovery_required"])

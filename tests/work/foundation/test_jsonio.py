@@ -9,7 +9,7 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.foundation.jsonio import canonical_json, write_json
+from worklib.technical.foundation.jsonio import canonical_json, write_json
 
 
 class JsonIoTests(unittest.TestCase):

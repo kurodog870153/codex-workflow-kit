@@ -9,8 +9,8 @@ from pathlib import Path
 SKILL_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work"
 sys.path.insert(0, str(SKILL_ROOT / "scripts"))
 
-from worklib.foundation.errors import WorkError
-from worklib.services.instruction_work_selection import (
+from worklib.models.common.errors import WorkError
+from worklib.business_services.instruction import (
     build_work_instruction_selection,
     validate_work_instruction_selection,
 )

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import sys
 import unittest
@@ -11,12 +12,40 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from tests.work.contracts.test_task_collection import TaskCollectionTests
-from worklib.services.task_collection import load_task_collection
-from worklib.services.task_repair import prepare_task_repair, repair_task
-from worklib.contracts.execution_index import build_initial_execution_index, render_execution_index
-from worklib.contracts.task_item import render_task_item_contract, validate_task_item_contract
-from worklib.foundation import spec_transactions
-from worklib.foundation.errors import WorkError
+from worklib.business_services.task import load_task_collection
+from worklib.workflows.task import prepare_task_repair, repair_task
+from worklib.services.attempt.validation import build_initial_execution_index, render_execution_index
+from worklib.business_services.task.item import render_task_item_contract, validate_task_item_contract
+from worklib.models.common.errors import WorkError
+from worklib.services.task.repair_fingerprint import (
+    fingerprint_task_repair_contents,
+    fingerprint_task_repair_evidence,
+    task_repair_transaction_id,
+)
+
+
+class TaskRepairFingerprintTests(unittest.TestCase):
+    def test_fingerprints_repair_identity_and_complete_evidence(self):
+        request_raw = b'{"schema":"work-task-repair-request/v1"}\n'
+        contents = {"tasks/index.json": b"index\n", "tasks/tasks/TASK-001.json": b"item\n"}
+
+        self.assertEqual(
+            task_repair_transaction_id(request_raw),
+            "TASK-REPAIR-" + hashlib.sha256(request_raw).hexdigest()[:12].upper(),
+        )
+        self.assertEqual(
+            fingerprint_task_repair_contents(contents),
+            {path: hashlib.sha256(raw).hexdigest() for path, raw in contents.items()},
+        )
+        self.assertEqual(
+            fingerprint_task_repair_evidence(
+                contents, ["tasks/index.json", "execution/index.json"]
+            ),
+            {
+                "tasks/index.json": hashlib.sha256(b"index\n").hexdigest(),
+                "execution/index.json": None,
+            },
+        )
 
 
 class TaskRepairTests(unittest.TestCase):
@@ -98,8 +127,10 @@ class TaskRepairTests(unittest.TestCase):
         item_path = (self.root / self.fixture.index_path).parent / "tasks" / "TASK-001.json"
         item_path.unlink()
         prepared = self.prepare_request()
-        real = spec_transactions.publish_journal
-        with patch.object(spec_transactions, "publish_journal", side_effect=OSError("interrupted")):
+        with patch(
+            "worklib.business_services.task.repair.publish_journal",
+            side_effect=OSError("interrupted"),
+        ):
             with self.assertRaises(WorkError):
                 self.run_repair(prepared, "apply", prepared["preview"]["approved_sha256"])
         result = self.run_repair(prepared, "recover", prepared["preview"]["approved_sha256"])

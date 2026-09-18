@@ -9,8 +9,8 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.foundation.errors import WorkError
-from worklib.foundation.markdown import (
+from worklib.models.common.errors import WorkError
+from worklib.technical.infrastructure.json_contract import (
     parse_json_contract,
     render_json_contract,
     require_canonical_json_contract,

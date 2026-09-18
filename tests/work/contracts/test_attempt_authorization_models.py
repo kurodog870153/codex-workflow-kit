@@ -10,14 +10,18 @@ from pydantic import ValidationError
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.attempt_authorization_models import (
-    AttemptAuthorizationContract, authorization_sha256, minimal_authorization,
-    validate_authorization_scope,
+from worklib.models.execution import AttemptAuthorizationContract
+from worklib.services.attempt import (
+    authorization_sha256, minimal_authorization, validate_authorization_scope,
 )
-from worklib.foundation.errors import WorkError
+from worklib.models.execution import AttemptAuthorizationContract as ModelAttemptAuthorizationContract
+from worklib.models.common.errors import WorkError
 
 
 class AttemptAuthorizationTests(unittest.TestCase):
+    def test_legacy_export_preserves_class_identity(self):
+        self.assertIs(AttemptAuthorizationContract, ModelAttemptAuthorizationContract)
+
     def test_requires_fixed_reapproval_conditions_and_fingerprints_content(self):
         manifest = minimal_authorization()
         first = authorization_sha256(manifest)

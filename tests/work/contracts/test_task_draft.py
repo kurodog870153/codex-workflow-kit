@@ -9,14 +9,14 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.task_collection_semantics import validate_task_contract
-from worklib.contracts.task_draft import (
+from worklib.business_services.task.semantic import validate_task_contract
+from worklib.services.task.draft.validation import (
     DRAFT_SCHEMA,
     INDEX_SCHEMA,
     validate_task_draft,
     validate_task_planning_index,
 )
-from worklib.foundation.errors import WorkError
+from worklib.models.common.errors import WorkError
 
 
 class TaskDraftContractTests(unittest.TestCase):

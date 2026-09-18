@@ -12,10 +12,10 @@ from unittest.mock import patch
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills/work/scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.artifacts.task_draft import read_task_planning_index, save_task_planning
-from worklib.artifacts.task_draft_status import task_draft_status
+from worklib.services.task.draft.storage import read_task_planning_index, save_task_planning
+from worklib.business_services.task.draft_status import task_draft_status
 from worklib.cli import main
-from worklib.foundation.errors import ExitCode, WorkError
+from worklib.models.common.errors import ExitCode, WorkError
 
 
 class TaskDraftStatusTests(unittest.TestCase):
@@ -155,7 +155,7 @@ class TaskDraftStatusTests(unittest.TestCase):
 
     def test_reserved_next_revision_requires_inspection(self):
         self.initialize()
-        with patch("worklib.artifacts.task_draft.os.replace", side_effect=OSError("busy")):
+        with patch("worklib.services.task.draft.storage.os.replace", side_effect=OSError("busy")):
             with self.assertRaises(WorkError):
                 self.save_discussion("TASK-001", "in_progress")
         result = self.status()
@@ -165,7 +165,7 @@ class TaskDraftStatusTests(unittest.TestCase):
     def test_concurrent_index_change_is_rejected(self):
         self.initialize()
         changed = {**self.index, "revision": 2}
-        with patch("worklib.artifacts.task_draft_status.read_task_planning_index", side_effect=[self.index, changed]):
+        with patch("worklib.business_services.task.draft_status.read_task_planning_index", side_effect=[self.index, changed]):
             with self.assertRaises(WorkError) as context:
                 self.status()
         self.assertEqual(context.exception.code, "draft_revision_conflict")
