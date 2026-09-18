@@ -14,6 +14,7 @@ from ..services.task_collection import load_task_execution_context
 from .context import validate_execution_identity
 from .instructions import validate_execute_instructions
 from .records import next_record_id
+from .authorization import authorization_evidence, require_record_scope
 from .recovery import _validate_attempt_bytes, _validate_index_bytes
 from ..contracts.command_correction import canonicalize_command_correction
 from ..contracts.command_models import (
@@ -37,7 +38,34 @@ def _fail(code, message, **details):
     raise WorkError(ExitCode.WORKFLOW_STATE, code, message, details)
 
 
-def _prepare(raw, *, source, project_root, user_config_root, raw_task_path, raw_execution_dir, task_id, skill_roots=None):
+def _quote_batch_argument(value):
+    if any(character in value for character in ("\x00", "\r", "\n")):
+        _fail("command_run_batch_argument", "Batch arguments cannot contain NUL or line breaks.")
+    return '"' + value.replace("%", "%%").replace('"', '""') + '"'
+
+
+def _windows_batch_invocation(script, arguments):
+    system_root = os.environ.get("SystemRoot")
+    if not system_root:
+        _fail("command_run_launcher", "SystemRoot is required to select the fixed cmd.exe launcher.")
+    launcher = (Path(system_root) / "System32" / "cmd.exe").absolute()
+    if not launcher.is_file() or launcher.is_symlink():
+        _fail("command_run_launcher", "The fixed System32 cmd.exe launcher is not a regular file.")
+    if script.is_symlink() or not script.is_file():
+        _fail("command_run_executable", "The selected batch script is not a regular file.")
+    command_line = " ".join(
+        _quote_batch_argument(value) for value in (str(script), *arguments)
+    )
+    launcher_arguments = ["/d", "/s", "/v:off", "/c", command_line]
+    return {
+        "kind": "windows_batch", "launcher": str(launcher),
+        "launcher_sha256": raw_sha256(read_raw(launcher)), "script": str(script),
+        "script_sha256": raw_sha256(read_raw(script)), "arguments": arguments,
+        "command_line": command_line, "launcher_arguments": launcher_arguments,
+    }
+
+
+def _prepare(raw, *, source, project_root, user_config_root, raw_task_path, raw_execution_dir, task_id, skill_roots=None, include_authorization=False):
     request = CommandRunRequestContract.parse_request(
         raw, source=source
     ).to_canonical_dict()
@@ -95,6 +123,7 @@ def _prepare(raw, *, source, project_root, user_config_root, raw_task_path, raw_
     if next_record_id(base_id, attempt) != record_id:
         _fail("command_run_sequence", "The reserved CMD is not the next record instance.")
     validate_execute_instructions(task, attempt, operation="command_run")
+    require_record_scope(attempt, base_id)
     command = formal_command(task, base_id)
     if "command_correction" in lock:
         correction = canonicalize_command_correction(lock["command_correction"])
@@ -127,10 +156,16 @@ def _prepare(raw, *, source, project_root, user_config_root, raw_task_path, raw_
         selected = Path(located)
     # Preserve the symlink name so venv interpreters retain their environment.
     selected = selected.absolute()
-    if not selected.is_file() or (os.name != "nt" and not os.access(selected, os.X_OK)):
-        _fail("command_run_executable", "The selected executable is not runnable.")
-    if any(path.suffix.lower() in {".bat", ".cmd"} for path in (selected, selected.resolve())):
-        _fail("command_run_argv_only", "Batch files require shell handling and are outside this argv executor.")
+    batch = any(path.suffix.lower() in {".bat", ".cmd"} for path in (selected, selected.resolve()))
+    if batch:
+        if actual_os != "windows":
+            _fail("command_run_argv_only", "Batch files can only be prepared on Windows.")
+        invocation = _windows_batch_invocation(selected, command["argv"][1:])
+    else:
+        if not selected.is_file() or (os.name != "nt" and not os.access(selected, os.X_OK)):
+            _fail("command_run_executable", "The selected executable is not runnable.")
+        invocation = {"kind": "direct", "executable": str(selected),
+            "executable_sha256": raw_sha256(read_raw(selected)), "argv": command["argv"]}
     safe_id = record_id.replace("#", "-retry-")
     receipt = attempt_directory + f"/.work-command-{safe_id}"
     for suffix in (".started.json", ".finished.json"):
@@ -139,11 +174,13 @@ def _prepare(raw, *, source, project_root, user_config_root, raw_task_path, raw_
     if any(read_raw(storage_path(project_root, path)) != content for path, content in observed.items()):
         _fail("command_run_source_changed", "A command source changed during preparation.")
     preview = {"schema": "work-command-preview/v1", "request": request, "task_id": task_id,
-        "argv": command["argv"], "working_directory": str(cwd), "execution": settings,
-        "selected_executable": str(selected), "executable_sha256": raw_sha256(read_raw(selected)),
+        "working_directory": str(cwd), "execution": settings, "invocation": invocation,
         "receipt_prefix": receipt, "sources": {path: raw_sha256(content) for path, content in observed.items()}}
     preview["approved_sha256"] = raw_sha256(_json(preview))
-    return CommandPreviewContract.model_validate(preview).to_canonical_dict()
+    canonical_preview = CommandPreviewContract.model_validate(preview).to_canonical_dict()
+    if include_authorization:
+        return canonical_preview, authorization_evidence(attempt, lock)
+    return canonical_preview
 
 
 def prepare_command(raw, **options):
@@ -171,25 +208,29 @@ def _execute(argv, cwd, timeout):
         return result
 
 
-def run_command(raw, *, approved_sha256, authorization_evidence, **options):
+def run_command(raw, *, approved_sha256, **options):
     sha256(approved_sha256, location="approved_sha256")
-    nonempty_string(authorization_evidence, location="authorization_evidence")
     root = options["project_root"]
     with state_writer(root, options["raw_execution_dir"]):
-        preview = _prepare(raw, **options)
+        preview, evidence = _prepare(raw, include_authorization=True, **options)
         if preview["approved_sha256"] != approved_sha256:
             _fail("command_run_approval_changed", "Sources or command parameters changed after review.")
+        invocation = preview["invocation"]
+        if invocation["kind"] == "windows_batch":
+            execution_argv = [invocation["launcher"], *invocation["launcher_arguments"]]
+        else:
+            execution_argv = [invocation["executable"], *invocation["argv"][1:]]
         prefix = preview["receipt_prefix"]
         started = CommandStartedContract.model_validate({
             "schema": "work-command-started/v1", "preview": preview,
-            "authorization_evidence": authorization_evidence,
+            "authorization_evidence": evidence,
         }).to_canonical_dict()
         try:
             write_command_receipt(
                 storage_path(root, prefix + ".started.json"), _json(started)
             )
-            result = _execute([preview["selected_executable"], *preview["argv"][1:]],
-                              preview["working_directory"], preview["request"]["timeout_seconds"])
+            result = _execute(execution_argv, preview["working_directory"],
+                              preview["request"]["timeout_seconds"])
             receipt = CommandResultContract.model_validate({
                 "schema": "work-command-result/v1", "approved_sha256": approved_sha256,
                 "record_id": preview["request"]["record_id"], **result,

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import re
-from typing import Any, ClassVar, Literal, Self
+from typing import Annotated, Any, ClassVar, Literal, Self
 
-from pydantic import Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.markdown import parse_json_contract
@@ -16,7 +16,6 @@ class CommandCorrectionRequestContract(WorkContract):
     contract_kind: ClassVar[Literal["request"]] = "request"
     canonical_order: ClassVar[tuple[str, ...]] = (
         "schema", "record_id", "original_command", "actual_command", "reason",
-        "authorization_evidence",
     )
 
     schema_: Literal["work-command-correction-request/v1"] = Field(alias="schema")
@@ -24,7 +23,6 @@ class CommandCorrectionRequestContract(WorkContract):
     original_command: dict[str, Any]
     actual_command: dict[str, Any]
     reason: str
-    authorization_evidence: str
 
     @classmethod
     def parse_request(cls, raw: bytes, *, source: str) -> Self:
@@ -92,14 +90,11 @@ class CommandCorrectionRequestContract(WorkContract):
         return {
             "schema": self.contract_id,
             "record_id": self.record_id,
-            "correction": canonicalize_command_correction(
-                {
-                    "original_command": self.original_command,
-                    "actual_command": self.actual_command,
-                    "reason": self.reason,
-                    "authorization_evidence": self.authorization_evidence,
-                }
-            ),
+            "correction": {
+                "original_command": self.original_command,
+                "actual_command": self.actual_command,
+                "reason": self.reason,
+            },
         }
 
 
@@ -213,23 +208,48 @@ class CommandRunRequestContract(WorkContract):
         return request
 
 
+class CommandInvocationModel(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
+
+
+class DirectCommandInvocationModel(CommandInvocationModel):
+    kind: Literal["direct"]
+    executable: str
+    executable_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    argv: list[str]
+
+
+class WindowsBatchInvocationModel(CommandInvocationModel):
+    kind: Literal["windows_batch"]
+    launcher: str
+    launcher_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    script: str
+    script_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    arguments: list[str]
+    command_line: str
+    launcher_arguments: list[str]
+
+
+CommandInvocation = Annotated[
+    DirectCommandInvocationModel | WindowsBatchInvocationModel,
+    Field(discriminator="kind"),
+]
+
+
 class CommandPreviewContract(WorkContract):
     contract_id: ClassVar[str] = "work-command-preview/v1"
     contract_kind: ClassVar[Literal["response"]] = "response"
     canonical_order: ClassVar[tuple[str, ...]] = (
-        "schema", "request", "task_id", "argv", "working_directory",
-        "execution", "selected_executable", "executable_sha256", "receipt_prefix",
-        "sources", "approved_sha256",
+        "schema", "request", "task_id", "working_directory", "execution",
+        "invocation", "receipt_prefix", "sources", "approved_sha256",
     )
 
     schema_: Literal["work-command-preview/v1"] = Field(alias="schema")
     request: CommandRunRequestContract
     task_id: str
-    argv: list[str]
     working_directory: str
     execution: dict[str, Any]
-    selected_executable: str
-    executable_sha256: str
+    invocation: CommandInvocation
     receipt_prefix: str
     sources: dict[str, str]
     approved_sha256: str | None = None
@@ -276,7 +296,6 @@ CommandCorrectionRequestContract.contract_example = {
     "original_command": {"mode": "argv", "argv": ["tool", "old"]},
     "actual_command": {"mode": "argv", "argv": ["tool", "new"]},
     "reason": "Use the authorized argument.",
-    "authorization_evidence": "User approved correction 1.",
 }
 CommandCorrectionContract.contract_example = {
     "schema": "work-command-correction/v1", "task_id": "TASK-001",
@@ -291,9 +310,12 @@ CommandRunRequestContract.contract_example = {
 CommandPreviewContract.contract_example = {
     "schema": "work-command-preview/v1",
     "request": CommandRunRequestContract.contract_example,
-    "task_id": "TASK-001", "argv": ["tool", "--version"],
+    "task_id": "TASK-001",
     "working_directory": "/project", "execution": {"os": "linux"},
-    "selected_executable": "/usr/bin/tool", "executable_sha256": "0" * 64,
+    "invocation": {
+        "kind": "direct", "executable": "/usr/bin/tool",
+        "executable_sha256": "0" * 64, "argv": ["tool", "--version"],
+    },
     "receipt_prefix": "outputs/work/executions/example/TASK-001/ATTEMPT-001/.work-command-CMD-001",
     "sources": {"outputs/work/tasks/example/index.json": "0" * 64},
     "approved_sha256": "1" * 64,

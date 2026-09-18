@@ -27,7 +27,7 @@
 ## 3. Attempt 建立與內容
 
 1. [強制] Attempt 位於 `<execution-dir>/<TASK-ID>/<ATTEMPT-ID>/attempt.json`，每個 TASK 由 `ATTEMPT-001` 遞增；同一 TASK 只能有一個進行中 Attempt，鎖寫入成功後才能建立 Attempt 目錄與檔案。只支援此目錄結構；發現 TASK 目錄下舊式平放的 Attempt 或 Correction JSON 時明確報錯，不自動搬移。
-2. [強制] 新 Attempt 使用 canonical `work-attempt/v1`，依序保存 schema、Attempt ID、TASK spec、TASK ID、`skill_id`、狀態、TASK SHA、Task instructions SHA、Execute instructions SHA、`hierarchy_selection_sha256`、`execute_skill_selection_sha256`、開始時間、選用承接資料及 records。
+2. [強制] 新 Attempt 使用 canonical `work-attempt/v1`，依序保存 schema、Attempt ID、TASK spec、TASK ID、`skill_id`、狀態、TASK SHA、Task instructions SHA、Execute instructions SHA、`hierarchy_selection_sha256`、`execute_skill_selection_sha256`、完整 authorization manifest 與其 fingerprint、開始時間、選用承接資料及 records。
 3. [強制] 執行紀錄依實際順序追加；同一 ID 首次使用原 ID，重複執行才依序使用 `#1`、`#2`。CMD 記退出碼與一行關鍵結果或最小錯誤，OP 記成功／失敗及必要外部狀態且不保存完整回應，VAL 記通過／失敗與最小證據或足夠的前項 ID。
 4. [強制] 有檔案修改或承接成果時維護「本 Attempt 累積修改檔案」，保存有效承接與目前 Attempt 的路徑聯集，不保存 diff 或檔案雜湊。
 5. [強制] 結案加入結束時間、最終狀態、適用類型與具體原因；時間使用含偏移的 `YYYY-MM-DDTHH:mm±HH:mm`，結案後內容不可修改。
@@ -58,15 +58,19 @@
 ## 6. Attempt start transaction
 
 1. [強制] `execute worktree` 以未分類 Git 狀態與 execution 目錄排除指令產生 `work-execute-worktree-snapshot/v1` SHA-256。使用者須核對完整 worktree 結果；hash 只綁定核對狀態，不取代明確授權。
-2. [強制] Attempt 建立使用 `work-attempt-start-request/v1` 純 JSON及 `execute attempt-start --input-file "<request-path>"`。Python 自動推導下一個 Attempt ID、目前含偏移分鐘時間、TASK 身分與三個 fingerprints；重新驗證 preflight 與 snapshot 後，依序安裝 execution lock、exclusive create canonical Attempt、同步 TASK 為 `in_progress` 與 `latest_attempt`，全程保留 lock，且不執行 CMD／OP／VAL。
+2. [強制] Attempt 建立使用 `work-attempt-start-request/v1` 純 JSON及 `execute attempt-start --input-file "<request-path>"`。Request 必須包含完整 `work-attempt-authorization/v1`，逐欄列出核准的命令、驗證、可修改檔案、工作目錄、外部操作、完整執行偏差 action、固定重新詢問條件與授權證據，不接受 wildcard。Python 驗證其只精確匹配或縮小目前 TASK，產生 authorization fingerprint，自動推導下一個 Attempt ID、目前含偏移分鐘時間、TASK 身分與三個 fingerprints；重新驗證 preflight 與 snapshot 後，依序安裝 execution lock、exclusive create canonical Attempt、同步 TASK 為 `in_progress` 與 `latest_attempt`，全程保留 lock，且不執行 CMD／OP／VAL。
 3. [強制] `pending_retry` request 必須提供最新來源 Attempt 與逐筆承接 record ID／目前有效證據；`pending` 不得提供 continuation。來源必須是同一 TASK 最新已關閉 Attempt，承接 ID 必須存在，並複製其累積修改檔案。
 4. [強制] start 中斷時保留 lock、Attempt 與固定 transaction temporary file，回傳 `recovery_required` 及精確階段；不得自動 rollback、刪除、解鎖或續作。
-5. [強制] 每個正式 CMD／OP／VAL 執行前，必須以明確授權的 base ID 呼叫 `execute record-begin`。Python 驗證目前 TASK、Attempt、index lock 與 Task／Execute fingerprints，依承接及既有 records 推導原 ID 或下一個 `#n`，再以 atomic index replacement 將實際 `record_id` 加入 lock；成功固定回傳 `work-record-begin/v1` 與 `lock_status: record_reserved`，且不執行或追加該 record。
+5. [強制] 每個正式 CMD／OP／VAL 執行前，必須確認其 base ID、動作及副作用均受目前 Attempt 授權涵蓋，再呼叫 `execute record-begin`；符合時不逐 record 重問。Python 驗證目前 TASK、Attempt、index lock 與 Task／Execute fingerprints，依承接及既有 records 推導原 ID 或下一個 `#n`，再以 atomic index replacement 將實際 `record_id` 加入 lock；成功固定回傳 `work-record-begin/v1` 與 `lock_status: record_reserved`，且不執行或追加該 record。
 6. [強制] record-begin 發現既有 `record_id`、指令變更、非正式 ID 或 transaction conflict 時停止。寫入中斷保留原 lock 與 `.work-record-begin-*.tmp`，回傳 `recovery_required`；不得自動重試、執行 record、刪除暫存檔或解除 lock。
-7. [強制] 已保留 CMD 需要等價修正時，執行前以 `work-command-correction-request/v1` 純 JSON呼叫 `execute command-correction --input-file "<request-path>"`，保存 lock 完全一致的 `record_id`、與正式 TASK 完全相符的 `original_command`、使用者核准的 `actual_command`、原因及最小授權證據。工具只 atomic replacement index 保存 `command_correction`，不執行命令或判斷語意等價；同一 record 只能保存一次。
+7. [強制] 已保留 CMD 需要等價修正時，先依主指令的執行偏差邊界確認語意與副作用未改變；若原 Attempt 授權未精確涵蓋該替換，須先取得使用者決策。執行前以 `work-command-correction-request/v1` 純 JSON呼叫 `execute command-correction --input-file "<request-path>"`，保存 lock 完全一致的 `record_id`、與正式 TASK 完全相符的 `original_command`、使用者核准的 `actual_command`、原因及最小授權證據。工具只 atomic replacement index 保存 `command_correction`，不執行命令或判斷語意等價；同一 record 只能保存一次。
 8. [強制] command-correction 成功須回傳 `work-command-correction/v1`、`correction_status: recorded` 及 `lock_status: record_reserved` 後才能執行實際命令。中斷時保留 lock 與 `.work-command-correction-*.tmp` 並回傳 `recovery_required`；不得執行、重送、刪除、rollback 或解鎖。
-9. [強制] 已保留 record 完成後，使用 `work-record-finish-request/v1` 純 JSON呼叫 `execute record-finish --input-file "<request-path>"`。`record.id` 必須與 lock 完全一致；command 使用 `exit_code`／`result` 且不得由 request 傳入 correction，operation 使用 `outcome`／`state`，validation 使用 `outcome`／`evidence`，有檔案變更時另傳 normalized `modified_files`。
+9. [強制] 已保留 record 完成後，使用 `work-record-finish-request/v1` 純 JSON呼叫 `execute record-finish --input-file "<request-path>"`。已授權且結果確定的 record 不因記錄結果而再次詢問；結果不確定或副作用超出授權時先停止決策。`record.id` 必須與 lock 完全一致；command 使用 `exit_code`／`result` 且不得由 request 傳入 correction，operation 使用 `outcome`／`state`，validation 使用 `outcome`／`evidence`，有檔案變更時另傳 normalized `modified_files`。
 10. [強制] record-finish 先將 lock 的 command correction 併入 CMD，再 atomic replacement canonical Attempt，依序追加 record、更新累積修改檔案與 OP overall result；再 atomic replacement index，移除 lock 的 `record_id` 與 `command_correction`，保留 Attempt lock。工具不執行 record。任一步驟中斷時保留已寫入內容、lock 與 `.work-record-finish-*.tmp` 並回傳 `recovery_required`；不得重送結果、開始其他 record、rollback、刪除或解鎖。
 11. [強制] Attempt 結案使用 `work-attempt-close-request/v1` 純 JSON呼叫 `execute attempt-close --input-file "<request-path>"`。`completed` 不傳 final details 且每個正式 VAL 的最新 current／carried 結果必須通過；`stopped`／`blocked` 必須傳入其允許的 `final_type` 與具體 `reason`。結束時間由 Python 產生，不接受 request 指定。
-12. [強制] attempt-close 必須確認沒有 `record_id` 或 `command_correction` 保留，依序 atomic replacement canonical closed Attempt，再 atomic replacement index 同步 TASK／整體狀態並移除 execution lock。`completed` 映射已完成；一般 `stopped` 映射待重新執行，規格缺陷／指令變更／外部操作失敗映射受阻；`blocked` 映射受阻。工具不執行 record。
+12. [強制] attempt-close 必須確認沒有 `record_id` 或 `command_correction` 保留，依序 atomic replacement canonical closed Attempt，再 atomic replacement index 同步 TASK／整體狀態並移除 execution lock。全部已授權 record 成功且符合已審查的正常結案條件時不另行詢問；停止、受阻、結果不確定、未審查偏差或其他非正常結案須先取得新決策。`completed` 映射已完成；一般 `stopped` 映射待重新執行，規格缺陷／指令變更／外部操作失敗映射受阻；`blocked` 映射受阻。工具不執行 record。
 13. [強制] attempt-close 任一步驟中斷時保留已寫入 Attempt、原 lock 與 `.work-attempt-close-*.tmp` 並回傳 `recovery_required`；不得重送、rollback、刪除或手動解鎖。只有 Attempt 與 index 完全同步時回傳 `work-attempt-close/v1` 及 `lock_status: released`。
+Normal records reuse the active Attempt authorization. Supply new authorization
+evidence only when beginning a retry or recording a failed or unknown result.
+The reserved-record lock preserves retry evidence for downstream receipts and is
+released only after the record is finished or explicitly recovered.

@@ -8,6 +8,8 @@ from typing import Any, ClassVar, Literal
 from pydantic import Field, ValidationError
 
 from .command_correction import canonicalize_command_correction
+from .execution_deviation_models import ExecutionDeviationContract
+from .attempt_authorization_models import AttemptAuthorizationContract, authorization_sha256
 from .base import WorkContract
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.markdown import (
@@ -62,6 +64,8 @@ ROOT_REQUIRED = {
     "execute_instructions_sha256",
     "hierarchy_selection_sha256",
     "execute_skill_selection_sha256",
+    "authorization",
+    "authorization_sha256",
     "started_at",
     "records",
 }
@@ -69,9 +73,11 @@ ROOT_OPTIONAL = {
     "continued_from",
     "carried_records",
     "modified_files",
+    "execution_deviations",
     "overall_result",
     "final_type",
     "reason",
+    "closing_authorization_evidence",
     "ended_at",
 }
 ROOT_ORDER = (
@@ -88,14 +94,18 @@ ROOT_ORDER = (
     "execute_instructions_sha256",
     "hierarchy_selection_sha256",
     "execute_skill_selection_sha256",
+    "authorization",
+    "authorization_sha256",
     "started_at",
     "continued_from",
     "carried_records",
     "modified_files",
+    "execution_deviations",
     "records",
     "overall_result",
     "final_type",
     "reason",
+    "closing_authorization_evidence",
     "ended_at",
 )
 
@@ -113,6 +123,8 @@ class AttemptContract(WorkContract):
         "execute_instructions_sha256": "e" * 64,
         "hierarchy_selection_sha256": "f" * 64,
         "execute_skill_selection_sha256": "0" * 64,
+        "authorization": AttemptAuthorizationContract.contract_example,
+        "authorization_sha256": authorization_sha256(AttemptAuthorizationContract.contract_example),
         "started_at": "2026-09-01T10:00+08:00", "records": [],
     }
 
@@ -129,14 +141,18 @@ class AttemptContract(WorkContract):
     execute_instructions_sha256: Any
     hierarchy_selection_sha256: Any
     execute_skill_selection_sha256: Any
+    authorization: AttemptAuthorizationContract
+    authorization_sha256: Any
     started_at: Any
     continued_from: Any | None = None
     carried_records: Any | None = None
     modified_files: Any | None = None
+    execution_deviations: Any | None = None
     records: Any
     overall_result: Any | None = None
     final_type: Any | None = None
     reason: Any | None = None
+    closing_authorization_evidence: Any | None = None
     ended_at: Any | None = None
 
 
@@ -576,8 +592,12 @@ def canonicalize_attempt_contract(
         "execute_instructions_sha256",
         "hierarchy_selection_sha256",
         "execute_skill_selection_sha256",
+        "authorization_sha256",
     ):
         _sha256(contract[field], location=field)
+    authorization = AttemptAuthorizationContract.model_validate(contract["authorization"]).to_canonical_dict()
+    if authorization_sha256(authorization) != contract["authorization_sha256"]:
+        _fail("attempt_authorization_fingerprint_mismatch", "The authorization manifest does not match its fingerprint.")
     started_at = _timestamp(contract["started_at"], location="started_at")
 
     status = contract["status"]
@@ -643,6 +663,28 @@ def canonicalize_attempt_contract(
                 )
             path_identities.add(identity)
 
+    execution_deviations: list[dict[str, Any]] = []
+    if "execution_deviations" in contract:
+        raw_deviations = contract["execution_deviations"]
+        if not isinstance(raw_deviations, list) or not raw_deviations:
+            _fail(
+                "attempt_invalid_execution_deviations",
+                "execution_deviations must be a non-empty array when present.",
+            )
+        execution_deviations = [
+            ExecutionDeviationContract.model_validate(item).to_canonical_dict()
+            for item in raw_deviations
+        ]
+        expected_ids = [
+            f"DEVIATION-{index:03d}"
+            for index in range(1, len(execution_deviations) + 1)
+        ]
+        if [item["deviation_id"] for item in execution_deviations] != expected_ids:
+            _fail(
+                "attempt_invalid_execution_deviation_sequence",
+                "execution_deviations must use contiguous DEVIATION-nnn IDs in stored order.",
+            )
+
     records, operation_outcomes = _validate_records(
         contract["records"], carried_retries=carried_retries
     )
@@ -663,7 +705,7 @@ def canonicalize_attempt_contract(
             "A closed Attempt with operation records requires overall_result.",
         )
 
-    closing_fields = {"final_type", "reason", "ended_at"} & set(contract)
+    closing_fields = {"final_type", "reason", "closing_authorization_evidence", "ended_at"} & set(contract)
     if status == "in_progress":
         if closing_fields:
             _fail(
@@ -684,7 +726,7 @@ def canonicalize_attempt_contract(
                 "ended_at cannot be earlier than started_at.",
             )
         if status == "completed":
-            unexpected = {"final_type", "reason"} & set(contract)
+            unexpected = {"final_type", "reason", "closing_authorization_evidence"} & set(contract)
             if unexpected:
                 _fail(
                     "attempt_unexpected_final_details",
@@ -700,7 +742,7 @@ def canonicalize_attempt_contract(
                     "A completed Attempt cannot have a partial, failed, or uncertain operation result.",
                 )
         else:
-            missing = {"final_type", "reason"} - set(contract)
+            missing = {"final_type", "reason", "closing_authorization_evidence"} - set(contract)
             if missing:
                 _fail(
                     "attempt_missing_final_details",
@@ -716,13 +758,20 @@ def canonicalize_attempt_contract(
                     final_type=contract["final_type"],
                 )
             _nonempty(contract["reason"], location="reason")
+            _nonempty(
+                contract["closing_authorization_evidence"],
+                location="closing_authorization_evidence",
+            )
 
     canonical_values: dict[str, Any] = dict(contract)
+    canonical_values["authorization"] = authorization
     canonical_values["records"] = records
     if carried_records:
         canonical_values["carried_records"] = carried_records
     if modified_files:
         canonical_values["modified_files"] = modified_files
+    if execution_deviations:
+        canonical_values["execution_deviations"] = execution_deviations
     if overall_result is not None:
         canonical_values["overall_result"] = overall_result
     return {

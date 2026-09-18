@@ -128,6 +128,36 @@ def _same(actual, expected, code, message):
     return True
 
 
+def _transaction_state(report, project_root, directory, *, ignored_record=None):
+    """Report incomplete shared specification transactions without changing storage."""
+    try:
+        pending = sorted(path.relative_to(project_root).as_posix() for path in directory.rglob(".work-*.tmp"))
+        records = sorted([
+            *directory.glob(".work-spec-update-*.json"),
+            *directory.glob(".work-task-repair-*.json"),
+            *directory.glob(".work-spec-migration-*.json"),
+        ])
+        for record in records:
+            if record.relative_to(project_root).as_posix() == ignored_record:
+                continue
+            record = storage_path(project_root, record.relative_to(project_root).as_posix())
+            marker = storage_path(project_root, record.relative_to(project_root).as_posix() + ".done")
+            expected = hashlib.sha256(read_raw(record)).hexdigest().encode("ascii") + b"\n"
+            if not marker.is_file() or read_raw(marker) != expected:
+                pending.append(record.relative_to(project_root).as_posix())
+        if pending:
+            _reject("task_repair_pending_transaction", "An incomplete transaction permits diagnosis only.",
+                    paths=pending)
+        report.checks.append({"name": "transactions", "status": "passed"})
+    except WorkError as error:
+        report.failure("transactions", error)
+    except OSError:
+        report.failure("transactions", WorkError(
+            ExitCode.IO_FAILURE, "task_transaction_scan_failed",
+            "Transaction evidence could not be inspected.",
+        ))
+
+
 def _execution_state(report, project_root, execution_dir, *, index_raw=None, ignored_record=None):
     """Inspect evidence without opening or creating a writer mutex."""
     if execution_dir is None:
@@ -163,28 +193,7 @@ def _execution_state(report, project_root, execution_dir, *, index_raw=None, ign
             ))
 
     # Pending records and active Attempts are independent of TASK parseability.
-    try:
-        pending = sorted(path.relative_to(project_root).as_posix() for path in directory.rglob(".work-*.tmp"))
-        records = sorted([*directory.glob(".work-spec-update-*.json"), *directory.glob(".work-task-repair-*.json")])
-        for record in records:
-            if record.relative_to(project_root).as_posix() == ignored_record:
-                continue
-            record = storage_path(project_root, record.relative_to(project_root).as_posix())
-            marker = storage_path(project_root, record.relative_to(project_root).as_posix() + ".done")
-            expected = hashlib.sha256(read_raw(record)).hexdigest().encode("ascii") + b"\n"
-            if not marker.is_file() or read_raw(marker) != expected:
-                pending.append(record.relative_to(project_root).as_posix())
-        if pending:
-            _reject("task_repair_pending_transaction", "An incomplete transaction permits diagnosis only.",
-                    paths=pending)
-        report.checks.append({"name": "transactions", "status": "passed"})
-    except WorkError as error:
-        report.failure("transactions", error)
-    except OSError:
-        report.failure("transactions", WorkError(
-            ExitCode.IO_FAILURE, "task_transaction_scan_failed",
-            "Transaction evidence could not be inspected.",
-        ))
+    _transaction_state(report, project_root, directory, ignored_record=ignored_record)
 
     from .attempt import validate_attempt_json_contract
     for path in sorted(directory.glob("TASK-*/ATTEMPT-*/attempt.json")):
@@ -540,6 +549,15 @@ def diagnose_task_collection(
             "plan:contract",
         )
     if collection_validation is not None:
+        execution_directory = index_document["artifacts"]["execution"]
+        transaction_directory = report.check(
+            "transactions:path", lambda: storage_path(project_root, execution_directory),
+            location=execution_directory,
+        )
+        if transaction_directory is not None:
+            _transaction_state(report, project_root, transaction_directory)
+        else:
+            report.skip("transactions", "transactions:path")
         execution = index_document["artifacts"]["execution"] + "/index.json"
         execution_raw = report.check(
             "execution:file", lambda: read_raw(storage_path(project_root, execution)), location=execution,

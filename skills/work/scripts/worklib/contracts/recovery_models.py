@@ -13,7 +13,7 @@ from .base import WorkContract
 
 RecoveryTransaction = Literal[
     "record_begin", "command_correction", "record_finish", "attempt_close",
-    "correction",
+    "correction", "deviation_record",
 ]
 
 

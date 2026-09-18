@@ -4,6 +4,13 @@ Before relying on an existing formal TASK, apply [the shared TASK diagnostic gat
 
 Use this workflow for Task. Independent discussion restoration follows the progress procedure before formal-source gates; normal source-dependent planning and formalization require a validated source Plan and confirmed skill selection without drift.
 
+## Reconstruct an invalid related specification
+
+1. When a TASK index, TASK item, or its Plan and execution bindings use an old, malformed, or incompatible representation, follow [AI cross-file migration](../instruction-loading.md#ai-cross-file-migration). Read the current TASK contracts and rebuild complete current `v1` candidates directly from preserved evidence; neither the source TASK nor the related source files must validate first.
+2. Do not use TASK repair preparation as a semantic migration engine, create a Python migration or compatibility adapter, or infer compatibility from a shared schema ID. Preserve IDs, dependencies, technical decisions, records, and lifecycle meaning only when uniquely supported.
+3. Ask through the parent only for real semantic ambiguity, such as conflicting TASK identity, dependency, action, acceptance linkage, or lifecycle meaning. Deterministic field placement, canonical ordering, and derivable bindings belong in the candidate without another decision.
+4. Keep all affected TASK files with the Plan and execution-index candidates as one indivisible set. Preview, publish and, when separately authorized, recover that set only through the dedicated migration commands; never independently create, repair or publish one TASK candidate.
+
 ## Independent discussion progress
 
 1. For `$work task -- resume <requirement-id>`, follow [discussion progress](progress.md) before the saved-planning entry point. Restore the Task discussion even when its formal Plan is stale is incomplete. Review current sources and any referenced structured draft before relying on decisions; only Task conducts continued discussion.

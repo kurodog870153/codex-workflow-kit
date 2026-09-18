@@ -4,6 +4,10 @@ import argparse
 from pathlib import Path
 
 from ..services.specification import prepare_specification, update_specification, verify_specification
+from ..services.specification_migration import preview_specification_migration, publish_specification_migration
+from ..services.specification_reconciliation import (
+    preview_specification_reconciliation, publish_specification_reconciliation,
+)
 from ..services.task_repair import prepare_task_repair, repair_task
 from ..artifacts.task import create_task_artifacts, recover_task_create
 from ..artifacts.task_draft import (
@@ -127,6 +131,26 @@ def register_task_commands(commands: SubparserRegistry) -> None:
         inspection.add_argument("--user-config-root", required=True)
         inspection.add_argument("--skill-root", action="append", default=[])
 
+    migration = task_commands.add_parser("migration-preview", help="Validate an AI-produced cross-file migration without writing.")
+    migration.add_argument("--input-file", required=True)
+    migration.add_argument("--user-config-root", required=True)
+    migration.add_argument("--skill-root", action="append", default=[])
+    for name in ("migration-apply", "migration-recover"):
+        publication = task_commands.add_parser(name, help="Publish or recover an approved cross-file migration.")
+        publication.add_argument("--input-file", required=True)
+        publication.add_argument("--user-config-root", required=True)
+        publication.add_argument("--skill-root", action="append", default=[])
+        publication.add_argument("--approved-sha256", required=True)
+    reconciliation = task_commands.add_parser("reconciliation-preview", help="Review specification candidates derived from execution deviations.")
+    reconciliation.add_argument("--input-file", required=True)
+    reconciliation.add_argument("--user-config-root", required=True)
+    reconciliation.add_argument("--skill-root", action="append", default=[])
+    reconciliation_apply = task_commands.add_parser("reconciliation-apply", help="Publish an approved specification reconciliation.")
+    reconciliation_apply.add_argument("--input-file", required=True)
+    reconciliation_apply.add_argument("--user-config-root", required=True)
+    reconciliation_apply.add_argument("--skill-root", action="append", default=[])
+    reconciliation_apply.add_argument("--approved-sha256", required=True)
+
     draft_init = task_commands.add_parser("draft-init", help="Save an initial planning index from a JSON request file.")
     draft_init.add_argument("--input-file", required=True)
     for name in ("draft-init-request", "draft-list-prepare"):
@@ -211,6 +235,29 @@ def run_task(
     project_root: Path,
     request: FileInput | None,
 ) -> dict[str, object]:
+    if arguments.task_command == "migration-preview":
+        return preview_specification_migration(
+            request.raw, project_root=project_root, user_config_root=arguments.user_config_root,
+            skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
+        )
+    if arguments.task_command in {"migration-apply", "migration-recover"}:
+        return publish_specification_migration(
+            request.raw, project_root=project_root, user_config_root=arguments.user_config_root,
+            skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
+            operation="apply" if arguments.task_command == "migration-apply" else "recover",
+            approved_sha256=arguments.approved_sha256,
+        )
+    if arguments.task_command == "reconciliation-preview":
+        return preview_specification_reconciliation(
+            request.raw, project_root=project_root, user_config_root=arguments.user_config_root,
+            skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
+        )
+    if arguments.task_command == "reconciliation-apply":
+        return publish_specification_reconciliation(
+            request.raw, approved_sha256=arguments.approved_sha256,
+            project_root=project_root, user_config_root=arguments.user_config_root,
+            skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
+        )
     if arguments.task_command in {"draft-init-request", "draft-list-prepare"}:
         options = dict(plan_path=arguments.plan_path, user_config_root=arguments.user_config_root,
                        skill_roots=[parse_skill_root(root) for root in arguments.skill_root])

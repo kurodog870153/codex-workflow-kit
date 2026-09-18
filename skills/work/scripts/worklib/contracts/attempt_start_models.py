@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.markdown import parse_json_contract
 from .base import WorkContract
+from .attempt_authorization_models import AttemptAuthorizationContract
 
 
 SHA256_PATTERN = r"^[0-9a-f]{64}$"
@@ -53,10 +54,11 @@ class AttemptStartRequestContract(WorkContract):
     contract_id: ClassVar[str] = "work-attempt-start-request/v1"
     contract_kind: ClassVar[Literal["request"]] = "request"
     canonical_order: ClassVar[tuple[str, ...]] = (
-        "schema", "worktree_snapshot_sha256", "continuation",
+        "schema", "worktree_snapshot_sha256", "authorization", "continuation",
     )
     schema_: Literal["work-attempt-start-request/v1"] = Field(alias="schema")
     worktree_snapshot_sha256: str = Field(pattern=SHA256_PATTERN)
+    authorization: AttemptAuthorizationContract
     continuation: AttemptContinuationModel | None = None
 
     @classmethod
@@ -131,6 +133,7 @@ class AttemptStartRecoveryContract(WorkContract):
 
 AttemptStartRequestContract.contract_example = {
     "schema": "work-attempt-start-request/v1", "worktree_snapshot_sha256": "0" * 64,
+    "authorization": AttemptAuthorizationContract.contract_example,
 }
 AttemptStartContract.contract_example = {
     "schema": "work-attempt-start/v1", "task_id": "TASK-001", "attempt_id": "ATTEMPT-001",

@@ -17,6 +17,7 @@ from worklib.contracts.execution_index import (
     render_execution_index,
     validate_execution_index,
 )
+from worklib.contracts.attempt_authorization_models import minimal_authorization
 
 
 class ExecuteInstructionAttemptStartTests(unittest.TestCase):
@@ -76,7 +77,7 @@ class ExecuteInstructionAttemptStartTests(unittest.TestCase):
             project_root=REPO_ROOT,
             preflight=self.preflight(),
             index=self.index(),
-            request={},
+            request={"authorization": minimal_authorization()},
             original_status="pending",
             attempt_id="ATTEMPT-001",
             started_at="2026-09-01T10:00+08:00",
@@ -118,6 +119,7 @@ class ExecuteInstructionAttemptStartTests(unittest.TestCase):
                 preflight=self.preflight(),
                 index=index,
                 request={
+                    "authorization": minimal_authorization(),
                     "continuation": {
                         "source_attempt_id": "ATTEMPT-001",
                         "carried_records": [],

@@ -15,6 +15,7 @@ from cli_support import FileInputTestCase
 from tests.work.contracts import test_task_collection
 from worklib.cli import main
 from worklib.contracts.attempt import render_attempt_contract
+from worklib.contracts.attempt_authorization_models import authorization_sha256, minimal_authorization
 from worklib.contracts.execution_index import build_initial_execution_index, render_execution_index
 from worklib.execution import recovery_prepare
 from worklib.execution.recovery import recover_execution
@@ -51,6 +52,8 @@ class RecoveryPreparationTests(FileInputTestCase):
             "execute_instructions_sha256": "c" * 64,
             "hierarchy_selection_sha256": self.index["hierarchy_selection_sha256"],
             "execute_skill_selection_sha256": self.index["skill_selection_sha256"],
+            "authorization": minimal_authorization(),
+            "authorization_sha256": authorization_sha256(minimal_authorization()),
             "started_at": "2026-09-01T10:00+08:00", "records": []}
         self.index["tasks"][0].update(status="in_progress", latest_attempt="ATTEMPT-001")
         self.index["overall_status"] = "in_progress"
@@ -135,6 +138,7 @@ class RecoveryPreparationTests(FileInputTestCase):
         with self.assertRaises(WorkError):
             self.prepare("attempt_close")
         self.attempt.update(status="stopped", final_type="instructions_changed", reason="Reviewed stop.",
+                            closing_authorization_evidence="User approved this closure.",
                             ended_at="2026-09-01T10:05+08:00")
         self.save()
         result = self.prepare("attempt_close")

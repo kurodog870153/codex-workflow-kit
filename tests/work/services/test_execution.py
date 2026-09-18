@@ -41,6 +41,48 @@ class ExecutionServiceTests(unittest.TestCase):
         require_no_spec_update.assert_called_once()
 
     @patch("worklib.services.execution.require_no_spec_update")
+    @patch("worklib.services.execution.record_execution_deviation", return_value={"status": "recorded"})
+    @patch("worklib.services.execution.load_task_execution_context")
+    @patch("worklib.services.execution.state_writer")
+    def test_deviation_record_acquires_writer_and_passes_approval(
+        self, writer, _load_context, record, _require_no_spec_update
+    ) -> None:
+        writer.return_value.__enter__.return_value = None
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            task = root / "outputs/work/tasks/example/index.json"
+            task.parent.mkdir(parents=True)
+            task.write_text("{}")
+            (root / "outputs/work/executions/example").mkdir(parents=True)
+            result = ExecutionService().execute(
+                "deviation-record", **self.options(root), raw_request=b"{}",
+                source="test", approved_sha256="a" * 64,
+                authorization_evidence="User approved.",
+            )
+        self.assertEqual(result, {"status": "recorded"})
+        writer.assert_called_once()
+        record.assert_called_once()
+
+    @patch("worklib.services.execution.require_no_spec_update")
+    @patch("worklib.services.execution.prepare_execution_deviation", return_value={"status": "preview"})
+    @patch("worklib.services.execution.state_writer")
+    def test_deviation_prepare_does_not_acquire_writer(
+        self, writer, prepare, require_no_spec_update
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            with patch.dict(
+                ExecutionService.FILE_OPERATIONS,
+                {"deviation-prepare": prepare},
+            ):
+                result = ExecutionService().execute(
+                    "deviation-prepare", **self.options(Path(temporary)),
+                    raw_request=b"{}", source="test",
+                )
+        self.assertEqual(result, {"status": "preview"})
+        writer.assert_not_called()
+        prepare.assert_called_once()
+
+    @patch("worklib.services.execution.require_no_spec_update")
     @patch("worklib.services.execution.begin_record", return_value={"status": "reserved"})
     @patch("worklib.services.execution.load_task_execution_context")
     @patch("worklib.services.execution.state_writer")

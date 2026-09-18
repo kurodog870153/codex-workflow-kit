@@ -5,6 +5,7 @@ import json
 import os
 import sys
 import unittest
+from contextlib import nullcontext
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,13 +14,16 @@ SKILL_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work"
 sys.path.insert(0, str(SKILL_ROOT / "scripts"))
 
 from worklib.contracts.attempt import render_attempt_contract, validate_attempt_file
+from worklib.contracts.attempt_authorization_models import authorization_sha256, minimal_authorization
 from tests.work.contracts import test_task_collection
 from worklib.contracts.execution_index import (
     build_initial_execution_index,
     render_execution_index,
     validate_execution_index,
 )
+from worklib.contracts.execution_deviation_models import ExecutionDeviationProposalContract
 from worklib.execution.attempt_close import close_attempt
+from worklib.execution.deviation import record_execution_deviation
 from worklib.execution.record_finish import finish_record
 from worklib.execution.recovery import recover_execution
 from worklib.foundation.errors import ExitCode, WorkError
@@ -72,6 +76,8 @@ class ExecutionTransactionRecoveryTests(unittest.TestCase):
             "execute_instructions_sha256": execute_selection["instructions_sha256"],
             "hierarchy_selection_sha256": validation["hierarchy_selection_sha256"],
             "execute_skill_selection_sha256": validation["skill_selection_sha256"],
+            "authorization": minimal_authorization(),
+            "authorization_sha256": authorization_sha256(minimal_authorization()),
             "started_at": "2026-09-01T10:00+08:00",
             "records": [record] if transaction == "attempt_close" else [],
         }
@@ -86,6 +92,8 @@ class ExecutionTransactionRecoveryTests(unittest.TestCase):
             "attempt_id": "ATTEMPT-001",
             "execute_instructions_sha256": execute_selection["instructions_sha256"],
         }
+        operation_options = {}
+        preparation = nullcontext()
         if transaction == "record_finish":
             index["lock"]["record_id"] = "VAL-001"
             request = {
@@ -93,6 +101,21 @@ class ExecutionTransactionRecoveryTests(unittest.TestCase):
                 "record": record,
             }
             operation = finish_record
+        elif transaction == "deviation_record":
+            index["lock"]["record_id"] = "CMD-001"
+            request = copy.deepcopy(ExecutionDeviationProposalContract.contract_example)
+            approved_sha256 = "9" * 64
+            operation_options = {
+                "approved_sha256": approved_sha256,
+            }
+            preparation = patch(
+                "worklib.execution.deviation._prepare_execution_deviation",
+                return_value={
+                    "proposal": request,
+                    "preview_sha256": approved_sha256,
+                },
+            )
+            operation = record_execution_deviation
         else:
             request = {
                 "schema": "work-attempt-close-request/v1",
@@ -122,9 +145,13 @@ class ExecutionTransactionRecoveryTests(unittest.TestCase):
                 raise OSError("simulated replacement failure")
             return real_replace(source, target)
 
-        with patch("os.replace", side_effect=interrupted_replace):
+        with preparation, patch("os.replace", side_effect=interrupted_replace):
             with self.assertRaises(WorkError) as context:
-                operation(json.dumps(request).encode("utf-8"), **common)
+                operation(
+                    json.dumps(request).encode("utf-8"),
+                    **common,
+                    **operation_options,
+                )
         error = context.exception
         self.assertEqual(error.exit_code, ExitCode.IO_FAILURE)
         self.assertEqual(error.code, f"{transaction}_replace_failed")
@@ -168,12 +195,23 @@ class ExecutionTransactionRecoveryTests(unittest.TestCase):
         recovered_index = parse_json_contract(
             index_path.read_bytes(), source=str(index_path)
         )
-        self.assertEqual(recovered_attempt["records"], [record])
+        self.assertEqual(
+            recovered_attempt["records"],
+            [] if transaction == "deviation_record" else [record],
+        )
         expected_index = copy.deepcopy(index)
         if transaction == "record_finish":
             self.assertEqual(recovered_attempt["status"], "in_progress")
             expected_index["lock"].pop("record_id")
             self.assertEqual(result["lock_status"], "attempt_held")
+        elif transaction == "deviation_record":
+            self.assertEqual(recovered_attempt["status"], "in_progress")
+            self.assertEqual(
+                recovered_attempt["execution_deviations"][0]["approved_preview_sha256"],
+                "9" * 64,
+            )
+            self.assertEqual(result["record_id"], "CMD-001")
+            self.assertEqual(result["lock_status"], "record_reserved")
         else:
             self.assertEqual(recovered_attempt["status"], "completed")
             expected_index.pop("lock")
@@ -191,6 +229,9 @@ class ExecutionTransactionRecoveryTests(unittest.TestCase):
         for failed_replace in (1, 2):
             with self.subTest(failed_replace=failed_replace):
                 self.exercise_recovery("attempt_close", failed_replace)
+
+    def test_deviation_record_recovers_after_replacement_failure(self) -> None:
+        self.exercise_recovery("deviation_record", 1)
 
 
 if __name__ == "__main__":

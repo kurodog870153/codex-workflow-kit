@@ -200,6 +200,8 @@ def main(
             arguments.command == "attempt" and arguments.attempt_command == "render"
         ) or (
             arguments.command == "correction" and arguments.correction_command == "render"
+        ) or (
+            arguments.command == "contract" and arguments.contract_command == "scaffold"
         )
         write_json(
             output, success_response(result, preserve_order=preserve_order), sort_keys=False,

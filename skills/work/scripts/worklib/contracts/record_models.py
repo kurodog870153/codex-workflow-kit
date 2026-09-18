@@ -13,12 +13,13 @@ class RecordFinishRequestContract(WorkContract):
     contract_id: ClassVar[str] = "work-record-finish-request/v1"
     contract_kind: ClassVar[Literal["request"]] = "request"
     canonical_order: ClassVar[tuple[str, ...]] = (
-        "schema", "record", "modified_files",
+        "schema", "record", "modified_files", "authorization_evidence",
     )
 
     schema_: Literal["work-record-finish-request/v1"] = Field(alias="schema")
     record: dict[str, Any]
     modified_files: list[str] | None = None
+    authorization_evidence: str | None = None
 
     @model_validator(mode="after")
     def validate_modified_files(self) -> Self:

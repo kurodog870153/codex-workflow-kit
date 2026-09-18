@@ -98,6 +98,37 @@ class TaskCliTests(FileInputTestCase):
         self.assertEqual(arguments.task_command, "spec-verify")
         self.assertEqual(arguments.input_file, "request.json")
 
+    def test_migration_preview_arguments_parse(self):
+        arguments = build_parser().parse_args([
+            "--project-root", "/project", "task", "migration-preview",
+            "--input-file", "request.json", "--user-config-root", "/config",
+        ])
+        self.assertEqual(arguments.task_command, "migration-preview")
+        self.assertEqual(arguments.input_file, "request.json")
+
+    def test_migration_publication_arguments_parse(self):
+        for command in ("migration-apply", "migration-recover"):
+            arguments = build_parser().parse_args([
+                "--project-root", "/project", "task", command,
+                "--input-file", "request.json", "--user-config-root", "/config",
+                "--approved-sha256", "a" * 64,
+            ])
+            self.assertEqual(arguments.task_command, command)
+            self.assertEqual(arguments.approved_sha256, "a" * 64)
+
+    def test_reconciliation_arguments_parse(self):
+        preview = build_parser().parse_args([
+            "--project-root", "/project", "task", "reconciliation-preview",
+            "--input-file", "request.json", "--user-config-root", "/config",
+        ])
+        self.assertEqual(preview.task_command, "reconciliation-preview")
+        apply = build_parser().parse_args([
+            "--project-root", "/project", "task", "reconciliation-apply",
+            "--input-file", "request.json", "--user-config-root", "/config",
+            "--approved-sha256", "a" * 64,
+        ])
+        self.assertEqual(apply.approved_sha256, "a" * 64)
+
     def test_removed_migration_commands_are_not_registered(self):
         commands = (
             "layout-preflight", "layout-prepare", "layout-validate", "layout-apply",

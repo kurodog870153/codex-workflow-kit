@@ -8,6 +8,7 @@ from ..execution.attempt_start import recover_attempt_start, start_attempt
 from ..execution.command_correction import record_command_correction
 from ..execution.command_run import prepare_command, run_command
 from ..execution.correction import create_correction
+from ..execution.deviation import prepare_execution_deviation, record_execution_deviation
 from ..execution.preflight import execute_preflight
 from ..execution.record_begin import begin_record
 from ..execution.record_finish import finish_record
@@ -29,6 +30,7 @@ class ExecutionService:
         "worktree",
         "recovery-prepare",
         "command-prepare",
+        "deviation-prepare",
         "command-run",
     }
 
@@ -40,6 +42,7 @@ class ExecutionService:
         "recover": recover_execution,
         "recovery-prepare": prepare_execution_recovery,
         "command-prepare": prepare_command,
+        "deviation-prepare": prepare_execution_deviation,
     }
 
     def execute(
@@ -115,13 +118,21 @@ class ExecutionService:
         authorization_evidence: str | None,
     ) -> dict[str, object]:
         if operation == "record-begin":
-            return begin_record(**common, base_record_id=base_record_id)
+            return begin_record(
+                **common,
+                base_record_id=base_record_id,
+                authorization_evidence=authorization_evidence,
+            )
         if operation == "command-run":
             return run_command(
                 raw_request,
                 source=source,
                 approved_sha256=approved_sha256,
-                authorization_evidence=authorization_evidence,
+                **common,
+            )
+        if operation == "deviation-record":
+            return record_execution_deviation(
+                raw_request, source=source, approved_sha256=approved_sha256,
                 **common,
             )
         if operation in self.FILE_OPERATIONS:

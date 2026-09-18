@@ -18,7 +18,7 @@ class CommandCorrectionContractTests(unittest.TestCase):
             "original_command": {"mode": "argv", "argv": ["tool", "old"]},
             "actual_command": {"mode": "argv", "argv": ["tool", "new"]},
             "reason": "Use the authorized argument.",
-            "authorization_evidence": "User approved correction 1.",
+            "authorization_evidence": "Manifest authorization.",
         }
 
     def test_canonicalizes_argv_commands(self) -> None:

@@ -34,6 +34,7 @@ from worklib.services.skill_selection import selection_sha256
 from worklib.services.handoff import build_execute_return_handoff, build_preflight_return_handoff
 from worklib.services.handoff import verify_plan_to_task_handoff, verify_task_to_execute_handoff
 from worklib.contracts.attempt import render_attempt_contract
+from worklib.contracts.attempt_authorization_models import authorization_sha256, minimal_authorization
 from worklib.contracts.execution_index import build_initial_execution_index, render_execution_index, derive_overall_status
 
 
@@ -496,10 +497,13 @@ class HandoffArtifactTests(FileInputTestCase):
                 reference_names=["execute.general.execution-records"],
             )["instructions_sha256"],
             "execute_skill_selection_sha256": selection_sha256("base_only", []),
+            "authorization": minimal_authorization(),
+            "authorization_sha256": authorization_sha256(minimal_authorization()),
             "started_at": "2026-09-01T10:00+08:00", "records": [],
             "ended_at": "2026-09-01T10:05+08:00",
             "final_type": "specification_defect" if status == "stopped" else "required_input",
             "reason": "Missing specification detail",
+            "closing_authorization_evidence": "User approved this closure.",
         }
         self.index["tasks"][0].update(status="blocked", latest_attempt="ATTEMPT-001",
                                       status_reason={"kind": "attempt", "ref": "ATTEMPT-001"})
@@ -688,7 +692,9 @@ class HandoffArtifactTests(FileInputTestCase):
         for status in ("in_progress", "completed"):
             self.write_closed_execution()
             self.attempt["status"] = status
-            for field in ("reason", "final_type"):
+            for field in (
+                "reason", "final_type", "closing_authorization_evidence",
+            ):
                 self.attempt.pop(field)
             if status == "in_progress":
                 self.attempt.pop("ended_at")

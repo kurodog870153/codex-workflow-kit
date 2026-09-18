@@ -10,6 +10,7 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.contracts.attempt_start_models import AttemptStartRequestContract
+from worklib.contracts.attempt_authorization_models import minimal_authorization
 from worklib.foundation.errors import WorkError
 
 
@@ -23,6 +24,7 @@ class AttemptStartRequestTests(unittest.TestCase):
         return {
             "schema": "work-attempt-start-request/v1",
             "worktree_snapshot_sha256": "a" * 64,
+            "authorization": minimal_authorization(),
         }
 
     def test_parses_request_without_continuation(self) -> None:

@@ -17,6 +17,7 @@ from cli_support import FileInputTestCase
 from contracts import test_task as fixtures
 from worklib.cli import main
 from worklib.contracts.attempt import render_attempt_contract
+from worklib.contracts.attempt_authorization_models import authorization_sha256, minimal_authorization
 from worklib.contracts.execution_index import build_initial_execution_index, render_execution_index
 from worklib.contracts.task_collection_semantics import render_task_contract
 from worklib.artifacts.task import prepare_task_collection_create
@@ -89,6 +90,9 @@ class CommandRunTests(FileInputTestCase):
         selection = build_instruction_selection(skill_root=fixtures.SKILL_ROOT, mode="execute",
             selected_paths=self.fixture.contract["tasks"][0]["instruction_selection"]["selected_paths"],
             reference_names=BASE_EXECUTE_REFERENCES)
+        authorization = minimal_authorization()
+        authorization["commands"] = [copy.deepcopy(self.fixture.contract["tasks"][0]["commands"][0])]
+        authorization["working_directories"] = ["."]
         self.attempt = {"schema": "work-attempt/v1", "attempt_id": "ATTEMPT-001", "task_id": "TASK-001",
             "task_spec_id": self.index["task_spec_id"], "skill_id": None, "status": "in_progress",
             "task_collection_sha256": self.index["task_collection_sha256"],
@@ -98,6 +102,8 @@ class CommandRunTests(FileInputTestCase):
             "execute_instructions_sha256": selection["instructions_sha256"],
             "hierarchy_selection_sha256": self.index["hierarchy_selection_sha256"],
             "execute_skill_selection_sha256": self.index["skill_selection_sha256"],
+            "authorization": authorization,
+            "authorization_sha256": authorization_sha256(authorization),
             "started_at": "2026-09-01T10:00+08:00", "records": []}
         self.index["tasks"][0].update(status="in_progress", latest_attempt="ATTEMPT-001")
         self.index["overall_status"] = "in_progress"
@@ -114,7 +120,7 @@ class CommandRunTests(FileInputTestCase):
 
     def run_cmd(self, approval):
         return command_run.run_command(json.dumps(self.request).encode(), **self.common,
-            approved_sha256=approval, authorization_evidence="User authorized this controlled test command.")
+            approved_sha256=approval)
 
     def snapshot(self):
         return {str(path): path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
@@ -159,8 +165,74 @@ class CommandRunTests(FileInputTestCase):
             "reason": "Reviewed equivalent test command", "authorization_evidence": "Confirmed test correction"}
         self.save()
         preview = self.prepare()
-        self.assertEqual(preview["argv"][-1], "print('corrected')")
+        self.assertEqual(preview["invocation"]["argv"][-1], "print('corrected')")
         self.assertIn("corrected", self.run_cmd(preview["approved_sha256"])["stdout_tail"])
+
+    def test_windows_cmd_preview_is_read_only_and_executes_through_fixed_launcher(self):
+        windows = self.root / "Windows"
+        launcher = windows / "System32/cmd.exe"
+        launcher.parent.mkdir(parents=True)
+        launcher.write_bytes(b"fixed launcher")
+        script = self.root / "tools/batch tool.cmd"
+        script.parent.mkdir(parents=True)
+        script.write_bytes(b"@echo off\r\n")
+        arguments = ["two words", "a&b", "%PATH%", "!literal!", 'a"b']
+        with patch.object(command_run.platform, "system", return_value="Windows"):
+            self.configure([str(script), *arguments])
+            before = self.snapshot()
+            with patch.dict(command_run.os.environ, {"SystemRoot": str(windows)}):
+                preview = self.prepare()
+                self.assertEqual(before, self.snapshot())
+                invocation = preview["invocation"]
+                self.assertEqual(invocation["kind"], "windows_batch")
+                self.assertEqual(invocation["launcher"], str(launcher.absolute()))
+                self.assertEqual(invocation["script"], str(script.absolute()))
+                self.assertEqual(invocation["arguments"], arguments)
+                self.assertEqual(invocation["launcher_arguments"][:4], ["/d", "/s", "/v:off", "/c"])
+                self.assertIn("%%PATH%%", invocation["command_line"])
+                first = preview["approved_sha256"]
+                script.write_bytes(b"@echo changed\r\n")
+                self.assertNotEqual(first, self.prepare()["approved_sha256"])
+                with patch.object(command_run, "_execute") as execute:
+                    execute.return_value = {"status": "exited", "exit_code": 0,
+                        "stdout_tail": "done", "stdout_truncated": False,
+                        "stderr_tail": "", "stderr_truncated": False}
+                    approved = self.prepare()
+                    result = self.run_cmd(approved["approved_sha256"])
+                    execute.assert_called_once_with(
+                        [str(launcher.absolute()), *approved["invocation"]["launcher_arguments"]],
+                        str(self.root), 10)
+                    self.assertEqual(result["exit_code"], 0)
+                    self.assertTrue((self.root / (approved["receipt_prefix"] + ".started.json")).is_file())
+                    self.assertTrue((self.root / (approved["receipt_prefix"] + ".finished.json")).is_file())
+
+    def test_windows_batch_resolves_path_and_non_windows_rejects(self):
+        script = self.root / "tools/tool.bat"
+        script.parent.mkdir(parents=True)
+        script.write_bytes(b"@echo off\r\n")
+        windows = self.root / "Windows"
+        launcher = windows / "System32/cmd.exe"
+        launcher.parent.mkdir(parents=True)
+        launcher.write_bytes(b"fixed launcher")
+        with patch.object(command_run.platform, "system", return_value="Windows"), \
+             patch.object(command_run.shutil, "which", return_value=str(script)):
+            self.configure(["tool.bat", "value"])
+            with patch.dict(command_run.os.environ, {"SystemRoot": str(windows)}):
+                preview = self.prepare()
+                self.assertEqual(preview["invocation"]["script"], str(script.absolute()))
+                with patch.object(command_run, "_execute", return_value={
+                    "status": "exited", "exit_code": 0, "stdout_tail": "",
+                    "stdout_truncated": False, "stderr_tail": "", "stderr_truncated": False,
+                }) as execute:
+                    self.run_cmd(preview["approved_sha256"])
+                    execute.assert_called_once_with(
+                        [str(launcher.absolute()), *preview["invocation"]["launcher_arguments"]],
+                        str(self.root), 10)
+        with patch.object(command_run.platform, "system", return_value="Linux"):
+            self.configure([str(script)])
+            with self.assertRaises(WorkError) as error:
+                self.prepare()
+        self.assertEqual(error.exception.code, "command_run_argv_only")
 
     def test_nonzero_exit_is_retained_without_retry(self):
         self.configure([sys.executable, "-c", "import sys; print('failed'); sys.exit(7)"])

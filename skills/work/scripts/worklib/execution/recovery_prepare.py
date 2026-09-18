@@ -116,9 +116,11 @@ def prepare_execution_recovery(raw, *, source, project_root: Path, user_config_r
                 re.escape(prefix) + r"(?:CMD|OP|VAL)-\d{3}(?:-retry-\d+)?\.tmp", files[0]
             ):
                 _fail("recovery_prepare_record_identity", "Record-begin requires one prepared record and an unreserved lock.")
-        elif transaction in {"command_correction", "record_finish"}:
+        elif transaction in {"command_correction", "record_finish", "deviation_record"}:
             expected_files = {prefix + str(safe_record) + suffix for suffix in (
-                (".tmp",) if transaction == "command_correction" else ("-attempt.tmp", "-index.tmp")
+                (".tmp",) if transaction == "command_correction" else
+                ("-attempt.tmp",) if transaction == "deviation_record" else
+                ("-attempt.tmp", "-index.tmp")
             )}
             if safe_record is None or not set(files) <= expected_files or (
                 transaction == "command_correction" and (not record_id.startswith("CMD-") or "command_correction" in lock)
@@ -130,6 +132,8 @@ def prepare_execution_recovery(raw, *, source, project_root: Path, user_config_r
             transaction == "attempt_close" and attempt["status"] != "in_progress" and record_id is None
             or transaction == "record_finish" and isinstance(record_id, str)
             and any(record["id"] == record_id for record in attempt["records"])
+            or transaction == "deviation_record" and isinstance(record_id, str)
+            and bool(attempt.get("execution_deviations"))
         ):
             _fail("recovery_prepare_missing_evidence", "No preserved files or supported post-write evidence establish this direction.")
     for name in files:

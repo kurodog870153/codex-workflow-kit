@@ -13,12 +13,13 @@ class AttemptCloseRequestContract(WorkContract):
     contract_id: ClassVar[str] = "work-attempt-close-request/v1"
     contract_kind: ClassVar[Literal["request"]] = "request"
     canonical_order: ClassVar[tuple[str, ...]] = (
-        "schema", "status", "final_type", "reason",
+        "schema", "status", "final_type", "reason", "authorization_evidence",
     )
     schema_: Literal["work-attempt-close-request/v1"] = Field(alias="schema")
     status: Literal["completed", "stopped", "blocked"]
     final_type: str | None = None
     reason: str | None = None
+    authorization_evidence: str | None = None
 
     @model_validator(mode="after")
     def validate_final_details(self) -> Self:
@@ -30,6 +31,12 @@ class AttemptCloseRequestContract(WorkContract):
                 "A completed Attempt cannot include final_type or reason.",
                 {"fields": present},
             )
+        if self.status == "completed" and self.authorization_evidence is not None:
+            raise WorkError(
+                ExitCode.CONTRACT,
+                "attempt_close_unexpected_authorization_evidence",
+                "A completed Attempt reuses its manifest authorization.",
+            )
         if self.status != "completed":
             missing = [name for name in ("final_type", "reason") if getattr(self, name) is None]
             if missing:
@@ -38,6 +45,12 @@ class AttemptCloseRequestContract(WorkContract):
                     "attempt_close_missing_final_details",
                     "A stopped or blocked Attempt requires final_type and reason.",
                     {"missing": missing},
+                )
+            if not self.authorization_evidence or not self.authorization_evidence.strip():
+                raise WorkError(
+                    ExitCode.CONTRACT,
+                    "attempt_close_missing_authorization_evidence",
+                    "A stopped or blocked Attempt requires fresh authorization evidence.",
                 )
             if not self.final_type.strip() or not self.reason.strip():  # type: ignore[union-attr]
                 raise WorkError(

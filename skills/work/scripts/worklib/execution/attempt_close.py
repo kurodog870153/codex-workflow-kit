@@ -93,6 +93,7 @@ def build_closed_attempt(
     else:
         candidate["final_type"] = request["final_type"]
         candidate["reason"] = request["reason"]
+        candidate["closing_authorization_evidence"] = request["authorization_evidence"]
     candidate["ended_at"] = ended_at
     return canonicalize_attempt_contract(candidate, project_root=project_root)
 

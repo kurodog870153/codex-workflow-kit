@@ -43,7 +43,11 @@ def transaction_completion_state(record_raw: bytes, marker_raw: bytes | None) ->
 
 def require_no_spec_update(root: Path, execution_dir: str, *, ignored_record: str | None = None) -> None:
     directory = storage_path(root, execution_dir)
-    records = sorted([*directory.glob(".work-spec-update-*.json"), *directory.glob(".work-task-repair-*.json")])
+    records = sorted([
+        *directory.glob(".work-spec-update-*.json"),
+        *directory.glob(".work-task-repair-*.json"),
+        *directory.glob(".work-spec-migration-*.json"),
+    ])
     for record in records:
         if record.relative_to(root).as_posix() == ignored_record:
             continue

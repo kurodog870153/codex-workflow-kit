@@ -37,6 +37,7 @@ def register_execute_commands(commands: SubparserRegistry) -> None:
     record_begin = execute_commands.add_parser("record-begin")
     _add_execution_context_arguments(record_begin)
     record_begin.add_argument("--record-id", required=True)
+    record_begin.add_argument("--authorization-evidence")
 
     for command_name in (
         "command-correction",
@@ -46,14 +47,15 @@ def register_execute_commands(commands: SubparserRegistry) -> None:
         "recover",
         "recovery-prepare",
         "command-prepare",
+        "deviation-prepare",
+        "deviation-record",
         "command-run",
     ):
         execute_command = execute_commands.add_parser(command_name)
         _add_execution_context_arguments(execute_command)
         execute_command.add_argument("--input-file", required=True)
-        if command_name == "command-run":
+        if command_name in {"command-run", "deviation-record"}:
             execute_command.add_argument("--approved-sha256", required=True)
-            execute_command.add_argument("--authorization-evidence", required=True)
 
 
 def run_execute(
