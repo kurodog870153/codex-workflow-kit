@@ -10,8 +10,9 @@ from ..contracts.delegation import (
     DelegationEnvelopeContract, DelegationValidationContract,
 )
 from ..contracts.validation import nonempty_string, sha256, strict_keys
-from ..contracts.progress import FIELDS, validate_progress_contract
+from ..contracts.progress import validate_progress_contract
 from ..models.common.errors import ExitCode, WorkError
+from ..models.progress import FIELDS
 from ..services.invocation import parse_invocation
 from ..foundation.paths import validate_artifact_paths, validate_requirement_id
 from .instruction_history import stored_selection

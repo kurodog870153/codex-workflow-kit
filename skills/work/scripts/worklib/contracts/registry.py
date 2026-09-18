@@ -29,7 +29,7 @@ from .skill import (
     SkillSelectionValidationContract, SkillSnapshotContract,
 )
 from .plan import PlanContract, PlanCreateContract, PlanPrepareContract, PlanValidationContract
-from .progress import (
+from ..models.progress import (
     DiscussionProgressContract, ProgressPrepareContract, ProgressPreviewContract,
     ProgressReadContract, ProgressSaveContract, ProgressSaveRequestContract,
 )

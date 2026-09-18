@@ -6,9 +6,10 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
-from ..contracts.progress import FIELDS, validate_progress_contract
+from ..contracts.progress import validate_progress_contract
 from ..contracts.validation import sha256, strict_keys
 from ..models.common.errors import ExitCode, WorkError
+from ..models.progress import FIELDS
 from ..foundation.markdown import parse_json_contract, render_json_contract
 from ..foundation.paths import validate_requirement_id
 from ..foundation.spec_update import storage_path
