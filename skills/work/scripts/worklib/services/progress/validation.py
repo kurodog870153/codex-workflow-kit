@@ -13,6 +13,10 @@ validate_sha256 = sha256
 validate_strict_keys = strict_keys
 
 
+def parse_progress_request(raw: bytes, *, source: str) -> dict[str, Any]:
+    return parse_json_contract(raw, source=source)
+
+
 def validate_progress_contract(value: object) -> dict[str, Any]:
     progress = strict_keys(value, location="progress", required=set(FIELDS))
     if progress["schema"] != "work-discussion-progress/v1" or progress["status"] != "discussion_only":

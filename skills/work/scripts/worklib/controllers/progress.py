@@ -3,9 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ..services.progress import prepare_progress, preview_progress, read_progress, save_progress
-from ..foundation.markdown import parse_json_contract
-from ..infrastructure.cli_io import FileInput
+from ..business_services.progress import prepare_progress, preview_progress, read_progress, save_progress
 from . import SubparserRegistry
 
 
@@ -27,17 +25,16 @@ def register_progress_commands(commands: SubparserRegistry) -> None:
 
 
 def run_progress(
-    arguments: argparse.Namespace, project_root: Path, request: FileInput | None,
+    arguments: argparse.Namespace, project_root: Path, request,
 ) -> dict[str, object]:
     if arguments.progress_command == "read":
         return read_progress(project_root, arguments.requirement_id, arguments.mode)
-    value = parse_json_contract(request.raw, source=request.source)
     if arguments.progress_command == "prepare":
-        return prepare_progress(project_root, value, requirement_id=arguments.requirement_id,
+        return prepare_progress(project_root, request.raw, source=request.source, requirement_id=arguments.requirement_id,
                                 mode=arguments.mode, expected_revision=arguments.expected_revision)
     if arguments.progress_command == "save":
         return save_progress(
-            project_root, value, expected_revision=arguments.expected_revision,
+            project_root, request.raw, source=request.source, expected_revision=arguments.expected_revision,
             approved_sha256=arguments.approved_sha256,
         )
-    return preview_progress(project_root, value, expected_revision=arguments.expected_revision)
+    return preview_progress(project_root, request.raw, source=request.source, expected_revision=arguments.expected_revision)
