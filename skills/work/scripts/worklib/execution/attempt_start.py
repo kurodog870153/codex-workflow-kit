@@ -17,6 +17,7 @@ from ..contracts.attempt_start_models import (
     AttemptStartRecoveryContract,
     AttemptStartRequestContract,
 )
+from ..contracts.attempt_authorization_models import authorization_sha256, validate_authorization_scope
 from ..foundation.errors import ExitCode, WorkError
 from .preflight import execute_preflight
 from .worktree import (
@@ -37,6 +38,7 @@ from ..infrastructure.attempt_start_storage import (
     transaction_path as _transaction_path,
     write_exclusive as _write_exclusive,
 )
+from ..services.task_collection import load_task_execution_context
 from .worktree import collect_git_status, worktree_snapshot_sha256
 
 
@@ -187,6 +189,8 @@ def _build_attempt(
         "execute_instructions_sha256": preflight["execute_instructions_sha256"],
         "hierarchy_selection_sha256": preflight["hierarchy_selection_sha256"],
         "execute_skill_selection_sha256": preflight["execute_skill_selection"]["selection_sha256"],
+        "authorization": request["authorization"],
+        "authorization_sha256": authorization_sha256(request["authorization"]),
         "started_at": started_at,
         "records": [],
     }
@@ -476,6 +480,11 @@ def start_attempt(
             expected=request["worktree_snapshot_sha256"],
             actual=worktree["snapshot_sha256"],
         )
+    context = load_task_execution_context(project_root, user_config_root, raw_task_path, task_id, skill_roots=skill_roots)
+    task = next(item for item in context["contract"]["tasks"] if item["id"] == task_id)
+    request["authorization"] = validate_authorization_scope(
+        request["authorization"], task=task, defaults=context["contract"].get("execution_defaults")
+    )
     execution_dir, execution_path, index_relative, index_path = _paths(
         project_root, raw_execution_dir
     )
@@ -606,6 +615,11 @@ def recover_attempt_start(
         _allow_attempt_start_transaction=True,
         _eligible_statuses={"pending", "pending_retry", "in_progress"},
         _rule_status=original_status,
+    )
+    context = load_task_execution_context(project_root, user_config_root, raw_task_path, task_id, skill_roots=skill_roots)
+    task = next(item for item in context["contract"]["tasks"] if item["id"] == task_id)
+    request["authorization"] = validate_authorization_scope(
+        request["authorization"], task=task, defaults=context["contract"].get("execution_defaults")
     )
     expected_lock = _lock(
         task_id=task_id,

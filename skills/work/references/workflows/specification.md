@@ -44,6 +44,8 @@ Single-file `task.json` artifacts are unsupported.
 
 ## Prepare and review
 
+Execution-deviation reconciliation uses `task reconciliation-preview` with the immutable closed Attempt path, the `all`, `selective`, or `retain_only` choice, and a complete AI-produced migration candidate set when publication is requested. The command validates the Attempt bytes, selected pending deviations, candidate contracts, diff and relationships. `retain_only` performs no write. After fingerprint-bound approval, `task reconciliation-apply` revalidates the same evidence and publishes through the migration specification transaction; it never modifies Attempt or Correction history.
+
 ### Optional field replacement preparation
 
 For confirmed ordinary revisions, `task spec-prepare` can assemble the complete

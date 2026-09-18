@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from cli_support import FileInputTestCase
 from worklib.cli import build_parser, main
 from worklib.contracts.attempt import canonicalize_attempt_contract
+from worklib.contracts.attempt_authorization_models import authorization_sha256, minimal_authorization
 from worklib.contracts.correction import canonicalize_correction_contract
 from worklib.foundation.errors import ExitCode
 from worklib.foundation.markdown import render_json_contract
@@ -127,7 +128,7 @@ class CliFileTransportTests(FileInputTestCase):
             self.assertEqual(response["schema"], "work-cli-result/v1")
 
     def test_renderer_data_preserves_canonical_order_and_round_trips(self):
-        attempt = {"schema": "work-attempt/v1", "attempt_id": "ATTEMPT-001", "task_spec_id": "TASK-SPEC-001", "task_id": "TASK-001", "skill_id": None, "status": "in_progress", "task_collection_sha256": "a" * 64, "task_index_sha256": "1" * 64, "task_item_sha256": "2" * 64, "task_instructions_sha256": "b" * 64, "execute_instructions_sha256": "c" * 64, "hierarchy_selection_sha256": "f" * 64, "execute_skill_selection_sha256": "d" * 64, "started_at": "2026-09-01T10:00+08:00", "records": []}
+        attempt = {"schema": "work-attempt/v1", "attempt_id": "ATTEMPT-001", "task_spec_id": "TASK-SPEC-001", "task_id": "TASK-001", "skill_id": None, "status": "in_progress", "task_collection_sha256": "a" * 64, "task_index_sha256": "1" * 64, "task_item_sha256": "2" * 64, "task_instructions_sha256": "b" * 64, "execute_instructions_sha256": "c" * 64, "hierarchy_selection_sha256": "f" * 64, "execute_skill_selection_sha256": "d" * 64, "authorization": minimal_authorization(), "authorization_sha256": authorization_sha256(minimal_authorization()), "started_at": "2026-09-01T10:00+08:00", "records": []}
         correction = {"schema": "work-correction/v1", "correction_id": "ATTEMPT-001-CORRECTION-001", "created_at": "2026-09-01T10:05+08:00", "target_attempt_id": "ATTEMPT-001", "task_collection_sha256": "a" * 64, "task_index_sha256": "1" * 64, "task_item_sha256": "2" * 64, "task_instructions_sha256": "b" * 64, "execute_instructions_sha256": "c" * 64, "field": "records[0].outcome", "correct_value": "passed", "reason": "修正紀錄。"}
         handoff = {
             "schema": "work-handoff/v1", "marker": "WORK-HANDOFF",

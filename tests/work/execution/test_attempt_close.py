@@ -11,6 +11,7 @@ SCRIPT_ROOT = SKILL_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.foundation.errors import WorkError
+from worklib.contracts.attempt_authorization_models import authorization_sha256, minimal_authorization
 from worklib.execution.attempt_close import (
     _task_status,
     _validate_execute_instruction_close_state,
@@ -54,6 +55,8 @@ class ExecuteInstructionAttemptCloseTests(unittest.TestCase):
             ],
             "hierarchy_selection_sha256": "f" * 64,
             "execute_skill_selection_sha256": "d" * 64,
+            "authorization": minimal_authorization(),
+            "authorization_sha256": authorization_sha256(minimal_authorization()),
             "started_at": "2026-09-01T10:00+08:00",
             "records": [],
         }
@@ -64,6 +67,7 @@ class ExecuteInstructionAttemptCloseTests(unittest.TestCase):
             "status": "stopped",
             "final_type": final_type,
             "reason": "Stop for the recorded reason.",
+            "authorization_evidence": "User approved this closure.",
         }
 
     def test_unchanged_instructions_allow_normal_stop_reason(self) -> None:

@@ -37,6 +37,7 @@ class ContractCliTests(unittest.TestCase):
         self.assertEqual(contract_ids, sorted(contract_ids))
         self.assertIn("work-contract-catalog/v1", contract_ids)
         self.assertIn("work-contract-description/v1", contract_ids)
+        self.assertIn("work-contract-scaffold/v1", contract_ids)
 
     def test_describe_returns_stable_public_description(self) -> None:
         code, result, stderr = self.run_cli(
@@ -56,6 +57,29 @@ class ContractCliTests(unittest.TestCase):
         self.assertEqual(code, ExitCode.CONTRACT)
         self.assertEqual(stderr, "")
         self.assertEqual(result["reason_code"], "unknown_contract_id")
+
+    def test_scaffold_returns_request_shape_order_and_example(self) -> None:
+        code, result, stderr = self.run_cli(
+            "scaffold", "work-record-finish-request/v1"
+        )
+
+        self.assertEqual(code, ExitCode.SUCCESS)
+        self.assertEqual(stderr, "")
+        self.assertEqual(result["data"]["schema"], "work-contract-scaffold/v1")
+        self.assertEqual(
+            list(result["data"]["scaffold"]), result["data"]["canonical_order"]
+        )
+
+    def test_scaffold_rejects_nonrequest_contract(self) -> None:
+        code, result, stderr = self.run_cli(
+            "scaffold", "work-contract-catalog/v1"
+        )
+
+        self.assertEqual(code, ExitCode.CONTRACT)
+        self.assertEqual(stderr, "")
+        self.assertEqual(
+            result["reason_code"], "contract_scaffold_requires_request"
+        )
 
 
 if __name__ == "__main__":

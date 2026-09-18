@@ -13,6 +13,7 @@ from .description import (
     ContractCatalogEntry,
     ContractDescription,
     ContractFieldDescription,
+    ContractScaffold,
 )
 from .delegation import DelegationEnvelopeContract, DelegationValidationContract
 from .invocation import InvocationContract
@@ -36,11 +37,16 @@ from .handoff import HandoffContract, HandoffSourceValidationContract, HandoffVa
 from .execution_inspection_models import (
     ExecutePreflightContract, ExecuteWorktreeContract, ExecuteWorktreeSnapshotContract,
 )
+from .execution_deviation_models import (
+    ExecutionDeviationContract, ExecutionDeviationPreviewContract,
+    ExecutionDeviationProposalContract, ExecutionDeviationRecordContract,
+)
 from .execution_index import ExecutionIndexContract
 from .attempt import AttemptContract, AttemptValidationContract
 from .correction import CorrectionContract
 from .correction_create_models import CorrectionCreateContract, CorrectionCreateRequestContract
 from .attempt_start_models import AttemptStartContract, AttemptStartRecoveryContract, AttemptStartRequestContract
+from .attempt_authorization_models import AttemptAuthorizationContract
 from .attempt_close_models import AttemptCloseContract, AttemptCloseRequestContract
 from .record_models import RecordBeginContract, RecordFinishContract, RecordFinishRequestContract
 from .command_models import (
@@ -75,6 +81,15 @@ from .specification_models import (
     SpecificationVerificationRequestContract,
     SpecificationPrepareContract, SpecificationUpdateContract, SpecificationVerificationContract,
 )
+from .specification_migration_models import (
+    SpecificationMigrationPreviewContract, SpecificationMigrationPreviewRequestContract,
+    SpecificationMigrationPublicationContract,
+)
+from .specification_reconciliation_models import (
+    SpecificationReconciliationPreviewContract,
+    SpecificationReconciliationPreviewRequestContract,
+    SpecificationReconciliationPublicationContract,
+)
 
 
 def _type_name(annotation: Any) -> str:
@@ -101,6 +116,32 @@ def _type_name(annotation: Any) -> str:
         type(None): "null",
         Any: "any",
     }.get(annotation, "unknown")
+
+
+def _scaffold_value(annotation: Any, example: Any = None) -> Any:
+    origin = get_origin(annotation)
+    arguments = get_args(annotation)
+    if origin in {Union, types.UnionType}:
+        target = next((item for item in arguments if item is not type(None)), Any)
+        return _scaffold_value(target, example)
+    if origin is Literal:
+        return arguments[0] if arguments else None
+    if origin in {list, tuple, set, frozenset}:
+        if isinstance(example, list) and example:
+            return [_scaffold_value(arguments[0], example[0])]
+        return []
+    if origin is dict:
+        return {}
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        source = example if isinstance(example, dict) else {}
+        return {
+            field.alias or name: _scaffold_value(
+                field.annotation,
+                source.get(field.alias or name),
+            )
+            for name, field in annotation.model_fields.items()
+        }
+    return None
 
 
 class ContractRegistry:
@@ -169,9 +210,29 @@ class ContractRegistry:
             example=dict(contract.contract_example or {}),
         )
 
+    def scaffold(self, contract_id: str) -> ContractScaffold:
+        contract = self.model(contract_id)
+        if contract.contract_kind != "request":
+            raise WorkError(
+                ExitCode.CONTRACT,
+                "contract_scaffold_requires_request",
+                "Only request contracts have public input scaffolds.",
+                {"contract_id": contract_id, "kind": contract.contract_kind},
+            )
+        example = dict(contract.contract_example or {})
+        scaffold = _scaffold_value(contract, example)
+        return ContractScaffold(
+            schema="work-contract-scaffold/v1",
+            id=contract.contract_id,
+            canonical_order=list(contract.canonical_order),
+            scaffold=scaffold,
+            example=example,
+        )
+
 
 registry = ContractRegistry()
 registry.register(
+    AttemptAuthorizationContract,
     AttemptCloseContract,
     AttemptCloseRequestContract,
     AttemptStartContract,
@@ -188,6 +249,10 @@ registry.register(
     CorrectionContract,
     CorrectionCreateContract,
     CorrectionCreateRequestContract,
+    ExecutionDeviationContract,
+    ExecutionDeviationPreviewContract,
+    ExecutionDeviationProposalContract,
+    ExecutionDeviationRecordContract,
     ExecutionIndexContract,
     ExecutionRecoveryContract,
     ExecutionRecoveryPrepareContract,
@@ -200,6 +265,7 @@ registry.register(
     CliResultContract,
     ContractCatalog,
     ContractDescription,
+    ContractScaffold,
     DelegationEnvelopeContract,
     DelegationValidationContract,
     ErrorContract,
@@ -236,6 +302,12 @@ registry.register(
     SpecificationUpdateRequestContract,
     SpecificationVerificationRequestContract,
     SpecificationPrepareContract, SpecificationUpdateContract, SpecificationVerificationContract,
+    SpecificationMigrationPreviewContract,
+    SpecificationMigrationPreviewRequestContract,
+    SpecificationMigrationPublicationContract,
+    SpecificationReconciliationPreviewContract,
+    SpecificationReconciliationPreviewRequestContract,
+    SpecificationReconciliationPublicationContract,
     TaskRepairPrepareContract,
     TaskRepairPrepareRequestContract,
     TaskRepairContract,

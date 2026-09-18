@@ -35,6 +35,7 @@ class AttemptCloseRequestTests(unittest.TestCase):
                     "status": status,
                     "final_type": "other",
                     "reason": "Recorded reason.",
+                    "authorization_evidence": "User approved this closure.",
                 }
 
                 self.assertEqual(self.parse(request), request)
@@ -87,6 +88,7 @@ class AttemptCloseRequestTests(unittest.TestCase):
                     "status": "blocked",
                     "final_type": "other",
                     "reason": " ",
+                    "authorization_evidence": "User approved this closure.",
                 }
             )
 

@@ -27,6 +27,14 @@ from worklib.services.task_collection import load_task_collection
 
 
 class TaskCollectionDiagnosticsTests(unittest.TestCase):
+    def test_incomplete_migration_transaction_blocks_repair_mode(self) -> None:
+        execution = self.root / self.artifacts["execution"]
+        (execution / ".work-spec-migration-ABC.json").write_bytes(b"{}\n")
+        result = diagnose_task_collection(
+            self.root, str(self.root), self.task_path,
+        )
+        self.assertTrue(any(issue["code"] == "task_repair_pending_transaction" for issue in result["issues"]))
+
     def setUp(self) -> None:
         fixture = test_task_collection.TaskCollectionTests(
             "test_loads_complete_collection_and_rejects_single_file_artifact"

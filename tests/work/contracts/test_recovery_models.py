@@ -31,6 +31,10 @@ class ExecutionRecoveryRequestContractTests(unittest.TestCase):
         request = self.request()
         self.assertEqual(self.parse(request), request)
 
+    def test_accepts_deviation_record_transaction(self) -> None:
+        request = {**self.request(), "transaction": "deviation_record"}
+        self.assertEqual(self.parse(request), request)
+
     def test_preserves_request_error_codes(self) -> None:
         cases = (
             ({**self.request(), "schema": "invalid"}, "execution_recovery_invalid_schema"),

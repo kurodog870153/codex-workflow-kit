@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import os
 import sys
@@ -26,6 +27,7 @@ from worklib.execution.recovery import recover_execution
 from worklib.foundation.errors import WorkError
 from worklib.foundation.markdown import parse_json_contract
 from worklib.services.instruction_selection import build_instruction_selection
+from worklib.contracts.attempt_authorization_models import minimal_authorization
 
 
 class CollectionExecutionLifecycleTests(unittest.TestCase):
@@ -93,9 +95,14 @@ class CollectionExecutionLifecycleTests(unittest.TestCase):
         }
 
     def start(self) -> Path:
+        authorization = minimal_authorization()
+        authorization["validations"] = [
+            copy.deepcopy(self.contract["tasks"][0]["validations"][0])
+        ]
         request = {
             "schema": "work-attempt-start-request/v1",
             "worktree_snapshot_sha256": self.preflight["snapshot_sha256"],
+            "authorization": authorization,
         }
         with patch(
             "worklib.execution.attempt_start.inspect_execute_worktree",

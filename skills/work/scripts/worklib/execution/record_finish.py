@@ -305,6 +305,8 @@ def finish_record(
         )
 
     validate_execute_instructions(task, attempt, operation="record_finish")
+    require_modified_files(attempt, request.get("modified_files", []))
+    require_result_evidence(request["record"], request.get("authorization_evidence"))
 
     finished_attempt = build_finished_attempt(
         attempt,
@@ -320,6 +322,7 @@ def finish_record(
     updated_index = copy.deepcopy(index)
     updated_index["lock"].pop("record_id")
     updated_index["lock"].pop("command_correction", None)
+    updated_index["lock"].pop("retry_authorization_evidence", None)
     rendered_index = render_execution_index(updated_index)
     validate_execution_index(rendered_index, source="generated record-finish index")
 
@@ -371,3 +374,4 @@ def finish_record(
         "record_status": "recorded",
         "lock_status": "attempt_held",
     }).to_canonical_dict()
+from .authorization import require_modified_files, require_result_evidence

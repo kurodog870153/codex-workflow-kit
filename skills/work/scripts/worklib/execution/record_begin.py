@@ -83,6 +83,7 @@ def begin_record(
     raw_execution_dir: str,
     task_id: str,
     base_record_id: str,
+    authorization_evidence: str | None = None,
     skill_roots: list[SkillRoot] | None = None,
 ) -> dict[str, object]:
     if not BASE_RECORD_PATTERN.fullmatch(base_record_id):
@@ -208,8 +209,12 @@ def begin_record(
     validate_execute_instructions(task, attempt, operation="record_begin")
 
     record_id = next_record_id(base_record_id, attempt)
+    require_record_scope(attempt, base_record_id)
+    retry_evidence = require_retry_evidence(record_id, authorization_evidence)
     updated_index = copy.deepcopy(index)
     updated_index["lock"]["record_id"] = record_id
+    if retry_evidence is not None:
+        updated_index["lock"]["retry_authorization_evidence"] = retry_evidence
     safe_record = record_id.replace("#", "-retry-")
     temporary_path = execution_path / (
         f".work-record-begin-{task_id}-{attempt_id}-{safe_record}.tmp"
@@ -230,3 +235,4 @@ def begin_record(
         "index_path": index_relative,
         "lock_status": "record_reserved",
     }).to_canonical_dict()
+from .authorization import require_record_scope, require_retry_evidence

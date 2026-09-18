@@ -34,6 +34,7 @@ TRANSACTIONS = {
     "record_finish",
     "attempt_close",
     "correction",
+    "deviation_record",
 }
 
 
@@ -90,7 +91,7 @@ def _record_begin_recovery(
     attempt_id: str,
 ) -> dict[str, str]:
     lock = index["lock"]
-    if "record_id" in lock or "command_correction" in lock:
+    if "record_id" in lock or "command_correction" in lock or "retry_authorization_evidence" in lock:
         _error(
             ExitCode.ARTIFACT_INTEGRITY,
             "execution_recovery_record_begin_state_conflict",
@@ -231,7 +232,60 @@ def _finished_index(index: dict[str, Any]) -> dict[str, Any]:
     target = copy.deepcopy(index)
     target["lock"].pop("record_id")
     target["lock"].pop("command_correction", None)
+    target["lock"].pop("retry_authorization_evidence", None)
     return target
+
+
+def _deviation_record_recovery(
+    *, project_root: Path, execution_path: Path, attempt_path: Path,
+    attempt_relative: str, attempt_raw: bytes, attempt: dict[str, Any],
+    index: dict[str, Any], task_id: str, attempt_id: str, **_unused: object,
+) -> dict[str, str]:
+    record_id = index["lock"].get("record_id")
+    if not isinstance(record_id, str):
+        _error(
+            ExitCode.ARTIFACT_INTEGRITY,
+            "execution_recovery_record_lock_required",
+            "deviation_record recovery requires a reserved record.",
+        )
+    temporary = execution_path / (
+        f".work-deviation-record-{task_id}-{attempt_id}-{_safe_record_id(record_id)}-attempt.tmp"
+    )
+    current = list(attempt.get("execution_deviations", []))
+    if temporary.exists():
+        prepared_raw = read_raw(temporary)
+        prepared = _validate_attempt_bytes(
+            prepared_raw, project_root=project_root, source=str(temporary)
+        )
+        prepared_items = prepared.get("execution_deviations", [])
+        if prepared_items[:-1] != current or len(prepared_items) != len(current) + 1:
+            _error(
+                ExitCode.ARTIFACT_INTEGRITY,
+                "execution_recovery_deviation_append_mismatch",
+                "The prepared Attempt must append exactly one execution deviation.",
+            )
+        expected = copy.deepcopy(attempt)
+        expected["execution_deviations"] = prepared_items
+        expected_raw = render_attempt_contract(expected, project_root=project_root)
+        if prepared_raw != expected_raw:
+            _error(
+                ExitCode.ARTIFACT_INTEGRITY,
+                "execution_recovery_deviation_target_mismatch",
+                "The prepared deviation Attempt is not the unique canonical target.",
+            )
+        _install(
+            temporary, attempt_path, expected=expected_raw,
+            source_bytes=attempt_raw, stage="deviation_record_attempt_update",
+        )
+        validate_attempt_file(project_root, attempt_relative)
+        current = prepared_items
+    if not current:
+        _error(
+            ExitCode.WORKFLOW_STATE,
+            "execution_recovery_deviation_missing",
+            "No recorded or prepared execution deviation establishes recovery.",
+        )
+    return {"record_id": record_id, "lock_status": "record_reserved"}
 
 
 def _record_finish_recovery(
@@ -350,6 +404,7 @@ def _close_request(attempt: dict[str, Any]) -> dict[str, Any]:
     if attempt["status"] != "completed":
         request["final_type"] = attempt["final_type"]
         request["reason"] = attempt["reason"]
+        request["authorization_evidence"] = attempt["closing_authorization_evidence"]
     return request
 
 
@@ -601,6 +656,12 @@ def recover_execution(
             attempt_raw=attempt_raw,
             attempt=attempt,
             **common,
+        )
+    elif transaction == "deviation_record":
+        details = _deviation_record_recovery(
+            project_root=project_root, attempt_path=attempt_path,
+            attempt_relative=attempt_relative, attempt_raw=attempt_raw,
+            attempt=attempt, **common,
         )
     else:
         details = _attempt_close_recovery(

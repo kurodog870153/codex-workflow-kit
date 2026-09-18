@@ -65,6 +65,16 @@ class WorkContract(BaseModel):
     @classmethod
     def _work_error(cls, error: ValidationError) -> WorkError:
         issues = error.errors(include_url=False, include_context=False, include_input=False)
+        aggregated = sorted(
+            (
+                {
+                    "location": _location(tuple(issue["loc"])),
+                    "validation_type": issue["type"],
+                }
+                for issue in issues
+            ),
+            key=lambda issue: (issue["location"], issue["validation_type"]),
+        )
         field_issues = [
             issue for issue in issues if issue["type"] in {"missing", "extra_forbidden"}
         ]
@@ -92,6 +102,7 @@ class WorkContract(BaseModel):
                         for issue in related
                         if issue["type"] == "extra_forbidden"
                     ),
+                    "issues": aggregated,
                 },
             )
         first = issues[0]
@@ -102,6 +113,7 @@ class WorkContract(BaseModel):
             {
                 "location": _location(tuple(first["loc"])),
                 "validation_type": first["type"],
+                "issues": aggregated,
             },
         )
 

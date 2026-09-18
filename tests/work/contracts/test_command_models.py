@@ -9,7 +9,11 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.command_models import CommandCorrectionRequestContract
+from pydantic import ValidationError
+
+from worklib.contracts.command_models import (
+    CommandCorrectionRequestContract, CommandPreviewContract,
+)
 from worklib.foundation.errors import WorkError
 
 
@@ -21,7 +25,6 @@ class CommandCorrectionRequestTests(unittest.TestCase):
             "original_command": {"mode": "argv", "argv": ["tool", "old"]},
             "actual_command": {"mode": "argv", "argv": ["tool", "new"]},
             "reason": "Use the authorized argument.",
-            "authorization_evidence": "User approved correction 1.",
         }
 
     def parse(self, request: dict[str, object]) -> dict[str, object]:
@@ -40,7 +43,6 @@ class CommandCorrectionRequestTests(unittest.TestCase):
                 "original_command": {"mode": "argv", "argv": ["tool", "old"]},
                 "actual_command": {"mode": "argv", "argv": ["tool", "new"]},
                 "reason": "Use the authorized argument.",
-                "authorization_evidence": "User approved correction 1.",
             },
         )
 
@@ -70,6 +72,34 @@ class CommandCorrectionRequestTests(unittest.TestCase):
                     self.parse(request)
 
                 self.assertEqual(context.exception.code, expected_code)
+
+
+class CommandPreviewContractTests(unittest.TestCase):
+    def test_accepts_direct_and_windows_batch_invocations(self) -> None:
+        direct = dict(CommandPreviewContract.contract_example)
+        batch = dict(direct)
+        batch["invocation"] = {
+            "kind": "windows_batch", "launcher": "C:/Windows/System32/cmd.exe",
+            "launcher_sha256": "1" * 64, "script": "C:/tools/test.cmd",
+            "script_sha256": "2" * 64, "arguments": ["two words"],
+            "command_line": '"C:/tools/test.cmd" "two words"',
+            "launcher_arguments": ["/d", "/s", "/v:off", "/c", '"C:/tools/test.cmd" "two words"'],
+        }
+        for preview in (direct, batch):
+            with self.subTest(kind=preview["invocation"]["kind"]):
+                parsed = CommandPreviewContract.model_validate(preview).to_canonical_dict()
+                self.assertEqual(parsed["invocation"]["kind"], preview["invocation"]["kind"])
+
+    def test_rejects_legacy_and_mixed_invocation_fields(self) -> None:
+        legacy = dict(CommandPreviewContract.contract_example)
+        legacy.pop("invocation")
+        legacy.update(argv=["tool"], selected_executable="tool", executable_sha256="0" * 64)
+        mixed = dict(CommandPreviewContract.contract_example)
+        mixed["invocation"] = {**mixed["invocation"], "script": "tool.cmd"}
+        for preview in (legacy, mixed):
+            with self.subTest(preview=preview):
+                with self.assertRaises(ValidationError):
+                    CommandPreviewContract.model_validate(preview)
 
 
 if __name__ == "__main__":

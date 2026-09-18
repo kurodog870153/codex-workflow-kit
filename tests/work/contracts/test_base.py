@@ -74,6 +74,31 @@ class WorkContractBaseTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "invalid_object_fields")
         self.assertEqual(caught.exception.details["missing"], ["count"])
         self.assertEqual(caught.exception.details["unknown"], ["extra"])
+        self.assertEqual(
+            caught.exception.details["issues"],
+            [
+                {"location": "count", "validation_type": "missing"},
+                {"location": "extra", "validation_type": "extra_forbidden"},
+            ],
+        )
+
+    def test_validation_reports_all_field_and_format_issues_stably(self) -> None:
+        with self.assertRaises(WorkError) as caught:
+            NullableContract.parse_json_bytes(
+                b'{"schema":"work-nullable/v1","extra":true,"nested":{"required_value":1,"unknown":true}}',
+                source="nullable.json",
+            )
+
+        self.assertEqual(caught.exception.code, "invalid_object_fields")
+        self.assertEqual(
+            caught.exception.details["issues"],
+            [
+                {"location": "extra", "validation_type": "extra_forbidden"},
+                {"location": "nested.required_value", "validation_type": "string_type"},
+                {"location": "nested.unknown", "validation_type": "extra_forbidden"},
+                {"location": "required_value", "validation_type": "missing"},
+            ],
+        )
 
     def test_duplicate_keys_keep_existing_parser_error(self) -> None:
         with self.assertRaises(WorkError) as caught:

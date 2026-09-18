@@ -68,7 +68,7 @@ class CompletionMarkerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
             (root / "execution").mkdir()
-            for prefix in ("spec-update", "task-repair"):
+            for prefix in ("spec-update", "task-repair", "spec-migration"):
                 record = root / "execution" / f".work-{prefix}-example.json"
                 record.write_bytes(b"{}\n")
                 marker = Path(str(record) + ".done")

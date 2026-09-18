@@ -16,6 +16,8 @@ from worklib.contracts.attempt import (
     validate_attempt_contract,
 )
 from worklib.foundation.errors import WorkError
+from worklib.contracts.execution_deviation_models import ExecutionDeviationContract
+from worklib.contracts.attempt_authorization_models import authorization_sha256, minimal_authorization
 
 
 class AttemptContractTests(unittest.TestCase):
@@ -34,6 +36,8 @@ class AttemptContractTests(unittest.TestCase):
             "execute_instructions_sha256": "c" * 64,
             "hierarchy_selection_sha256": "f" * 64,
             "execute_skill_selection_sha256": "d" * 64,
+            "authorization": minimal_authorization(),
+            "authorization_sha256": authorization_sha256(minimal_authorization()),
             "started_at": "2026-09-01T10:00+08:00",
             "records": [],
         }
@@ -45,6 +49,7 @@ class AttemptContractTests(unittest.TestCase):
                 "status": "stopped",
                 "final_type": "instructions_changed",
                 "reason": "The Execute instructions changed.",
+                "closing_authorization_evidence": "User approved this closure.",
                 "ended_at": "2026-09-01T10:05+08:00",
             }
         )
@@ -63,6 +68,7 @@ class AttemptContractTests(unittest.TestCase):
                 "status": "stopped",
                 "final_type": "rules_changed",
                 "reason": "Legacy reason.",
+                "closing_authorization_evidence": "User approved this closure.",
                 "ended_at": "2026-09-01T10:05+08:00",
             }
         )
@@ -129,6 +135,22 @@ class AttemptContractTests(unittest.TestCase):
             canonicalize_attempt_contract(attempt, project_root=REPO_ROOT)
 
         self.assertEqual(context.exception.code, "attempt_invalid_schema")
+
+    def test_canonicalizes_execution_deviations_and_rejects_noncontiguous_ids(self) -> None:
+        attempt = copy.deepcopy(self.attempt)
+        attempt["execution_deviations"] = [
+            copy.deepcopy(ExecutionDeviationContract.contract_example)
+        ]
+        canonical = canonicalize_attempt_contract(attempt, project_root=REPO_ROOT)
+        self.assertEqual(
+            canonical["execution_deviations"][0]["deviation_id"], "DEVIATION-001"
+        )
+        attempt["execution_deviations"][0]["deviation_id"] = "DEVIATION-002"
+        with self.assertRaises(WorkError) as context:
+            canonicalize_attempt_contract(attempt, project_root=REPO_ROOT)
+        self.assertEqual(
+            context.exception.code, "attempt_invalid_execution_deviation_sequence"
+        )
 
 
 if __name__ == "__main__":

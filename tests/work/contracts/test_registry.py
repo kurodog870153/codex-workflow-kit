@@ -37,6 +37,7 @@ class ContractRegistryTests(unittest.TestCase):
         self.assertEqual(
             [item["id"] for item in catalog["contracts"]],
             [
+                "work-attempt-authorization/v1",
                 "work-attempt-close-request/v1",
                 "work-attempt-close/v1",
                 "work-attempt-start-recovery/v1",
@@ -53,6 +54,7 @@ class ContractRegistryTests(unittest.TestCase):
                 "work-command-started/v1",
                 "work-contract-catalog/v1",
                 "work-contract-description/v1",
+                "work-contract-scaffold/v1",
                 "work-correction-create-request/v1",
                 "work-correction-create/v1",
                 "work-correction/v1",
@@ -63,6 +65,10 @@ class ContractRegistryTests(unittest.TestCase):
                 "work-execute-preflight/v1",
                 "work-execute-worktree-snapshot/v1",
                 "work-execute-worktree/v1",
+                "work-execution-deviation-preview/v1",
+                "work-execution-deviation-proposal/v1",
+                "work-execution-deviation-record/v1",
+                "work-execution-deviation/v1",
                 "work-execution-index/v1",
                 "work-execution-recovery-evidence/v1",
                 "work-execution-recovery-prepare-request/v1",
@@ -96,8 +102,14 @@ class ContractRegistryTests(unittest.TestCase):
                 "work-skill-selection-validation/v1",
                 "work-skill-selection/v1",
                 "work-skill-snapshot/v1",
+                "work-spec-migration-preview-request/v1",
+                "work-spec-migration-preview/v1",
+                "work-spec-migration-publication/v1",
                 "work-spec-prepare-request/v1",
                 "work-spec-prepare/v1",
+                "work-spec-reconciliation-preview-request/v1",
+                "work-spec-reconciliation-preview/v1",
+                "work-spec-reconciliation-publication/v1",
                 "work-spec-transaction/v1",
                 "work-spec-update-request/v1",
                 "work-spec-update/v1",
@@ -138,6 +150,35 @@ class ContractRegistryTests(unittest.TestCase):
         self.assertEqual(description["fields"][1]["type"], "string")
         self.assertNotIn("$defs", description)
         local.model(description["id"]).model_validate(description["example"])
+
+    def test_all_public_request_contracts_have_complete_scaffolds(self) -> None:
+        request_ids = [
+            item.id for item in registry.catalog().contracts if item.kind == "request"
+        ]
+
+        self.assertTrue(request_ids)
+        for contract_id in request_ids:
+            with self.subTest(contract_id=contract_id):
+                result = registry.scaffold(contract_id).to_canonical_dict()
+                model = registry.model(contract_id)
+                self.assertEqual(result["canonical_order"], list(model.canonical_order))
+                self.assertEqual(list(result["scaffold"]), list(model.canonical_order))
+                model.model_validate(result["example"])
+
+    def test_scaffold_rejects_nonrequest_contract(self) -> None:
+        with self.assertRaises(WorkError) as caught:
+            registry.scaffold("work-contract-catalog/v1")
+
+        self.assertEqual(caught.exception.code, "contract_scaffold_requires_request")
+
+    def test_scaffold_contract_example_references_registered_request(self) -> None:
+        scaffold = registry.model("work-contract-scaffold/v1").contract_example
+        self.assertIsNotNone(scaffold)
+        target = registry.model(scaffold["id"])
+
+        self.assertEqual(target.contract_kind, "request")
+        self.assertEqual(scaffold["canonical_order"], list(target.canonical_order))
+        target.model_validate(scaffold["example"])
 
     def test_duplicate_contract_id_is_rejected_atomically(self) -> None:
         local = ContractRegistry()

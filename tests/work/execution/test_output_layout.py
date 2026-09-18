@@ -28,6 +28,7 @@ from worklib.execution.recovery import recover_execution
 from worklib.foundation.errors import ExitCode, WorkError
 from worklib.services.instruction_selection import build_instruction_selection
 from worklib.services.task_collection import load_task_collection
+from worklib.contracts.attempt_authorization_models import minimal_authorization
 
 
 class ExecutionOutputLayoutTests(unittest.TestCase):
@@ -74,9 +75,14 @@ class ExecutionOutputLayoutTests(unittest.TestCase):
             "execution_dir": self.execution_relative,
             "snapshot_sha256": "e" * 64,
         }
+        authorization = minimal_authorization()
+        authorization["validations"] = [
+            copy.deepcopy(self.contract["tasks"][0]["validations"][0])
+        ]
         self.request = {
             "schema": "work-attempt-start-request/v1",
             "worktree_snapshot_sha256": self.preflight["snapshot_sha256"],
+            "authorization": authorization,
         }
         self.common = {
             "project_root": self.project,
@@ -123,6 +129,7 @@ class ExecutionOutputLayoutTests(unittest.TestCase):
                 "status": "stopped",
                 "final_type": "user_stopped",
                 "reason": "The user paused execution.",
+                "authorization_evidence": "User approved this closure.",
             })
         return close_attempt(
             json.dumps(request).encode("utf-8"), source="test", **self.common

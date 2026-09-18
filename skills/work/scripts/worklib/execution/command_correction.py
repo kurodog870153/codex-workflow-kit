@@ -17,6 +17,7 @@ from ..foundation.fingerprint import read_raw
 from ..foundation.paths import resolve_project_relative_path
 from ..services.skill_catalog import SkillRoot
 from .commands import formal_command
+from .authorization import authorization_evidence, require_deviation
 
 
 LOCK_UPDATE_ERRORS = TransactionErrors(
@@ -221,7 +222,7 @@ def record_command_correction(
             "original_command": formal_command(task, base_record_id),
             "actual_command": request["correction"]["actual_command"],
             "reason": request["correction"]["reason"],
-            "authorization_evidence": request["correction"]["authorization_evidence"],
+            "authorization_evidence": authorization_evidence(attempt, lock),
         },
         location="formal_command_correction",
     )
@@ -233,6 +234,13 @@ def record_command_correction(
             expected=formal_command["original_command"],
             actual=request["correction"]["original_command"],
         )
+    action = {
+        "kind": "replace_command",
+        "record_id": record_id,
+        "replacement": formal_command["actual_command"],
+    }
+    require_deviation(attempt, action)
+    request["correction"] = formal_command
 
     validate_execute_instructions(
         task,

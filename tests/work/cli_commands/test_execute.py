@@ -92,6 +92,25 @@ class ExecuteCliTests(FileInputTestCase):
 
         self.assertEqual(context.exception.code, "cli_usage_error")
 
+    def test_deviation_prepare_requires_input_file(self) -> None:
+        arguments = build_parser().parse_args(
+            self.common_arguments() + ["deviation-prepare"] + self.execute_scope_arguments()
+            + ["--input-file", "request.json"]
+        )
+        self.assertEqual(arguments.execute_command, "deviation-prepare")
+        with self.assertRaises(WorkError):
+            build_parser().parse_args(
+                self.common_arguments() + ["deviation-prepare"] + self.execute_scope_arguments()
+            )
+
+    def test_deviation_record_requires_only_approved_preview(self) -> None:
+        arguments = build_parser().parse_args(
+            self.common_arguments() + ["deviation-record"]
+            + self.execute_scope_arguments()
+            + ["--input-file", "request.json", "--approved-sha256", "a" * 64]
+        )
+        self.assertEqual(arguments.execute_command, "deviation-record")
+
     def test_record_begin_arguments_parse_record_id(self) -> None:
         arguments = build_parser().parse_args(
             self.common_arguments()
