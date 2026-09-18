@@ -1,4 +1,4 @@
-from ..models.delegation import (
+from .contracts import (
     DelegationEnvelopeContract,
     DelegationMode,
     DelegationRole,

@@ -4,11 +4,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from pydantic import ValidationError
-
-from ..contracts.delegation import (
-    DelegationEnvelopeContract, DelegationValidationContract,
-)
 from ..contracts.validation import nonempty_string, sha256, strict_keys
 from ..contracts.progress import validate_progress_contract
 from ..models.common.errors import ExitCode, WorkError
@@ -18,13 +13,13 @@ from ..foundation.paths import validate_artifact_paths, validate_requirement_id
 from .instruction_history import stored_selection
 from ..services.skill_selection import SKILL_FIELDS, TOP_FIELDS, selection_sha256
 from ..services.hierarchy_selection import SELECTION_FIELDS, hierarchy_selection_sha256
-
-
-ROLES = ("plan", "task-coordinator", "execute", "task-skill", "artifact-editor", "progress-saver")
-MAIN_MODES = {"plan": "plan", "task-coordinator": "task", "execute": "execute"}
-MARKERS = {**{role: "WORK_DELEGATION_V1" for role in MAIN_MODES},
-    "task-skill": "WORK_TASK_SKILL_V1", "artifact-editor": "WORK_ARTIFACT_EDIT_V1",
-    "progress-saver": "WORK_PROGRESS_SAVE_V1"}
+from .delegation_envelope import (
+    MAIN_MODES,
+    MARKERS,
+    ROLES,
+    delegation_validation_result,
+    validate_delegation_envelope,
+)
 
 
 def _fail(message):
@@ -89,34 +84,13 @@ def _selections(context):
 
 
 def validate_delegation(value, *, role: str, sender: str, project_root: Path, skill_root: Path):
-    try:
-        DelegationEnvelopeContract.model_validate(value)
-    except ValidationError as error:
-        raise WorkError(
-            ExitCode.CONTRACT,
-            "delegation_boundary_mismatch",
-            "The delegation envelope structure is invalid.",
-        ) from error
-    if role not in ROLES or sender != ("task-coordinator" if role == "task-skill" else "parent"):
-        _fail("The expected sender cannot delegate to this role.")
-    envelope = strict_keys(value, location="delegation", required={
-        "schema", "marker", "skill", "role", "sender", "mode", "project_root", "skill_root", "request", "context",
-    })
-    if (envelope["schema"] != "work-delegation-envelope/v1" or envelope["marker"] != MARKERS[role]
-        or envelope["skill"] != "$work" or envelope["role"] != role or envelope["sender"] != sender):
-        _fail("Envelope marker, skill, role or sender differs from the receiving context.")
-    for field, expected in (("project_root", project_root), ("skill_root", skill_root)):
-        declared = Path(nonempty_string(envelope[field], location=field))
-        if not declared.is_absolute() or str(declared) != str(declared.resolve()) or declared.resolve() != expected.resolve():
-            _fail("Envelope roots must match the resolved receiving roots.")
-    request = nonempty_string(envelope["request"], location="request")
-    mode = envelope["mode"]
-    allowed = (MAIN_MODES[role],) if role in MAIN_MODES else (("task",) if role == "task-skill" else (
-        ("plan", "task") if role == "progress-saver" else ("plan", "task", "execute")))
-    if mode not in allowed:
-        _fail("The role does not accept this mode.")
-    context = _object(envelope["context"], "context")
-    resume = "saved_progress" in context
+    envelope, request, mode, context, resume = validate_delegation_envelope(
+        value,
+        role=role,
+        sender=sender,
+        project_root=project_root,
+        skill_root=skill_root,
+    )
     if resume:
         if role not in {"plan", "task-coordinator"}:
             _fail("Only Plan and Task may restore discussion.")
@@ -198,9 +172,4 @@ def validate_delegation(value, *, role: str, sender: str, project_root: Path, sk
                     nonempty_string(decision, location="decision")
             _texts(context["affected_task_ids"], "affected_task_ids", task_ids=True)
             _texts(context["repository_evidence"], "repository_evidence")
-    return DelegationValidationContract(
-        schema="work-delegation-validation/v1", status="valid", role=role,
-        mode=mode, scope="discussion_restoration" if resume else "role_context",
-        source_validation="not_checked", sender_authentication="not_checked",
-        grants_authorization=False,
-    ).to_canonical_dict()
+    return delegation_validation_result(role=role, mode=mode, resume=resume)
