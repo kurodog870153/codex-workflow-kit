@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from ..models.invocation import (
+from .contracts import (
     InvocationContract, InvocationEntry, ProgressResumeEntry, TaskPlanningEntry,
     WorkflowEntry,
 )
 
 __all__ = ["InvocationContract", "InvocationEntry", "ProgressResumeEntry", "TaskPlanningEntry", "WorkflowEntry"]
+

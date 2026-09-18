@@ -7,10 +7,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"))
 
 from worklib.foundation.errors import WorkError
+from worklib.contracts.invocation import InvocationContract as LegacyInvocationContract
+from worklib.models.invocation import InvocationContract
 from worklib.services.invocation import parse_invocation
 
 
 class InvocationTests(unittest.TestCase):
+    def test_legacy_model_export_preserves_identity(self):
+        self.assertIs(LegacyInvocationContract, InvocationContract)
+
     def parse(self, text):
         return parse_invocation(text.encode("utf-8"), source="invocation").to_canonical_dict()
 

@@ -16,7 +16,7 @@ from .description import (
     ContractScaffold,
 )
 from .delegation import DelegationEnvelopeContract, DelegationValidationContract
-from .invocation import InvocationContract
+from ..models.invocation import InvocationContract
 from .hierarchy import (
     HierarchyContract, HierarchySelectionContract,
     HierarchySelectionValidationContract,

@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import re
 
-from ..contracts.invocation import InvocationContract
-from ..models.common.errors import ExitCode, WorkError
-from ..foundation.fingerprint import decode_utf8
-from ..foundation.paths import validate_requirement_id
-from ..protocol import WORKFLOW_MODES
-
+from ...foundation.fingerprint import decode_utf8
+from ...foundation.paths import validate_requirement_id
+from ...models.common.errors import ExitCode, WorkError
+from ...models.invocation import InvocationContract
+from ...protocol import WORKFLOW_MODES
 
 MODES = WORKFLOW_MODES
 SYNTAX = "$work <plan|task|execute> -- <request>"
@@ -50,6 +49,8 @@ def parse_invocation(raw: bytes, *, source: str) -> InvocationContract:
             pass
         else:
             entry = {"kind": "task_planning", "requirement_id": requirement}
-    return InvocationContract(
-        schema="work-invocation/v1", mode=mode, request=request, entry=entry,
-    )
+    return InvocationContract(schema="work-invocation/v1", mode=mode, request=request, entry=entry)
+
+
+__all__ = ["parse_invocation"]
+
