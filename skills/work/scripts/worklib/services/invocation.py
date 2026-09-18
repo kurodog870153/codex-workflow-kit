@@ -8,9 +8,10 @@ from ..contracts.invocation import InvocationContract
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import decode_utf8
 from ..foundation.paths import validate_requirement_id
+from ..protocol import WORKFLOW_MODES
 
 
-MODES = ("plan", "task", "execute")
+MODES = WORKFLOW_MODES
 SYNTAX = "$work <plan|task|execute> -- <request>"
 
 

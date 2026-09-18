@@ -8,6 +8,7 @@ from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_json_sha256
 from ..services.hierarchy import build_hierarchy
 from ..foundation.markdown import parse_json_contract
+from ..protocol import SHA256_PATTERN as SHA256_PATTERN_TEXT
 from .instruction_catalog import (
     build_cross_mode_instruction_catalog,
     resolve_instruction_hierarchy,
@@ -16,7 +17,7 @@ from ..contracts.hierarchy import order_hierarchy_selection
 
 
 DECISIONS = frozenset({"instruction_paths", "general_only"})
-SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+SHA256_PATTERN = re.compile(SHA256_PATTERN_TEXT)
 REQUEST_FIELDS = frozenset({"decision", "selections"})
 REQUEST_SELECTION_FIELDS = frozenset({"path", "recommendation_reason"})
 SELECTION_FIELDS = frozenset(

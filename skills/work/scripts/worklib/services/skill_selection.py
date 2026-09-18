@@ -6,10 +6,11 @@ from typing import Any
 
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_json_sha256, decode_utf8
+from ..protocol import SHA256_PATTERN as SHA256_PATTERN_TEXT
 from .skill_catalog import SkillRoot, snapshot_catalog_skill
 
 
-SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+SHA256_PATTERN = re.compile(SHA256_PATTERN_TEXT)
 DECISIONS = frozenset({"external_skills", "base_only"})
 MODE_VALUES = frozenset({"declared", "inferred", "unsupported"})
 MODES = ("plan", "task", "execute")

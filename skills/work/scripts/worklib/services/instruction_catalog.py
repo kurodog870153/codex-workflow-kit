@@ -8,6 +8,7 @@ import yaml
 
 from ..foundation.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_json_sha256, decode_utf8, read_raw
+from ..protocol import WORKFLOW_MODES
 from .hierarchy import (
     NAME_PATTERN,
     WORK_DIRECTORIES,
@@ -16,7 +17,7 @@ from .hierarchy import (
 )
 
 
-MODES = ("plan", "task", "execute")
+MODES = WORKFLOW_MODES
 
 
 @dataclass(frozen=True)

@@ -28,8 +28,9 @@ models
 2. `business_services/`：業務流程聚合與跨功能編排。
 3. `services/`：單一功能的實作。
 4. `models/`：資料 class。
-5. `foundation/` 與 `infrastructure/` 是受限制的技術支援模組，不是額外的業務層。
-6. 主要業務呼叫不得逆向或跳層；技術支援依賴依第 7 節處理。
+5. `protocol/` 是各層可讀取的穩定協定常數邊界，不是額外的業務層。
+6. `foundation/` 與 `infrastructure/` 是受限制的技術支援模組，不是額外的業務層。
+7. 主要業務呼叫不得逆向或跳層；Protocol 與技術支援依賴依第 7 節處理。
 
 ## 3. Controller
 
@@ -53,6 +54,7 @@ models
 1. Python 標準函式庫。
 2. `controllers/` 內的 CLI 共用型別及註冊輔助元件。
 3. 對應的 `business_services/<business>/` 公開入口。
+4. `protocol/` 公開常數。
 
 ## 4. Business Service
 
@@ -77,7 +79,8 @@ models
 2. 同一業務目錄內的 Business Service 私有組件。
 3. 一個或多個 `services/<feature>/` 公開入口。
 4. `models/<feature>/` 中作為輸入、輸出或流程狀態的 class。
-5. Business Service 不得依賴其他業務範圍的 Business Service；共用能力應由上層流程明確聚合，或下沉為單一功能 Service。
+5. `protocol/` 公開常數。
+6. Business Service 不得依賴其他業務範圍的 Business Service；共用能力應由上層流程明確聚合，或下沉為單一功能 Service。
 
 ## 5. 單一功能 Service
 
@@ -113,6 +116,7 @@ models
 3. `models/<feature>/` 與必要的共用 Model。
 4. 不含業務規則的 `foundation/` 純技術函式。
 5. 對應的 `infrastructure/` adapter；此依賴只允許低階 I/O、OS 或 subprocess 能力。
+6. `protocol/` 公開常數。
 
 ## 6. Model
 
@@ -139,6 +143,7 @@ models
 2. 需要其他檔案、catalog、歷史紀錄或跨 Model 集合的驗證屬於 Service。
 3. Canonical ordering 若涉及多筆資料或外部 Contract，屬於 Service。
 4. Model 不得因方便而成為 Business Service 或 storage facade。
+5. Model 可以匯入 `protocol/` 公開常數，但 Protocol 不得匯入 Model。
 
 ## 7. 技術支援邊界
 
@@ -163,27 +168,41 @@ models
 2. 是否執行、執行順序、授權與結果處置由 Business Service 決定。
 3. 命令解析、preview、approval identity 與 receipt 各自維持單一功能邊界。
 
+### 7.4 Protocol
+
+1. `protocol/` 只保存穩定、無副作用且可由所有層讀取的協定常數。
+2. 跨兩個以上功能且語意完全相同的常數放在 `protocol/shared.py`。
+3. 只在單一功能內跨模組共用的常數放在 `protocol/<feature>.py`。
+4. 只在單一模組使用的常數保留為該模組的私有常數。
+5. Schema ID、狀態及錯誤碼必須先證明語意相同；不得只因字串相同就集中。
+6. 一般 JSON key、欄位名稱與一次性示例值不得常數化。
+7. Protocol 不得匯入 Controller、Business Service、Service、Model、Foundation、Infrastructure 或舊業務模組。
+8. Protocol 不得執行 I/O、驗證、序列化、流程判斷或保存可變狀態。
+9. `protocol/__init__.py` 是穩定公開入口，只能重匯出明確列入 `__all__` 的常數。
+
 ## 8. 功能目錄與命名
 
 1. Controller：`controllers/<business>.py` 或 `controllers/<business>/`。
 2. Business Service：`business_services/<business>/`。
 3. 單一功能 Service：`services/<feature>/`。
 4. Model：`models/<feature>/`。
-5. `<business>` 描述使用者可辨識的流程，例如 `plan`、`task`、`handoff`、`execution`。
-6. `<feature>` 描述單一能力，例如 `plan_validation`、`instruction_catalog`、`task_ordering`。
-7. 不以 `common`、`utils`、`helpers` 或 `misc` 隱藏未分類責任。
-8. `__init__.py` 只定義穩定公開入口，不包含業務邏輯，也不得用來規避依賴檢查。
+5. Protocol：`protocol/shared.py` 或 `protocol/<feature>.py`。
+6. `<business>` 描述使用者可辨識的流程，例如 `plan`、`task`、`handoff`、`execution`。
+7. `<feature>` 描述單一能力，例如 `plan_validation`、`instruction_catalog`、`task_ordering`。
+8. 不以 `common`、`utils`、`helpers` 或 `misc` 隱藏未分類責任。
+9. `__init__.py` 只定義穩定公開入口，不包含業務邏輯，也不得用來規避依賴檢查。
 
 ## 9. 允許依賴矩陣
 
-| 來源 | Controller | Business Service | Service | Model | Foundation | Infrastructure |
-| --- | --- | --- | --- | --- | --- | --- |
-| Controller | 同層 CLI 共用元件 | 允許 | 禁止 | 禁止 | 禁止 | 禁止 |
-| Business Service | 禁止 | 僅同一業務內部 | 允許 | 允許 | 禁止 | 禁止 |
-| Service | 禁止 | 禁止 | 僅同一功能內部 | 允許 | 允許 | 允許 |
-| Model | 禁止 | 禁止 | 禁止 | 允許 | 禁止 | 禁止 |
-| Foundation | 禁止 | 禁止 | 禁止 | 禁止 | 允許 | 禁止 |
-| Infrastructure | 禁止 | 禁止 | 禁止 | 僅 I/O 所需 | 允許 | 允許 |
+| 來源 | Controller | Business Service | Service | Model | Protocol | Foundation | Infrastructure |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Controller | 同層 CLI 共用元件 | 允許 | 禁止 | 禁止 | 允許 | 禁止 | 禁止 |
+| Business Service | 禁止 | 僅同一業務內部 | 允許 | 允許 | 允許 | 禁止 | 禁止 |
+| Service | 禁止 | 禁止 | 僅同一功能內部 | 允許 | 允許 | 允許 | 允許 |
+| Model | 禁止 | 禁止 | 禁止 | 允許 | 允許 | 禁止 | 禁止 |
+| Protocol | 禁止 | 禁止 | 禁止 | 禁止 | 允許 | 禁止 | 禁止 |
+| Foundation | 禁止 | 禁止 | 禁止 | 禁止 | 允許 | 允許 | 禁止 |
+| Infrastructure | 禁止 | 禁止 | 禁止 | 僅 I/O 所需 | 允許 | 允許 | 允許 |
 
 1. 表中的「允許」表示架構上可以依賴，不表示每個模組都應建立該依賴。
 2. Python 標準函式庫及明確核准的第三方套件不列入矩陣。
@@ -269,6 +288,7 @@ models
 11. 相容入口只能包含 import、明確 `__all__`、module docstring 及必要的靜態型別資訊。
 12. 架構檢查必須解析相對匯入、`__init__.py` 重匯出及 package 入口。
 13. 遷移期間，舊目錄以明確 allowlist 管理；allowlist 只能減少，不能無理由擴張。
+14. 所有層都可以匯入 Protocol；Protocol 只能匯入自身模組或 Python 標準函式庫。
 
 ## 14. Review 檢查表
 
@@ -281,3 +301,4 @@ models
 7. 是否新增逆向、跳層、循環或隱藏於重匯出的依賴？
 8. 相容入口是否足夠薄，且有明確移除條件？
 9. 公開行為、Contract、fingerprint 與安全限制是否有相應測試？
+10. 共用常數是否放在正確的全域、功能或模組私有範圍，且沒有因字串相同而誤合併？

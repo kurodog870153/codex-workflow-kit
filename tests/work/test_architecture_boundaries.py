@@ -99,6 +99,8 @@ def _source_scope(root: Path, path: Path, *, include_controllers: bool) -> tuple
     if parts[0] == "models":
         name = parts[1].removesuffix(".py") if len(parts) > 1 else None
         return "model", name
+    if parts[0] == "protocol":
+        return "protocol", None
     return None
 
 
@@ -114,6 +116,8 @@ def _target_scope(module: str) -> tuple[str, str | None] | None:
         return "service", parts[1] if len(parts) > 1 else None
     if parts[0] == "models":
         return "model", parts[1] if len(parts) > 1 else None
+    if parts[0] == "protocol":
+        return "protocol", None
     if parts[0] in {"foundation", "infrastructure"}:
         return parts[0], parts[1] if len(parts) > 1 else None
     if parts[0] in LEGACY_ROOTS:
@@ -127,6 +131,12 @@ def _import_violation(
 ) -> str | None:
     source_layer, source_name = source_scope
     target_layer, target_name = target_scope
+    if source_layer == "protocol":
+        if target_layer == "protocol":
+            return None
+        return "protocol may not depend on a product layer"
+    if target_layer == "protocol":
+        return None
     if source_layer == "controller":
         if target_layer == "controller":
             return None
@@ -211,6 +221,11 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 "from worklib.models.progress import Progress\n",
             )
             self.write(root, "models/progress.py", "class Progress:\n    pass\n")
+            self.write(
+                root,
+                "protocol/shared.py",
+                'SHA256_PATTERN = r"^[0-9a-f]{64}$"\n',
+            )
             self.assertEqual(
                 architecture_violations(root, include_controllers=True),
                 [],
@@ -271,6 +286,18 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             violations = architecture_violations(root)
             self.assertEqual(len(violations), 1)
             self.assertIn("business service has a forbidden dependency", violations[0])
+
+    def test_protocol_cannot_import_product_layer(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write(
+                root,
+                "protocol/shared.py",
+                "from worklib.models.progress import Progress\n",
+            )
+            violations = architecture_violations(root)
+            self.assertEqual(len(violations), 1)
+            self.assertIn("protocol may not depend on a product layer", violations[0])
 
 
 if __name__ == "__main__":
