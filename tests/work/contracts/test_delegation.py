@@ -11,8 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from contracts import test_task as fixtures
 from contracts.test_progress import discussion
-from worklib.services.delegation import MARKERS, validate_delegation
-from worklib.services.delegation_envelope import validate_delegation_envelope
+from worklib.business_services.delegation import validate_delegation
+from worklib.services.delegation import MARKERS, validate_delegation_envelope
 from worklib.foundation.errors import WorkError
 from worklib.services.instruction_selection import build_instruction_selection
 from worklib.services.skill_selection import SKILL_FIELDS, selection_sha256

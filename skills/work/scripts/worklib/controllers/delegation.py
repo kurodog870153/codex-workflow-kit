@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 from . import SubparserRegistry
-from ..foundation.markdown import parse_json_contract
-from ..foundation.runtime import installed_work_root
-from ..services.delegation import ROLES, validate_delegation
+from ..business_services.delegation import ROLES, validate_delegation_request
 
 
 def register_delegation_commands(commands: SubparserRegistry) -> None:
@@ -18,8 +16,10 @@ def register_delegation_commands(commands: SubparserRegistry) -> None:
 
 
 def run_delegation(arguments, project_root, request):
-    return validate_delegation(
-        parse_json_contract(request.raw, source=request.source),
-        role=arguments.role, sender=arguments.sender, project_root=project_root,
-        skill_root=installed_work_root(),
+    return validate_delegation_request(
+        request.raw,
+        source=request.source,
+        role=arguments.role,
+        sender=arguments.sender,
+        project_root=project_root,
     )

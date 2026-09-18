@@ -91,7 +91,7 @@ def _source_scope(root: Path, path: Path, *, include_controllers: bool) -> tuple
     parts = relative.parts
     if not parts:
         return None
-    if parts[0] == "controllers" and (include_controllers or parts[-1] == "progress.py"):
+    if parts[0] == "controllers" and (include_controllers or parts[-1] in {"delegation.py", "progress.py"}):
         name = parts[1].removesuffix(".py") if len(parts) > 1 else None
         return "controller", name
     if parts[0] == "business_services":

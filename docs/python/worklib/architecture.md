@@ -271,6 +271,7 @@ models
 6. 大型功能若無法安全原子遷移，必須在執行前拆成更小 Task，不得留下半套架構。
 7. 公開 Schema ID、欄位順序、錯誤碼、檔案 bytes、fingerprint 及安全限制預設保持不變。
 8. TASK-007 暫時允許 `services.progress.validation` 只匯入 `contracts.validation`；此例外僅限 `nonempty_string`、`strict_keys` 與 `sha256`，不得擴張，並由 TASK-034 遷移遺留使用者後移除。
+9. TASK-011 的 `business_services.delegation` 暫時透過既有 Service 入口聚合 Instruction、Skill 與 Hierarchy；分別由 TASK-018、TASK-013 與 TASK-015 遷移為最終功能目錄後更新引用。
 
 ## 13. TASK-003 自動檢查契約
 
