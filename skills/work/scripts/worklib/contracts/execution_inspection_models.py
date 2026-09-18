@@ -4,7 +4,7 @@ from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .base import WorkContract
+from ..models.common.base import WorkContract
 
 
 SHA256_PATTERN = r"^[0-9a-f]{64}$"

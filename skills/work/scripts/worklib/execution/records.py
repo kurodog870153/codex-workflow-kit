@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 
 
 BASE_RECORD_PATTERN = re.compile(r"^(CMD|OP|VAL)-\d{3}$")

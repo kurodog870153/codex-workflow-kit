@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from .errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from .fingerprint import canonical_text, decode_utf8
 
 

@@ -12,7 +12,7 @@ from ..contracts.execution_inspection_models import (
 )
 from ..services.task_collection import load_task_execution_context
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from .preflight import execute_preflight
 from ..foundation.fingerprint import canonical_sha256, raw_sha256, read_raw
 from ..foundation.markdown import parse_json_contract

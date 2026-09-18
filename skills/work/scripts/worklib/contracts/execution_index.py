@@ -5,7 +5,7 @@ from typing import Any, ClassVar, Literal
 
 from pydantic import Field, ValidationError
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_sha256
 from ..foundation.markdown import (
     parse_json_contract,
@@ -14,7 +14,7 @@ from ..foundation.markdown import (
 )
 from .execution_index_ordering import order_execution_index
 from .command_correction import canonicalize_command_correction
-from .base import WorkContract
+from ..models.common.base import WorkContract
 from .validation import (
     nonempty_string as _nonempty_string,
     sha256 as _sha256,

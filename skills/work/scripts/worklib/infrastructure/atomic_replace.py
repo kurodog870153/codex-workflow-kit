@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import read_raw
 
 

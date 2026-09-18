@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.runtime import installed_work_root
 from ..services.instruction_selection import build_instruction_selection
 

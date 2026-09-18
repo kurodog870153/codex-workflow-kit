@@ -12,7 +12,7 @@ from ..foundation.runtime import installed_work_root
 from ..services.hierarchy_selection import validate_hierarchy_selection
 from .instruction_work_selection import build_work_instruction_selection
 from .instruction_validation import string_array
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.paths import default_artifact_paths, resolve_project_relative_path, validate_artifact_paths
 from .skill_catalog import SkillRoot
 

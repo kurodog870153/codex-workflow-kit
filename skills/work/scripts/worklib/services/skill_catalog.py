@@ -9,7 +9,7 @@ from typing import Any
 
 import yaml
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_json_sha256
 from ..infrastructure.skill_fingerprint import snapshot_skill_bundle
 

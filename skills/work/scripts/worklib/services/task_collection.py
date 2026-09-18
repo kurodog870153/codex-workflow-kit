@@ -6,7 +6,7 @@ from typing import Any
 
 from ..contracts.task_collection import validate_task_collection_contract
 from ..contracts.task_index import validate_task_index_contract
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import read_raw
 from ..foundation.markdown import parse_json_contract
 from ..foundation.markdown import render_json_contract

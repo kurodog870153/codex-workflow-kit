@@ -22,7 +22,7 @@ from ..contracts.command_models import (
     CommandStartedContract,
 )
 from ..contracts.validation import nonempty_string, sha256
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import raw_sha256, read_raw
 from ..foundation.paths import normalize_relative_path
 from ..foundation.spec_update import require_no_spec_update, storage_path

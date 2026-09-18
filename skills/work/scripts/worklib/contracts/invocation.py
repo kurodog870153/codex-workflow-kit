@@ -4,7 +4,7 @@ from typing import Annotated, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .base import WorkContract
+from ..models.common.base import WorkContract
 
 
 class _InvocationEntry(BaseModel):

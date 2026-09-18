@@ -5,11 +5,11 @@ from typing import Annotated, Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from .base import WorkContract
+from ..models.common.base import WorkContract
 from .plan import PlanContract
 from .spec_transaction_models import SpecTransactionContract
 from .task_collection_models import TaskArtifactsModel, TaskIndexContract, TaskItemContract
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 
 
 class SpecificationEditModel(BaseModel):

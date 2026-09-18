@@ -8,8 +8,8 @@ from typing import Any, ClassVar, Literal
 from pydantic import Field, ValidationError
 
 from .attempt import validate_attempt_file
-from .base import WorkContract
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.base import WorkContract
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.markdown import (
     parse_json_contract,
     render_json_contract,

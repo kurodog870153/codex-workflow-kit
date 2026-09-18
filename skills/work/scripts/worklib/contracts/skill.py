@@ -4,7 +4,7 @@ from typing import Any, ClassVar, Literal
 
 from pydantic import Field
 
-from .base import WorkContract
+from ..models.common.base import WorkContract
 
 
 class SkillCatalogContract(WorkContract):

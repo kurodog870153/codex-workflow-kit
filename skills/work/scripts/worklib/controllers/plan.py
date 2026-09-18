@@ -5,7 +5,7 @@ from pathlib import Path
 
 from ..services.plan import create_plan_file, prepare_initial_plan
 from ..services.plan_validation import validate_plan_file, validate_plan_json_contract
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..services.skill_catalog import parse_skill_root
 from ..infrastructure.cli_io import FileInput
 from . import SubparserRegistry

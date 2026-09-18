@@ -11,7 +11,7 @@ from ..contracts.attempt import (
     validate_attempt_file,
 )
 from ..contracts.attempt_close_models import AttemptCloseContract, AttemptCloseRequestContract
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from .context import read_contract, find_task_row, load_lifecycle_task_context, validate_execution_identity
 from .instructions import BASE_EXECUTE_REFERENCES, RECOVERY_REFERENCE
 from ..contracts.execution_index import (

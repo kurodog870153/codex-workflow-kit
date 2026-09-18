@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import INSTRUCTION_SOURCE_KINDS, instructions_sha256
 from .instruction_selection import validate_instruction_selection
 from .instruction_sources import InstructionSource

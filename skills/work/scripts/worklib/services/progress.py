@@ -8,7 +8,7 @@ from typing import Any
 
 from ..contracts.progress import FIELDS, validate_progress_contract
 from ..contracts.validation import sha256, strict_keys
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.markdown import parse_json_contract, render_json_contract
 from ..foundation.paths import validate_requirement_id
 from ..foundation.spec_update import storage_path

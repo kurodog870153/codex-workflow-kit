@@ -4,7 +4,7 @@ import re
 import unicodedata
 from pathlib import Path, PureWindowsPath
 
-from .errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 
 
 REQUIREMENT_ID_PATTERN = re.compile(r"^[a-z0-9._-]+$")

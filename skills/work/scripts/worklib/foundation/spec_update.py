@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .fingerprint import raw_sha256
-from .errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from .paths import resolve_project_relative_path
 
 

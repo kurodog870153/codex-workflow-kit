@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_sha256
 from ..foundation.markdown import (
     parse_json_contract,

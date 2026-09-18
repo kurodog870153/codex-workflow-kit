@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 
 
 def create_plan_exclusively(path: Path, rendered: bytes, *, normalized: str) -> None:

@@ -5,9 +5,9 @@ from typing import Annotated, Any, ClassVar, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.markdown import parse_json_contract
-from .base import WorkContract
+from ..models.common.base import WorkContract
 from .command_correction import canonicalize_command_correction
 
 

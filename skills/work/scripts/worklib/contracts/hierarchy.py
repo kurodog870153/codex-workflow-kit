@@ -4,7 +4,7 @@ from typing import Annotated, Any, ClassVar, Literal
 
 from pydantic import BeforeValidator, Field
 
-from .base import WorkContract
+from ..models.common.base import WorkContract
 
 
 def _tuple_input(value: object) -> object:

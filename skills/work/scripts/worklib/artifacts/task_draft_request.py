@@ -13,7 +13,7 @@ from .task_draft import (
 )
 from .task_draft_sources import check_task_draft_sources
 from ..contracts.validation import strict_keys
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..services.instruction_draft_selection import resolve_draft_instruction_selection
 from ..services.skill_catalog import SkillRoot
 

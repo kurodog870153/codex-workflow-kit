@@ -6,7 +6,7 @@ import unicodedata
 from collections.abc import Iterable
 from pathlib import Path
 
-from .errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 
 
 UTF8_BOM = b"\xef\xbb\xbf"

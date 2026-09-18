@@ -10,8 +10,8 @@ from pydantic import Field, ValidationError
 from .command_correction import canonicalize_command_correction
 from .execution_deviation_models import ExecutionDeviationContract
 from .attempt_authorization_models import AttemptAuthorizationContract, authorization_sha256
-from .base import WorkContract
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.base import WorkContract
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.markdown import (
     parse_json_contract,
     render_json_contract,

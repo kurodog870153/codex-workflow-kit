@@ -6,9 +6,9 @@ from typing import Any, ClassVar, Literal
 
 from pydantic import Field
 
-from .base import WorkContract
+from ..models.common.base import WorkContract
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import validate_artifact_paths
 

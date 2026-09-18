@@ -8,7 +8,7 @@ from ..contracts.attempt import validate_attempt_file
 from ..contracts.command_correction import canonicalize_command_correction
 from ..contracts.command_models import CommandCorrectionContract, CommandCorrectionRequestContract
 from ..infrastructure.atomic_replace import TransactionErrors, prepare_and_replace
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from .context import read_contract, find_task_row, load_lifecycle_task_context, validate_execution_identity
 from .instructions import validate_execute_instructions
 from .records import next_record_id, formal_record_kind

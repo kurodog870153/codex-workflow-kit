@@ -15,7 +15,7 @@ from ..contracts.correction import (
 )
 from ..contracts.correction_create_models import CorrectionCreateContract
 from ..contracts.recovery_models import ExecutionRecoveryContract
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from .context import read_contract, find_task_row, load_lifecycle_task_context, validate_execution_identity
 from ..contracts.execution_index import (
     derive_overall_status,

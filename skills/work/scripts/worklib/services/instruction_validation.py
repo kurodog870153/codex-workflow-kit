@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 
 
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")

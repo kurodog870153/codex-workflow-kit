@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from ..contracts.execution_index import render_execution_index, validate_execution_index
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import read_raw
 from ..foundation.markdown import parse_json_contract
 

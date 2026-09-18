@@ -12,7 +12,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.paths import validate_requirement_id
 from ..services.instruction_draft_selection import validate_draft_instruction_selection
 from .task_dependencies import resolve_task_dependencies

@@ -4,7 +4,7 @@ from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .base import ContractKind, WorkContract
+from ..models.common.base import ContractKind, WorkContract
 
 
 class ContractCatalogEntry(BaseModel):

@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import BinaryIO, Iterator
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.spec_update import storage_path
 
 

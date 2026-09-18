@@ -11,7 +11,7 @@ from ..contracts.delegation import (
 )
 from ..contracts.validation import nonempty_string, sha256, strict_keys
 from ..contracts.progress import FIELDS, validate_progress_contract
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..services.invocation import parse_invocation
 from ..foundation.paths import validate_artifact_paths, validate_requirement_id
 from .instruction_history import stored_selection

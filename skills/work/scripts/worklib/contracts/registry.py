@@ -5,9 +5,9 @@ from typing import Any, Literal, Union, get_args, get_origin
 
 from pydantic import BaseModel
 
-from ..foundation.errors import ExitCode, WorkError
-from .base import WorkContract
-from .cli import CliResultContract, ErrorContract
+from ..models.common.errors import ExitCode, WorkError
+from ..models.common.base import WorkContract
+from ..models.common.cli import CliResultContract, ErrorContract
 from .description import (
     ContractCatalog,
     ContractCatalogEntry,

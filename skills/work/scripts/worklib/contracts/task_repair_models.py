@@ -5,9 +5,9 @@ from typing import Annotated, Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from .base import WorkContract
+from ..models.common.base import WorkContract
 from .task_collection_models import TaskArtifactsModel, TaskIndexContract, TaskItemContract
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 
 
 class TaskRepairNestedModel(BaseModel):

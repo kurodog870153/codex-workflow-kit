@@ -7,7 +7,7 @@ from typing import Any
 from ..contracts.attempt import render_attempt_contract, validate_attempt_file
 from ..contracts.command_correction import canonicalize_command_correction
 from ..contracts.recovery_models import ExecutionRecoveryContract, ExecutionRecoveryRequestContract
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from .attempt_close import (
     build_closed_attempt,
     build_closed_index,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 
 
 def resolve_task_dependencies(

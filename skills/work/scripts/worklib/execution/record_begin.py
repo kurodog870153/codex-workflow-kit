@@ -7,7 +7,7 @@ from typing import Any
 from ..contracts.attempt import validate_attempt_file
 from ..contracts.record_models import RecordBeginContract
 from ..infrastructure.atomic_replace import TransactionErrors, prepare_and_replace
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..contracts.execution_index import render_execution_index, validate_execution_index
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path

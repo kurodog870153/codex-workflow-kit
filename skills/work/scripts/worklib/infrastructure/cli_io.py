@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from ..contracts.cli import CliResultContract, ErrorContract
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.cli import CliResultContract, ErrorContract
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import decode_utf8
 from ..foundation.jsonio import canonical_json
 

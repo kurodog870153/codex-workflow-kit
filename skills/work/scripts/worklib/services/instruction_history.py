@@ -4,7 +4,7 @@ Content fingerprints cannot be recomputed without the old source bytes. These
 checks establish metadata consistency, not authenticity of historical content.
 """
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import INSTRUCTION_SOURCE_KINDS
 from .instruction_validation import SOURCE_FIELDS, sha256, strict_object, string_array
 

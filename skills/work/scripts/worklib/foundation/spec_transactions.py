@@ -13,7 +13,7 @@ from pathlib import Path
 from ..contracts.spec_transaction import render_spec_transaction, validate_spec_transaction
 from .fingerprint import read_raw, raw_sha256
 from .spec_update import completion_marker_matches, storage_path
-from .errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 
 
 def _error(code: str, message: str) -> WorkError:

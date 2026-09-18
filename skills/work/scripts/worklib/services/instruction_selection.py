@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import INSTRUCTION_SOURCE_KINDS
 from .instruction_sources import InstructionSourceSet, load_instruction_sources
 from .instruction_validation import SOURCE_FIELDS, sha256, strict_object, string_array

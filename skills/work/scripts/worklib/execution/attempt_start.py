@@ -18,7 +18,7 @@ from ..contracts.attempt_start_models import (
     AttemptStartRequestContract,
 )
 from ..contracts.attempt_authorization_models import authorization_sha256, validate_authorization_scope
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from .preflight import execute_preflight
 from .worktree import (
     inspect_execute_worktree,

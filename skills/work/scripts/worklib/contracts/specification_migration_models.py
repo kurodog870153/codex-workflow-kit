@@ -5,7 +5,7 @@ from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .base import WorkContract
+from ..models.common.base import WorkContract
 
 
 class MigrationNestedModel(BaseModel):

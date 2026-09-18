@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ..contracts.validation import strict_keys
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 
 
 def validate_draft_instruction_selection(value: object) -> dict[str, list[str]]:

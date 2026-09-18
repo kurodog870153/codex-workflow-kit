@@ -10,7 +10,7 @@ from ..contracts.specification_reconciliation_models import (
     SpecificationReconciliationPreviewRequestContract,
     SpecificationReconciliationPublicationContract,
 )
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_json_sha256, raw_sha256, read_raw
 from ..foundation.markdown import render_json_contract
 from ..foundation.paths import resolve_project_relative_path

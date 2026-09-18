@@ -26,7 +26,7 @@ from ..artifacts.task_draft_request import save_task_draft_request
 from ..artifacts.task_draft_status import task_draft_status
 from ..artifacts.task_draft_prepare import initialize_task_planning_request, prepare_task_planning_request
 from ..contracts.validation import strict_keys
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.markdown import parse_json_contract
 from ..foundation.fingerprint import read_raw
 from ..foundation.spec_update import storage_path

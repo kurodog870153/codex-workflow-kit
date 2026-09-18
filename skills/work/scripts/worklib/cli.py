@@ -21,7 +21,7 @@ from .controllers.task import register_task_commands, run_task
 from .controllers.delegation import register_delegation_commands, run_delegation
 from .controllers.contract import register_contract_commands, run_contract
 from .controllers.invocation import register_invocation_commands, run_invocation
-from .foundation.errors import ExitCode, WorkError
+from .models.common.errors import ExitCode, WorkError
 from .foundation.fingerprint import fingerprint_file
 from .foundation.jsonio import write_json
 from .foundation.paths import (

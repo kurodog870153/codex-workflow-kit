@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 from ..contracts.hierarchy import HierarchyContract
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 
 
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")

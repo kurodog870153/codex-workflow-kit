@@ -7,7 +7,7 @@ from typing import Annotated, Any, ClassVar, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ..foundation.fingerprint import canonical_json_sha256, raw_sha256
-from .base import WorkContract
+from ..models.common.base import WorkContract
 
 
 SHA256_PATTERN = r"^[0-9a-f]{64}$"

@@ -4,7 +4,7 @@ import json
 import re
 from typing import Any
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_json_sha256, decode_utf8
 from ..protocol import SHA256_PATTERN as SHA256_PATTERN_TEXT
 from .skill_catalog import SkillRoot, snapshot_catalog_skill

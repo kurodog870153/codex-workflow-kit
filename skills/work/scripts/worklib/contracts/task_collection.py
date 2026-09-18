@@ -4,7 +4,7 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_sha256, read_raw
 from ..foundation.markdown import parse_json_contract, render_json_contract
 from ..foundation.paths import resolve_project_relative_path

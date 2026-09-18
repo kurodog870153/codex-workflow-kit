@@ -8,10 +8,16 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.foundation.errors import ExitCode, WorkError
+from worklib.foundation.errors import ExitCode as LegacyExitCode
+from worklib.foundation.errors import WorkError as LegacyWorkError
+from worklib.models.common.errors import ExitCode, WorkError
 
 
 class WorkErrorTests(unittest.TestCase):
+    def test_legacy_exports_preserve_class_identity(self) -> None:
+        self.assertIs(LegacyExitCode, ExitCode)
+        self.assertIs(LegacyWorkError, WorkError)
+
     def test_preserves_error_attributes(self) -> None:
         details = {"location": "task.id"}
 

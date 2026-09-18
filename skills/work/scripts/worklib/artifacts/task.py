@@ -14,7 +14,7 @@ from ..contracts.task_collection_models import TaskCollectionProjectionContract
 from ..contracts.task_index import render_task_index_contract
 from ..contracts.task_item import render_task_item_contract, validate_task_item_contract
 from ..services.plan_validation import validate_plan_contract
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import read_raw
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path

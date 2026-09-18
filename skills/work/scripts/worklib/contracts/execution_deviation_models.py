@@ -4,7 +4,7 @@ from typing import Annotated, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .base import WorkContract
+from ..models.common.base import WorkContract
 from .task_collection_models import (
     ExecutionDefaultsModel,
     TaskCommandModel,

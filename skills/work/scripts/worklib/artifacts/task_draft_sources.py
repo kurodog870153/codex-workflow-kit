@@ -7,7 +7,7 @@ from pathlib import Path
 from .task_draft import read_task_draft_from_index, read_task_planning_index
 from ..contracts.task_draft_models import TaskDraftSourceCheckContract
 from ..services.plan_validation import validate_plan_contract
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import read_raw
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path

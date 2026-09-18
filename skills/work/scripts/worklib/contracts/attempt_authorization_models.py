@@ -5,10 +5,10 @@ from typing import ClassVar, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .base import WorkContract
+from ..models.common.base import WorkContract
 from .execution_deviation_models import ExecutionDeviationAction
 from .task_collection_models import TaskCommandModel, TaskOperationModel, TaskValidationModel
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_json_sha256
 
 

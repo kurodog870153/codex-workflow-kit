@@ -257,6 +257,18 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             self.assertTrue(any("module-level functions" in item for item in violations))
             self.assertTrue(any("model may only import" in item for item in violations))
 
+    def test_model_may_import_another_model(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write(
+                root,
+                "models/common/cli.py",
+                "from worklib.models.common.base import WorkContract\n",
+            )
+            self.write(root, "models/common/base.py", "class WorkContract:\n    pass\n")
+            self.assertEqual(architecture_violations(root), [])
+
+
     def test_service_relative_reexport_cannot_hide_cross_feature_import(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

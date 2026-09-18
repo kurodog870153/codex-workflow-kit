@@ -6,7 +6,7 @@ from typing import Any
 
 from ..contracts.execution_inspection_models import ExecutePreflightContract
 from ..foundation.spec_update import require_no_spec_update
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..contracts.execution_index import validate_execution_index
 from ..foundation.fingerprint import read_raw
 from ..services.instruction_selection import build_instruction_selection

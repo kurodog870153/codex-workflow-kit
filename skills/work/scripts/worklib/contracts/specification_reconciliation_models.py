@@ -5,7 +5,7 @@ from typing import ClassVar, Literal
 
 from pydantic import Field, model_validator
 
-from .base import WorkContract
+from ..models.common.base import WorkContract
 from .specification_migration_models import (
     SpecificationMigrationPreviewRequestContract,
     SpecificationMigrationPreviewContract,

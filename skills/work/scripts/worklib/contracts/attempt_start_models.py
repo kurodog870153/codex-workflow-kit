@@ -4,9 +4,9 @@ from typing import ClassVar, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.markdown import parse_json_contract
-from .base import WorkContract
+from ..models.common.base import WorkContract
 from .attempt_authorization_models import AttemptAuthorizationContract
 
 

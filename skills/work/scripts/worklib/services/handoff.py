@@ -19,7 +19,7 @@ from .task_collection import load_task_collection
 from ..contracts.attempt import render_attempt_contract, validate_attempt_file
 from ..contracts.execution_index import validate_execution_index
 from ..contracts.validation import strict_keys
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import read_raw, raw_sha256
 from ..foundation.spec_update import require_no_spec_update
 from ..foundation.markdown import parse_json_contract

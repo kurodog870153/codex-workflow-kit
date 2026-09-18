@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .task_draft import _path, read_task_draft_from_index, read_task_planning_index
 from ..contracts.task_draft import PLANNING_STATUSES
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 
 
 def _exists(path: Path) -> bool:

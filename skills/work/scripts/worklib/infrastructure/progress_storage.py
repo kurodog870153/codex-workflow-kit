@@ -4,7 +4,7 @@ import os
 from collections.abc import Callable
 from pathlib import Path
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.spec_update import storage_path
 from .writer_lock import state_writer
 

@@ -7,10 +7,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"))
 
-from worklib.contracts.cli import CliResultContract, ErrorContract
+from worklib.contracts.base import WorkContract as LegacyWorkContract
+from worklib.contracts.cli import CliResultContract as LegacyCliResultContract
+from worklib.contracts.cli import ErrorContract as LegacyErrorContract
+from worklib.models.common import CliResultContract, ErrorContract, WorkContract
 
 
 class CliContractTests(unittest.TestCase):
+    def test_legacy_exports_preserve_class_identity(self) -> None:
+        self.assertIs(LegacyWorkContract, WorkContract)
+        self.assertIs(LegacyCliResultContract, CliResultContract)
+        self.assertIs(LegacyErrorContract, ErrorContract)
+
     def test_cli_result_uses_stable_canonical_order(self) -> None:
         result = CliResultContract(
             schema="work-cli-result/v1", status="success", reason_code="ok",

@@ -7,7 +7,7 @@ from typing import Any
 
 from ..contracts.plan import ID_PREFIXES, TOP_OPTIONAL, TOP_REQUIRED
 from ..contracts.validation import nonempty_string as _nonempty_string, strict_keys as _strict_keys
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_sha256, read_raw
 from ..foundation.markdown import parse_json_contract, render_json_contract, require_canonical_json_contract
 from ..foundation.paths import resolve_project_relative_path, validate_artifact_paths

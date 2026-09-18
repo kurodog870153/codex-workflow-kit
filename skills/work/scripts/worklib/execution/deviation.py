@@ -14,7 +14,7 @@ from ..contracts.attempt import (
     canonicalize_attempt_contract, render_attempt_contract, validate_attempt_file,
 )
 from ..contracts.validation import nonempty_string, sha256
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_json_sha256, raw_sha256, read_raw
 from ..foundation.paths import normalize_relative_path
 from ..foundation.spec_update import require_no_spec_update, storage_path

@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 
 
 def formal_command(task: dict[str, Any], base_record_id: str) -> dict[str, Any]:

@@ -11,7 +11,7 @@ from .task import create_task_artifacts, prepare_task_collection_create
 from .task_draft import _render, read_task_draft, read_task_planning_index
 from ..services.plan_validation import validate_plan_contract
 from ..contracts.validation import sha256, strict_keys
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import read_raw
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import resolve_project_relative_path

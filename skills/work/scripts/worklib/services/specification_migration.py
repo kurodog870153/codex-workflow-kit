@@ -14,7 +14,7 @@ from ..contracts.specification_migration_models import (
 from ..contracts.spec_transaction import encode_snapshot, transaction_approval_sha256, validate_spec_transaction
 from ..foundation import spec_transactions
 from ..contracts.task_collection import validate_task_collection_contract
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import canonical_json_sha256, raw_sha256, read_raw
 from ..foundation.markdown import parse_json_contract, render_json_contract
 from ..foundation.paths import resolve_project_relative_path

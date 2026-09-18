@@ -12,7 +12,7 @@ from ..contracts.recovery_models import (
     ExecutionRecoveryRequestContract,
 )
 from ..contracts.correction import canonicalize_correction_contract, render_correction_contract
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from ..foundation.fingerprint import raw_sha256, read_raw
 from ..foundation.markdown import parse_json_contract
 from ..foundation.paths import normalize_relative_path

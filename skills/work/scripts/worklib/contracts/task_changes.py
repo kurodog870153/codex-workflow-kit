@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from datetime import date
 
-from ..foundation.errors import ExitCode, WorkError
+from ..models.common.errors import ExitCode, WorkError
 from .validation import nonempty_string, strict_keys
 
 
