@@ -3,26 +3,20 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 import yaml
 
-from ..models.common.errors import ExitCode, WorkError
-from ..foundation.fingerprint import canonical_json_sha256
-from ..infrastructure.skill_fingerprint import snapshot_skill_bundle
+from ...foundation.fingerprint import canonical_json_sha256
+from ...infrastructure.skill_fingerprint import snapshot_skill_bundle
+from ...models.common.errors import ExitCode, WorkError
+from ...models.skill import SkillRoot
 
 
 VALID_SCOPES = frozenset({"repo", "user", "admin", "system"})
 VALID_MODES = frozenset({"plan", "task", "execute"})
 
-
-@dataclass(frozen=True)
-class SkillRoot:
-    scope: str
-    locator: str
-    path: Path
 
 
 def _strict_mapping(value: object, *, source: str) -> dict[str, Any]:
@@ -367,3 +361,4 @@ def parse_skill_root(value: str) -> SkillRoot:
             {"value": value},
         )
     return SkillRoot(scope=scope, locator=_validate_root_locator(locator), path=Path(raw_path))
+

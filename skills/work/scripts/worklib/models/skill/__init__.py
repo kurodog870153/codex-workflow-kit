@@ -1,8 +1,9 @@
-"""Compatibility exports for Skill models."""
+"""Skill domain models."""
 
-from ..models.skill import (
+from .contracts import (
     SkillBundleContract,
     SkillCatalogContract,
+    SkillRoot,
     SkillSelectionContract,
     SkillSelectionValidationContract,
     SkillSnapshotContract,
@@ -11,6 +12,7 @@ from ..models.skill import (
 __all__ = [
     "SkillBundleContract",
     "SkillCatalogContract",
+    "SkillRoot",
     "SkillSelectionContract",
     "SkillSelectionValidationContract",
     "SkillSnapshotContract",
