@@ -15,7 +15,7 @@ from ..foundation.runtime import installed_work_root
 from .instruction_history import stored_selection
 from .instruction_work_selection import validate_work_instruction_selection
 from ..services.hierarchy_selection import validate_hierarchy_selection
-from ..services.skill_selection import validate_skill_selection
+from ..business_services.skill import validate_skill_selection
 from .skill_catalog import SkillRoot
 from .plan_ordering import order_plan_contract
 
