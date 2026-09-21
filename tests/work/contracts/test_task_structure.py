@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/work/scripts"))
 
-from worklib.contracts.task_structure import inspect_task_structure, pointer
+from worklib.services.task.structure import inspect_task_structure, pointer
 
 
 class TaskStructureTests(unittest.TestCase):

@@ -9,7 +9,7 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.infrastructure.skill_fingerprint import snapshot_skill_bundle
+from worklib.technical.infrastructure.skill_fingerprint import snapshot_skill_bundle
 
 
 class SkillFingerprintTests(unittest.TestCase):

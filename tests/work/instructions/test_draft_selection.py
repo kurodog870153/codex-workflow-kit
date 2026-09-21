@@ -7,8 +7,8 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills/work/scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.foundation.errors import WorkError
-from worklib.services.instruction_draft_selection import resolve_draft_instruction_selection, validate_draft_instruction_selection
+from worklib.models.common.errors import WorkError
+from worklib.services.task.draft.validation import resolve_draft_instruction_selection, validate_draft_instruction_selection
 
 
 class DraftSelectionTests(unittest.TestCase):

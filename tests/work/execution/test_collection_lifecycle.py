@@ -13,21 +13,19 @@ SKILL_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work"
 sys.path.insert(0, str(SKILL_ROOT / "scripts"))
 
 from tests.work.contracts import test_task_collection
-from worklib.services.task_collection import load_task_collection
-from worklib.contracts.execution_index import (
+from worklib.business_services.task import load_task_collection
+from worklib.services.attempt.validation import (
     build_initial_execution_index,
     render_execution_index,
 )
-from worklib.execution.attempt_close import close_attempt
-from worklib.execution.attempt_start import start_attempt
-from worklib.execution.correction import create_correction
-from worklib.execution.record_begin import begin_record
-from worklib.execution.record_finish import finish_record
-from worklib.execution.recovery import recover_execution
-from worklib.foundation.errors import WorkError
-from worklib.foundation.markdown import parse_json_contract
-from worklib.services.instruction_selection import build_instruction_selection
-from worklib.contracts.attempt_authorization_models import minimal_authorization
+from worklib.workflows.execution import close_attempt, start_attempt
+from worklib.workflows.execution import create_correction
+from worklib.workflows.execution import begin_record, finish_record
+from worklib.workflows.execution import recover_execution
+from worklib.models.common.errors import WorkError
+from worklib.technical.infrastructure.json_contract import parse_json_contract
+from worklib.business_services.instruction import build_instruction_selection
+from worklib.services.attempt import minimal_authorization
 
 
 class CollectionExecutionLifecycleTests(unittest.TestCase):
@@ -105,7 +103,7 @@ class CollectionExecutionLifecycleTests(unittest.TestCase):
             "authorization": authorization,
         }
         with patch(
-            "worklib.execution.attempt_start.inspect_execute_worktree",
+            "worklib.business_services.execution.attempt_start.inspect_execute_worktree",
             return_value=self.preflight,
         ):
             result = start_attempt(

@@ -8,7 +8,7 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.task_ordering import order_task_contract
+from worklib.services.task.ordering import order_task_contract
 
 
 class TaskOrderingTests(unittest.TestCase):

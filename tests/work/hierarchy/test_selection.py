@@ -10,8 +10,8 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.foundation.errors import WorkError
-from worklib.services.hierarchy_selection import (
+from worklib.models.common.errors import WorkError
+from worklib.business_services.hierarchy import (
     build_hierarchy_selection,
     validate_hierarchy_selection,
     validate_task_hierarchy_paths,

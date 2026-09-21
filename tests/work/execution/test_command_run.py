@@ -16,18 +16,20 @@ sys.path.insert(0, str(TEST_ROOT.parents[1] / "skills/work/scripts"))
 from cli_support import FileInputTestCase
 from contracts import test_task as fixtures
 from worklib.cli import main
-from worklib.contracts.attempt import render_attempt_contract
-from worklib.contracts.attempt_authorization_models import authorization_sha256, minimal_authorization
-from worklib.contracts.execution_index import build_initial_execution_index, render_execution_index
-from worklib.contracts.task_collection_semantics import render_task_contract
-from worklib.artifacts.task import prepare_task_collection_create
-from worklib.execution import command_run
-from worklib.execution.instructions import BASE_EXECUTE_REFERENCES
-from worklib.execution.record_finish import finish_record
-from worklib.foundation.errors import WorkError
-from worklib.foundation.markdown import parse_json_contract
-from worklib.services.plan_validation import render_plan_contract, validate_plan_contract
-from worklib.services.instruction_selection import build_instruction_selection
+from worklib.services.attempt import render_attempt_contract
+from worklib.services.attempt import authorization_sha256, minimal_authorization
+from worklib.services.attempt import build_initial_execution_index, render_execution_index
+from worklib.business_services.task.document import render_task_contract
+from worklib.business_services.task.creation import prepare_task_collection_create
+from worklib.business_services.execution import command_run
+from worklib.business_services.execution.instructions import BASE_EXECUTE_REFERENCES
+from worklib.workflows.execution import ExecutionOperations
+from worklib.workflows.execution import finish_record
+from worklib.models.common.errors import WorkError
+from worklib.technical.infrastructure.json_contract import parse_json_contract
+from worklib.business_services.plan import render_plan_contract, validate_plan_contract
+from worklib.business_services.instruction import build_instruction_selection
+from worklib.technical.infrastructure import command_execution
 
 
 class CommandRunTests(FileInputTestCase):
@@ -116,11 +118,15 @@ class CommandRunTests(FileInputTestCase):
         self.attempt_path.write_bytes(render_attempt_contract(self.attempt, project_root=self.root))
 
     def prepare(self):
-        return command_run.prepare_command(json.dumps(self.request).encode(), **self.common)
+        return command_run.prepare_command(
+            json.dumps(self.request).encode(), **self.common, operations=ExecutionOperations
+        )
 
     def run_cmd(self, approval):
-        return command_run.run_command(json.dumps(self.request).encode(), **self.common,
-            approved_sha256=approval)
+        return command_run.run_command(
+            json.dumps(self.request).encode(), **self.common,
+            approved_sha256=approval, operations=ExecutionOperations,
+        )
 
     def snapshot(self):
         return {str(path): path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
@@ -246,7 +252,7 @@ class CommandRunTests(FileInputTestCase):
 
     def test_timeout_keeps_receipts_and_never_invents_exit_code(self):
         preview = self.prepare()
-        with patch.object(command_run.subprocess, "run", side_effect=subprocess.TimeoutExpired("controlled", 10)) as run:
+        with patch.object(command_execution.subprocess, "run", side_effect=subprocess.TimeoutExpired("controlled", 10)) as run:
             with self.assertRaises(WorkError) as error:
                 self.run_cmd(preview["approved_sha256"])
             run.assert_called_once()

@@ -9,12 +9,9 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.foundation.errors import WorkError
-from worklib.services.instruction_catalog import (
-    build_cross_mode_instruction_catalog,
-    build_instruction_catalog,
-    resolve_instruction_hierarchy,
-)
+from worklib.models.common.errors import WorkError
+from worklib.services.instruction.catalog import build_cross_mode_instruction_catalog, build_instruction_catalog
+from worklib.business_services.instruction import resolve_instruction_hierarchy
 
 
 class InstructionCatalogTests(unittest.TestCase):

@@ -14,14 +14,14 @@ sys.path.insert(0, str(TEST_ROOT.parents[1] / "skills/work/scripts"))
 from cli_support import FileInputTestCase
 from tests.work.contracts import test_task_collection
 from worklib.cli import main
-from worklib.contracts.attempt import render_attempt_contract
-from worklib.contracts.attempt_authorization_models import authorization_sha256, minimal_authorization
-from worklib.contracts.execution_index import build_initial_execution_index, render_execution_index
-from worklib.execution import recovery_prepare
-from worklib.execution.recovery import recover_execution
-from worklib.foundation.errors import WorkError
-from worklib.infrastructure.writer_lock import state_writer
-from worklib.services.task_collection import load_task_collection
+from worklib.services.attempt import render_attempt_contract
+from worklib.services.attempt import authorization_sha256, minimal_authorization
+from worklib.services.attempt import build_initial_execution_index, render_execution_index
+from worklib.business_services.execution import recovery_prepare
+from worklib.workflows.execution import prepare_execution_recovery, recover_execution
+from worklib.models.common.errors import WorkError
+from worklib.technical.infrastructure.writer_lock import state_writer
+from worklib.business_services.task import load_task_collection
 
 
 class RecoveryPreparationTests(FileInputTestCase):
@@ -82,7 +82,7 @@ class RecoveryPreparationTests(FileInputTestCase):
                 "attempt_id": "ATTEMPT-001"}
 
     def prepare(self, transaction="record_begin", **overrides):
-        return recovery_prepare.prepare_execution_recovery(json.dumps(self.request(transaction)).encode(),
+        return prepare_execution_recovery(json.dumps(self.request(transaction)).encode(),
                                                            **{**self.common, **overrides})
 
     def begin_file(self):

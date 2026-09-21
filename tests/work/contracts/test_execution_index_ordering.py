@@ -8,7 +8,7 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.execution_index_ordering import order_execution_index
+from worklib.services.attempt.validation import order_execution_index
 
 
 class ExecutionIndexOrderingTests(unittest.TestCase):

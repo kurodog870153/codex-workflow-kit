@@ -8,8 +8,8 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.execution.records import formal_record_kind, next_record_id
-from worklib.foundation.errors import ExitCode, WorkError
+from worklib.services.record.sequencing import formal_record_kind, next_record_id
+from worklib.models.common.errors import ExitCode, WorkError
 
 
 class ExecutionRecordTests(unittest.TestCase):

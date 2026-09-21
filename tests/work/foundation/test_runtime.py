@@ -8,7 +8,7 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.foundation.runtime import MINIMUM_PYTHON, installed_work_root, supported_python
+from worklib.technical.foundation.runtime import MINIMUM_PYTHON, installed_work_root, supported_python
 
 
 class RuntimePathTests(unittest.TestCase):

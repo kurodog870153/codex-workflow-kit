@@ -11,8 +11,8 @@ from pydantic import BaseModel, ConfigDict, Field
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.base import WorkContract
-from worklib.foundation.errors import WorkError
+from worklib.models.common.base import WorkContract
+from worklib.models.common.errors import WorkError
 
 
 class ExampleContract(WorkContract):

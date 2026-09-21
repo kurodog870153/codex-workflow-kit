@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import Any
 
 from . import SubparserRegistry
-from ..foundation.runtime import installed_work_root
-from ..infrastructure.cli_io import FileInput
-from ..services.hierarchy import (
+from ..business_services.hierarchy import (
     build_hierarchy, build_hierarchy_selection_json,
     validate_hierarchy_selection_json,
 )
@@ -23,10 +22,10 @@ def register_hierarchy_commands(commands: SubparserRegistry) -> None:
         selection.add_argument("--input-file", required=True)
 
 
-def run_hierarchy(arguments: argparse.Namespace, project_root: Path, request: FileInput | None) -> dict[str, object]:
+def run_hierarchy(arguments: argparse.Namespace, project_root: Path, request: Any) -> dict[str, object]:
     if arguments.hierarchy_command == "resolve":
         result = build_hierarchy(arguments.work_directory, arguments.paths).as_dict()
         result["project_root"] = str(project_root)
         return result
     operation = build_hierarchy_selection_json if arguments.hierarchy_command == "selection-build" else validate_hierarchy_selection_json
-    return operation(request.raw, skill_root=installed_work_root())
+    return operation(request.raw, skill_root=Path(__file__).resolve().parents[3])

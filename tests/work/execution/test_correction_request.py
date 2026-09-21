@@ -9,8 +9,8 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.execution.correction_request import parse_correction_create_request
-from worklib.foundation.errors import WorkError
+from worklib.business_services.execution.correction_request import parse_correction_create_request
+from worklib.models.common.errors import WorkError
 
 
 class CorrectionRequestTests(unittest.TestCase):

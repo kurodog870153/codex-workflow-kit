@@ -11,15 +11,27 @@ from pydantic import ValidationError
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.execution_deviation_models import (
+from worklib.models.execution import (
     ExecutionDeviationContract,
     ExecutionDeviationPreviewContract,
     ExecutionDeviationProposalContract,
     ExecutionDeviationRecordContract,
 )
+from worklib.models.execution import (
+    ExecutionDeviationContract as ModelExecutionDeviationContract,
+    ExecutionDeviationPreviewContract as ModelExecutionDeviationPreviewContract,
+    ExecutionDeviationProposalContract as ModelExecutionDeviationProposalContract,
+    ExecutionDeviationRecordContract as ModelExecutionDeviationRecordContract,
+)
 
 
 class ExecutionDeviationContractTests(unittest.TestCase):
+    def test_legacy_exports_preserve_class_identity(self) -> None:
+        self.assertIs(ExecutionDeviationContract, ModelExecutionDeviationContract)
+        self.assertIs(ExecutionDeviationPreviewContract, ModelExecutionDeviationPreviewContract)
+        self.assertIs(ExecutionDeviationProposalContract, ModelExecutionDeviationProposalContract)
+        self.assertIs(ExecutionDeviationRecordContract, ModelExecutionDeviationRecordContract)
+
     def proposal(self) -> dict[str, object]:
         return copy.deepcopy(ExecutionDeviationProposalContract.contract_example)
 

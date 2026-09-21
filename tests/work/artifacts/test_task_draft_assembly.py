@@ -9,14 +9,14 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills/work/scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.artifacts.task_draft import save_task_planning, read_task_planning_index
-from worklib.artifacts.task_draft_assembly import assemble_task_drafts, create_task_from_drafts
-from worklib.services.plan_validation import render_plan_contract, validate_plan_contract
-from worklib.services.task_collection import load_task_collection
-from worklib.foundation.errors import WorkError
-from worklib.services.hierarchy_selection import build_hierarchy_selection
-from worklib.services.instruction_selection import build_instruction_selection
-from worklib.services.instruction_work_selection import build_work_instruction_selection
+from worklib.services.task.draft.storage import save_task_planning, read_task_planning_index
+from worklib.workflows.task import assemble_task_drafts, create_task_from_drafts
+from worklib.business_services.plan import render_plan_contract, validate_plan_contract
+from worklib.business_services.task import load_task_collection
+from worklib.models.common.errors import WorkError
+from worklib.business_services.hierarchy import build_hierarchy_selection
+from worklib.business_services.instruction import build_instruction_selection
+from worklib.business_services.instruction import build_work_instruction_selection
 from worklib.services.skill_selection import selection_sha256
 
 

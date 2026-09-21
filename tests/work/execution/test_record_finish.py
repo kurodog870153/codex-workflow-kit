@@ -8,11 +8,9 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.execution.record_finish import (
-    _overall_result,
-    build_finished_attempt,
-)
-from worklib.foundation.errors import WorkError
+from worklib.business_services.execution.record_finish import build_finished_attempt
+from worklib.models.common.errors import WorkError
+from worklib.services.record.result import overall_operation_result
 
 
 class RecordFinishTests(unittest.TestCase):
@@ -41,7 +39,7 @@ class RecordFinishTests(unittest.TestCase):
         )
         for records, expected in cases:
             with self.subTest(expected=expected):
-                self.assertEqual(_overall_result(records), expected)
+                self.assertEqual(overall_operation_result(records), expected)
 
     def test_rejects_record_that_does_not_match_reservation(self) -> None:
         attempt = {"records": []}

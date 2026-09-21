@@ -15,14 +15,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from cli_support import FileInputTestCase
 
-from worklib.artifacts.task_draft import read_task_draft, read_task_planning_index, save_task_planning
-from worklib.artifacts.task_draft_request import save_task_draft_request
+from worklib.services.task.draft.storage import read_task_draft, read_task_planning_index, save_task_planning
+from worklib.workflows.task import save_task_draft_request
 from worklib.cli import main
-from worklib.services.plan_validation import render_plan_contract, validate_plan_file
-from worklib.foundation.errors import ExitCode, WorkError
-from worklib.services.hierarchy_selection import build_hierarchy_selection
-from worklib.services.instruction_selection import build_instruction_selection
-from worklib.services.instruction_work_selection import build_work_instruction_selection
+from worklib.business_services.plan import render_plan_contract, validate_plan_file
+from worklib.models.common.errors import ExitCode, WorkError
+from worklib.business_services.hierarchy import build_hierarchy_selection
+from worklib.business_services.instruction import build_instruction_selection
+from worklib.business_services.instruction import build_work_instruction_selection
 from worklib.services.skill_selection import selection_sha256
 
 
@@ -81,7 +81,7 @@ class TaskDraftRequestTests(FileInputTestCase):
         self.assertEqual(self.snapshot(), before)
 
     def interrupt(self):
-        with patch("worklib.artifacts.task_draft.os.replace", side_effect=OSError("busy")):
+        with patch("worklib.services.task.draft.storage.os.replace", side_effect=OSError("busy")):
             with self.assertRaises(WorkError) as context:
                 self.save()
         self.assertEqual(context.exception.code, "draft_save_interrupted")
@@ -172,7 +172,7 @@ class TaskDraftRequestTests(FileInputTestCase):
         self.assert_rejected("draft_instruction_drift")
 
     def test_skill_validation_failure_is_preserved_without_writing(self):
-        with patch("worklib.artifacts.task_draft_sources.validate_plan_contract", side_effect=WorkError(ExitCode.ARTIFACT_INTEGRITY, "skill_bundle_drift", "Changed skill.")):
+        with patch("worklib.workflows.task.TaskDraftOperations.validate_plan_contract", side_effect=WorkError(ExitCode.ARTIFACT_INTEGRITY, "skill_bundle_drift", "Changed skill.")):
             self.assert_rejected("skill_bundle_drift")
 
     def test_refined_content_and_candidate_use_existing_contract(self):
@@ -220,7 +220,7 @@ class TaskDraftRequestTests(FileInputTestCase):
         self.assert_rejected("draft_source_drift", recover=True)
 
     def test_partial_save_cannot_be_reconstructed_by_recovery(self):
-        with patch("worklib.artifacts.task_draft._write", side_effect=OSError("disk full")):
+        with patch("worklib.services.task.draft.storage._write", side_effect=OSError("disk full")):
             with self.assertRaises(WorkError):
                 self.save()
         self.assert_rejected("draft_recovery_incomplete", recover=True)

@@ -11,10 +11,10 @@ from unittest.mock import patch
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills/work/scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.execution_deviation_models import ExecutionDeviationProposalContract
-from worklib.contracts.attempt_authorization_models import authorization_sha256, minimal_authorization
-from worklib.execution.deviation import prepare_execution_deviation, record_execution_deviation
-from worklib.foundation.errors import WorkError
+from worklib.models.execution import ExecutionDeviationProposalContract
+from worklib.services.attempt import authorization_sha256, minimal_authorization
+from worklib.workflows.execution import prepare_execution_deviation, record_execution_deviation
+from worklib.models.common.errors import WorkError
 
 
 class DeviationPreviewTests(unittest.TestCase):
@@ -56,12 +56,12 @@ class DeviationPreviewTests(unittest.TestCase):
     def prepare(self, sources=None):
         context = {"contract": self.contract, "validation": self.validation,
                    "sources": sources or {self.task_path: b"task"}}
-        with patch("worklib.execution.deviation.load_task_execution_context", return_value=context), \
-             patch("worklib.execution.deviation._validate_index_bytes", return_value=self.index), \
-             patch("worklib.execution.deviation._validate_attempt_bytes", return_value=self.attempt), \
-             patch("worklib.execution.deviation.validate_execution_identity", return_value=self.row), \
-             patch("worklib.execution.deviation.validate_execute_instructions"), \
-             patch("worklib.execution.deviation.require_idle_writer"):
+        with patch("worklib.workflows.execution.ExecutionOperations.load_task_execution_context", return_value=context), \
+             patch("worklib.business_services.execution.deviation._validate_index_bytes", return_value=self.index), \
+             patch("worklib.business_services.execution.deviation._validate_attempt_bytes", return_value=self.attempt), \
+             patch("worklib.business_services.execution.deviation.validate_execution_identity", return_value=self.row), \
+             patch("worklib.business_services.execution.deviation.validate_execute_instructions"), \
+             patch("worklib.business_services.execution.deviation.require_idle_writer"):
             return prepare_execution_deviation(json.dumps(self.proposal).encode(), source="test",
                 project_root=self.root, user_config_root=str(self.root), raw_task_path=self.task_path,
                 raw_execution_dir=self.execution, task_id="TASK-001")
@@ -109,7 +109,7 @@ class DeviationPreviewTests(unittest.TestCase):
             "authorization_sha256": authorization_sha256(authorization),
             "started_at": "2026-09-01T10:00+08:00", "records": [],
         }
-        from worklib.contracts.attempt import render_attempt_contract
+        from worklib.services.attempt import render_attempt_contract
         (self.root / self.attempt_path).write_bytes(
             render_attempt_contract(full_attempt, project_root=self.root)
         )
@@ -118,11 +118,11 @@ class DeviationPreviewTests(unittest.TestCase):
             "contract": self.contract, "validation": self.validation,
             "sources": {self.task_path: b"task"},
         }
-        with patch("worklib.execution.deviation.load_task_execution_context", return_value=context), \
-             patch("worklib.execution.deviation._validate_index_bytes", return_value=self.index), \
-             patch("worklib.execution.deviation._validate_attempt_bytes", side_effect=lambda raw, **_: json.loads(raw)), \
-             patch("worklib.execution.deviation.validate_execution_identity", return_value=self.row), \
-             patch("worklib.execution.deviation.validate_execute_instructions"):
+        with patch("worklib.workflows.execution.ExecutionOperations.load_task_execution_context", return_value=context), \
+             patch("worklib.business_services.execution.deviation._validate_index_bytes", return_value=self.index), \
+             patch("worklib.business_services.execution.deviation._validate_attempt_bytes", side_effect=lambda raw, **_: json.loads(raw)), \
+             patch("worklib.business_services.execution.deviation.validate_execution_identity", return_value=self.row), \
+             patch("worklib.business_services.execution.deviation.validate_execute_instructions"):
             result = record_execution_deviation(
                 json.dumps(self.proposal).encode(), source="test",
                 approved_sha256=preview["preview_sha256"],

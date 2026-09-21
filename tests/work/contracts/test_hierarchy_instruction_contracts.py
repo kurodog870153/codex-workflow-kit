@@ -6,8 +6,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"))
 
-from worklib.contracts.hierarchy import HierarchyContract
-from worklib.contracts.instruction import InstructionCatalogContract
+from worklib.models.hierarchy import HierarchyContract
+from worklib.models.instruction import InstructionCatalogContract
 
 
 class HierarchyInstructionContractTests(unittest.TestCase):

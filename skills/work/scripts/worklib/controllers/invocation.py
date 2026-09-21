@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from . import SubparserRegistry
-from ..infrastructure.cli_io import FileInput
-from ..services.invocation import parse_invocation
+from ..business_services.invocation import parse_invocation_request
+from . import RequestInput, SubparserRegistry
 
 
 def register_invocation_commands(commands: SubparserRegistry) -> None:
@@ -14,5 +13,5 @@ def register_invocation_commands(commands: SubparserRegistry) -> None:
     parse.add_argument("--input-file", required=True)
 
 
-def run_invocation(request: FileInput) -> dict[str, object]:
-    return parse_invocation(request.raw, source=request.source).to_canonical_dict()
+def run_invocation(request: RequestInput) -> dict[str, object]:
+    return parse_invocation_request(request.raw, source=request.source)

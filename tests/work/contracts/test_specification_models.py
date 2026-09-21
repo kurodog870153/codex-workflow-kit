@@ -11,14 +11,14 @@ from pydantic import ValidationError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/work/scripts"))
 
-from worklib.services.specification import prepare_specification, update_specification, verify_specification
-from worklib.contracts.specification_models import SpecificationVerificationRequestContract
-from worklib.contracts.specification_models import (
+from worklib.workflows.task import prepare_specification, update_specification, verify_specification
+from worklib.models.specification.contracts import SpecificationVerificationRequestContract
+from worklib.models.specification.contracts import (
     SpecificationPrepareContract, SpecificationUpdateContract, SpecificationVerificationContract,
 )
-from worklib.contracts.specification_models import SpecificationPrepareRequestContract, SpecificationUpdateRequestContract
-from worklib.contracts.registry import registry
-from worklib.foundation.errors import ExitCode, WorkError
+from worklib.models.specification.contracts import SpecificationPrepareRequestContract, SpecificationUpdateRequestContract
+from worklib.services.contract import registry
+from worklib.models.common.errors import ExitCode, WorkError
 
 
 class SpecificationPrepareContractTests(unittest.TestCase):
@@ -62,7 +62,7 @@ class SpecificationPrepareContractTests(unittest.TestCase):
         for value, code in (([], "spec_prepare_edits"), ({}, "spec_prepare_edits")):
             request = self.request()
             request["edits"] = value
-            with patch("worklib.services.specification._load") as load:
+            with patch("worklib.business_services.specification.workflow._load") as load:
                 with self.assertRaises(WorkError) as caught:
                     prepare_specification(json.dumps(request).encode(), project_root=Path("."), user_config_root=".")
                 self.assertEqual(caught.exception.code, code)
@@ -108,7 +108,7 @@ class SpecificationUpdateContractTests(unittest.TestCase):
                 else:
                     request["task"] = request.pop("task_index")
                 with self.subTest(operation=operation, old_schema=old_schema):
-                    with patch("worklib.services.specification._load") as load, patch("worklib.services.specification.read_raw") as read:
+                    with patch("worklib.business_services.specification.workflow._load") as load, patch("worklib.business_services.specification.workflow.read_raw") as read:
                         with self.assertRaises(WorkError) as caught:
                             update_specification(json.dumps(request).encode(), project_root=Path("."),
                                                  user_config_root=".", operation=operation)
@@ -156,7 +156,7 @@ class SpecificationVerificationContractTests(unittest.TestCase):
                  {**example, "artifacts": {"plan": "example.json"}},
                  {**example, "artifacts": {**example["artifacts"], "unexpected": True}}]
         for request in cases:
-            with self.subTest(request=request), patch("worklib.services.specification.read_raw") as read:
+            with self.subTest(request=request), patch("worklib.business_services.specification.workflow.read_raw") as read:
                 with self.assertRaises(WorkError) as caught:
                     verify_specification(json.dumps(request).encode(), project_root=Path("."), user_config_root=".")
                 self.assertEqual(caught.exception.exit_code, ExitCode.CONTRACT)

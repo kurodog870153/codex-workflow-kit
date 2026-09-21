@@ -12,43 +12,42 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from tests.work.contracts import test_task_collection
-from worklib.services.specification import prepare_specification, update_specification
-from worklib.services.task_collection import (
+from worklib.workflows.task import prepare_specification, update_specification
+from worklib.business_services.task import (
     load_task_collection,
     load_task_execution_context,
 )
-from worklib.contracts.execution_index import (
+from worklib.services.attempt.validation import (
     build_initial_execution_index,
     render_execution_index,
 )
-from worklib.contracts.task_index import render_task_index_contract
-from worklib.contracts.task_item import (
+from worklib.business_services.task.index import render_task_index_contract
+from worklib.business_services.task.item import (
     render_task_item_contract,
     validate_task_item_contract,
 )
-from worklib.foundation import spec_transactions
-from worklib.foundation.fingerprint import read_raw
+from worklib.technical.infrastructure.file_io import read_raw
+from worklib.technical.infrastructure import specification_storage as spec_transactions
 
 
 TASK_COUNT = 100
 
 
 class LargeTaskCollectionIOTests(unittest.TestCase):
-    def setUp(self) -> None:
-        fixture = test_task_collection.TaskCollectionTests(
-            "test_loads_complete_collection_and_rejects_single_file_artifact"
-        )
-        fixture.setUp()
-        self.addCleanup(fixture.doCleanups)
-        self.root = fixture.root
-        self.index_path = fixture.index_path
-        self.plan_path = fixture.fixture.artifacts["plan"]
-        self.collection = (self.root / self.index_path).parent
+    _large_items: tuple[tuple[str, str, bytes], ...] | None = None
+    _large_index_raw: bytes | None = None
 
+    @classmethod
+    def _build_large_fixture(
+        cls,
+        item_template: dict[str, object],
+        index_template: dict[str, object],
+    ) -> None:
+        items = []
         references = []
         for number in range(1, TASK_COUNT + 1):
             task_id = f"TASK-{number:03d}"
-            item = copy.deepcopy(fixture.item)
+            item = copy.deepcopy(item_template)
             item["id"] = task_id
             item["title"] = f"Large fixture task {number}"
             item["goal"] = f"Validate large fixture task {number}."
@@ -67,7 +66,7 @@ class LargeTaskCollectionIOTests(unittest.TestCase):
                 raw, source=task_id, expected_task_id=task_id
             )
             relative = f"tasks/{task_id}.json"
-            (self.collection / relative).write_bytes(raw)
+            items.append((task_id, relative, raw))
             references.append(
                 {
                     "id": task_id,
@@ -76,9 +75,33 @@ class LargeTaskCollectionIOTests(unittest.TestCase):
                 }
             )
 
-        index = copy.deepcopy(fixture.index)
+        index = copy.deepcopy(index_template)
         index["tasks"] = references
-        (self.root / self.index_path).write_bytes(render_task_index_contract(index))
+        cls._large_items = tuple(items)
+        cls._large_index_raw = render_task_index_contract(index)
+
+    def setUp(self) -> None:
+        fixture = test_task_collection.TaskCollectionTests(
+            "test_loads_complete_collection_and_rejects_single_file_artifact"
+        )
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        self.root = fixture.root
+        self.index_path = fixture.index_path
+        self.plan_path = fixture.fixture.artifacts["plan"]
+        self.collection = (self.root / self.index_path).parent
+
+        fixture_type = type(self)
+        if fixture_type._large_items is None:
+            fixture_type._build_large_fixture(fixture.item, fixture.index)
+        large_items = fixture_type._large_items
+        large_index_raw = fixture_type._large_index_raw
+        assert large_items is not None
+        assert large_index_raw is not None
+        self.large_items = large_items
+        for _, relative, raw in large_items:
+            (self.collection / relative).write_bytes(raw)
+        (self.root / self.index_path).write_bytes(large_index_raw)
         validation = load_task_collection(
             self.root, str(self.root), self.index_path
         )
@@ -107,7 +130,7 @@ class LargeTaskCollectionIOTests(unittest.TestCase):
             return raw
 
         with patch(
-            "worklib.infrastructure.task_collection.read_raw", side_effect=measured
+            "worklib.technical.infrastructure.task_collection.read_raw", side_effect=measured
         ):
             result = operation()
         return result, paths, byte_count
@@ -215,6 +238,8 @@ class LargeTaskCollectionIOTests(unittest.TestCase):
         for task_id, path in item_paths.items():
             if task_id != target:
                 self.assertEqual(path.read_bytes(), before[task_id])
+        cached_items = {task_id: raw for task_id, _, raw in self.large_items}
+        self.assertEqual(cached_items[target], before[target])
 
 
 if __name__ == "__main__":

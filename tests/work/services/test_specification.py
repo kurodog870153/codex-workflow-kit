@@ -8,9 +8,9 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/work/scripts"))
 
-from worklib.foundation.errors import WorkError
-from worklib.foundation.fingerprint import raw_sha256
-from worklib.services.specification import execution_history_fingerprints, rebuild_execution_index
+from worklib.models.common.errors import WorkError
+from worklib.technical.foundation.fingerprint import raw_sha256
+from worklib.business_services.specification.workflow import execution_history_fingerprints, rebuild_execution_index
 
 
 class SpecificationServiceTests(unittest.TestCase):
@@ -49,7 +49,7 @@ class SpecificationServiceTests(unittest.TestCase):
              "latest_attempt": "ATTEMPT-001"},
             {"id": "TASK-002", "status": "blocked", "skill_id": "old", "instructions_sha256": "0" * 64},
         ]}
-        with patch("worklib.services.specification.build_initial_execution_index", return_value=generated):
+        with patch("worklib.business_services.specification.workflow.build_initial_execution_index", return_value=generated):
             result = rebuild_execution_index(old, {}, {}, ["TASK-001", "TASK-002"], "TASK-CHANGE-002")
         self.assertEqual([row["status"] for row in result["tasks"]], ["pending_retry", "blocked"])
         self.assertEqual(result["tasks"][0]["latest_attempt"], "ATTEMPT-001")
@@ -61,7 +61,7 @@ class SpecificationServiceTests(unittest.TestCase):
                                   "instructions_sha256": "1" * 64}], "overall_status": "pending"}
         old = {"tasks": [{"id": "TASK-001", "status": "cancelled", "skill_id": None,
                            "instructions_sha256": "0" * 64}]}
-        with patch("worklib.services.specification.build_initial_execution_index", return_value=generated):
+        with patch("worklib.business_services.specification.workflow.build_initial_execution_index", return_value=generated):
             with self.assertRaises(WorkError) as caught:
                 rebuild_execution_index(old, {}, {}, ["TASK-001"], "TASK-CHANGE-002")
         self.assertEqual(caught.exception.code, "spec_update_cancelled_task")

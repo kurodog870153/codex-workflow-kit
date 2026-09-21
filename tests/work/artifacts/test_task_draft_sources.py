@@ -9,13 +9,13 @@ from unittest.mock import patch
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills/work/scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.artifacts.task_draft import save_task_planning
-from worklib.artifacts.task_draft_sources import check_task_draft_sources
-from worklib.services.plan_validation import render_plan_contract, validate_plan_file
-from worklib.foundation.errors import ExitCode, WorkError
-from worklib.services.hierarchy_selection import build_hierarchy_selection
-from worklib.services.instruction_selection import build_instruction_selection
-from worklib.services.instruction_work_selection import build_work_instruction_selection
+from worklib.services.task.draft.storage import save_task_planning
+from worklib.workflows.task import check_task_draft_sources
+from worklib.business_services.plan import render_plan_contract, validate_plan_file
+from worklib.models.common.errors import ExitCode, WorkError
+from worklib.business_services.hierarchy import build_hierarchy_selection
+from worklib.business_services.instruction import build_instruction_selection
+from worklib.business_services.instruction import build_work_instruction_selection
 from worklib.services.skill_selection import selection_sha256
 
 
@@ -137,5 +137,5 @@ class TaskDraftSourceTests(unittest.TestCase):
 
     def test_plan_validation_failure_is_preserved(self):
         self.initialize()
-        with patch("worklib.artifacts.task_draft_sources.validate_plan_contract", side_effect=WorkError(ExitCode.ARTIFACT_INTEGRITY, "skill_bundle_drift", "Changed skill.")):
+        with patch("worklib.workflows.task.TaskDraftOperations.validate_plan_contract", side_effect=WorkError(ExitCode.ARTIFACT_INTEGRITY, "skill_bundle_drift", "Changed skill.")):
             self.assertEqual(self.invoke()[1]["code"], "skill_bundle_drift")

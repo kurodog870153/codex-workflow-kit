@@ -8,8 +8,8 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.spec_transaction import encode_snapshot, render_spec_transaction, transaction_approval_sha256, validate_spec_transaction
-from worklib.foundation.errors import WorkError
+from worklib.services.specification.transaction import encode_snapshot, render_spec_transaction, transaction_approval_sha256, validate_spec_transaction
+from worklib.models.common.errors import WorkError
 
 
 class SpecTransactionContractTests(unittest.TestCase):

@@ -9,10 +9,15 @@ from pydantic import ValidationError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/work/scripts"))
 
-from worklib.contracts.task_collection_models import (
+from worklib.models.task_collection import (
     TaskCollectionFingerprintContract,
     TaskIndexContract,
     TaskItemContract,
+)
+from worklib.models.task_collection import (
+    TaskCollectionFingerprintContract as ModelTaskCollectionFingerprintContract,
+    TaskIndexContract as ModelTaskIndexContract,
+    TaskItemContract as ModelTaskItemContract,
 )
 
 
@@ -52,6 +57,14 @@ def index() -> dict[str, object]:
 
 
 class TaskCollectionModelTests(unittest.TestCase):
+    def test_legacy_exports_preserve_class_identity(self) -> None:
+        self.assertIs(TaskItemContract, ModelTaskItemContract)
+        self.assertIs(TaskIndexContract, ModelTaskIndexContract)
+        self.assertIs(
+            TaskCollectionFingerprintContract,
+            ModelTaskCollectionFingerprintContract,
+        )
+
     def test_v1_item_and_index_are_strict_frozen_and_canonical(self) -> None:
         item_model = TaskItemContract.model_validate(item())
         index_model = TaskIndexContract.model_validate(index())

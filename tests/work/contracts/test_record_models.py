@@ -9,13 +9,18 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.record_models import RecordFinishRequestContract
-from worklib.foundation.errors import WorkError
+from worklib.models.execution.record import RecordFinishRequestContract
+from worklib.models.execution.record import RecordFinishRequestContract as LegacyRecordFinishRequestContract
+from worklib.services.record.validation import parse_record_finish_request
+from worklib.models.common.errors import WorkError
 
 
 class RecordFinishRequestTests(unittest.TestCase):
+    def test_legacy_export_preserves_class_identity(self) -> None:
+        self.assertIs(LegacyRecordFinishRequestContract, RecordFinishRequestContract)
+
     def parse(self, request: dict[str, object]) -> dict[str, object]:
-        return RecordFinishRequestContract.parse_request(
+        return parse_record_finish_request(
             json.dumps(request).encode("utf-8"),
             source="stdin",
         ).to_canonical_dict()

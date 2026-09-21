@@ -8,8 +8,13 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.validation import nonempty_string, sha256, strict_keys
-from worklib.foundation.errors import WorkError
+from worklib.models.common.validation import ContractValuePolicy
+from worklib.models.common.errors import WorkError
+
+
+nonempty_string = ContractValuePolicy.nonempty_string
+sha256 = ContractValuePolicy.sha256
+strict_keys = ContractValuePolicy.strict_keys
 
 
 class ContractValidationTests(unittest.TestCase):

@@ -9,8 +9,8 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.foundation.errors import WorkError
-from worklib.services.instruction_sources import load_instruction_sources
+from worklib.models.common.errors import WorkError
+from worklib.business_services.instruction import load_instruction_sources
 
 
 class InstructionSourceTests(unittest.TestCase):

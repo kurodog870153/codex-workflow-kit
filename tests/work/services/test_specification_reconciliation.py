@@ -10,8 +10,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/work/scripts"))
 
-from worklib.contracts.execution_deviation_models import ExecutionDeviationContract
-from worklib.services.specification_reconciliation import (
+from worklib.models.execution import ExecutionDeviationContract
+from worklib.workflows.task import (
     preview_specification_reconciliation, publish_specification_reconciliation,
 )
 
@@ -40,8 +40,8 @@ class SpecificationReconciliationTests(unittest.TestCase):
                                   "fingerprint": "a" * 64, "writable_ready": True}
 
     def preview(self):
-        with patch("worklib.services.specification_reconciliation.render_attempt_json_contract", return_value=self.attempt), \
-             patch("worklib.services.specification_reconciliation.preview_specification_migration", return_value=self.migration_preview):
+        with patch("worklib.business_services.specification.reconciliation.render_attempt_json_contract", return_value=self.attempt), \
+             patch("worklib.business_services.specification.reconciliation.preview_specification_migration", return_value=self.migration_preview):
             return preview_specification_reconciliation(json.dumps(self.request).encode(), project_root=self.root,
                                                         user_config_root=str(self.root), skill_roots=[])
 
@@ -54,8 +54,8 @@ class SpecificationReconciliationTests(unittest.TestCase):
 
     def test_retain_only_is_read_only_and_needs_no_candidates(self):
         self.request.update(choice="retain_only", deviation_ids=[], migration=None)
-        with patch("worklib.services.specification_reconciliation.render_attempt_json_contract", return_value=self.attempt), \
-             patch("worklib.services.specification_reconciliation.preview_specification_migration") as migration:
+        with patch("worklib.business_services.specification.reconciliation.render_attempt_json_contract", return_value=self.attempt), \
+             patch("worklib.business_services.specification.reconciliation.preview_specification_migration") as migration:
             result = preview_specification_reconciliation(json.dumps(self.request).encode(), project_root=self.root,
                                                           user_config_root=str(self.root), skill_roots=[])
         self.assertEqual(result["status"], "ready")
@@ -68,8 +68,8 @@ class SpecificationReconciliationTests(unittest.TestCase):
                        "fingerprint": "a" * 64, "transaction_approval_sha256": "b" * 64,
                        "journal": "journal", "completion_marker": "journal.done", "documents": [],
                        "publication_status": "published", "validator_results": [], "relationship_results": []}
-        with patch("worklib.services.specification_reconciliation.preview_specification_reconciliation", return_value=preview), \
-             patch("worklib.services.specification_reconciliation.publish_specification_migration", return_value=publication) as publish:
+        with patch("worklib.business_services.specification.reconciliation.preview_specification_reconciliation", return_value=preview), \
+             patch("worklib.business_services.specification.reconciliation.publish_specification_migration", return_value=publication) as publish:
             result = publish_specification_reconciliation(json.dumps(self.request).encode(), approved_sha256=preview["fingerprint"],
                                                           project_root=self.root, user_config_root=str(self.root), skill_roots=[])
         self.assertEqual(result["status"], "updated")

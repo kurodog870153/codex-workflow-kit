@@ -9,8 +9,8 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.infrastructure.writer_lock import require_idle_writer, state_writer
-from worklib.foundation.errors import WorkError
+from worklib.technical.infrastructure.writer_lock import require_idle_writer, state_writer
+from worklib.models.common.errors import WorkError
 
 
 class WriterLockTests(unittest.TestCase):

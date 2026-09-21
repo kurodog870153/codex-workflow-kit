@@ -10,14 +10,20 @@ from pydantic import ValidationError
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.execution_inspection_models import (
+from worklib.models.execution.inspection import (
     ExecutePreflightContract,
     ExecuteWorktreeContract,
     ExecuteWorktreeSnapshotContract,
 )
+from worklib.models.execution.inspection import (
+    ExecutePreflightContract as LegacyExecutePreflightContract,
+)
 
 
 class ExecutionInspectionContractTests(unittest.TestCase):
+    def test_legacy_export_preserves_class_identity(self) -> None:
+        self.assertIs(LegacyExecutePreflightContract, ExecutePreflightContract)
+
     def test_examples_round_trip_canonically(self) -> None:
         for contract in (ExecutePreflightContract, ExecuteWorktreeContract, ExecuteWorktreeSnapshotContract):
             with self.subTest(contract=contract.contract_id):

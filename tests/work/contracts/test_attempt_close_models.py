@@ -9,15 +9,20 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.attempt_close_models import AttemptCloseRequestContract
-from worklib.foundation.errors import WorkError
+from worklib.models.execution.attempt_close import AttemptCloseRequestContract as LegacyAttemptCloseRequestContract
+from worklib.models.common.errors import WorkError
+from worklib.models.execution.attempt_close import AttemptCloseRequestContract
+from worklib.services.attempt.close_validation import parse_attempt_close_request
 
 
 class AttemptCloseRequestTests(unittest.TestCase):
     def parse(self, request: dict[str, object]) -> dict[str, object]:
-        return AttemptCloseRequestContract.parse_request(
+        return parse_attempt_close_request(
             json.dumps(request).encode("utf-8"), source="stdin"
         ).to_canonical_dict()
+
+    def test_legacy_export_preserves_class_identity(self) -> None:
+        self.assertIs(LegacyAttemptCloseRequestContract, AttemptCloseRequestContract)
 
     def test_accepts_completed_request_without_final_details(self) -> None:
         request = {

@@ -11,7 +11,7 @@ from unittest.mock import patch
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.infrastructure.command_receipt_storage import write_command_receipt
+from worklib.technical.infrastructure.command_receipt_storage import write_command_receipt
 
 
 class CommandReceiptStorageTests(unittest.TestCase):
@@ -19,7 +19,7 @@ class CommandReceiptStorageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "started.json"
             with patch(
-                "worklib.infrastructure.command_receipt_storage.os.fsync",
+                "worklib.technical.infrastructure.command_receipt_storage.os.fsync",
                 wraps=os.fsync,
             ) as sync:
                 write_command_receipt(path, b"{}\n")

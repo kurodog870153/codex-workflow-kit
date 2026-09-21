@@ -10,15 +10,15 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.task_index import (
+from worklib.business_services.task.index import (
     render_task_index_contract,
     validate_task_index_contract,
 )
-from worklib.contracts.task_item import (
+from worklib.business_services.task.item import (
     render_task_item_contract,
     validate_task_item_contract,
 )
-from worklib.foundation.errors import WorkError
+from worklib.models.common.errors import WorkError
 
 
 def selection(*, document: bool = False) -> dict[str, object]:

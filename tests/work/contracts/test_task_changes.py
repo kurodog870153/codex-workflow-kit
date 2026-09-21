@@ -9,8 +9,8 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.task_changes import validate_task_changes
-from worklib.foundation.errors import WorkError
+from worklib.services.task.changes_validation import validate_task_changes
+from worklib.models.common.errors import WorkError
 
 
 class TaskChangeTests(unittest.TestCase):

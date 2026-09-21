@@ -9,8 +9,8 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.foundation.errors import WorkError
-from worklib.foundation.paths import (
+from worklib.models.common.errors import WorkError
+from worklib.technical.infrastructure.work_paths import (
     default_artifact_paths,
     default_task_collection_artifact_paths,
     normalize_relative_path,
@@ -18,14 +18,16 @@ from worklib.foundation.paths import (
     resolve_project_relative_path,
     resolve_task_collection_item_path,
     resolve_root,
-    transaction_directory,
     validate_artifact_paths,
-    validate_requirement_id,
     validate_task_collection_index_path,
     validate_task_item_path_aliases,
-    validate_transaction_id,
-    validate_workflow_id,
 )
+from worklib.models.common.identifiers import IdentifierPolicy
+from worklib.services.specification.transaction import transaction_directory
+
+validate_requirement_id = IdentifierPolicy.requirement_id
+validate_transaction_id = IdentifierPolicy.transaction_id
+validate_workflow_id = IdentifierPolicy.workflow_id
 
 
 class PathTests(unittest.TestCase):
@@ -129,6 +131,20 @@ class PathTests(unittest.TestCase):
         self.assertEqual(
             resolved,
             self.project_root / "outputs" / "work" / "task.json",
+        )
+
+    def test_resolves_relative_path_from_uncanonicalized_project_root(self) -> None:
+        project_root = Path(self.temporary_directory.name)
+
+        normalized, resolved = resolve_project_relative_path(
+            project_root,
+            "outputs/work/task.json",
+        )
+
+        self.assertEqual(normalized, "outputs/work/task.json")
+        self.assertEqual(
+            resolved,
+            project_root.resolve() / "outputs" / "work" / "task.json",
         )
 
     def test_portable_identity_normalizes_case_and_unicode(self) -> None:

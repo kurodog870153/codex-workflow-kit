@@ -3,13 +3,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ..contracts.attempt import (
-    render_attempt_json_contract,
-    validate_attempt_file,
-    validate_attempt_json_contract,
-)
-from ..infrastructure.cli_io import FileInput
-from . import SubparserRegistry
+from ..business_services.attempt import handle_attempt_request
+from . import RequestInput, SubparserRegistry
 
 
 def register_attempt_commands(commands: SubparserRegistry) -> None:
@@ -30,18 +25,6 @@ def register_attempt_commands(commands: SubparserRegistry) -> None:
 def run_attempt(
     arguments: argparse.Namespace,
     project_root: Path,
-    request: FileInput | None,
+    request: RequestInput | None,
 ) -> dict[str, object]:
-    if arguments.attempt_command == "render":
-        return render_attempt_json_contract(
-            request.raw,
-            source=request.source,
-            project_root=project_root,
-        )
-    if arguments.input_file:
-        return validate_attempt_json_contract(
-            request.raw,
-            source=request.source,
-            project_root=project_root,
-        )
-    return validate_attempt_file(project_root, arguments.path)
+    return handle_attempt_request(arguments, project_root, request)

@@ -12,11 +12,11 @@ from unittest.mock import patch
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.artifacts.task_draft import (
+from worklib.services.task.draft.storage import (
     read_task_draft, read_task_draft_from_index, read_task_planning_index, read_task_planning_revision,
     recover_task_planning, save_task_planning,
 )
-from worklib.foundation.errors import WorkError
+from worklib.models.common.errors import WorkError
 
 
 class TaskDraftArtifactTests(unittest.TestCase):
@@ -110,7 +110,7 @@ class TaskDraftArtifactTests(unittest.TestCase):
         self.initialize()
         self.save()
         index = read_task_planning_index(self.root, "example")
-        with patch("worklib.artifacts.task_draft.read_task_planning_index", side_effect=AssertionError("Unexpected index read")):
+        with patch("worklib.services.task.draft.storage.read_task_planning_index", side_effect=AssertionError("Unexpected index read")):
             self.assertEqual(read_task_draft_from_index(self.root, index, "TASK-001"), self.draft)
         (self.storage / "history/2/TASK-001.json").write_bytes(b"changed")
         with self.assertRaises(WorkError) as context:
@@ -170,7 +170,7 @@ class TaskDraftArtifactTests(unittest.TestCase):
 
     def test_interruption_before_commit_preserves_previous_index(self) -> None:
         self.initialize()
-        with patch("worklib.artifacts.task_draft.os.replace", side_effect=OSError("interrupted")):
+        with patch("worklib.services.task.draft.storage.os.replace", side_effect=OSError("interrupted")):
             with self.assertRaises(WorkError) as context:
                 self.save()
         self.assertTrue(context.exception.details["recovery_required"])
@@ -181,7 +181,7 @@ class TaskDraftArtifactTests(unittest.TestCase):
 
     def test_partial_history_write_does_not_publish_index(self) -> None:
         self.initialize()
-        with patch("worklib.artifacts.task_draft._write", side_effect=OSError("disk full")):
+        with patch("worklib.services.task.draft.storage._write", side_effect=OSError("disk full")):
             with self.assertRaises(WorkError):
                 self.save()
         self.assertEqual(read_task_planning_index(self.root, "example"), self.index)
@@ -194,7 +194,7 @@ class TaskDraftArtifactTests(unittest.TestCase):
             if destination.name == "TASK-001.json":
                 raise OSError("display unavailable")
             return replace(source, destination)
-        with patch("worklib.artifacts.task_draft.os.replace", side_effect=fail_display):
+        with patch("worklib.services.task.draft.storage.os.replace", side_effect=fail_display):
             self.assertEqual(self.save()["mirror_status"], "stale")
         self.assertEqual(read_task_draft(self.root, "example", "TASK-001"), self.draft)
 
@@ -237,7 +237,7 @@ class TaskDraftArtifactTests(unittest.TestCase):
         proposed = copy.deepcopy(self.index)
         proposed["revision"] = 2
         proposed["tasks"][0]["status"] = "in_progress"
-        with patch("worklib.artifacts.task_draft.os.replace", side_effect=OSError("interrupted")):
+        with patch("worklib.services.task.draft.storage.os.replace", side_effect=OSError("interrupted")):
             with self.assertRaises(WorkError):
                 save_task_planning(self.root, proposed, expected_revision=1, draft=self.draft)
         return proposed
@@ -253,7 +253,7 @@ class TaskDraftArtifactTests(unittest.TestCase):
         self.assertEqual(recover_task_planning(self.root, proposed, expected_revision=1, draft=self.draft)["status"], "already_completed")
 
     def test_recovery_of_initial_index(self) -> None:
-        with patch("worklib.artifacts.task_draft.os.replace", side_effect=OSError("interrupted")):
+        with patch("worklib.services.task.draft.storage.os.replace", side_effect=OSError("interrupted")):
             with self.assertRaises(WorkError):
                 self.initialize()
         self.assertEqual(recover_task_planning(self.root, self.index, expected_revision=0)["status"], "recovered")
@@ -287,7 +287,7 @@ class TaskDraftArtifactTests(unittest.TestCase):
         proposed = copy.deepcopy(self.index)
         proposed["revision"] = 2
         proposed["tasks"][0]["status"] = "in_progress"
-        with patch("worklib.artifacts.task_draft._write", side_effect=OSError("disk full")):
+        with patch("worklib.services.task.draft.storage._write", side_effect=OSError("disk full")):
             with self.assertRaises(WorkError):
                 self.save()
         with self.assertRaises(WorkError) as context:
@@ -307,7 +307,7 @@ class TaskDraftArtifactTests(unittest.TestCase):
 
     def test_recovery_write_failure_retains_prepared_state(self) -> None:
         proposed = self.interrupted_proposal()
-        with patch("worklib.artifacts.task_draft.os.replace", side_effect=OSError("busy")):
+        with patch("worklib.services.task.draft.storage.os.replace", side_effect=OSError("busy")):
             with self.assertRaises(WorkError) as context:
                 recover_task_planning(self.root, proposed, expected_revision=1, draft=self.draft)
         self.assertEqual(context.exception.code, "draft_recovery_interrupted")

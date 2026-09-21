@@ -12,7 +12,7 @@ SCRIPT_ROOT = PROJECT_ROOT / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.cli import main
-from worklib.foundation.errors import ExitCode
+from worklib.models.common.errors import ExitCode
 
 
 class LegacyRulesCliTests(unittest.TestCase):

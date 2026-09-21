@@ -10,13 +10,13 @@ from unittest.mock import patch
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.infrastructure.correction_storage import (
+from worklib.technical.infrastructure.correction_storage import (
     consume_temporary,
     install_exclusive,
     prepare_file,
     replace_file,
 )
-from worklib.foundation.errors import WorkError
+from worklib.models.common.errors import WorkError
 
 
 class CorrectionTransactionTests(unittest.TestCase):
@@ -103,7 +103,7 @@ class CorrectionTransactionTests(unittest.TestCase):
 
         self.assertEqual(context.exception.code, "correction_create_target_exists")
 
-    @patch("worklib.infrastructure.correction_storage.os.unlink", side_effect=OSError)
+    @patch("worklib.technical.infrastructure.correction_storage.os.unlink", side_effect=OSError)
     def test_consume_failure_reports_recovery_stage(self, _mocked_unlink) -> None:
         temporary = self.directory / "correction.tmp"
         temporary.write_bytes(b"correction")

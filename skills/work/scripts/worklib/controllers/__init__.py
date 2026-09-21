@@ -11,3 +11,8 @@ class SubparserRegistry(Protocol):
         name: str,
         **kwargs: object,
     ) -> argparse.ArgumentParser: ...
+
+
+class RequestInput(Protocol):
+    raw: bytes
+    source: str

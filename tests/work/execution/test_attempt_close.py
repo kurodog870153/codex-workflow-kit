@@ -10,13 +10,14 @@ SKILL_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work"
 SCRIPT_ROOT = SKILL_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.foundation.errors import WorkError
-from worklib.contracts.attempt_authorization_models import authorization_sha256, minimal_authorization
-from worklib.execution.attempt_close import (
+from worklib.models.common.errors import WorkError
+from worklib.services.attempt import authorization_sha256, minimal_authorization
+from worklib.business_services.execution.attempt_close import (
     _task_status,
     _validate_execute_instruction_close_state,
 )
-from worklib.services.instruction_selection import build_instruction_selection
+from worklib.workflows.execution import ExecutionOperations
+from worklib.business_services.instruction import build_instruction_selection
 
 
 class ExecuteInstructionAttemptCloseTests(unittest.TestCase):
@@ -75,6 +76,7 @@ class ExecuteInstructionAttemptCloseTests(unittest.TestCase):
             self.task,
             self.attempt,
             self.stopped_request("user_stopped"),
+            ExecutionOperations,
         )
 
         self.assertEqual(current, self.execute_selection)
@@ -87,6 +89,7 @@ class ExecuteInstructionAttemptCloseTests(unittest.TestCase):
             self.task,
             attempt,
             self.stopped_request("instructions_changed"),
+            ExecutionOperations,
         )
 
         self.assertEqual(current, self.execute_selection)
@@ -101,6 +104,7 @@ class ExecuteInstructionAttemptCloseTests(unittest.TestCase):
                 self.task,
                 self.attempt,
                 self.stopped_request("instructions_changed"),
+                ExecutionOperations,
             )
 
         self.assertEqual(

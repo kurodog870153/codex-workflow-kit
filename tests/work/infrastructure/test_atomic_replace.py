@@ -11,8 +11,8 @@ from unittest.mock import patch
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.infrastructure.atomic_replace import TransactionErrors, prepare_and_replace
-from worklib.foundation.errors import ExitCode, WorkError
+from worklib.technical.infrastructure.atomic_replace import TransactionErrors, prepare_and_replace
+from worklib.models.common.errors import ExitCode, WorkError
 
 
 ERRORS = TransactionErrors(
@@ -62,9 +62,9 @@ class TransactionWriteTests(unittest.TestCase):
             return real_replace(source, target)
 
         with patch(
-            "worklib.infrastructure.atomic_replace.os.fsync", wraps=os.fsync
+            "worklib.technical.infrastructure.atomic_replace.os.fsync", wraps=os.fsync
         ) as sync, patch(
-            "worklib.infrastructure.atomic_replace.os.replace", side_effect=replace
+            "worklib.technical.infrastructure.atomic_replace.os.replace", side_effect=replace
         ):
             prepare_and_replace(**self.arguments)
         self.assertEqual(self.source.read_bytes(), b"updated")
@@ -94,7 +94,7 @@ class TransactionWriteTests(unittest.TestCase):
 
     def test_sync_failure_preserves_prepared_file_and_original_source(self) -> None:
         failure = OSError("sync interrupted")
-        with patch("worklib.infrastructure.atomic_replace.os.fsync", side_effect=failure):
+        with patch("worklib.technical.infrastructure.atomic_replace.os.fsync", side_effect=failure):
             with self.assertRaises(WorkError) as context:
                 prepare_and_replace(**self.arguments)
         self.assertEqual(context.exception.exit_code, ExitCode.IO_FAILURE)
@@ -114,7 +114,7 @@ class TransactionWriteTests(unittest.TestCase):
 
     def test_replace_failure_preserves_both_files(self) -> None:
         failure = OSError("replacement interrupted")
-        with patch("worklib.infrastructure.atomic_replace.os.replace", side_effect=failure):
+        with patch("worklib.technical.infrastructure.atomic_replace.os.replace", side_effect=failure):
             with self.assertRaises(WorkError) as context:
                 prepare_and_replace(**self.arguments)
         self.assertEqual(context.exception.exit_code, ExitCode.IO_FAILURE)
@@ -128,7 +128,7 @@ class TransactionWriteTests(unittest.TestCase):
             with self.subTest(mismatch_stage=mismatch_stage):
                 self.source.write_bytes(b"original")
                 with patch(
-                    "worklib.infrastructure.atomic_replace.read_raw",
+                    "worklib.technical.infrastructure.atomic_replace.read_raw",
                     side_effect=[b"original", b"corrupted"],
                 ):
                     with self.assertRaises(WorkError) as context:
@@ -149,7 +149,7 @@ class TransactionWriteTests(unittest.TestCase):
 
     def test_optional_partial_stage_validator_and_plain_mismatch(self) -> None:
         failure = OSError("partial write")
-        with patch("worklib.infrastructure.atomic_replace.os.fsync", side_effect=failure):
+        with patch("worklib.technical.infrastructure.atomic_replace.os.fsync", side_effect=failure):
             with self.assertRaises(WorkError) as context:
                 prepare_and_replace(
                     **self.arguments, partial_stage="attempt_update_partial"
@@ -163,7 +163,7 @@ class TransactionWriteTests(unittest.TestCase):
         self.source.write_bytes(b"original")
         validator = unittest.mock.Mock()
         with patch(
-            "worklib.infrastructure.atomic_replace.read_raw",
+            "worklib.technical.infrastructure.atomic_replace.read_raw",
             side_effect=[b"original", b"corrupted"],
         ):
             with self.assertRaises(WorkError) as context:
@@ -179,7 +179,7 @@ class TransactionWriteTests(unittest.TestCase):
         failure = WorkError(
             ExitCode.IO_FAILURE, "file_read_failed", "Cannot read source."
         )
-        with patch("worklib.infrastructure.atomic_replace.read_raw", side_effect=failure):
+        with patch("worklib.technical.infrastructure.atomic_replace.read_raw", side_effect=failure):
             with self.assertRaises(WorkError) as context:
                 prepare_and_replace(**self.arguments)
         self.assertIs(context.exception, failure)

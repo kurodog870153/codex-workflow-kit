@@ -9,11 +9,11 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.contracts.correction import (
+from worklib.services.correction.document import (
     canonicalize_correction_contract,
     validate_correction_contract,
 )
-from worklib.foundation.errors import WorkError
+from worklib.models.common.errors import WorkError
 
 
 class CorrectionContractTests(unittest.TestCase):

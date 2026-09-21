@@ -10,16 +10,16 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from tests.work.contracts.test_task import TaskInstructionContractTests
-from worklib.services.task_collection import (
+from worklib.business_services.task import (
     load_task_collection,
     load_task_closure,
     load_task_execution_context,
 )
-from worklib.services.plan_validation import render_plan_contract, validate_plan_contract
-from worklib.contracts.task_index import render_task_index_contract
-from worklib.contracts.task_item import render_task_item_contract, validate_task_item_contract
-from worklib.foundation.errors import WorkError
-from worklib.foundation.markdown import parse_json_contract
+from worklib.business_services.plan import render_plan_contract, validate_plan_contract
+from worklib.business_services.task.index import render_task_index_contract
+from worklib.business_services.task.item import render_task_item_contract, validate_task_item_contract
+from worklib.models.common.errors import WorkError
+from worklib.technical.infrastructure.json_contract import parse_json_contract
 
 
 class TaskCollectionTests(unittest.TestCase):
@@ -93,7 +93,7 @@ class TaskCollectionTests(unittest.TestCase):
         )
         contract = copy.deepcopy(self.fixture.contract)
         contract["source_plan"]["canonical_sha256"] = plan_validation["plan_sha256"]  # type: ignore[index]
-        from worklib.contracts.task_collection_semantics import render_task_contract
+        from worklib.business_services.task.document import render_task_contract
         legacy_file = legacy_root / self.legacy_path
         legacy_file.parent.mkdir(parents=True, exist_ok=True)
         legacy_file.write_bytes(render_task_contract(contract))

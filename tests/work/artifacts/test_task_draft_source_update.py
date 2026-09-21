@@ -10,13 +10,13 @@ from unittest.mock import patch
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills/work/scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.artifacts.task_draft import save_task_planning, read_task_draft, read_task_planning_index
-from worklib.artifacts.task_draft_source_update import update_task_draft_sources
-from worklib.services.plan_validation import render_plan_contract, validate_plan_file
-from worklib.foundation.errors import ExitCode, WorkError
-from worklib.services.hierarchy_selection import build_hierarchy_selection
-from worklib.services.instruction_selection import build_instruction_selection
-from worklib.services.instruction_work_selection import build_work_instruction_selection
+from worklib.services.task.draft.storage import save_task_planning, read_task_draft, read_task_planning_index
+from worklib.workflows.task import update_task_draft_sources
+from worklib.business_services.plan import render_plan_contract, validate_plan_file
+from worklib.models.common.errors import ExitCode, WorkError
+from worklib.business_services.hierarchy import build_hierarchy_selection
+from worklib.business_services.instruction import build_instruction_selection
+from worklib.business_services.instruction import build_work_instruction_selection
 from worklib.services.skill_selection import selection_sha256
 
 
@@ -143,7 +143,7 @@ class TaskDraftSourceUpdateTests(unittest.TestCase):
     def test_interrupted_refresh_can_recover_identical_sources(self):
         self.initialize()
         self.change_plan()
-        with patch("worklib.artifacts.task_draft_source_update.os.replace", side_effect=OSError("interrupted")):
+        with patch("worklib.business_services.task.draft_source_update.os.replace", side_effect=OSError("interrupted")):
             with self.assertRaises(WorkError):
                 self.update()
         self.assertEqual(read_task_planning_index(self.root, "example"), self.before)
@@ -154,7 +154,7 @@ class TaskDraftSourceUpdateTests(unittest.TestCase):
     def test_recovery_rejects_sources_changed_again(self):
         self.initialize()
         self.change_plan()
-        with patch("worklib.artifacts.task_draft_source_update.os.replace", side_effect=OSError("interrupted")):
+        with patch("worklib.business_services.task.draft_source_update.os.replace", side_effect=OSError("interrupted")):
             with self.assertRaises(WorkError):
                 self.update()
         self.plan["summary"] = "Another change"

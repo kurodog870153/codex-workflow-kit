@@ -14,16 +14,16 @@ sys.path.insert(0, str(TEST_ROOT.parents[1] / "skills" / "work" / "scripts"))
 
 from contracts import test_task_collection
 from worklib.cli import main
-from worklib.contracts.execution_index import (
+from worklib.services.attempt.validation import (
     build_initial_execution_index,
     render_execution_index,
 )
-from worklib.contracts.task_diagnostics import diagnose_task_collection
-from worklib.contracts.task_index import render_task_index_contract
-from worklib.execution.worktree import inspect_execute_worktree
-from worklib.foundation.errors import WorkError
-from worklib.foundation.fingerprint import raw_sha256
-from worklib.services.task_collection import load_task_collection
+from worklib.workflows.task import diagnose_task_collection
+from worklib.business_services.task.index import render_task_index_contract
+from worklib.workflows.execution import ExecutionOperations, inspect_execute_worktree
+from worklib.models.common.errors import WorkError
+from worklib.technical.foundation.fingerprint import raw_sha256
+from worklib.business_services.task import load_task_collection
 
 
 class TaskCollectionDiagnosticsTests(unittest.TestCase):
@@ -230,7 +230,9 @@ class TaskCollectionDiagnosticsTests(unittest.TestCase):
     def test_execute_rejects_invalid_item_before_writer_mutex(self) -> None:
         self.item_path.write_bytes(b"{")
         before = self.snapshot()
-        with patch("worklib.services.execution.state_writer") as writer:
+        with patch(
+            "worklib.business_services.execution.workflow.state_writer"
+        ) as writer:
             code, envelope = self.cli([
                 "execute", "record-begin", "--task-path", self.task_path,
                 "--execution-dir", self.artifacts["execution"],
@@ -251,8 +253,9 @@ class TaskCollectionDiagnosticsTests(unittest.TestCase):
         }
         self.item_path.write_bytes(b"\xef\xbb\xbf" + self.raw_item)
         with patch(
-            "worklib.execution.worktree.execute_preflight", return_value=preflight
-        ), patch("worklib.execution.worktree.load_task_execution_context") as load:
+            "worklib.business_services.execution.worktree.execute_preflight",
+            return_value=preflight,
+        ), patch.object(ExecutionOperations, "load_task_execution_context") as load:
             with self.assertRaises(WorkError) as caught:
                 inspect_execute_worktree(
                     project_root=self.root,

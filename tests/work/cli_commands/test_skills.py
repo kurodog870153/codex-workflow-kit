@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from cli_support import FileInputTestCase
 
 from worklib.cli import main
-from worklib.foundation.errors import ExitCode
+from worklib.models.common.errors import ExitCode
 from worklib.services.skill_catalog import SkillRoot, snapshot_catalog_skill
 from worklib.services.skill_selection import selection_sha256
 

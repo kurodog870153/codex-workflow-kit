@@ -11,24 +11,23 @@ from unittest.mock import patch
 SKILL_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work"
 sys.path.insert(0, str(SKILL_ROOT / "scripts"))
 
-from worklib.contracts.attempt import validate_attempt_file
+from worklib.services.attempt import validate_attempt_file
 from tests.work.contracts import test_task_collection
-from worklib.contracts.correction import validate_correction_file
-from worklib.contracts.execution_index import (
+from worklib.services.correction.document import validate_correction_file
+from worklib.services.attempt.validation import validate_attempt_file
+from worklib.services.attempt.validation import (
     build_initial_execution_index,
     render_execution_index,
     validate_execution_index,
 )
-from worklib.execution.attempt_close import close_attempt
-from worklib.execution.attempt_start import recover_attempt_start, start_attempt
-from worklib.execution.correction import create_correction
-from worklib.execution.record_begin import begin_record
-from worklib.execution.record_finish import finish_record
-from worklib.execution.recovery import recover_execution
-from worklib.foundation.errors import ExitCode, WorkError
-from worklib.services.instruction_selection import build_instruction_selection
-from worklib.services.task_collection import load_task_collection
-from worklib.contracts.attempt_authorization_models import minimal_authorization
+from worklib.workflows.execution import close_attempt, recover_attempt_start, start_attempt
+from worklib.workflows.execution import create_correction
+from worklib.workflows.execution import begin_record, finish_record
+from worklib.workflows.execution import recover_execution
+from worklib.models.common.errors import ExitCode, WorkError
+from worklib.business_services.instruction import build_instruction_selection
+from worklib.business_services.task import load_task_collection
+from worklib.services.attempt import minimal_authorization
 
 
 class ExecutionOutputLayoutTests(unittest.TestCase):
@@ -96,7 +95,7 @@ class ExecutionOutputLayoutTests(unittest.TestCase):
 
     def start(self, request=None):
         with patch(
-            "worklib.execution.attempt_start.inspect_execute_worktree",
+            "worklib.business_services.execution.attempt_start.inspect_execute_worktree",
             return_value=self.preflight,
         ):
             return start_attempt(
@@ -156,9 +155,9 @@ class ExecutionOutputLayoutTests(unittest.TestCase):
 
     def recover_start(self):
         with patch(
-            "worklib.execution.attempt_start.execute_preflight",
+            "worklib.business_services.execution.attempt_start.execute_preflight",
             return_value=self.preflight,
-        ), patch("worklib.execution.attempt_start._validate_snapshot"):
+        ), patch("worklib.business_services.execution.attempt_start._validate_snapshot"):
             return recover_attempt_start(
                 json.dumps(self.request).encode("utf-8"),
                 source="test",
@@ -182,7 +181,7 @@ class ExecutionOutputLayoutTests(unittest.TestCase):
             )
             self.assertEqual(result["correction_path"], expected)
             self.assertEqual(
-                validate_correction_file(self.project, expected)["result"], "valid"
+                validate_correction_file(self.project, expected, validate_attempt_file=validate_attempt_file)["result"], "valid"
             )
             self.assertEqual(self.attempt_path.read_bytes(), original)
         self.assertEqual(self.read_index()["overall_status"], "completed")
@@ -249,7 +248,7 @@ class ExecutionOutputLayoutTests(unittest.TestCase):
 
     def test_start_recovers_with_empty_attempt_directory(self) -> None:
         with patch(
-            "worklib.execution.attempt_start._write_exclusive",
+            "worklib.business_services.execution.attempt_start._write_exclusive",
             side_effect=WorkError(ExitCode.IO_FAILURE, "interrupted", "Simulated failure."),
         ):
             with self.assertRaises(WorkError) as context:
@@ -342,7 +341,7 @@ class ExecutionOutputLayoutTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(raw)
                 with self.assertRaises(WorkError) as context:
-                    validate_correction_file(self.project, relative)
+                    validate_correction_file(self.project, relative, validate_attempt_file=validate_attempt_file)
                 self.assertEqual(context.exception.code, "correction_parent_attempt_mismatch")
 
     def test_correction_recovers_after_directory_and_install_failures(self) -> None:
@@ -384,7 +383,7 @@ class ExecutionOutputLayoutTests(unittest.TestCase):
                 self.assertEqual(
                     result["correction_id"], f"ATTEMPT-001-CORRECTION-{number:03d}"
                 )
-                validate_correction_file(self.project, result["correction_path"])
+                validate_correction_file(self.project, result["correction_path"], validate_attempt_file=validate_attempt_file)
                 self.assertEqual(self.attempt_path.read_bytes(), original)
                 self.assertNotIn("lock", self.read_index())
                 self.assertEqual(list(self.execution.glob(".work-*.tmp")), [])
