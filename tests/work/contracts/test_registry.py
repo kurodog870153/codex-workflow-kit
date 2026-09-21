@@ -86,6 +86,7 @@ class ContractRegistryTests(unittest.TestCase):
                 "work-instructions/v1",
                 "work-invocation/v1",
                 "work-plan-create/v1",
+                "work-plan-prepare-request/v1",
                 "work-plan-prepare/v1",
                 "work-plan-validation/v1",
                 "work-plan/v1",

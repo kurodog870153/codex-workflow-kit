@@ -40,6 +40,32 @@ class PlanCliTests(FileInputTestCase):
         self.assertEqual(data["validation"]["schema"], "work-plan-validation/v1")
         self.assertEqual(list(fixture.root.iterdir()), [])
 
+    def test_prepare_output_file_preserves_unicode_canonical_plan_and_never_overwrites(self):
+        fixture = preparation_fixtures.InitialPlanPreparationTests()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        fixture.request["content"]["title"] = "跨平台計畫"
+        output_path = fixture.root / "transaction" / "plan-candidate.json"
+        output_path.parent.mkdir()
+        arguments = [
+            "--project-root", str(fixture.root), "plan", "prepare",
+            "--input-file", "request.json", "--user-config-root", str(fixture.root),
+            "--output-file", str(output_path),
+        ]
+        stdout, stderr = io.StringIO(), io.StringIO()
+        code = main(self.input_arguments(arguments, json.dumps(fixture.request)), stdout=stdout, stderr=stderr)
+        self.assertEqual((code, stderr.getvalue()), (ExitCode.SUCCESS, ""))
+        data = json.loads(stdout.getvalue())["data"]
+        raw = output_path.read_bytes()
+        self.assertFalse(raw.startswith(b"\xef\xbb\xbf"))
+        self.assertNotIn(b"\r\n", raw)
+        self.assertEqual(json.loads(raw.decode("utf-8")), data["plan"])
+
+        stdout = io.StringIO()
+        code = main(self.input_arguments(arguments, json.dumps(fixture.request)), stdout=stdout, stderr=io.StringIO())
+        self.assertEqual(code, ExitCode.WORKFLOW_STATE)
+        self.assertEqual(json.loads(stdout.getvalue())["reason_code"], "plan_prepare_output_exists")
+
     def test_validate_input_file_arguments_parse(self) -> None:
         arguments = build_parser().parse_args(
             [

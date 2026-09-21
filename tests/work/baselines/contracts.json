@@ -10,6 +10,7 @@
       "work-execution-deviation-proposal/v1",
       "work-execution-recovery-prepare-request/v1",
       "work-execution-recovery-request/v1",
+      "work-plan-prepare-request/v1",
       "work-progress-save-request/v1",
       "work-record-finish-request/v1",
       "work-spec-migration-preview-request/v1",

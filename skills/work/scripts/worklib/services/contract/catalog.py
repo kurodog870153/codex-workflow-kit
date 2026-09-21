@@ -28,7 +28,10 @@ from ...models.skill import (
     SkillBundleContract, SkillCatalogContract, SkillSelectionContract,
     SkillSelectionValidationContract, SkillSnapshotContract,
 )
-from ...models.plan import PlanContract, PlanCreateContract, PlanPrepareContract, PlanValidationContract
+from ...models.plan import (
+    PlanContract, PlanCreateContract, PlanPrepareContract,
+    PlanPrepareRequestContract, PlanValidationContract,
+)
 from ...models.progress import (
     DiscussionProgressContract, ProgressPrepareContract, ProgressPreviewContract,
     ProgressReadContract, ProgressSaveContract, ProgressSaveRequestContract,
@@ -287,6 +290,7 @@ registry.register(
     PlanContract,
     PlanCreateContract,
     PlanPrepareContract,
+    PlanPrepareRequestContract,
     PlanValidationContract,
     DiscussionProgressContract,
     ProgressPrepareContract,

@@ -38,6 +38,7 @@ class ContractCliTests(unittest.TestCase):
         self.assertIn("work-contract-catalog/v1", contract_ids)
         self.assertIn("work-contract-description/v1", contract_ids)
         self.assertIn("work-contract-scaffold/v1", contract_ids)
+        self.assertIn("work-plan-prepare-request/v1", contract_ids)
 
     def test_describe_returns_stable_public_description(self) -> None:
         code, result, stderr = self.run_cli(
@@ -79,6 +80,20 @@ class ContractCliTests(unittest.TestCase):
         self.assertEqual(stderr, "")
         self.assertEqual(
             result["reason_code"], "contract_scaffold_requires_request"
+        )
+
+    def test_plan_prepare_scaffold_contains_complete_nested_shapes(self) -> None:
+        code, result, stderr = self.run_cli(
+            "scaffold", "work-plan-prepare-request/v1"
+        )
+
+        self.assertEqual(code, ExitCode.SUCCESS)
+        self.assertEqual(stderr, "")
+        scaffold = result["data"]["scaffold"]
+        self.assertIn("dependencies", scaffold["content"])
+        self.assertEqual(
+            list(scaffold["content"]["dependencies"][0]),
+            ["id", "statement", "applies_to"],
         )
 
 

@@ -14,6 +14,7 @@ def register_plan_commands(commands: SubparserRegistry) -> None:
     prepare.add_argument("--input-file", required=True)
     prepare.add_argument("--user-config-root", required=True)
     prepare.add_argument("--skill-root", action="append", default=[])
+    prepare.add_argument("--output-file")
 
     plan_validate = plan_commands.add_parser("validate")
     plan_validate.add_argument("--user-config-root", required=True)
@@ -40,7 +41,8 @@ def run_plan(
     source = getattr(request, "source", None)
     if arguments.plan_command == "prepare":
         return prepare_initial_plan(raw, source=source, project_root=project_root,
-                                    user_config_root=arguments.user_config_root, skill_roots=skill_roots)
+                                    user_config_root=arguments.user_config_root, skill_roots=skill_roots,
+                                    output_file=arguments.output_file)
     if arguments.plan_command == "create":
         return create_plan_file(
             raw,

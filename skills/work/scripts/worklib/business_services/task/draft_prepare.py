@@ -92,7 +92,8 @@ def prepare_task_planning_request(
         project_root, plan_path, field="plan_path"
     )
     options = dict(source=str(resolved), actual_plan_path=normalized, project_root=project_root,
-                   user_config_root=user_config_root, skill_roots=skill_roots)
+                   user_config_root=user_config_root, skill_roots=skill_roots,
+                   _allow_task_index=True)
     validation = operations.validate_plan_contract(raw, **options)
     if validation["requirement_id"] != requirement_id:
         _fail("draft_source_requirement_mismatch", "The Plan belongs to another requirement.")
