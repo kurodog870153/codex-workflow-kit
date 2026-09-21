@@ -153,7 +153,8 @@ def validate_plan_file(project_root: Path, user_config_root: str, raw_path: str,
 
 
 def prepare_initial_plan(raw: bytes, *, source: str, project_root: Path, user_config_root: str,
-                         skill_roots: list[SkillRoot] | None = None) -> dict[str, object]:
+                         skill_roots: list[SkillRoot] | None = None,
+                         output_file: str | None = None) -> dict[str, object]:
     request = _strict(document.parse(raw, source=source), location="plan_prepare",
         required={"requirement_id", "content", "hierarchy_selection", "skill_selection", "references"}, optional={"artifacts"})
     requirement = _text(request["requirement_id"], location="requirement_id")
@@ -181,6 +182,20 @@ def prepare_initial_plan(raw: bytes, *, source: str, project_root: Path, user_co
     _, current = document.resolve_project_relative_path(project_root, artifacts["plan"], field="plan_path")
     if current != path or current.exists():
         raise WorkError(ExitCode.WORKFLOW_STATE, "plan_prepare_target_changed", "The Plan target changed during preparation.")
+    if output_file is not None:
+        try:
+            with Path(output_file).open("xb") as output:
+                output.write(rendered)
+        except FileExistsError as error:
+            raise WorkError(
+                ExitCode.WORKFLOW_STATE, "plan_prepare_output_exists",
+                "The prepared Plan output file already exists.", {"path": output_file},
+            ) from error
+        except OSError as error:
+            raise WorkError(
+                ExitCode.IO_FAILURE, "plan_prepare_output_failed",
+                "The prepared Plan output file could not be created.", {"path": output_file},
+            ) from error
     return {"schema": "work-plan-prepare/v1", "status": "prepared", "path": artifacts["plan"],
             "plan": document.parse(rendered, source="prepared Plan"), "validation": validation}
 

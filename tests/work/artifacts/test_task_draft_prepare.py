@@ -50,6 +50,15 @@ class DraftPreparationTests(unittest.TestCase):
         self.assertFalse((self.root / self.fixture.plan["artifacts"]["task"]).exists())
         self.assertFalse((self.root / self.fixture.plan["artifacts"]["execution"]).exists())
 
+    def test_initial_preview_accepts_collection_index_plan_artifact(self):
+        self.fixture.plan["artifacts"]["task"] = "outputs/work/tasks/example/index.json"
+        self.fixture.plan_path.write_bytes(render_plan_contract(self.fixture.plan))
+
+        preview = self.initialize(prepare_only=True)
+
+        self.assertEqual(preview["index"]["requirement_id"], "example")
+        self.assertFalse((self.root / self.fixture.plan["artifacts"]["task"]).exists())
+
     def test_initial_invalid_inputs_leave_no_storage(self):
         original = copy.deepcopy(self.request)
         for defect in ("selection", "skill", "dependency", "metadata", "duplicate", "cycle"):
