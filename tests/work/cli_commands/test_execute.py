@@ -107,7 +107,8 @@ class ExecuteCliTests(FileInputTestCase):
         arguments = build_parser().parse_args(
             self.common_arguments() + ["deviation-record"]
             + self.execute_scope_arguments()
-            + ["--input-file", "request.json", "--approved-sha256", "a" * 64]
+            + ["--input-file", "request.json", "--approved-sha256", "a" * 64,
+               "--authorization-evidence", "User approved this exact deviation preview."]
         )
         self.assertEqual(arguments.execute_command, "deviation-record")
 

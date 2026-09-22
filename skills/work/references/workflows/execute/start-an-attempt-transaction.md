@@ -1,0 +1,8 @@
+<!-- work-compatibility-revision: 1 -->
+# Start an Attempt transaction
+
+
+1. Require the user to review the complete `execute worktree` result and retain `snapshot_sha256`. The hash is not approval by itself.
+2. After the complete Attempt authorization above, save pure `work-attempt-start-request/v1` JSON containing `worktree_snapshot_sha256` and a complete `work-attempt-authorization/v1` manifest as the request file and invoke `<work-cli> execute attempt-start --input-file "<request-path>"` with the same preflight arguments. The manifest contains the exact commands, validations, modifiable files, working directories, external operations and fully specified allowed deviation actions, the fixed reapproval conditions, and concise actual authorization evidence. For `pending_retry`, also provide the latest source Attempt and only carried record IDs whose current evidence was explicitly confirmed.
+3. The command rechecks preflight and Git snapshot, rejects manifest entries that do not exactly match or narrow the current TASK, derives the authorization fingerprint, canonical Attempt identity, `skill_id`, hierarchy-selection, skill-selection and instruction fingerprints, and local-offset time, then installs the lock and creates the Attempt.
+4. `recovery_required: true` is a hard stop. Summarize the transaction stage and obtain separate authorization before running `<work-cli> execute recover-attempt-start --input-file "<request-path>"` with identical paths, inputs, and request. Recovery advances only an exactly matching state and never rolls back, deletes, unlocks, or resolves conflicts.

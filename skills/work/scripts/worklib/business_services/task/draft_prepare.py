@@ -8,7 +8,7 @@ from pathlib import Path
 from ...services.task.draft.storage import _path, read_task_planning_index, save_task_planning
 from .draft_list import _prepare_list
 from ...services.task.draft.validation import SOURCE_FIELDS, validate_task_planning_index
-from ...models.task_draft import TaskDraftPrepareContract
+from ...models.task_draft import TaskDraftPrepareContract, TaskSemanticRequestContract
 from ...models.common.validation import ContractValuePolicy
 from ...models.common.errors import ExitCode, WorkError
 from ...services.plan.document import parse as parse_json_contract
@@ -164,3 +164,27 @@ def initialize_task_planning_request(project_root: Path, requirement_id: str, re
         error.details["prepared_index"] = prepared["request"]
         raise
     return {**result, "prepared_index": prepared["request"]}
+
+
+def prepare_semantic_task_request(project_root: Path, requirement_id: str, raw: bytes, *, source: str,
+                                  plan_path: str, user_config_root: str,
+                                  skill_roots: list[SkillRoot] | None = None,
+                                  operations=None) -> dict[str, object]:
+    semantic = TaskSemanticRequestContract.parse_json_bytes(raw, source=source).to_canonical_dict()
+    count = len(semantic["tasks"])
+    tasks = []
+    for index, item in enumerate(semantic["tasks"], 1):
+        if any(type(dependency) is not int or dependency < 1 or dependency > count or dependency == index
+               for dependency in item["dependencies"]):
+            _fail("invalid_semantic_task_dependency", "Semantic TASK dependencies must reference another one-based task position.")
+        tasks.append({"id": f"TASK-{index:03d}", "title": item["title"], "goal": item["goal"],
+                      "scope": item["scope"], "skill_id": item["skill_id"],
+                      "dependencies": [f"TASK-{dependency:03d}" for dependency in item["dependencies"]],
+                      "instruction_selection": item["instruction_selection"]})
+    current = semantic["current_task"]
+    if current is not None and (current < 1 or current > count):
+        _fail("invalid_semantic_current_task", "current_task must reference a one-based task position.")
+    return prepare_task_planning_request(project_root, requirement_id,
+        {"tasks": tasks, "current_task_id": f"TASK-{current:03d}" if current is not None else None},
+        plan_path=plan_path, user_config_root=user_config_root, skill_roots=skill_roots,
+        operations=operations)

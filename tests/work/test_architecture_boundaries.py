@@ -94,9 +94,9 @@ def _source_scope(root: Path, path: Path, *, include_controllers: bool) -> tuple
     if parts[0] == "controllers" and (include_controllers or parts[-1] in {"delegation.py", "execution.py", "handoff.py", "hierarchy.py", "instruction.py", "plan.py", "progress.py", "skill.py", "task.py"}):
         name = parts[1].removesuffix(".py") if len(parts) > 1 else None
         return "controller", name
-    if parts[0] == "workflows":
+    if parts[0] == "orchestration":
         name = parts[1].removesuffix(".py") if len(parts) > 1 else None
-        return "workflow", name
+        return "orchestration", name
     if parts[0] == "business_services":
         name = parts[1].removesuffix(".py") if len(parts) > 1 else None
         return "business_service", name
@@ -120,8 +120,8 @@ def _target_scope(module: str) -> tuple[str, str | None] | None:
         return None
     if parts[0] == "controllers":
         return "controller", parts[1] if len(parts) > 1 else None
-    if parts[0] == "workflows":
-        return "workflow", parts[1] if len(parts) > 1 else None
+    if parts[0] == "orchestration":
+        return "orchestration", parts[1] if len(parts) > 1 else None
     if parts[0] == "business_services":
         return "business_service", parts[1] if len(parts) > 1 else None
     if parts[0] == "services":
@@ -178,7 +178,7 @@ def _thin_reexport_violation(root: Path, path: Path) -> str | None:
     if path.name == "__init__.py" or relative.parts[0] not in {
         "business_services",
         "services",
-        "workflows",
+        "orchestration",
     }:
         return None
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -224,17 +224,17 @@ def _import_violation(
     if source_layer == "controller":
         if target_layer == "controller":
             return None
-        if target_layer == "workflow" and target_name == source_name:
+        if target_layer == "orchestration" and target_name == source_name:
             return None
         if target_layer == "business_service" and target_name == source_name:
             return None
-        return "controller may only import its matching workflow or business service"
-    if source_layer == "workflow":
+        return "controller may only import its matching orchestration or business service"
+    if source_layer == "orchestration":
         if target_layer in {"business_service", "model"}:
             return None
-        if target_layer == "workflow" and target_name == source_name:
+        if target_layer == "orchestration" and target_name == source_name:
             return None
-        return "workflow may only import business services or models"
+        return "orchestration may only import business services or models"
     if source_layer == "business_service":
         if target_layer in {"service", "model"}:
             return None
@@ -496,7 +496,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 "from worklib.technical.infrastructure.writer_lock import state_writer\n",
             ),
             (
-                "workflows/task.py",
+                "orchestration/task.py",
                 "from worklib.business_services.task import execute\n",
             ),
         )

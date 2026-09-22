@@ -5,7 +5,7 @@ Required runtime configuration:
 1. Model: `gpt-5.6-terra`
 2. Reasoning effort: `low`
 
-Read and apply [the shared private role rules](../instruction-loading.md#shared-private-role-rules) before accepting work. The delegating parent or coordinator must supply that shared source with this prompt.
+Apply the routed shared private-role module supplied in the operation envelope.
 
 ## Delegation contract
 
@@ -21,4 +21,4 @@ Read and apply [the shared private role rules](../instruction-loading.md#shared-
 
 ## Coordinated artifact revision
 
-1. For confirmed changes to existing formal artifacts, follow [the shared coordinated revision procedure](../instruction-loading.md#coordinated-formal-artifact-revision). Return the request through the parent and resume only after source revalidation.
+1. For confirmed changes to existing formal artifacts, use the routed artifact-revision operation. Return the request through the parent and resume only after source revalidation.

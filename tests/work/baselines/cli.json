@@ -41,13 +41,23 @@
     "hierarchy selection-build",
     "hierarchy selection-validate",
     "instructions catalog",
+    "instructions impact",
     "instructions load",
+    "instructions migration-apply",
+    "instructions migration-preview",
+    "instructions refresh-apply",
+    "instructions refresh-apply-all",
+    "instructions refresh-preview",
+    "instructions refresh-preview-all",
+    "instructions refresh-recover",
+    "instructions refresh-recover-all",
     "instructions resolve",
     "instructions select",
     "invocation parse",
     "paths resolve",
     "plan create",
     "plan prepare",
+    "plan semantic-prepare",
     "plan validate",
     "progress prepare",
     "progress read",
@@ -85,12 +95,15 @@
     "task repair-prepare",
     "task repair-recover",
     "task repair-validate",
+    "task semantic-prepare",
     "task spec-prepare",
     "task spec-recover",
     "task spec-update",
     "task spec-validate",
     "task spec-verify",
-    "task validate"
+    "task validate",
+    "workflow next",
+    "workflow status"
   ],
   "cases": [
     {
@@ -110,6 +123,13 @@
     {
       "name": "paths_success",
       "argv": ["--project-root", "<PROJECT_ROOT>", "paths", "resolve", "--requirement-id", "example"],
+      "exit_code": 0,
+      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"paths\": {\n      \"execution\": \"outputs/work/executions/example\",\n      \"plan\": \"outputs/work/plans/example.json\",\n      \"task\": \"outputs/work/tasks/example/index.json\"\n    },\n    \"requirement_id\": \"example\",\n    \"schema\": \"work-paths/v1\"\n  }\n}\n",
+      "stderr": ""
+    },
+    {
+      "name": "paths_verbose_success",
+      "argv": ["--project-root", "<PROJECT_ROOT>", "--verbose", "paths", "resolve", "--requirement-id", "example"],
       "exit_code": 0,
       "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"paths\": {\n      \"execution\": \"outputs/work/executions/example\",\n      \"plan\": \"outputs/work/plans/example.json\",\n      \"task\": \"outputs/work/tasks/example/index.json\"\n    },\n    \"project_root\": \"<PROJECT_ROOT>\",\n    \"requirement_id\": \"example\",\n    \"schema\": \"work-paths/v1\"\n  }\n}\n",
       "stderr": ""

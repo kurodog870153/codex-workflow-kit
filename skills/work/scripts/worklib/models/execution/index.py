@@ -27,7 +27,8 @@ class ExecutionIndexContract(WorkContract):
         "schema", "requirement_id", "title", "task_spec_id",
         "task_collection_sha256", "task_index_sha256",
         "task_instructions_sha256", "hierarchy_selection_sha256",
-        "skill_selection_sha256", "latest_task_instruction_audit", "lock",
+        "skill_selection_sha256", "instruction_selection_manifest",
+        "latest_task_instruction_audit", "lock",
         "overall_status", "tasks",
     )
     contract_example: ClassVar[dict[str, Any]] = {
@@ -50,6 +51,7 @@ class ExecutionIndexContract(WorkContract):
     task_instructions_sha256: Any
     hierarchy_selection_sha256: Any
     skill_selection_sha256: Any
+    instruction_selection_manifest: Any | None = None
     latest_task_instruction_audit: Any | None = None
     lock: Any | None = None
     overall_status: Any

@@ -13,12 +13,14 @@ class InstructionSource:
     path: Path
     canonical_content: bytes
     canonical_sha256: str
+    compatibility_revision: int
 
-    def as_dict(self) -> dict[str, str]:
+    def as_dict(self) -> dict[str, str | int]:
         return {
             "kind": self.kind,
             "logical_name": self.logical_name,
             "canonical_sha256": self.canonical_sha256,
+            "compatibility_revision": self.compatibility_revision,
         }
 
 

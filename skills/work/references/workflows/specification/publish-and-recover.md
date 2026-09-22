@@ -1,0 +1,13 @@
+<!-- work-compatibility-revision: 1 -->
+# Publish and recover
+
+
+1. Obtain or reuse explicit continuation approval bound to this complete candidate and approved_sha256, plus the distinct progress fingerprint when a checkpoint is included. Run the identical request and root arguments through task spec-update --input-file "<request-path>" --approved-sha256 <approved-sha256>. A changed source, candidate, history or included checkpoint invalidates the applicable approval.
+2. Work CLI mutations share a process-released OS mutex in .work-state-writer.lock; the publisher rechecks sources after acquisition. This coordinates Work writers, not unrelated editors, which must remain paused during publication. The command first preserves original/proposed bytes in an exclusive .work-spec-update-SPEC-UPDATE-nnn.json transaction record, acquires the existing spec_update index lock, replaces Plan and TASK, publishes the synchronized index, and writes a fingerprinted completion marker. Execution is blocked while any record lacks its valid completion marker. This is a recoverable logical transaction, not a filesystem-wide atomic rename.
+3. Require status updated and report its spec, affected TASKs and checks. A normal
+   update returns a complete `work-spec-verification-request/v1` and names `task
+   specifications; Attempt and Correction files are never rewritten. No CMD, OP,
+   VAL or implementation is executed.
+4. On interruption preserve every current file, record, temporary and lock. Report the observed state and obtain separate recovery authorization. Only then use the identical request, roots and approved fingerprint with task spec-recover --input-file "<request-path>" --approved-sha256 <approved-sha256>.
+5. Recovery revalidates original/candidate contracts and history and advances only matching original, locked or final bytes. A short journal is recoverable only when unchanged original artifacts reconstruct the same approved record. For a short journal, temporary file or completion marker, recovery may append only the missing suffix of the exact approved bytes; it never truncates or replaces conflicting bytes. Unknown bytes, changed instructions, changed history or another unfinished transaction remain stops. Recovery never rolls back, overwrites a conflict, deletes history or starts execution.
+6. Return to the originating workflow with the retained discussion. Revalidate its current sources; existing draft checkpoints can become stale after a formal source revision and require the separately authorized draft-source review workflow. Never silently rewrite checkpoint history or claim its previous decisions are still current.

@@ -13,7 +13,7 @@ sys.path.insert(0, str(SCRIPT_ROOT))
 
 from tests.work.contracts.test_task_collection import TaskCollectionTests
 from worklib.business_services.task import load_task_collection
-from worklib.workflows.task import prepare_task_repair, repair_task
+from worklib.orchestration.task import prepare_task_repair, repair_task
 from worklib.services.attempt.validation import build_initial_execution_index, render_execution_index
 from worklib.business_services.task.item import render_task_item_contract, validate_task_item_contract
 from worklib.models.common.errors import WorkError

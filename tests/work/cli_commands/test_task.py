@@ -19,7 +19,11 @@ from cli_support import FileInputTestCase
 from worklib.cli import build_parser, main
 from worklib.business_services.task.workflow import _specification_summary
 from worklib.models.common.errors import ExitCode, WorkError
-from worklib.workflows.task import TaskDraftOperations
+from worklib.orchestration.task import TaskDraftOperations
+
+
+def operation_result(**payload):
+    return {"schema": "work-test-operation-result/v1", **payload}
 
 
 class TaskCliTests(FileInputTestCase):
@@ -170,7 +174,7 @@ class TaskCliTests(FileInputTestCase):
                 with self.subTest(task_id=task_id):
                     output, error = io.StringIO(), io.StringIO()
                     extra = [] if task_id is None else ["--task-id", task_id]
-                    with patch("worklib.business_services.task.workflow.task_draft_status", return_value={"next_action": "confirm_start"}) as operation:
+                    with patch("worklib.business_services.task.workflow.task_draft_status", return_value=operation_result(next_action="confirm_start")) as operation:
                         code = main(["--project-root", str(root), "task", "draft-status", "--requirement-id", "example", *extra], stdout=output, stderr=error)
                     self.assertEqual((code, error.getvalue()), (ExitCode.SUCCESS, ""))
                     self.assertEqual(json.loads(output.getvalue())["data"]["next_action"], "confirm_start")
@@ -184,7 +188,7 @@ class TaskCliTests(FileInputTestCase):
                     with self.subTest(command=command, selection=selection):
                         output, error = io.StringIO(), io.StringIO()
                         request = {"status": "in_progress", "notes": ["Discussion"]}
-                        with patch("worklib.business_services.task.workflow.save_task_draft_request", return_value={"status": "saved"}) as operation:
+                        with patch("worklib.business_services.task.workflow.save_task_draft_request", return_value=operation_result(status="saved")) as operation:
                             code = main(self.input_arguments([
                                 "--project-root", str(root), "task", command, "--input-file", "request.json",
                                 "--requirement-id", "example", "--task-id", "TASK-001",
@@ -221,7 +225,7 @@ class TaskCliTests(FileInputTestCase):
                 with self.subTest(command=command):
                     output, error = io.StringIO(), io.StringIO()
                     request = {"reason": "Reviewed", "selections": {"TASK-001": {"selected_paths": [], "references": []}}}
-                    with patch("worklib.business_services.task.workflow.update_task_draft_sources", return_value={"status": "saved"}) as operation:
+                    with patch("worklib.business_services.task.workflow.update_task_draft_sources", return_value=operation_result(status="saved")) as operation:
                         code = main(self.input_arguments([
                             "--project-root", str(root), "task", command, "--input-file", "request.json",
                             "--requirement-id", "example", "--expected-revision", "2",
@@ -247,7 +251,7 @@ class TaskCliTests(FileInputTestCase):
                         arguments += ["--approved-sha256", "a" * 64]
                         extra["approved_sha256"] = "a" * 64
                     metadata = {"title": "TASK", "summary": "Result"}
-                    with patch("worklib.business_services.task.workflow." + name, return_value={"status": "valid"}) as operation:
+                    with patch("worklib.business_services.task.workflow." + name, return_value=operation_result(status="valid")) as operation:
                         code = main(self.input_arguments(arguments, json.dumps(metadata)), stdout=output, stderr=error)
                     self.assertEqual(code, ExitCode.SUCCESS)
                     operation.assert_called_once_with(root, "example", metadata, expected_revision=2, plan_path="outputs/work/plans/example.json", user_config_root=str(root), skill_roots=[], operations=TaskDraftOperations, **extra)
@@ -257,7 +261,7 @@ class TaskCliTests(FileInputTestCase):
             for command in ("draft-list-update", "draft-list-recover"):
                 with self.subTest(command=command):
                     output, error = io.StringIO(), io.StringIO()
-                    with patch("worklib.business_services.task.workflow.update_task_planning_list", return_value={"status": "saved"}) as operation:
+                    with patch("worklib.business_services.task.workflow.update_task_planning_list", return_value=operation_result(status="saved")) as operation:
                         code = main(self.input_arguments([
                             "--project-root", str(root), "task", command,
                             "--input-file", "request.json", "--expected-revision", "3",
@@ -301,7 +305,7 @@ class TaskCliTests(FileInputTestCase):
                 with self.subTest(command=command):
                     output, error = io.StringIO(), io.StringIO()
                     extra = [] if command == "draft-check" else ["--input-file", "request.json"]
-                    with patch("worklib.business_services.task.workflow." + function, return_value={"status": "valid"}) as operation:
+                    with patch("worklib.business_services.task.workflow." + function, return_value=operation_result(status="valid")) as operation:
                         code = main(self.input_arguments([
                             "--project-root", str(root), "task", command,
                             "--requirement-id", "example", "--task-id", "TASK-001",
@@ -411,7 +415,7 @@ class TaskCliTests(FileInputTestCase):
                 module = (
                     "worklib.business_services.task.workflow"
                     if operation_name == "create_task_artifacts"
-                    else "worklib.workflows.task"
+                    else "worklib.orchestration.task"
                 )
                 with self.subTest(command=arguments[0]), patch(module + "." + operation_name) as operation:
                     output = io.StringIO()

@@ -11,7 +11,7 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills/work/scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.services.task.draft.storage import save_task_planning, read_task_draft, read_task_planning_index
-from worklib.workflows.task import update_task_draft_sources
+from worklib.orchestration.task import update_task_draft_sources
 from worklib.business_services.plan import render_plan_contract, validate_plan_file
 from worklib.models.common.errors import ExitCode, WorkError
 from worklib.business_services.hierarchy import build_hierarchy_selection

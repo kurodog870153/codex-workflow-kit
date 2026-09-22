@@ -7,10 +7,11 @@ from pathlib import Path
 from typing import Any
 
 from ...models.common.errors import ExitCode, WorkError
-from ...models.plan import TOP_OPTIONAL, TOP_REQUIRED
+from ...models.plan import TOP_OPTIONAL, TOP_REQUIRED, PlanSemanticRequestContract
 from ...models.skill import SkillRoot
 from ...services.hierarchy.fingerprint import hierarchy_selection_sha256
 from ...services.hierarchy.path import build_hierarchy
+from ...services.hierarchy.selection import build_hierarchy_selection_snapshot
 from ...services.hierarchy.validation import validate_hierarchy_selection_snapshot
 from ...services.instruction.catalog import build_cross_mode_instruction_catalog, build_instruction_catalog
 from ...services.instruction.hierarchy import instruction_hierarchy_projection
@@ -25,6 +26,7 @@ from ...services.plan.persistence import create_plan_exclusively
 from ...services.plan.validation import validate_plan_contract as validate_plan_value
 from ...services.skill_catalog import parse_skill_root, snapshot_catalog_skill
 from ...services.skill_selection import validate_skill_roots
+from ...services.skill_selection import selection_sha256
 from ...services.skill_selection import validate_skill_selection as validate_skill_selection_value
 
 
@@ -216,8 +218,34 @@ def create_plan_file(raw: bytes, *, source: str, raw_plan_path: str, project_roo
     return result
 
 
+def prepare_semantic_plan(raw: bytes, *, source: str, project_root: Path, user_config_root: str,
+                          skill_roots: list[SkillRoot] | None = None,
+                          output_file: str | None = None) -> dict[str, object]:
+    semantic = PlanSemanticRequestContract.parse_json_bytes(raw, source=source).to_canonical_dict()
+    goal_ids = [f"GOAL-{index:03d}" for index in range(1, len(semantic["goals"]) + 1)]
+    deliverable_ids = [f"DELIVERABLE-{index:03d}" for index in range(1, len(semantic["deliverables"]) + 1)]
+    acceptance_ids = [f"ACCEPTANCE-{index:03d}" for index in range(1, len(semantic["acceptance_criteria"]) + 1)]
+    content = {
+        "title": semantic["title"], "summary": semantic["summary"],
+        "goals": [{"id": item_id, "statement": statement} for item_id, statement in zip(goal_ids, semantic["goals"])],
+        "scope": [{"id": f"SCOPE-{index:03d}", "kind": "in_scope", "statement": statement, "goal_ids": goal_ids}
+                  for index, statement in enumerate(semantic["scope"], 1)],
+        "deliverables": [{"id": item_id, "statement": statement, "goal_ids": goal_ids, "acceptance_ids": acceptance_ids}
+                         for item_id, statement in zip(deliverable_ids, semantic["deliverables"])],
+        "acceptance_criteria": [{"id": item_id, "statement": statement, "deliverable_ids": deliverable_ids}
+                                for item_id, statement in zip(acceptance_ids, semantic["acceptance_criteria"])],
+    }
+    request = {"requirement_id": semantic["requirement_id"], "content": content,
+               "hierarchy_selection": semantic["hierarchy_selection"],
+               "skill_selection": semantic["skill_selection"],
+               "references": semantic["references"]}
+    return prepare_initial_plan(document.render(request), source=source, project_root=project_root,
+                                user_config_root=user_config_root, skill_roots=skill_roots,
+                                output_file=output_file)
+
+
 def parse_roots(values: list[str]) -> list[SkillRoot]:
     return [parse_skill_root(value) for value in values]
 
 
-__all__ = ["create_plan_file", "parse_roots", "prepare_initial_plan", "prepare_plan_json_contract", "render_plan_contract", "validate_plan_contract", "validate_plan_file", "validate_plan_json_contract", "validate_plan_request"]
+__all__ = ["create_plan_file", "parse_roots", "prepare_initial_plan", "prepare_semantic_plan", "prepare_plan_json_contract", "render_plan_contract", "validate_plan_contract", "validate_plan_file", "validate_plan_json_contract", "validate_plan_request"]

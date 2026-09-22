@@ -65,7 +65,7 @@ class TaskCheckpointFlowTests(FileInputTestCase):
 
         arguments = self.input_arguments(arguments, json.dumps(payload, ensure_ascii=False))
         result = subprocess.run(
-            [sys.executable, "-B", str(SCRIPT_ROOT / "work.py"), "--project-root", str(self.root), *arguments],
+            [sys.executable, "-B", str(SCRIPT_ROOT / "work.py"), "--project-root", str(self.root), "--verbose", *arguments],
             capture_output=True, text=True, encoding="utf-8", timeout=60,
             shell=False,
         )

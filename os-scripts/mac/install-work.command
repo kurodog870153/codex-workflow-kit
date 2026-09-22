@@ -67,6 +67,7 @@ validate_base_sources() {
     require_file "SKILL.md" || return 1
     require_file "agents/openai.yaml" || return 1
     require_file "references/instruction-loading.md" || return 1
+    require_file "references/instruction-loading/invocation.md" || return 1
 
     local mode
     for mode in plan task execute specification task-drafts repair progress; do
@@ -228,6 +229,7 @@ install_base() {
     copy_file "SKILL.md" || return 1
     copy_file "agents/openai.yaml" || return 1
     copy_file "references/instruction-loading.md" || return 1
+    copy_tree "references/instruction-loading" || return 1
     copy_tree "references/workflows" || return 1
     copy_tree "references/subagents" || return 1
     copy_file "scripts/work.py" || return 1

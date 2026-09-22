@@ -11,8 +11,10 @@ from ...protocol import (
 from ...models.common.errors import ExitCode, WorkError
 from ...models.instruction import InstructionSourceSet
 
-SOURCE_FIELDS = {"kind", "logical_name", "canonical_sha256"}
+SOURCE_FIELDS = {"kind", "logical_name", "canonical_sha256", "compatibility_revision"}
+LEGACY_SOURCE_FIELDS = SOURCE_FIELDS - {"compatibility_revision"}
 SELECTION_FIELDS = {"selected_paths", "resolved_paths", "sources", "references", "instructions_sha256"}
+OPTIONAL_SELECTION_FIELDS = {"routing_manifest"}
 SHA256_PATTERN = re.compile(SHA256_PATTERN_TEXT)
 
 
@@ -43,7 +45,17 @@ def sha256(value: object, *, location: str) -> str:
 
 
 def parse_instruction_selection(value: object, *, location: str = "instruction_selection") -> dict[str, object]:
-    selection = strict_object(value, location=location, required=SELECTION_FIELDS)
+    if not isinstance(value, dict):
+        selection = strict_object(value, location=location, required=SELECTION_FIELDS)
+    else:
+        missing = sorted(SELECTION_FIELDS - set(value))
+        unknown = sorted(set(value) - SELECTION_FIELDS - OPTIONAL_SELECTION_FIELDS)
+        if missing or unknown:
+            raise WorkError(ExitCode.CONTRACT, "invalid_object_fields", "The JSON object has missing or unknown fields.", {"location": location, "missing": missing, "unknown": unknown})
+        selection = value
+    if "routing_manifest" in selection:
+        from ...models.workflow import InstructionSelectionManifestContract
+        InstructionSelectionManifestContract.model_validate(selection["routing_manifest"])
     selected_paths = string_array(selection["selected_paths"], location=f"{location}.selected_paths", allow_empty=True)
     resolved_paths = string_array(selection["resolved_paths"], location=f"{location}.resolved_paths", allow_empty=False)
     references = string_array(selection["references"], location=f"{location}.references", allow_empty=True)
@@ -55,14 +67,27 @@ def parse_instruction_selection(value: object, *, location: str = "instruction_s
     sources: list[dict[str, str]] = []
     for index, raw_source in enumerate(raw_sources):
         source_location = f"{location}.sources[{index}]"
-        source = strict_object(raw_source, location=source_location, required=SOURCE_FIELDS)
+        if not isinstance(raw_source, dict) or set(raw_source) not in (SOURCE_FIELDS, LEGACY_SOURCE_FIELDS):
+            expected = SOURCE_FIELDS if isinstance(raw_source, dict) and "compatibility_revision" in raw_source else LEGACY_SOURCE_FIELDS
+            source = strict_object(raw_source, location=source_location, required=expected)
+        else:
+            source = raw_source
         kind, logical_name = source["kind"], source["logical_name"]
         if kind not in INSTRUCTION_SOURCE_KINDS:
             raise WorkError(ExitCode.CONTRACT, "invalid_instruction_kind", "The instruction source kind is invalid.", {"location": f"{source_location}.kind", "kind": kind})
         if not isinstance(logical_name, str) or not logical_name:
             raise WorkError(ExitCode.CONTRACT, "invalid_instruction_logical_name", "The instruction source logical name must be a non-empty string.", {"location": f"{source_location}.logical_name"})
-        sources.append({"kind": kind, "logical_name": logical_name, "canonical_sha256": sha256(source["canonical_sha256"], location=f"{source_location}.canonical_sha256")})
-    return {"selected_paths": selected_paths, "resolved_paths": resolved_paths, "sources": sources, "references": references, "instructions_sha256": sha256(selection["instructions_sha256"], location=f"{location}.instructions_sha256")}
+        revision = source.get("compatibility_revision")
+        if revision is not None and (not isinstance(revision, int) or isinstance(revision, bool) or revision < 1):
+            raise WorkError(ExitCode.CONTRACT, "invalid_compatibility_revision", "Compatibility revision must be a positive integer.", {"location": f"{source_location}.compatibility_revision"})
+        parsed = {"kind": kind, "logical_name": logical_name, "canonical_sha256": sha256(source["canonical_sha256"], location=f"{source_location}.canonical_sha256")}
+        if revision is not None:
+            parsed["compatibility_revision"] = revision
+        sources.append(parsed)
+    result = {"selected_paths": selected_paths, "resolved_paths": resolved_paths, "sources": sources, "references": references, "instructions_sha256": sha256(selection["instructions_sha256"], location=f"{location}.instructions_sha256")}
+    if "routing_manifest" in selection:
+        result["routing_manifest"] = selection["routing_manifest"]
+    return result
 
 
 def validate_instruction_selection(value: object, current: InstructionSourceSet, *, location: str = "instruction_selection") -> InstructionSourceSet:

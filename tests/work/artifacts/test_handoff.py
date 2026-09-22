@@ -16,8 +16,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from cli_support import FileInputTestCase
 
-from worklib.workflows.handoff import build_plan_to_task_handoff, build_task_to_execute_handoff, build_task_to_plan_handoff
-from worklib.workflows.handoff import verify_return_handoff
+from worklib.orchestration.handoff import build_plan_to_task_handoff, build_task_to_execute_handoff, build_task_to_plan_handoff
+from worklib.orchestration.handoff import verify_return_handoff
 from worklib.cli import main
 from worklib.services.handoff import validate_handoff_contract
 from worklib.business_services.plan import render_plan_contract, validate_plan_file
@@ -31,8 +31,8 @@ from worklib.business_services.instruction import build_work_instruction_selecti
 from worklib.business_services.instruction import build_instruction_selection
 from worklib.business_services.instruction import build_task_document_instruction_selection
 from worklib.services.skill_selection import selection_sha256
-from worklib.workflows.handoff import build_execute_return_handoff, build_preflight_return_handoff
-from worklib.workflows.handoff import verify_plan_to_task_handoff, verify_task_to_execute_handoff
+from worklib.orchestration.handoff import build_execute_return_handoff, build_preflight_return_handoff
+from worklib.orchestration.handoff import verify_plan_to_task_handoff, verify_task_to_execute_handoff
 from worklib.services.attempt import render_attempt_contract
 from worklib.services.attempt import authorization_sha256, minimal_authorization
 from worklib.services.attempt import build_initial_execution_index, render_execution_index, derive_overall_status
@@ -555,7 +555,7 @@ class HandoffArtifactTests(FileInputTestCase):
         self.build_preflight_return()
 
     def test_preflight_return_does_not_require_manual_input_readiness(self):
-        from worklib.workflows.execution import execute_preflight
+        from worklib.orchestration.execution import execute_preflight
         self.write_unstarted_execution()
         self.task["tasks"][0]["inputs"] = [{"id": "INPUT-001", "kind": "user_provided",
                                             "source": "User specification", "precondition": "User confirms detail"}]
@@ -929,7 +929,7 @@ class HandoffArtifactTests(FileInputTestCase):
         checked = load_task_collection(self.root, str(self.root), self.task["artifacts"]["task"])
         self.plan["summary"] = "Changed source"
         self.write_plan()
-        with patch("worklib.workflows.handoff.HandoffOperations.load_task_collection", return_value=checked):
+        with patch("worklib.orchestration.handoff.HandoffOperations.load_task_collection", return_value=checked):
             with self.assertRaises(WorkError) as context:
                 self.build_execute()
         self.assertEqual(context.exception.code, "handoff_source_changed")
@@ -938,7 +938,7 @@ class HandoffArtifactTests(FileInputTestCase):
         self.write_task()
         checked = load_task_collection(self.root, str(self.root), self.task["artifacts"]["task"])
         checked["task_skill_ids"]["TASK-002"] = "repo:confirmed-skill"
-        with patch("worklib.workflows.handoff.HandoffOperations.load_task_collection", return_value=checked):
+        with patch("worklib.orchestration.handoff.HandoffOperations.load_task_collection", return_value=checked):
             self.assertEqual(self.build_execute("TASK-002")["source"]["skill_id"], "repo:confirmed-skill")
 
     def test_execute_handoff_rejects_unconfirmed_or_noncanonical_task(self):

@@ -13,6 +13,60 @@ from .text_codec import decode_utf8
 from ..foundation.jsonio import canonical_json
 
 
+_BRIEF_FIELDS = frozenset({
+    "schema",
+    "status",
+    "next_action",
+    "requires_user_confirmation",
+    "confirmation_required",
+    "recovery_required",
+    "required_checks",
+    "routing_status",
+    "router_compatibility_revision",
+    "required_instruction_sources",
+    "source_order",
+    "routing_reasons",
+    "selection_manifest",
+    "path",
+    "paths",
+    "artifact",
+    "artifacts",
+    "target",
+    "targets",
+})
+
+
+def _brief_field(name: str) -> bool:
+    return (
+        name in _BRIEF_FIELDS
+        or name.endswith("_id")
+        or name.endswith("_ids")
+        or name.endswith("_sha256")
+        or name.endswith("_path")
+        or name.endswith("_paths")
+    )
+
+
+def brief_success_data(result: dict[str, Any]) -> dict[str, Any]:
+    """Project a successful command result to continuation-critical fields."""
+
+    def project(value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+        compact: dict[str, Any] = {}
+        for key, item in value.items():
+            if _brief_field(key):
+                compact[key] = item
+                continue
+            if isinstance(item, dict):
+                nested = project(item)
+                if nested:
+                    compact[key] = nested
+        return compact
+
+    return project(result)
+
+
 @dataclass(frozen=True)
 class FileInput:
     raw: bytes
@@ -48,8 +102,10 @@ def read_input_file(value: str) -> FileInput:
 
 def success_response(
     result: dict[str, Any], *, preserve_order: bool = False,
+    verbose: bool = False, full_evidence: bool = False,
 ) -> dict[str, Any]:
-    data = result if preserve_order else json.loads(canonical_json(result))
+    selected = result if verbose or full_evidence else brief_success_data(result)
+    data = selected if preserve_order else json.loads(canonical_json(selected))
     completed = result.get("status") == "already_completed"
     return CliResultContract(
         schema="work-cli-result/v1",

@@ -1,6 +1,17 @@
 from typing import Any
 
 from ...models.common.errors import ExitCode, WorkError
+from ...models.execution.deviation import ExecutionDeviationImpactModel
+
+
+def deviation_reconciliation_target(proposal: dict[str, Any]) -> str:
+    if ExecutionDeviationImpactModel.crosses_semantic_boundary(proposal["impact"]):
+        return "plan_and_task"
+    return "task_only"
+
+
+def deviation_is_blocking(proposal: dict[str, Any]) -> bool:
+    return deviation_reconciliation_target(proposal) == "plan_and_task"
 
 
 def _fail(code: str, message: str) -> None:

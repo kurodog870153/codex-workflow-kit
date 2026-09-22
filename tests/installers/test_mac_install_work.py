@@ -60,6 +60,7 @@ class MacWorkInstallerTests(unittest.TestCase):
         self.assertTrue((work / "SKILL.md").is_file())
         self.assertTrue((work / "agents" / "openai.yaml").is_file())
         self.assertTrue((work / "references" / "instruction-loading.md").is_file())
+        self.assertTrue((work / "references" / "instruction-loading" / "invocation.md").is_file())
         for mode in ("plan", "task", "execute"):
             self.assertTrue((work / "references" / "workflows" / f"{mode}.md").is_file())
         for mode in ("plan", "task-coordinator", "task-skill", "execute"):
@@ -71,6 +72,7 @@ class MacWorkInstallerTests(unittest.TestCase):
             "models/instruction/catalog.py",
             "models/instruction/contracts.py",
             "models/instruction/source.py",
+            "models/instruction/refresh.py",
             "models/hierarchy/__init__.py",
             "models/hierarchy/contracts.py",
             "services/hierarchy/__init__.py",
@@ -105,6 +107,7 @@ class MacWorkInstallerTests(unittest.TestCase):
             "services/instruction/validation.py",
             "services/instruction/work_selection.py",
             "business_services/instruction/__init__.py",
+            "business_services/instruction/refresh.py",
             "models/plan/__init__.py",
             "models/plan/contracts.py",
             "models/task_collection/__init__.py",

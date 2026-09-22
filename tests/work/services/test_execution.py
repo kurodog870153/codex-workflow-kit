@@ -11,7 +11,7 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.business_services.execution import ExecutionService
-from worklib.workflows.execution import ExecutionCapabilities
+from worklib.orchestration.execution import ExecutionCapabilities
 
 
 class ExecutionServiceTests(unittest.TestCase):
@@ -26,7 +26,7 @@ class ExecutionServiceTests(unittest.TestCase):
         }
 
     @patch("worklib.business_services.execution.workflow.require_no_spec_update")
-    @patch("worklib.workflows.execution.ExecutionCapabilities.execute_preflight", return_value={"status": "valid"})
+    @patch("worklib.orchestration.execution.ExecutionCapabilities.execute_preflight", return_value={"status": "valid"})
     @patch("worklib.business_services.execution.workflow.state_writer")
     def test_read_only_operation_does_not_acquire_writer(
         self, writer, preflight, require_no_spec_update
@@ -42,8 +42,8 @@ class ExecutionServiceTests(unittest.TestCase):
         require_no_spec_update.assert_called_once()
 
     @patch("worklib.business_services.execution.workflow.require_no_spec_update")
-    @patch("worklib.workflows.execution.ExecutionCapabilities.record_execution_deviation", return_value={"status": "recorded"})
-    @patch("worklib.workflows.execution.ExecutionCapabilities.load_task_execution_context")
+    @patch("worklib.orchestration.execution.ExecutionCapabilities.record_execution_deviation", return_value={"status": "recorded"})
+    @patch("worklib.orchestration.execution.ExecutionCapabilities.load_task_execution_context")
     @patch("worklib.business_services.execution.workflow.state_writer")
     def test_deviation_record_acquires_writer_and_passes_approval(
         self, writer, _load_context, record, _require_no_spec_update
@@ -65,7 +65,7 @@ class ExecutionServiceTests(unittest.TestCase):
         record.assert_called_once()
 
     @patch("worklib.business_services.execution.workflow.require_no_spec_update")
-    @patch("worklib.workflows.execution.ExecutionCapabilities.prepare_execution_deviation", return_value={"status": "preview"})
+    @patch("worklib.orchestration.execution.ExecutionCapabilities.prepare_execution_deviation", return_value={"status": "preview"})
     @patch("worklib.business_services.execution.workflow.state_writer")
     def test_deviation_prepare_does_not_acquire_writer(
         self, writer, prepare, require_no_spec_update
@@ -81,8 +81,8 @@ class ExecutionServiceTests(unittest.TestCase):
         prepare.assert_called_once()
 
     @patch("worklib.business_services.execution.workflow.require_no_spec_update")
-    @patch("worklib.workflows.execution.ExecutionCapabilities.begin_record", return_value={"status": "reserved"})
-    @patch("worklib.workflows.execution.ExecutionCapabilities.load_task_execution_context")
+    @patch("worklib.orchestration.execution.ExecutionCapabilities.begin_record", return_value={"status": "reserved"})
+    @patch("worklib.orchestration.execution.ExecutionCapabilities.load_task_execution_context")
     @patch("worklib.business_services.execution.workflow.state_writer")
     def test_mutation_loads_context_and_acquires_writer(
         self, writer, load_context, begin, require_no_spec_update

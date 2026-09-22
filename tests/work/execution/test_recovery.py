@@ -22,9 +22,9 @@ from worklib.services.attempt.validation import (
     validate_execution_index,
 )
 from worklib.models.execution import ExecutionDeviationProposalContract
-from worklib.workflows.execution import close_attempt
-from worklib.workflows.execution import finish_record, record_execution_deviation
-from worklib.workflows.execution import recover_execution
+from worklib.orchestration.execution import close_attempt
+from worklib.orchestration.execution import finish_record, record_execution_deviation
+from worklib.orchestration.execution import recover_execution
 from worklib.models.common.errors import ExitCode, WorkError
 from worklib.technical.infrastructure.json_contract import (
     parse_json_contract,
@@ -106,6 +106,7 @@ class ExecutionTransactionRecoveryTests(unittest.TestCase):
             approved_sha256 = "9" * 64
             operation_options = {
                 "approved_sha256": approved_sha256,
+                "authorization_evidence": "User approved this exact runtime deviation.",
             }
             preparation = patch(
                 "worklib.business_services.execution.deviation._prepare_execution_deviation",

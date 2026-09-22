@@ -27,6 +27,10 @@ from ...services.skill_catalog import SkillRoot
 from ...services.attempt.completion import validate_completed_coverage
 from ...services.execution.lifecycle import TransactionErrors, prepare_and_replace
 from ...services.attempt.state import close_index, closed_task_status
+from ...services.deviation.validation import (
+    deviation_is_blocking,
+    deviation_reconciliation_target,
+)
 
 
 TRANSACTION_ERRORS = TransactionErrors(
@@ -93,6 +97,31 @@ def build_closed_attempt(
 
 def _task_status(request: dict[str, Any]) -> str:
     return closed_task_status(request)
+
+
+def pending_deviation_summaries(attempt: dict[str, Any]) -> list[dict[str, object]]:
+    return [
+        {
+            "deviation_id": deviation["deviation_id"],
+            "classification": deviation_reconciliation_target(deviation["proposal"]),
+            "blocking": deviation_is_blocking(deviation["proposal"]),
+        }
+        for deviation in attempt.get("execution_deviations", [])
+        if deviation["decision"]["outcome"] == "approved"
+        and deviation["reconciliation_status"] == "pending"
+    ]
+
+
+def has_blocking_deviation_for_record(
+    attempt: dict[str, Any], record_id: object,
+) -> bool:
+    return any(
+        deviation["decision"]["outcome"] == "approved"
+        and deviation["reconciliation_status"] == "pending"
+        and deviation_is_blocking(deviation["proposal"])
+        and deviation["proposal"]["anchor_record_id"] == record_id
+        for deviation in attempt.get("execution_deviations", [])
+    )
 
 
 def _validate_execute_instruction_close_state(
@@ -309,12 +338,21 @@ def close_attempt(
             actual=lock,
         )
     if "record_id" in lock or "command_correction" in lock:
-        _error(
-            ExitCode.LOCK_CONFLICT,
-            "attempt_close_record_reserved",
-            "A reserved record must finish or enter recovery before Attempt close.",
-            record_id=lock.get("record_id"),
+        reserved_record = lock.get("record_id")
+        blocking_recorded = has_blocking_deviation_for_record(
+            attempt, reserved_record
         )
+        blocking_close = (
+            request["status"] == "stopped"
+            and request.get("final_type") == "specification_defect"
+        )
+        if "command_correction" in lock or not blocking_recorded or not blocking_close:
+            _error(
+                ExitCode.LOCK_CONFLICT,
+                "attempt_close_record_reserved",
+                "A reserved record may close only for its recorded blocking specification deviation.",
+                record_id=reserved_record,
+            )
 
     _validate_execute_instruction_close_state(task, attempt, request, operations)
 
@@ -393,5 +431,6 @@ def close_attempt(
         "attempt_status": request["status"],
         "task_status": task_status,
         "overall_status": updated_index["overall_status"],
+        "pending_deviations": pending_deviation_summaries(closed_attempt),
         "lock_status": "released",
     }).to_canonical_dict()

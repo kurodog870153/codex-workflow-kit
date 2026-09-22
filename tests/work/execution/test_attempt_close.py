@@ -4,6 +4,7 @@ import copy
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work"
@@ -15,12 +16,38 @@ from worklib.services.attempt import authorization_sha256, minimal_authorization
 from worklib.business_services.execution.attempt_close import (
     _task_status,
     _validate_execute_instruction_close_state,
+    has_blocking_deviation_for_record,
 )
-from worklib.workflows.execution import ExecutionOperations
+from worklib.orchestration.execution import ExecutionOperations
 from worklib.business_services.instruction import build_instruction_selection
 
 
 class ExecuteInstructionAttemptCloseTests(unittest.TestCase):
+    def test_blocking_deviation_matches_original_collection_by_record(self) -> None:
+        rejected = {
+            "deviation_id": "DEVIATION-001",
+            "proposal": {"anchor_record_id": "CMD-001", "severity": "blocking"},
+            "decision": {"outcome": "rejected"},
+            "reconciliation_status": "not_needed",
+        }
+        approved = {
+            "deviation_id": "DEVIATION-002",
+            "proposal": {"anchor_record_id": "CMD-002", "severity": "blocking"},
+            "decision": {"outcome": "approved"},
+            "reconciliation_status": "pending",
+        }
+
+        with patch(
+            "worklib.business_services.execution.attempt_close.deviation_is_blocking",
+            side_effect=lambda proposal: proposal["severity"] == "blocking",
+        ):
+            self.assertTrue(has_blocking_deviation_for_record(
+                {"execution_deviations": [rejected, approved]}, "CMD-002"
+            ))
+            self.assertFalse(has_blocking_deviation_for_record(
+                {"execution_deviations": [rejected, approved]}, "CMD-001"
+            ))
+
     def setUp(self) -> None:
         self.task_selection = build_instruction_selection(
             skill_root=SKILL_ROOT,

@@ -11,7 +11,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/work/scripts"))
 
 from worklib.models.execution import ExecutionDeviationContract
-from worklib.workflows.task import preview_specification_reconciliation
+from worklib.orchestration.task import preview_specification_reconciliation
 
 
 class SpecificationReconciliationFlowTests(unittest.TestCase):
@@ -34,6 +34,7 @@ class SpecificationReconciliationFlowTests(unittest.TestCase):
                  patch("worklib.business_services.specification.reconciliation.preview_specification_migration", return_value=nested):
                 result = preview_specification_reconciliation(json.dumps(request).encode(), project_root=root, user_config_root=str(root))
             self.assertEqual(result["selected_deviation_ids"], ["DEVIATION-001"])
+            self.assertEqual(result["ledger"]["entries"][0]["outcome"], "incorporated")
             self.assertEqual(target.read_bytes(), b"immutable attempt\n")
 
 

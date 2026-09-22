@@ -15,7 +15,7 @@
 controllers
     |
     v
-workflows
+orchestration
     |
     v
 business_services
@@ -28,7 +28,7 @@ models
 ```
 
 1. `controllers/`：CLI 邊界。
-2. `workflows/`：跨 Business Service 的高階流程編排。
+2. `orchestration/`：跨 Business Service 的高階流程編排。
 3. `business_services/`：單一業務範圍內的流程聚合。
 4. `services/`：單一功能的實作。
 5. `models/`：資料 class。
@@ -42,7 +42,7 @@ models
 
 1. 註冊 CLI command、argument 與 help。
 2. 接收並轉換 CLI 輸入。
-3. 呼叫一個對應的 Workflow 或 Business Service 公開入口。
+3. 呼叫一個對應的 Orchestration 或 Business Service 公開入口。
 4. 將成功結果或既有錯誤交給統一 CLI envelope 處理。
 
 ### 3.2 禁止事項
@@ -57,16 +57,16 @@ models
 
 1. Python 標準函式庫。
 2. `controllers/` 內的 CLI 共用型別及註冊輔助元件。
-3. 對應的 `workflows/<business>` 或 `business_services/<business>/` 公開入口。
+3. 對應的 `orchestration/<business>` 或 `business_services/<business>/` 公開入口。
 4. `protocol/` 公開常數。
 
-## 4. Workflow
+## 4. Orchestration
 
 ### 4.1 責任
 
 1. 聚合兩個以上 Business Service，固定跨業務流程順序與資料傳遞。
 2. 不實作可下沉至 Business Service、Service 或 Model 的演算法。
-3. Controller 需要跨業務流程時，只呼叫同名 Workflow 公開入口。
+3. Controller 需要跨業務流程時，只呼叫同名 Orchestration 公開入口。
 
 ### 4.2 允許依賴
 
@@ -78,8 +78,8 @@ models
 ### 4.3 禁止事項
 
 1. 不直接依賴 Service、Foundation、Infrastructure 或未列入目標架構的業務目錄。
-2. 不依賴其他業務範圍的 Workflow；共用流程須在同一 Workflow 邊界內組合。
-3. Business Service、Service 與 Model 不得反向依賴 Workflow。
+2. 不依賴其他業務範圍的 Orchestration；共用流程須在同一 Orchestration 邊界內組合。
+3. Business Service、Service 與 Model 不得反向依賴 Orchestration。
 
 ## 5. Business Service
 
@@ -97,6 +97,7 @@ models
 2. 不直接執行低階檔案替換、subprocess 或 OS lock。
 3. 不引用 Controller。
 4. 不以全域可變狀態保存流程資料。
+5. 跨 Requirement 的批次流程若由多個各自完整的交易組成，Business Service 必須明確保存固定順序與完成前綴，提供恢復入口，並將語意標示為 recoverable sequential；不得宣稱為全域 atomic transaction。
 
 ### 5.3 允許依賴
 
@@ -231,7 +232,7 @@ models
 9. 不以 `common`、`utils`、`helpers` 或 `misc` 隱藏未分類責任。
 10. `__init__.py` 只定義穩定公開入口，不包含業務邏輯，也不得用來規避依賴檢查。
 11. 若同一 domain package（例如 `services/hierarchy/`）保存多個單一功能，每個功能必須有可辨識的模組邊界，且仍遵守不同功能不得互相匯入的規則。
-12. `business_services/`、`services/` 與 `workflows/` 的非 `__init__.py` 模組必須實作其命名責任，不得只包含 import 與 `__all__` 的純重匯出 facade；穩定 package 公開面應由 `__init__.py` 表達。
+12. `business_services/`、`services/` 與 `orchestration/` 的非 `__init__.py` 模組必須實作其命名責任，不得只包含 import 與 `__all__` 的純重匯出 facade；穩定 package 公開面應由 `__init__.py` 表達。
 13. 不得建立頂層 `artifacts/`、`contracts/`、`execution/`、`foundation/` 或 `infrastructure/` 作為產品架構或相容入口。
 14. Execution 的單一功能 Service 統一置於 `services/execution/<capability>/`；不得建立 `services/execution_*` 平行入口。
 15. Task collection diagnostics 的跨功能順序由 Business Service 管理，底層唯讀檢查屬於 `services/task/task_diagnostics/`，不得建立 `services/task_diagnostics.py`。
@@ -282,9 +283,17 @@ models
 15. 所有層都可以匯入 Protocol；Protocol 只能匯入自身模組或 Python 標準函式庫。
 16. Foundation 與 Technical 依賴例外必須維持空集合；新的架構違規不得加入其中。
 17. 所有 Controller 必須預設納入架構檢查，不得以未列入檔名清單的方式逃逸邊界驗證。
-18. 非 `__init__.py` 的 Business Service、Service 與 Workflow 純重匯出 facade 必須被拒絕；合法 package 公開入口與 `protocol/__init__.py` 不得誤判。
+18. 非 `__init__.py` 的 Business Service、Service 與 Orchestration 純重匯出 facade 必須被拒絕；合法 package 公開入口與 `protocol/__init__.py` 不得誤判。
 
-## 13. Review 檢查表
+## 13. Instruction routing 邊界
+
+1. `services/workflow/routing.py` 是 necessary-source decision table、canonical order 與 selection manifest 的唯一權威來源。
+2. Routing 只能使用已驗證的 workflow status 與 `next_action`；不得掃描 Markdown 目錄、依自然語言猜測或 fallback 至完整載入。
+3. Markdown 入口與模組不管理彼此相依；Python router 負責相依、去重、順序、compatibility revision 與 SHA-256。
+4. 每個 `next_action` 建立隔離 operation context。主流程保留使用者決策與狀態摘要，worker 只接收 fingerprint-bound operation envelope。
+5. 未匹配、衝突、缺少來源或 drift 必須回傳 `REVIEW_REQUIRED`。
+
+## 14. Review 檢查表
 
 1. 這段程式碼屬於 CLI 邊界、跨功能編排、單一功能、資料 class 或技術 adapter 中的哪一種？
 2. Controller 是否只呼叫 Business Service？

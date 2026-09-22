@@ -44,7 +44,7 @@ class InstructionsContract(WorkContract):
     schema_: Literal["work-instructions/v1"] = Field(alias="schema")
     mode: Literal["plan", "task", "execute"]
     hierarchy: HierarchyContract
-    sources: list[dict[str, str]]
+    sources: list[dict[str, str | int]]
     references: list[str]
     instructions_sha256: str
 

@@ -10,7 +10,9 @@
       "work-execution-deviation-proposal/v1",
       "work-execution-recovery-prepare-request/v1",
       "work-execution-recovery-request/v1",
+      "work-operation-envelope/v1",
       "work-plan-prepare-request/v1",
+      "work-plan-semantic-request/v1",
       "work-progress-save-request/v1",
       "work-record-finish-request/v1",
       "work-spec-migration-preview-request/v1",
@@ -20,17 +22,21 @@
       "work-spec-verification-request/v1",
       "work-task-repair-prepare-request/v1",
       "work-task-repair-request/v1"
+      ,"work-task-semantic-request/v1"
     ],
     "artifact": [
       "work-attempt-authorization/v1",
       "work-attempt/v1",
       "work-correction/v1",
       "work-discussion-progress/v1",
+      "work-execution-deviation-authorization/v1",
       "work-execution-deviation/v1",
       "work-execution-index/v1",
       "work-execution-recovery-evidence/v1",
       "work-handoff/v1",
+      "work-instruction-selection-manifest/v1",
       "work-plan/v1",
+      "work-spec-reconciliation-ledger/v1",
       "work-spec-transaction/v1",
       "work-task-collection-projection/v1",
       "work-task-draft/v1",
@@ -73,9 +79,12 @@
       "work-hierarchy-selection/v1",
       "work-hierarchy/v1",
       "work-instruction-catalog/v1",
+      "work-instruction-migration-preview/v1",
+      "work-instruction-migration-publication/v1",
       "work-instruction-selection/v1",
       "work-instructions/v1",
       "work-invocation/v1",
+      "work-operation-result/v1",
       "work-paths/v1",
       "work-plan-create/v1",
       "work-plan-prepare/v1",
@@ -91,6 +100,11 @@
       "work-skill-selection-validation/v1",
       "work-skill-selection/v1",
       "work-skill-snapshot/v1",
+      "work-source-impact/v1",
+      "work-source-refresh-batch-preview/v1",
+      "work-source-refresh-batch-publication/v1",
+      "work-source-refresh-preview/v1",
+      "work-source-refresh-publication/v1",
       "work-spec-migration-preview/v1",
       "work-spec-migration-publication/v1",
       "work-spec-prepare/v1",
@@ -121,6 +135,7 @@
       "work-task-repair-prepare/v1",
       "work-task-repair/v1",
       "work-task-validation/v1"
+      ,"work-workflow-state/v1"
     ]
   }
 }

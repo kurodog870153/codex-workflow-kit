@@ -15,20 +15,29 @@ class InstructionSourceModel(TaskNestedModel):
     kind: str
     logical_name: str
     canonical_sha256: str
+    compatibility_revision: int
+
+
+class LegacyInstructionSourceModel(TaskNestedModel):
+    kind: str
+    logical_name: str
+    canonical_sha256: str
 
 
 class TaskInstructionSelectionModel(TaskNestedModel):
     selected_paths: list[str]
     resolved_paths: list[str]
-    sources: list[InstructionSourceModel]
+    sources: list[InstructionSourceModel | LegacyInstructionSourceModel]
     references: list[str]
     instructions_sha256: str
+    routing_manifest: dict[str, Any] | None = None
 
 
 class DocumentInstructionSelectionModel(TaskNestedModel):
-    sources: list[InstructionSourceModel]
+    sources: list[InstructionSourceModel | LegacyInstructionSourceModel]
     references: list[str]
     instructions_sha256: str
+    routing_manifest: dict[str, Any] | None = None
 
 
 class TraceabilityModel(TaskNestedModel):

@@ -21,7 +21,9 @@ from ...models.execution.attempt import (
     TIMESTAMP_PATTERN, AttemptContract, AttemptValidationContract,
 )
 from ...models.execution.authorization import AttemptAuthorizationContract
-from ...models.execution.deviation import ExecutionDeviationContract
+from ...models.execution.deviation import (
+    ExecutionDeviationContract, ExecutionDeviationImpactModel,
+)
 
 
 def _authorization_sha256(value: object) -> str:
@@ -218,14 +220,19 @@ def _validate_records(
                 location=location,
             )
         kind = raw_record.get("kind")
-        field_spec = {
+        skipped = raw_record.get("status") == "skipped"
+        field_spec = ({
+            "command": ({"id", "kind", "status", "reason", "deviation_id"}, set()),
+            "operation": ({"id", "kind", "status", "reason", "deviation_id"}, set()),
+            "validation": ({"id", "kind", "status", "reason", "deviation_id"}, set()),
+        } if skipped else {
             "command": (
                 {"id", "kind", "exit_code", "result"},
                 {"correction"},
             ),
             "operation": ({"id", "kind", "outcome", "state"}, set()),
             "validation": ({"id", "kind", "outcome", "evidence"}, set()),
-        }.get(kind)
+        }).get(kind)
         if field_spec is None:
             _fail(
                 "attempt_invalid_record_kind",
@@ -270,6 +277,20 @@ def _validate_records(
             )
         seen.add(record_id)
         last_retry[base_id] = retry
+
+        if skipped:
+            result.append({
+                "id": record_id,
+                "kind": kind,
+                "status": "skipped",
+                "reason": _nonempty(record["reason"], location=f"{location}.reason"),
+                "deviation_id": _identifier(
+                    record["deviation_id"],
+                    location=f"{location}.deviation_id",
+                    pattern=re.compile(r"^DEVIATION-[0-9]{3}$"),
+                ),
+            })
+            continue
 
         if kind == "command":
             exit_code = record["exit_code"]
@@ -334,6 +355,55 @@ def _validate_records(
                 }
             )
     return result, outcomes
+
+
+def _validate_skip_records(
+    records: list[dict[str, Any]], deviations: list[dict[str, Any]], *, status: str,
+) -> None:
+    approved_skips = {
+        item["proposal"]["action"]["record_id"]: item
+        for item in deviations
+        if item["decision"]["outcome"] == "approved"
+        and item["proposal"]["action"]["kind"] == "skip_record"
+        and not ExecutionDeviationImpactModel.crosses_semantic_boundary(
+            item["proposal"]["impact"]
+        )
+    }
+    recorded: set[str] = set()
+    for record in records:
+        deviation = approved_skips.get(record["id"])
+        if record.get("status") == "skipped":
+            if deviation is None:
+                _fail(
+                    "attempt_unapproved_skipped_record",
+                    "A skipped record requires an approved skip_record deviation.",
+                    record_id=record["id"],
+                )
+            action = deviation["proposal"]["action"]
+            if (
+                record["deviation_id"] != deviation["deviation_id"]
+                or record["reason"] != action["reason"]
+            ):
+                _fail(
+                    "attempt_skipped_record_mismatch",
+                    "Skipped record evidence must match its approved deviation.",
+                    record_id=record["id"],
+                )
+            recorded.add(record["id"])
+        elif deviation is not None:
+            _fail(
+                "attempt_skip_record_result_mismatch",
+                "A record with an approved skip_record deviation must be recorded as skipped.",
+                record_id=record["id"],
+            )
+    if status == "completed":
+        missing = sorted(set(approved_skips) - recorded)
+        if missing:
+            _fail(
+                "attempt_missing_skipped_records",
+                "A completed Attempt must record every approved skip_record deviation.",
+                record_ids=missing,
+            )
 
 
 def _record_id_array(value: object, *, location: str) -> list[str]:
@@ -535,6 +605,7 @@ def canonicalize_attempt_contract(
     records, operation_outcomes = _validate_records(
         contract["records"], carried_retries=carried_retries
     )
+    _validate_skip_records(records, execution_deviations, status=status)
     has_operations = any(operation_outcomes.values())
     overall_result: dict[str, Any] | None = None
     if "overall_result" in contract:
@@ -838,6 +909,7 @@ TOP_FIELD_ORDER = (
     "task_instructions_sha256",
     "hierarchy_selection_sha256",
     "skill_selection_sha256",
+    "instruction_selection_manifest",
     "latest_task_instruction_audit",
     "lock",
     "overall_status",

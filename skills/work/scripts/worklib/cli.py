@@ -18,10 +18,12 @@ from .controllers.plan import register_plan_commands, run_plan
 from .controllers.progress import register_progress_commands, run_progress
 from .controllers.skill import register_skill_commands, run_skills
 from .controllers.task import register_task_commands, run_task
+from .controllers.workflow import register_workflow_commands, run_workflow
 from .controllers.delegation import register_delegation_commands, run_delegation
 from .controllers.contract import register_contract_commands, run_contract
 from .controllers.invocation import register_invocation_commands, run_invocation
 from .models.common.errors import ExitCode, WorkError
+from .business_services.workflow import execute_with_operation_context
 from .technical.infrastructure.file_io import fingerprint_file
 from .technical.foundation.jsonio import write_json
 from .technical.infrastructure.work_paths import (
@@ -64,6 +66,10 @@ class WorkArgumentParser(argparse.ArgumentParser):
 def build_parser() -> WorkArgumentParser:
     parser = WorkArgumentParser(prog="work.py")
     parser.add_argument("--project-root", required=True)
+    parser.add_argument(
+        "--verbose", action="store_true",
+        help="Return the complete canonical success payload instead of the brief projection.",
+    )
     commands = parser.add_subparsers(dest="command", required=True)
 
     register_contract_commands(commands)
@@ -97,6 +103,8 @@ def build_parser() -> WorkArgumentParser:
     register_progress_commands(commands)
 
     register_task_commands(commands)
+
+    register_workflow_commands(commands)
 
     register_execute_commands(commands)
     register_invocation_commands(commands)
@@ -163,6 +171,9 @@ def _run(
     if arguments.command == "task":
         return run_task(arguments, project_root, request)
 
+    if arguments.command == "workflow":
+        return run_workflow(arguments, project_root)
+
     if arguments.command == "execute":
         return run_execute(arguments, project_root, request)
 
@@ -194,7 +205,10 @@ def main(
         project_root = resolve_root(arguments.project_root, label="project root")
         path = getattr(arguments, "input_file", None)
         request = read_input_file(path) if path is not None else None
-        result = _run(arguments, project_root, request)
+        result = execute_with_operation_context(
+            arguments, project_root, Path(__file__).resolve().parents[2],
+            lambda: _run(arguments, project_root, request),
+        )
         # Preserve the existing data order independently of the fixed envelope.
         preserve_order = (
             arguments.command == "attempt" and arguments.attempt_command == "render"
@@ -203,13 +217,36 @@ def main(
         ) or (
             arguments.command == "contract" and arguments.contract_command == "scaffold"
         )
+        operation = next(
+            (
+                str(value)
+                for name, value in vars(arguments).items()
+                if name.endswith("_command") and value is not None
+            ),
+            "",
+        )
+        recovery_status = str(result.get("status", ""))
+        full_evidence = (
+            "recover" in operation
+            or "recovery" in operation
+            or recovery_status in {
+                "interrupted", "recovered", "recovery_required", "already_completed",
+            }
+        )
         write_json(
-            output, success_response(result, preserve_order=preserve_order), sort_keys=False,
+            output,
+            success_response(
+                result,
+                preserve_order=preserve_order,
+                verbose=arguments.verbose,
+                full_evidence=full_evidence,
+            ),
+            sort_keys=False,
         )
         return int(ExitCode.SUCCESS)
     except HelpRequested as help_result:
         write_json(
-            output, success_response({"help": help_result.text}), sort_keys=False,
+            output, success_response({"help": help_result.text}, verbose=True), sort_keys=False,
         )
         return int(ExitCode.SUCCESS)
     except WorkError as error:

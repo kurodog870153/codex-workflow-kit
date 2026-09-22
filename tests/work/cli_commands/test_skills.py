@@ -14,8 +14,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from cli_support import FileInputTestCase
 
-from worklib.cli import main
+from worklib.cli import main as _main
 from worklib.models.common.errors import ExitCode
+
+
+def main(arguments, **kwargs):
+    return _main(["--verbose", *arguments], **kwargs)
 from worklib.services.skill_catalog import SkillRoot, snapshot_catalog_skill
 from worklib.services.skill_selection import selection_sha256
 

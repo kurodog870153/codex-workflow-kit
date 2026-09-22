@@ -266,6 +266,7 @@ def publish_specification_migration(
     approved_sha256: str,
     validate_task_collection_contract=None,
     validate_plan_contract=None,
+    additional_candidates: dict[str, bytes] | None = None,
 ) -> dict[str, object]:
     request = SpecificationMigrationPreviewRequestContract.parse_json_bytes(
         raw_request, source="specification migration publication",
@@ -287,6 +288,15 @@ def publish_specification_migration(
         if preview["fingerprint"] != approved_sha256:
             _fail("migration_approval_changed", "The approved migration fingerprint changed.")
         sources, candidates, execution_dir = _migration_context(request, project_root)
+        for path, raw in sorted((additional_candidates or {}).items()):
+            normalized, target = resolve_project_relative_path(
+                project_root, path, field="additional_candidate.path"
+            )
+            if normalized in candidates:
+                _fail("migration_additional_candidate_duplicate", "An additional candidate duplicates a migration candidate.", path=normalized)
+            if target.is_file():
+                sources[normalized] = read_raw(target)
+            candidates[normalized] = raw
         journal = _transaction(request, preview, sources, candidates, execution_dir, project_root)
     elif operation == "recover":
         journal = validate_spec_transaction(read_raw(storage_path(project_root, journal_relative)), source=journal_relative)

@@ -105,7 +105,7 @@ def order_plan_contract(contract: dict[str, Any]) -> dict[str, Any]:
             instruction_selection["sources"] = [
                 _ordered_object(
                     source,
-                    ("kind", "logical_name", "canonical_sha256"),
+                    ("kind", "logical_name", "canonical_sha256", "compatibility_revision"),
                 )
                 for source in instruction_selection["sources"]
             ]

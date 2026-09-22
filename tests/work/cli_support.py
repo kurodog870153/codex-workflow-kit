@@ -17,6 +17,8 @@ class FileInputTestCase(unittest.TestCase):
 
     def input_arguments(self, arguments, raw: str | bytes) -> list[str]:
         result = list(arguments)
+        if "--project-root" in result and "--verbose" not in result:
+            result.insert(result.index("--project-root") + 2, "--verbose")
         if "--input-file" in result:
             position = result.index("--input-file") + 1
             result[position] = self.input_file(raw)

@@ -13,6 +13,7 @@ sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.models.execution import (
     ExecutionDeviationContract,
+    ExecutionDeviationAuthorizationContract,
     ExecutionDeviationPreviewContract,
     ExecutionDeviationProposalContract,
     ExecutionDeviationRecordContract,
@@ -42,6 +43,7 @@ class ExecutionDeviationContractTests(unittest.TestCase):
         for contract in (
             ExecutionDeviationProposalContract, ExecutionDeviationContract,
             ExecutionDeviationPreviewContract, ExecutionDeviationRecordContract,
+            ExecutionDeviationAuthorizationContract,
         ):
             with self.subTest(contract=contract.contract_id):
                 model = contract.model_validate(copy.deepcopy(contract.contract_example))
@@ -58,6 +60,9 @@ class ExecutionDeviationContractTests(unittest.TestCase):
         for action in actions:
             with self.subTest(kind=action["kind"]):
                 proposal = self.proposal()
+                if action["kind"] in {"skip_record", "adjust_operation"}:
+                    proposal["anchor_record_id"] = "OP-001"
+                    proposal["task_basis"] = ["OP-001", "STEP-001"]
                 proposal["action"] = action
                 parsed = ExecutionDeviationProposalContract.model_validate(proposal)
                 self.assertEqual(parsed.action.kind, action["kind"])
@@ -78,21 +83,27 @@ class ExecutionDeviationContractTests(unittest.TestCase):
                 with self.assertRaises(ValidationError):
                     ExecutionDeviationProposalContract.model_validate(proposal)
 
-    def test_rejects_semantic_boundary_changes_and_invalid_command_shapes(self) -> None:
+    def test_accepts_semantic_boundary_changes_and_rejects_invalid_command_shapes(self) -> None:
         boundary = self.proposal()
         boundary["impact"]["requirement_changed"] = True
+        parsed = ExecutionDeviationProposalContract.model_validate(boundary)
+        self.assertTrue(parsed.impact.requirement_changed)
+        scope = self.proposal()
+        scope["impact"]["scope_changed"] = True
+        self.assertTrue(
+            ExecutionDeviationProposalContract.model_validate(scope).impact.scope_changed
+        )
         invalid_command = self.proposal()
         invalid_command["action"]["replacement"] = {
             "mode": "argv", "argv": ["tool"], "script": "tool",
         }
-        for proposal in (boundary, invalid_command):
-            with self.subTest(proposal=proposal):
-                with self.assertRaises(ValidationError):
-                    ExecutionDeviationProposalContract.model_validate(proposal)
+        with self.assertRaises(ValidationError):
+            ExecutionDeviationProposalContract.model_validate(invalid_command)
 
     def test_rejected_decision_requires_not_needed_reconciliation(self) -> None:
         artifact = self.artifact()
         artifact["decision"] = {"outcome": "rejected", "evidence": "User rejected the proposal."}
+        artifact["supplemental_authorization"]["authorization_evidence"] = "User rejected the proposal."
         artifact["reconciliation_status"] = "pending"
 
         with self.assertRaises(ValidationError):
@@ -101,6 +112,118 @@ class ExecutionDeviationContractTests(unittest.TestCase):
         artifact["reconciliation_status"] = "not_needed"
         parsed = ExecutionDeviationContract.model_validate(artifact)
         self.assertEqual(parsed.reconciliation_status, "not_needed")
+
+    def test_approved_decision_remains_reconcilable(self) -> None:
+        artifact = self.artifact()
+        artifact["reconciliation_status"] = "not_needed"
+        with self.assertRaises(ValidationError):
+            ExecutionDeviationContract.model_validate(artifact)
+
+    def test_proposal_action_and_basis_bind_the_anchor(self) -> None:
+        cases = []
+        missing_basis = self.proposal()
+        missing_basis["task_basis"] = ["STEP-001"]
+        cases.append(missing_basis)
+        wrong_target = self.proposal()
+        wrong_target["action"]["record_id"] = "CMD-002"
+        cases.append(wrong_target)
+        wrong_position = self.proposal()
+        wrong_position["action"] = {
+            "kind": "add_command",
+            "after_record_id": "CMD-002",
+            "command": {"id": "CMD-003", "mode": "argv", "argv": ["tool"]},
+        }
+        cases.append(wrong_position)
+        wrong_operation = self.proposal()
+        wrong_operation["anchor_record_id"] = "OP-001"
+        wrong_operation["task_basis"] = ["OP-001"]
+        wrong_operation["action"] = {
+            "kind": "adjust_operation",
+            "operation": {
+                "id": "OP-002", "kind": "file", "action": "Update.",
+                "target": "src/app.py", "validation_id": "VAL-001",
+            },
+        }
+        cases.append(wrong_operation)
+        for proposal in cases:
+            with self.subTest(action=proposal["action"]):
+                with self.assertRaises(ValidationError):
+                    ExecutionDeviationProposalContract.model_validate(proposal)
+
+    def test_supplemental_authorization_binds_preview_action_and_fresh_evidence(self) -> None:
+        artifact = self.artifact()
+        authorization = artifact["supplemental_authorization"]
+        self.assertEqual(authorization["preview_sha256"], artifact["approved_preview_sha256"])
+        self.assertEqual(authorization["action"], artifact["proposal"]["action"])
+        self.assertNotEqual(
+            authorization["authorization_evidence"],
+            "User approved this exact Attempt scope.",
+        )
+
+    def test_artifact_rejects_cross_field_authorization_mismatches(self) -> None:
+        cases = []
+        fingerprint = self.artifact()
+        fingerprint["supplemental_authorization"]["preview_sha256"] = "d" * 64
+        cases.append(fingerprint)
+        action = self.artifact()
+        action["supplemental_authorization"]["action"] = {
+            "kind": "replace_command",
+            "record_id": "CMD-001",
+            "replacement": {"mode": "argv", "argv": ["other"]},
+        }
+        cases.append(action)
+        evidence = self.artifact()
+        evidence["decision"]["evidence"] = "Different evidence."
+        cases.append(evidence)
+        for artifact in cases:
+            with self.subTest(artifact=artifact):
+                with self.assertRaises(ValidationError):
+                    ExecutionDeviationContract.model_validate(artifact)
+
+    def test_supplemental_file_scope_is_preview_bound_and_defaults_empty(self) -> None:
+        proposal = self.proposal()
+        proposal.pop("modifiable_files")
+        self.assertEqual(
+            ExecutionDeviationProposalContract.model_validate(proposal).modifiable_files,
+            [],
+        )
+        artifact = self.artifact()
+        artifact["proposal"]["modifiable_files"] = ["src/extra.py"]
+        artifact["supplemental_authorization"]["modifiable_files"] = ["src/extra.py"]
+        parsed = ExecutionDeviationContract.model_validate(artifact)
+        self.assertEqual(
+            parsed.supplemental_authorization.modifiable_files, ["src/extra.py"]
+        )
+        artifact["supplemental_authorization"]["modifiable_files"] = []
+        with self.assertRaises(ValidationError):
+            ExecutionDeviationContract.model_validate(artifact)
+
+    def test_supplemental_file_scope_rejects_unsafe_or_duplicate_paths(self) -> None:
+        for paths in (["../outside.py"], ["src\\file.py"], ["src/a.py", "src/a.py"]):
+            with self.subTest(paths=paths):
+                proposal = self.proposal()
+                proposal["modifiable_files"] = paths
+                with self.assertRaises(ValidationError):
+                    ExecutionDeviationProposalContract.model_validate(proposal)
+
+    def test_preview_classification_and_blocking_follow_impact(self) -> None:
+        preview = copy.deepcopy(ExecutionDeviationPreviewContract.contract_example)
+        preview["proposal"]["impact"]["scope_changed"] = True
+        with self.assertRaises(ValidationError):
+            ExecutionDeviationPreviewContract.model_validate(preview)
+        preview["classification"] = "plan_and_task"
+        preview["blocking"] = True
+        self.assertTrue(ExecutionDeviationPreviewContract.model_validate(preview).blocking)
+
+    def test_record_classification_blocking_and_path_are_consistent(self) -> None:
+        record = copy.deepcopy(ExecutionDeviationRecordContract.contract_example)
+        record["blocking"] = True
+        with self.assertRaises(ValidationError):
+            ExecutionDeviationRecordContract.model_validate(record)
+        record = copy.deepcopy(ExecutionDeviationRecordContract.contract_example)
+        record["attempt_path"] = record["attempt_path"].replace("TASK-001", "TASK-002")
+        with self.assertRaises(ValidationError):
+            ExecutionDeviationRecordContract.model_validate(record)
 
 
 if __name__ == "__main__":

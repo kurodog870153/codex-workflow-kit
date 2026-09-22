@@ -14,6 +14,7 @@ from ...services.skill_catalog import SkillRoot
 from .context import read_contract, find_task_row, load_lifecycle_task_context, validate_execution_identity
 from .instructions import validate_execute_instructions
 from ...services.record.sequencing import BASE_RECORD_PATTERN, next_record_id, formal_record_kind
+from ...services.authorization.rules import effective_task
 
 
 LOCK_UPDATE_ERRORS = TransactionErrors(
@@ -145,8 +146,6 @@ def begin_record(
             "The requested TASK is not present in the formal TASK.",
             {"task_id": task_id},
         ) from error
-    record_kind = formal_record_kind(task, base_record_id)
-
     index_relative = f"{normalized_execution}/index.json"
     _, index_path = resolve_project_relative_path(
         project_root, index_relative, field="execution_index"
@@ -174,6 +173,8 @@ def begin_record(
             "record_begin_attempt_not_in_progress",
             "The latest Attempt is not in progress.",
         )
+    task = effective_task(task, attempt)
+    record_kind = formal_record_kind(task, base_record_id)
     row = validate_execution_identity(
         task_contract=task_contract,
         task_validation=task_validation,
@@ -211,7 +212,9 @@ def begin_record(
 
     record_id = next_record_id(base_record_id, attempt)
     require_record_scope(attempt, base_record_id)
-    retry_evidence = require_retry_evidence(record_id, authorization_evidence)
+    retry_evidence = require_retry_evidence(
+        attempt, record_id, authorization_evidence
+    )
     updated_index = copy.deepcopy(index)
     updated_index["lock"]["record_id"] = record_id
     if retry_evidence is not None:

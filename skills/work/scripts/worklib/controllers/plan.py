@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ..business_services.plan import create_plan_file, parse_roots, prepare_initial_plan, validate_plan_request
+from ..business_services.plan import create_plan_file, parse_roots, prepare_initial_plan, prepare_semantic_plan, validate_plan_request
 from . import SubparserRegistry
 
 
@@ -15,6 +15,11 @@ def register_plan_commands(commands: SubparserRegistry) -> None:
     prepare.add_argument("--user-config-root", required=True)
     prepare.add_argument("--skill-root", action="append", default=[])
     prepare.add_argument("--output-file")
+    semantic = plan_commands.add_parser("semantic-prepare")
+    semantic.add_argument("--input-file", required=True)
+    semantic.add_argument("--user-config-root", required=True)
+    semantic.add_argument("--skill-root", action="append", default=[])
+    semantic.add_argument("--output-file")
 
     plan_validate = plan_commands.add_parser("validate")
     plan_validate.add_argument("--user-config-root", required=True)
@@ -43,6 +48,10 @@ def run_plan(
         return prepare_initial_plan(raw, source=source, project_root=project_root,
                                     user_config_root=arguments.user_config_root, skill_roots=skill_roots,
                                     output_file=arguments.output_file)
+    if arguments.plan_command == "semantic-prepare":
+        return prepare_semantic_plan(raw, source=source, project_root=project_root,
+                                     user_config_root=arguments.user_config_root, skill_roots=skill_roots,
+                                     output_file=arguments.output_file)
     if arguments.plan_command == "create":
         return create_plan_file(
             raw,

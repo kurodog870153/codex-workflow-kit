@@ -121,7 +121,12 @@ class PlanInstructionContractTests(unittest.TestCase):
         )
         self.assertEqual(
             list(payload["work_instruction_selection"]["sources"][0]),
-            ["kind", "logical_name", "canonical_sha256"],
+            [
+                "kind",
+                "logical_name",
+                "canonical_sha256",
+                "compatibility_revision",
+            ],
         )
 
     def test_legacy_rule_selection_is_rejected(self) -> None:

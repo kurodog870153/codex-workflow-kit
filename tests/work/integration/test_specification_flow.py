@@ -57,7 +57,7 @@ class SpecificationFlowTests(unittest.TestCase):
     def run_cli(self, command, request_path, *extra):
         result = subprocess.run(
             [sys.executable, "-B", str(SCRIPT_ROOT / "work.py"),
-             "--project-root", str(self.root), "task", command,
+             "--project-root", str(self.root), "--verbose", "task", command,
              "--input-file", str(request_path), "--user-config-root", str(self.root), *extra],
             stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
             shell=False, timeout=60,
