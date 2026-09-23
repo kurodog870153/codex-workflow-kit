@@ -19,6 +19,12 @@ from worklib.models.common.errors import WorkError
 
 
 class TaskRepairContractTests(unittest.TestCase):
+    def test_prepare_rejects_caller_artifact_paths(self):
+        example = copy.deepcopy(TaskRepairPrepareRequestContract.contract_example)
+        example["artifacts"] = TaskRepairRequestContract.contract_example["artifacts"]
+        with self.assertRaises(WorkError):
+            TaskRepairPrepareRequestContract.parse_json_bytes(json.dumps(example).encode(), source="test")
+
     def test_registered_examples_round_trip(self):
         contracts = (TaskRepairPrepareRequestContract, TaskRepairRequestContract,
                      TaskRepairContract, TaskRepairPrepareContract)
@@ -61,3 +67,18 @@ class TaskRepairContractTests(unittest.TestCase):
         self.assertNotIn("publication_status", TaskRepairContract.model_validate(preview).to_canonical_dict())
         preview.update(status="repaired", publication_status="published")
         self.assertEqual(TaskRepairContract.model_validate(preview).publication_status, "published")
+
+    def test_nested_repair_rejects_formal_records_and_accepts_semantic_rows(self):
+        example = copy.deepcopy(TaskRepairPrepareRequestContract.contract_example)
+        base = {"task_id": "TASK-001", "field": "files"}
+        for edit in (
+            {**base, "after": [{"id": "FILE-001", "action": "modify", "path": "src.txt"}]},
+            {**base, "semantic_after": [{"key": "source", "id": "FILE-001", "action": "modify", "path": "src.txt"}]},
+            {**base, "semantic_after": [{"key": "source", "action": "modify", "path": "FILE-001"}]},
+        ):
+            example["edits"] = [edit]
+            with self.subTest(edit=edit), self.assertRaises(WorkError):
+                TaskRepairPrepareRequestContract.parse_json_bytes(json.dumps(example).encode(), source="test")
+        example["edits"] = [{**base, "semantic_after": [{"key": "source", "existing_position": 1,
+                                                         "action": "modify", "path": "src.txt"}]}]
+        self.assertEqual(TaskRepairPrepareRequestContract.model_validate(example).to_canonical_dict(), example)

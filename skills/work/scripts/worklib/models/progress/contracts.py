@@ -80,7 +80,7 @@ class ProgressPrepareContract(ProgressPreviewContract):
 
 class ProgressSaveRequestContract(WorkContract):
     contract_id: ClassVar[str] = "work-progress-save-request/v1"
-    contract_kind: ClassVar[Literal["request"]] = "request"
+    contract_kind: ClassVar[Literal["generated_request"]] = "generated_request"
     canonical_order: ClassVar[tuple[str, ...]] = ("schema", "path", "expected_revision", "previous_sha256", "progress")
     contract_example: ClassVar[dict[str, Any]] = {"schema": "work-progress-save-request/v1", "path": "outputs/work/progress/example/plan/progress.json", "expected_revision": 0, "previous_sha256": None, "progress": DiscussionProgressContract.contract_example}
     schema_: Literal["work-progress-save-request/v1"] = Field(alias="schema")

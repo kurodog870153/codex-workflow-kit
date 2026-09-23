@@ -1,7 +1,7 @@
 """Contracts for reconciling recorded execution deviations into specifications."""
 from __future__ import annotations
 
-from typing import ClassVar, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -12,11 +12,41 @@ from .migration import (
     SpecificationMigrationPreviewContract,
     SpecificationMigrationPublicationContract,
 )
+from .contracts import SpecificationSemanticEditModel
+
+
+class SpecificationReconciliationPrepareRequestContract(WorkContract):
+    contract_id: ClassVar[str] = "work-spec-reconciliation-prepare-request/v1"
+    contract_kind: ClassVar[Literal["semantic_request"]] = "semantic_request"
+    canonical_order: ClassVar[tuple[str, ...]] = (
+        "schema", "requirement_id", "task_position", "attempt_position", "choice", "deviation_positions", "reason", "edits", "semantic_decisions",
+    )
+
+    schema_: Literal["work-spec-reconciliation-prepare-request/v1"] = Field(alias="schema")
+    requirement_id: str = Field(min_length=1, pattern=r"\S")
+    task_position: int = Field(gt=0)
+    attempt_position: int = Field(gt=0)
+    choice: Literal["all", "selective", "retain_only"]
+    deviation_positions: list[int] = Field(default_factory=list)
+    reason: str | None = None
+    edits: list[SpecificationSemanticEditModel] = Field(default_factory=list)
+    semantic_decisions: list[dict[str, Any]] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_selection(self) -> "SpecificationReconciliationPrepareRequestContract":
+        if self.deviation_positions != sorted(set(self.deviation_positions)) or any(value < 1 for value in self.deviation_positions):
+            raise ValueError("deviation_positions must be positive, unique and sorted.")
+        if self.choice == "retain_only":
+            if self.deviation_positions or self.edits or self.reason or self.semantic_decisions:
+                raise ValueError("Retain-only does not revise specifications.")
+        elif not self.reason or not self.edits or (self.choice == "selective" and not self.deviation_positions) or (self.choice == "all" and self.deviation_positions):
+            raise ValueError("Selected deviations require a reason and semantic edits; selective choice also needs positions.")
+        return self
 
 
 class SpecificationReconciliationPreviewRequestContract(WorkContract):
     contract_id: ClassVar[str] = "work-spec-reconciliation-preview-request/v1"
-    contract_kind: ClassVar[Literal["request"]] = "request"
+    contract_kind: ClassVar[Literal["generated_request"]] = "generated_request"
     canonical_order: ClassVar[tuple[str, ...]] = (
         "schema", "attempt_path", "choice", "deviation_ids", "migration",
     )
@@ -176,8 +206,17 @@ SpecificationReconciliationPublicationContract.contract_example = {
     "deviation_classifications": {"DEVIATION-001": "task_only"},
 }
 SpecificationReconciliationLedgerContract.contract_example = SpecificationReconciliationPreviewContract.contract_example["ledger"]
+SpecificationReconciliationPrepareRequestContract.contract_example = {
+    "schema": "work-spec-reconciliation-prepare-request/v1",
+    "requirement_id": "example", "task_position": 1, "attempt_position": 1,
+    "choice": "all", "reason": "Approved deviation",
+    "edits": [{"target": {"artifact": "task_item", "task_id": "TASK-001"},
+               "field": "goal", "after": "Reviewed goal"}],
+    "semantic_decisions": [],
+}
 
 __all__ = [
+    "SpecificationReconciliationPrepareRequestContract",
     "SpecificationReconciliationPreviewRequestContract",
     "ReconciliationLedgerEntryModel",
     "SpecificationReconciliationLedgerContract",

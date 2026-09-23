@@ -15,12 +15,12 @@ from ...services.workflow import (
 
 _BOUND_COMMANDS = frozenset({"plan", "task", "execute", "delegation", "progress", "handoff"})
 _OPERATION_EFFECTS = {
-    "plan": {"create": "write", "prepare": "read_only", "semantic-prepare": "read_only", "validate": "read_only"},
+    "plan": {"create": "write", "semantic-prepare": "read_only", "validate": "read_only"},
     "task": {
         **{name: "read_only" for name in (
-            "diagnose", "draft-assemble", "draft-check", "draft-init-request", "draft-list-prepare",
-            "draft-read", "draft-save-request", "draft-status", "migration-preview",
-            "reconciliation-preview", "repair-prepare", "repair-validate", "semantic-prepare",
+            "diagnose", "draft-assemble", "draft-check",
+            "draft-read", "draft-save-request", "draft-status", "migration-prepare", "migration-preview",
+            "reconciliation-prepare", "reconciliation-preview", "repair-prepare", "repair-validate", "semantic-prepare",
             "spec-prepare", "spec-validate", "spec-verify", "validate",
         )},
         **{name: "write" for name in (
@@ -32,7 +32,7 @@ _OPERATION_EFFECTS = {
     },
     "execute": {
         **{name: "read_only" for name in (
-            "command-prepare", "deviation-prepare", "preflight", "recovery-prepare", "worktree",
+            "attempt-start-prepare", "command-prepare", "deviation-prepare-semantic", "preflight", "recovery-prepare", "worktree",
         )},
         **{name: "write" for name in (
             "attempt-close", "attempt-start", "command-correction", "correction-create",
@@ -40,10 +40,10 @@ _OPERATION_EFFECTS = {
         )},
         "command-run": "external_effect",
     },
-    "delegation": {"validate": "read_only"},
+    "delegation": {"build": "read_only", "validate": "read_only"},
     "progress": {"prepare": "read_only", "read": "read_only", "save": "write", "validate": "read_only"},
     "handoff": {name: "read_only" for name in (
-        "build-execute-to-plan", "build-execute-to-task", "build-plan-to-task", "build-task-to-execute",
+        "build-discussion", "build-execute-to-plan", "build-execute-to-task", "build-plan-to-task", "build-task-to-execute",
         "build-task-to-plan", "render", "validate", "verify-execute-to-plan",
         "verify-execute-to-task", "verify-plan-to-task", "verify-task-to-execute", "verify-task-to-plan",
     )},
@@ -78,7 +78,7 @@ def _routing_identity(arguments: argparse.Namespace) -> tuple[str, str, tuple[st
     if command == "handoff":
         return "execute", "continue_execution", ("handoff",), role
     if command == "delegation":
-        return "execute", "continue_execution", ("delegation",), str(arguments.role)
+        return "execute", "continue_execution", ("delegation",), str(getattr(arguments, "role", "main"))
     event_by_operation = {
         "attempt-start": "attempt_start", "recover-attempt-start": "recovery",
         "attempt-close": "attempt_close", "recover": "recovery",
@@ -231,4 +231,3 @@ __all__ = [
     "build_cli_operation_context", "execute_with_operation_context",
     "validate_operation_context",
 ]
-

@@ -135,6 +135,11 @@ class SpecTransactionContract(WorkContract):
         expected_approval = hashlib.sha256(encoded).hexdigest()
         if self.approval_sha256 != expected_approval:
             raise ValueError("The approval fingerprint does not match the file set.")
+        spec_kinds = ("UPDATE", "MIGRATION", "RECONCILIATION")
+        if self.transaction_id.startswith(tuple(f"SPEC-{kind}-" for kind in spec_kinds)) and self.transaction_id not in {
+            f"SPEC-{kind}-{expected_approval[:12].upper()}" for kind in spec_kinds
+        }:
+            raise ValueError("The transaction ID must derive from approved contents.")
         if self.published_count > len(self.files):
             raise ValueError("The published file count is invalid.")
         expected_state = (
@@ -151,7 +156,7 @@ class SpecTransactionContract(WorkContract):
 
 SpecTransactionContract.contract_example = {
     "schema": "work-spec-transaction/v1",
-    "transaction_id": "SPEC-UPDATE-001",
+    "transaction_id": "SPEC-UPDATE-655C3708CEA3",
     "approval_sha256": "655c3708cea35b6203cbeb668548c7f85921daf87dccb47d7abe3420c204a798",
     "state": "prepared",
     "published_count": 0,

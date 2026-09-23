@@ -13,7 +13,7 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts
 sys.path.insert(0, str(SCRIPT_ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from worklib.business_services.plan import create_plan_file, prepare_initial_plan
+from worklib.business_services.plan import create_plan_file, prepare_semantic_plan
 from contracts import test_plan as fixtures
 from worklib.models.common.errors import ExitCode, WorkError
 
@@ -68,16 +68,18 @@ class InitialPlanPreparationTests(unittest.TestCase):
         self.addCleanup(self.fixture.doCleanups)
         contract = self.fixture.contract
         self.root = self.fixture.project_root
-        self.request = {
-            "requirement_id": contract["requirement_id"],
-            "content": {key: copy.deepcopy(contract[key]) for key in (
-                "title", "summary", "goals", "scope", "deliverables", "acceptance_criteria")},
-            "hierarchy_selection": copy.deepcopy(contract["hierarchy_selection"]),
-            "skill_selection": copy.deepcopy(contract["skill_selection"]), "references": [],
-        }
+        self.request = {"requirement_id": contract["requirement_id"],
+            "title": contract["title"], "summary": contract["summary"],
+            "goals": [item["statement"] for item in contract["goals"]],
+            "scope": [item["statement"] for item in contract["scope"]],
+            "deliverables": [item["statement"] for item in contract["deliverables"]],
+            "acceptance_criteria": [item["statement"] for item in contract["acceptance_criteria"]],
+            "references": []}
+        self.request["hierarchy_selection_request"] = {"decision": "general_only", "selections": []}
+        self.request["skill_selection_request"] = {"decision": "base_only", "skills": []}
 
     def prepare(self):
-        return prepare_initial_plan(json.dumps(self.request).encode(), source="test",
+        return prepare_semantic_plan(json.dumps(self.request).encode(), source="test",
                                     project_root=self.root, user_config_root=str(self.root))
 
     def test_default_candidate_is_read_only_and_can_use_existing_create(self):
@@ -90,37 +92,40 @@ class InitialPlanPreparationTests(unittest.TestCase):
             raw_plan_path=result["path"], project_root=self.root, user_config_root=str(self.root))
         self.assertEqual(created["plan_sha256"], result["validation"]["plan_sha256"])
 
-    def test_custom_paths_require_all_three_and_preserve_routing(self):
-        self.request["artifacts"] = {"plan": "custom/plans/example.json",
-            "task": "custom/tasks/example/task.json", "execution": "custom/executions/example"}
-        self.assertEqual(self.prepare()["plan"]["artifacts"], self.request["artifacts"])
-        del self.request["artifacts"]["execution"]
-        with self.assertRaises(WorkError):
-            self.prepare()
-        self.assertEqual(list(self.root.iterdir()), [])
-
     def test_missing_content_and_machine_field_override_are_rejected(self):
         original = copy.deepcopy(self.request)
-        for change in ("missing", "status", "changes"):
+        for change in ("missing", "status", "content"):
             with self.subTest(change=change):
                 self.request = copy.deepcopy(original)
                 if change == "missing":
-                    del self.request["content"]["goals"]
+                    del self.request["goals"]
                 else:
-                    self.request["content"][change] = []
+                    self.request[change] = []
                 with self.assertRaises(WorkError):
                     self.prepare()
                 self.assertEqual(list(self.root.iterdir()), [])
 
-    def test_stale_selection_and_invalid_references_are_rejected(self):
+    def test_old_full_prepare_request_is_rejected(self):
+        old = {"requirement_id": self.request["requirement_id"],
+               "content": {"title": self.request["title"]},
+               "hierarchy_selection": self.fixture.contract["hierarchy_selection"],
+               "skill_selection": self.fixture.contract["skill_selection"], "references": []}
+        with self.assertRaises(WorkError) as caught:
+            prepare_semantic_plan(json.dumps(old).encode(), source="test",
+                project_root=self.root, user_config_root=str(self.root))
+        self.assertEqual(caught.exception.code, "invalid_object_fields")
+
+    def test_invalid_selection_choices_and_references_are_rejected(self):
         original = copy.deepcopy(self.request)
         for change in ("hierarchy", "skill", "references"):
             with self.subTest(change=change):
                 self.request = copy.deepcopy(original)
                 if change == "references":
                     self.request["references"] = ["unknown.reference"]
+                elif change == "hierarchy":
+                    self.request["hierarchy_selection_request"]["decision"] = "instruction_paths"
                 else:
-                    self.request[change + "_selection"]["selection_sha256"] = "0" * 64
+                    self.request["skill_selection_request"]["decision"] = "external_skills"
                 with self.assertRaises(WorkError):
                     self.prepare()
                 self.assertEqual(list(self.root.iterdir()), [])

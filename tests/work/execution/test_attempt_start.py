@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import sys
+import json
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -18,6 +20,7 @@ from worklib.business_services.execution.attempt_start import (
     _raise_transaction_error,
     _transaction_stage,
     _validate_snapshot,
+    prepare_attempt_start,
 )
 from worklib.services.attempt.lock import build_execution_lock
 from worklib.services.attempt.validation import (
@@ -29,6 +32,86 @@ from worklib.services.attempt import minimal_authorization
 
 
 class ExecuteInstructionAttemptStartTests(unittest.TestCase):
+    def test_prepare_derives_exact_authorization_and_retry_source(self) -> None:
+        task = {"id": "TASK-001", "commands": [{"id": "CMD-001", "mode": "argv", "argv": ["tool"]}],
+                "validations": [], "operations": [],
+                "files": [{"id": "FILE-001", "action": "modify", "path": "src.txt"}]}
+        operations = SimpleNamespace(load_task_execution_context=lambda *args, **kwargs: {
+            "contract": {"tasks": [task], "execution_defaults": {"working_directory": ".", "os": "windows", "shell": "powershell"}}})
+        choice = {"command_positions": [1], "validation_positions": [], "modifiable_files": ["src.txt"],
+                  "external_operation_positions": [], "allowed_deviations": [],
+                  "authorization_evidence": "User approved the exact scope.", "carried_records": []}
+        worktree = {"task_status": "pending", "snapshot_sha256": "a" * 64}
+        index = {"tasks": [{"id": "TASK-001", "status": "pending"}]}
+        with patch("worklib.business_services.execution.attempt_start.inspect_execute_worktree", return_value=worktree), \
+             patch("worklib.business_services.execution.attempt_start._read_index", return_value=(b"", index)):
+            result = prepare_attempt_start(json.dumps(choice).encode(), source="test",
+                project_root=REPO_ROOT, user_config_root=str(REPO_ROOT), raw_task_path="task.json",
+                raw_execution_dir="outputs/work/executions/example", task_id="TASK-001", operations=operations)
+        request = result["request"]
+        self.assertEqual(result["schema"], "work-attempt-start-prepare/v1")
+        self.assertEqual(request["authorization"]["commands"], task["commands"])
+        self.assertEqual(request["authorization"]["working_directories"], ["."])
+        self.assertEqual(request["worktree_snapshot_sha256"], "a" * 64)
+        self.assertNotIn("continuation", request)
+        index["tasks"][0].update(status="pending_retry", latest_attempt="ATTEMPT-001")
+        worktree["task_status"] = "pending_retry"
+        source = {"records": [{"id": "CMD-001"}], "carried_records": []}
+        with patch("worklib.business_services.execution.attempt_start.inspect_execute_worktree", return_value=worktree), \
+             patch("worklib.business_services.execution.attempt_start._read_index", return_value=(b"", index)), \
+             patch("worklib.business_services.execution.attempt_start._load_source_attempt", return_value=source):
+            retry = prepare_attempt_start(json.dumps(choice).encode(), source="test",
+                project_root=REPO_ROOT, user_config_root=str(REPO_ROOT), raw_task_path="task.json",
+                raw_execution_dir="outputs/work/executions/example", task_id="TASK-001", operations=operations)
+        self.assertEqual(retry["request"]["continuation"]["source_attempt_id"], "ATTEMPT-001")
+        choice.pop("carried_records")
+        with patch("worklib.business_services.execution.attempt_start.inspect_execute_worktree", return_value=worktree), \
+             patch("worklib.business_services.execution.attempt_start._read_index", return_value=(b"", index)), \
+             patch("worklib.business_services.execution.attempt_start._load_source_attempt", return_value=source):
+            omitted = prepare_attempt_start(json.dumps(choice).encode(), source="test",
+                project_root=REPO_ROOT, user_config_root=str(REPO_ROOT), raw_task_path="task.json",
+                raw_execution_dir="outputs/work/executions/example", task_id="TASK-001", operations=operations)
+        self.assertEqual(omitted["request"]["continuation"]["carried_records"], [])
+
+    def test_prepare_rejects_formal_scope_and_deviation_ids(self) -> None:
+        from worklib.models.execution.attempt_start import AttemptStartPrepareRequestContract
+        base = dict(AttemptStartPrepareRequestContract.contract_example)
+        for addition in ({"command_ids": ["CMD-001"]},
+                         {"allowed_deviations": [{"anchor_kind": "command", "anchor_position": 1,
+                           "action": {"kind": "skip_record", "record_id": "CMD-001", "reason": "skip"}}]},
+                         {"carried_records": [{"record_id": "CMD-001", "evidence": "valid"}]}):
+            with self.subTest(addition=addition), self.assertRaises(WorkError):
+                AttemptStartPrepareRequestContract.parse_json_bytes(json.dumps({**base, **addition}).encode(), source="test")
+
+    def test_prepare_formalizes_deviation_and_carried_position(self) -> None:
+        task = {"id": "TASK-001", "commands": [{"id": "CMD-001", "mode": "argv", "argv": ["tool"]}],
+                "validations": [], "operations": [], "files": []}
+        operations = SimpleNamespace(load_task_execution_context=lambda *args, **kwargs: {
+            "contract": {"tasks": [task], "execution_defaults": {"working_directory": ".", "os": "windows", "shell": "powershell"}}})
+        choice = {"command_positions": [1], "validation_positions": [], "modifiable_files": [],
+                  "external_operation_positions": [], "allowed_deviations": [{"anchor_kind": "command", "anchor_position": 1,
+                      "action": {"kind": "replace_command", "replacement": {"mode": "argv", "argv": ["tool", "fixed"]}}}],
+                  "authorization_evidence": "User approved this scope.", "carried_records": [{"position": 1, "evidence": "Still valid."}]}
+        worktree = {"task_status": "pending_retry", "snapshot_sha256": "a" * 64}
+        index = {"tasks": [{"id": "TASK-001", "status": "pending_retry", "latest_attempt": "ATTEMPT-001"}]}
+        source = {"records": [{"id": "CMD-001"}], "carried_records": []}
+        with patch("worklib.business_services.execution.attempt_start.inspect_execute_worktree", return_value=worktree), \
+             patch("worklib.business_services.execution.attempt_start._read_index", return_value=(b"", index)), \
+             patch("worklib.business_services.execution.attempt_start._load_source_attempt", return_value=source):
+            result = prepare_attempt_start(json.dumps(choice).encode(), source="test", project_root=REPO_ROOT,
+                user_config_root=str(REPO_ROOT), raw_task_path="task.json", raw_execution_dir="outputs/work/executions/example",
+                task_id="TASK-001", operations=operations)
+        self.assertEqual(result["request"]["authorization"]["allowed_deviations"][0]["record_id"], "CMD-001")
+        self.assertEqual(result["request"]["continuation"]["carried_records"][0]["record_id"], "CMD-001")
+
+    def test_prepare_rejects_old_complete_authorization(self) -> None:
+        with self.assertRaises(WorkError) as caught:
+            prepare_attempt_start(json.dumps({"authorization": minimal_authorization()}).encode(),
+                source="test", project_root=REPO_ROOT, user_config_root=str(REPO_ROOT),
+                raw_task_path="task.json", raw_execution_dir="outputs/work/executions/example",
+                task_id="TASK-001")
+        self.assertEqual(caught.exception.code, "invalid_object_fields")
+
     def test_transaction_stage_and_error_recovery_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)

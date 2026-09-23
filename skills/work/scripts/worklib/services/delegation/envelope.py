@@ -25,6 +25,20 @@ def fail(message: str) -> None:
     raise WorkError(ExitCode.CONTRACT, "delegation_boundary_mismatch", message)
 
 
+def build_delegation_envelope(*, role: str, mode: str, request: str,
+                              project_root: Path, skill_root: Path,
+                              context: dict[str, Any]) -> dict[str, Any]:
+    if role not in ROLES:
+        fail("Unknown delegation role.")
+    sender = "task-coordinator" if role == "task-skill" else "parent"
+    return DelegationEnvelopeContract.model_validate({
+        "schema": "work-delegation-envelope/v1", "marker": MARKERS[role],
+        "skill": "$work", "role": role, "sender": sender, "mode": mode,
+        "project_root": str(project_root.resolve()), "skill_root": str(skill_root.resolve()),
+        "request": request, "context": context,
+    }).to_canonical_dict()
+
+
 def validate_delegation_envelope(
     value: Any,
     *,

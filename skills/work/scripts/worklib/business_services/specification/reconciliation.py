@@ -1,6 +1,8 @@
 """Preview and publish specification reconciliation for immutable Attempts."""
 from __future__ import annotations
 
+import base64
+import json
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +11,7 @@ from ...models.specification.reconciliation import (
     SpecificationReconciliationPreviewContract,
     SpecificationReconciliationPreviewRequestContract,
     SpecificationReconciliationPublicationContract,
+    SpecificationReconciliationPrepareRequestContract,
 )
 from ...models.common.errors import ExitCode, WorkError
 from ...services.attempt.validation import render_attempt_json_contract
@@ -18,11 +21,78 @@ from ...services.specification.document_io import (
     render_json_contract,
 )
 from ...services.specification.storage import read_raw, resolve_project_relative_path
+from ...services.specification.document_io import parse_json_contract
+from ...services.specification.storage import write_prepared_output
 from ...services.specification import transaction as spec_transactions
 from ...services.execution.command import require_idle_writer, state_writer, storage_path
 from ...services.specification.transaction import require_no_spec_update
 from .migration import preview_specification_migration, publish_specification_migration
 from ...services.deviation.validation import deviation_reconciliation_target
+from ...services.specification.source_resolution import resolve_reconciliation_attempt
+
+
+def prepare_specification_reconciliation(
+    raw_request: bytes, *, project_root: Path, user_config_root: str, skill_roots=None,
+    task_operations=None, validate_task_collection_contract=None, validate_plan_contract=None,
+    output_file: str | None = None,
+) -> dict[str, object]:
+    """Build machine migration evidence from semantic specification edits."""
+    request = SpecificationReconciliationPrepareRequestContract.parse_json_bytes(
+        raw_request, source="specification reconciliation preparation",
+    ).to_canonical_dict()
+    attempt_path, attempt = resolve_reconciliation_attempt(
+        project_root, request["requirement_id"], request["task_position"], request["attempt_position"])
+    deviations = attempt.get("execution_deviations", [])
+    positions = request.get("deviation_positions", [])
+    if not isinstance(deviations, list) or any(position > len(deviations) for position in positions):
+        raise WorkError(ExitCode.CONTRACT, "reconciliation_deviation_position", "A selected deviation position does not exist.")
+    deviation_ids = sorted(deviations[position - 1]["deviation_id"] for position in positions)
+    migration = None
+    if request["choice"] != "retain_only":
+        from .workflow import prepare_specification
+        semantic = {"schema": "work-spec-prepare-request/v1", "requirement_id": request["requirement_id"],
+                    "reason": request["reason"], "edits": request["edits"]}
+        prepared = prepare_specification(
+            render_json_contract(semantic), project_root=project_root,
+            user_config_root=user_config_root, task_operations=task_operations,
+            skill_roots=skill_roots,
+        )
+        transaction = prepared["preview"]["transaction"]
+        candidate = prepared["request"]
+        artifacts = candidate["plan"]["artifacts"]
+        index_path = artifacts["task"]
+        execution_path = artifacts["execution"] + "/index.json"
+        directory = index_path.rsplit("/", 1)[0]
+        source_hashes = transaction["metadata"]["source_sha256"]
+        after_bytes = {row["path"]: base64.b64decode(row["after"]["base64"])
+                       for row in transaction["files"] if "after" in row}
+        execution_raw = after_bytes.get(execution_path)
+        if execution_raw is None:
+            _, resolved = resolve_project_relative_path(project_root, execution_path, field="execution_path")
+            execution_raw = read_raw(resolved)
+        documents = [
+            {"path": artifacts["plan"], "kind": "plan", "content": candidate["plan"]},
+            {"path": index_path, "kind": "task_index", "content": candidate["task_index"]},
+            {"path": execution_path, "kind": "execution_index", "content": json.loads(execution_raw)},
+        ]
+        documents.extend({"path": f"{directory}/tasks/{task_id}.json", "kind": "task_item",
+                          "task_id": task_id, "content": item}
+                         for task_id, item in sorted(candidate["task_items"].items()))
+        migration = {"schema": "work-spec-migration-preview-request/v1",
+                     "sources": [{"path": path, "raw_sha256": digest} for path, digest in sorted(source_hashes.items())],
+                     "candidates": documents, "semantic_decisions": request.get("semantic_decisions", [])}
+    full_request = {"schema": "work-spec-reconciliation-preview-request/v1",
+                    "attempt_path": attempt_path, "choice": request["choice"],
+                    "deviation_ids": deviation_ids, "migration": migration}
+    preview = preview_specification_reconciliation(
+        render_json_contract(full_request), project_root=project_root,
+        user_config_root=user_config_root, skill_roots=skill_roots,
+        validate_task_collection_contract=validate_task_collection_contract,
+        validate_plan_contract=validate_plan_contract,
+    )
+    if output_file is not None:
+        write_prepared_output(output_file, full_request)
+    return {"request": full_request, "preview": preview, "output_file": output_file}
 
 
 def _fail(code: str, message: str, **details: object) -> None:
@@ -57,6 +127,18 @@ def preview_specification_reconciliation(
     attempt = render_attempt_json_contract(attempt_raw, source=attempt_path, project_root=project_root)
     if attempt["status"] == "in_progress":
         _fail("reconciliation_attempt_open", "Reconciliation requires a closed Attempt.")
+    parts = attempt_path.rsplit("/", 3)
+    if (len(parts) != 4 or parts[1] != attempt.get("task_id")
+            or parts[2] != attempt.get("attempt_id") or parts[3] != "attempt.json"):
+        _fail("reconciliation_attempt_identity", "The Attempt path does not match its formal identity.")
+    index_path = parts[0] + "/index.json"
+    index = parse_json_contract(read_raw(storage_path(project_root, index_path)), source=index_path)
+    rows = index.get("tasks") if isinstance(index, dict) else None
+    matching = [row for row in rows if isinstance(row, dict) and row.get("id") == attempt["task_id"]] if isinstance(rows, list) else []
+    if (index.get("schema") != "work-execution-index/v1" or len(matching) != 1
+            or matching[0].get("latest_attempt") != attempt["attempt_id"]
+            or index.get("task_spec_id") != attempt.get("task_spec_id")):
+        _fail("reconciliation_attempt_not_latest", "The closed Attempt is no longer the latest verified execution source.")
     ledger_path = _ledger_path(attempt_path)
     existing_ledger = _existing_ledger(project_root, ledger_path, attempt_path)
     recorded_ids = {entry["deviation_id"] for entry in existing_ledger["entries"]}
@@ -158,7 +240,7 @@ def _publish_ledger_only(
     approval = spec_transactions.transaction_approval_sha256(files, metadata)
     journal = {
         "schema": "work-spec-transaction/v1",
-        "transaction_id": "SPEC-RECONCILIATION-" + preview["fingerprint"][:12].upper(),
+        "transaction_id": spec_transactions.derived_transaction_id("RECONCILIATION", approval),
         "approval_sha256": approval,
         "state": "prepared",
         "published_count": 0,

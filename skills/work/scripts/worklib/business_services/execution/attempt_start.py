@@ -19,12 +19,16 @@ from ...models.execution.attempt_start import (
     AttemptStartContract,
     AttemptStartRecoveryContract,
     AttemptStartRequestContract,
+    AttemptStartPrepareContract,
+    AttemptStartPrepareRequestContract,
 )
 from ...services.attempt.start_validation import parse_attempt_start_request
 from ...services.attempt.lock import build_execution_lock as _lock
 from ...services.attempt.sequencing import next_attempt_id as _attempt_id_after
 from ...services.attempt.state import lock_index as _locked_index_state, start_index
 from ...services.attempt import authorization_sha256, validate_authorization_scope
+from ...services.execution.semantic_deviation import formalize_semantic_action
+from ...models.execution.authorization import REAPPROVAL_CONDITIONS
 from ...models.common.errors import ExitCode, WorkError
 from .preflight import execute_preflight
 from .worktree import (
@@ -504,6 +508,101 @@ def _paths(
         project_root, index_relative, field="execution_index"
     )
     return execution_dir, execution_path, index_relative, index_path
+
+
+def prepare_attempt_start(
+    raw_request: bytes, *, source: str, project_root: Path, user_config_root: str,
+    raw_task_path: str, raw_execution_dir: str, task_id: str,
+    confirmed_inputs: list[str] | None = None, skill_roots: list[SkillRoot] | None = None,
+    operations=None,
+) -> dict[str, object]:
+    choice = AttemptStartPrepareRequestContract.parse_json_bytes(raw_request, source=source).to_canonical_dict()
+    worktree = inspect_execute_worktree(project_root=project_root, user_config_root=user_config_root,
+        raw_task_path=raw_task_path, raw_execution_dir=raw_execution_dir, task_id=task_id,
+        confirmed_inputs=confirmed_inputs, skill_roots=skill_roots, operations=operations)
+    context = operations.load_task_execution_context(project_root, user_config_root, raw_task_path, task_id, skill_roots=skill_roots)
+    task = next(item for item in context["contract"]["tasks"] if item["id"] == task_id)
+    defaults = context["contract"].get("execution_defaults")
+
+    def select(field: str, source_items: list[dict[str, Any]], positions: list[int]) -> list[dict[str, Any]]:
+        if len(positions) != len(set(positions)) or any(position > len(source_items) for position in positions):
+            _error(ExitCode.CONTRACT, "attempt_start_prepare_invalid_scope",
+                   "Selected positions must be unique and present in the current TASK.", field=field)
+        selected = set(positions)
+        return [copy.deepcopy(item) for position, item in enumerate(source_items, 1) if position in selected]
+
+    commands = select("command_positions", task.get("commands", []), choice["command_positions"])
+    validations = select("validation_positions", task.get("validations", []), choice["validation_positions"])
+    external = select("external_operation_positions", [item for item in task.get("operations", []) if item["kind"] == "external_state"], choice["external_operation_positions"])
+    formal_deviations = []
+    allocated = {"execution_deviations": []}
+    for selection in choice["allowed_deviations"]:
+        group = {"command": "commands", "validation": "validations", "operation": "operations"}[selection["anchor_kind"]]
+        records = task.get(group, [])
+        if selection["anchor_position"] > len(records):
+            _error(ExitCode.CONTRACT, "attempt_start_prepare_invalid_anchor", "The deviation anchor position is outside the current TASK.")
+        anchor = records[selection["anchor_position"] - 1]["id"]
+        formal = formalize_semantic_action(selection["action"], task, allocated, anchor)
+        if formal in formal_deviations:
+            _error(ExitCode.CONTRACT, "attempt_start_prepare_duplicate_deviation", "The same deviation cannot be authorized twice.")
+        formal_deviations.append(formal)
+        allocated["execution_deviations"].append({"proposal": {"action": formal}})
+    formal_files = [item[field] for item in task.get("files", []) for field in ("path", "source", "destination") if field in item]
+    files = choice["modifiable_files"]
+    if len(files) != len(set(files)) or not set(files) <= set(formal_files):
+        _error(ExitCode.CONTRACT, "attempt_start_prepare_invalid_scope", "Selected files must be unique and declared by the current TASK.", field="modifiable_files")
+    directories = []
+    for command in commands:
+        execution = command.get("execution") or defaults
+        if not isinstance(execution, dict):
+            _error(ExitCode.CONTRACT, "attempt_start_prepare_execution_required", "A selected command needs execution defaults.")
+        directory = execution["working_directory"]
+        if directory not in directories:
+            directories.append(directory)
+    authorization = validate_authorization_scope({
+        "schema": "work-attempt-authorization/v1", "task_id": task_id,
+        "commands": commands, "validations": validations, "modifiable_files": files,
+        "working_directories": directories, "external_operations": external,
+        "allowed_deviations": formal_deviations,
+        "reapproval_conditions": list(REAPPROVAL_CONDITIONS),
+        "authorization_evidence": choice["authorization_evidence"],
+    }, task=task, defaults=defaults)
+    _, _, _, index_path = _paths(project_root, raw_execution_dir)
+    _, index = _read_index(index_path)
+    row = _task_row(index, task_id)
+    status = row["status"]
+    if status not in {"pending", "pending_retry"} or status != worktree["task_status"]:
+        _error(ExitCode.WORKFLOW_STATE, "attempt_start_prepare_ineligible", "The TASK is not eligible for a new Attempt.")
+    request = {"schema": "work-attempt-start-request/v1",
+               "worktree_snapshot_sha256": worktree["snapshot_sha256"], "authorization": authorization}
+    source_attempt = None
+    if status == "pending_retry":
+        if not row.get("latest_attempt"):
+            _error(ExitCode.ARTIFACT_INTEGRITY, "attempt_start_latest_attempt_required", "A retry needs its latest Attempt.")
+        source_attempt = _load_source_attempt(project_root=project_root, execution_dir=raw_execution_dir,
+            task_id=task_id, source_attempt_id=row["latest_attempt"])
+        available = source_attempt["records"] + source_attempt.get("carried_records", [])
+        positions = [item["position"] for item in choice.get("carried_records", [])]
+        if len(positions) != len(set(positions)) or any(position > len(available) for position in positions):
+            _error(ExitCode.CONTRACT, "attempt_start_prepare_invalid_carried_position", "Carried record positions must be unique and present in the source Attempt.")
+        carried = [{"record_id": available[item["position"] - 1].get("id", available[item["position"] - 1].get("record_id")),
+                    "evidence": item["evidence"]} for item in choice.get("carried_records", [])]
+        request["continuation"] = {"source_attempt_id": row["latest_attempt"],
+                                   "carried_records": carried}
+    elif choice.get("carried_records"):
+        _error(ExitCode.CONTRACT, "attempt_start_unexpected_continuation", "An initial Attempt cannot carry records.")
+    request = AttemptStartRequestContract.model_validate(request).to_canonical_dict()
+    current = inspect_execute_worktree(project_root=project_root, user_config_root=user_config_root,
+        raw_task_path=raw_task_path, raw_execution_dir=raw_execution_dir, task_id=task_id,
+        confirmed_inputs=confirmed_inputs, skill_roots=skill_roots, operations=operations)
+    if current != worktree or _read_index(index_path)[1] != index or (source_attempt is not None and
+        _load_source_attempt(project_root=project_root, execution_dir=raw_execution_dir,
+            task_id=task_id, source_attempt_id=row["latest_attempt"]) != source_attempt):
+        _error(ExitCode.ARTIFACT_INTEGRITY, "attempt_start_prepare_source_changed", "Attempt sources changed during preparation.")
+    return AttemptStartPrepareContract.model_validate({
+        "schema": "work-attempt-start-prepare/v1", "status": "prepared",
+        "request": request, "authorization_sha256": authorization_sha256(authorization),
+    }).to_canonical_dict()
 
 
 def start_attempt(

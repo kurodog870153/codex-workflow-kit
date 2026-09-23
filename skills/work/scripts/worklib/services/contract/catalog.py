@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import types
-from typing import Any, Literal, Union, get_args, get_origin
+from typing import Annotated, Any, Literal, Union, get_args, get_origin
 
 from pydantic import BaseModel
 
@@ -15,7 +15,7 @@ from ...models.contract import (
     ContractFieldDescription,
     ContractScaffold,
 )
-from ...models.delegation import DelegationEnvelopeContract, DelegationValidationContract
+from ...models.delegation import DelegationBuildRequestContract, DelegationEnvelopeContract, DelegationValidationContract
 from ...models.invocation import InvocationContract
 from ...models.hierarchy import (
     HierarchyContract, HierarchySelectionContract,
@@ -32,25 +32,26 @@ from ...models.skill import (
 )
 from ...models.plan import (
     PlanContract, PlanCreateContract, PlanPrepareContract,
-    PlanPrepareRequestContract, PlanSemanticRequestContract, PlanValidationContract,
+    PlanSemanticRequestContract, PlanValidationContract,
 )
 from ...models.progress import (
     DiscussionProgressContract, ProgressPrepareContract, ProgressPreviewContract,
     ProgressReadContract, ProgressSaveContract, ProgressSaveRequestContract,
 )
-from ...models.handoff import HandoffContract, HandoffSourceValidationContract, HandoffValidationContract
+from ...models.handoff import DiscussionHandoffContract, DiscussionHandoffRequestContract, HandoffContract, HandoffSourceValidationContract, HandoffValidationContract
 from ...models.execution.inspection import (
     ExecutePreflightContract, ExecuteWorktreeContract, ExecuteWorktreeSnapshotContract,
 )
 from ...models.execution import (
     ExecutionDeviationContract, ExecutionDeviationPreviewContract,
     ExecutionDeviationProposalContract, ExecutionDeviationRecordContract,
+    ExecutionDeviationSemanticRequestContract,
 )
 from ...models.execution.index import ExecutionIndexContract
 from ...models.execution.attempt import AttemptContract, AttemptValidationContract
 from ...models.execution.correction import CorrectionContract
 from ...models.execution.correction import CorrectionCreateContract, CorrectionCreateRequestContract
-from ...models.execution.attempt_start import AttemptStartContract, AttemptStartRecoveryContract, AttemptStartRequestContract
+from ...models.execution.attempt_start import AttemptStartContract, AttemptStartRecoveryContract, AttemptStartRequestContract, AttemptStartPrepareContract, AttemptStartPrepareRequestContract
 from ...models.execution.authorization import AttemptAuthorizationContract
 from ...models.execution.attempt_close import AttemptCloseContract, AttemptCloseRequestContract
 from ...models.execution.record import RecordBeginContract, RecordFinishContract, RecordFinishRequestContract
@@ -93,10 +94,12 @@ from ...models.specification.contracts import (
     SpecificationPrepareContract, SpecificationUpdateContract, SpecificationVerificationContract,
 )
 from ...models.specification.migration import (
+    SpecificationMigrationPrepareRequestContract,
     SpecificationMigrationPreviewContract, SpecificationMigrationPreviewRequestContract,
     SpecificationMigrationPublicationContract,
 )
 from ...models.specification.reconciliation import (
+    SpecificationReconciliationPrepareRequestContract,
     SpecificationReconciliationPreviewContract,
     SpecificationReconciliationPreviewRequestContract,
     SpecificationReconciliationPublicationContract,
@@ -106,6 +109,8 @@ from ...models.specification.reconciliation import (
 def _type_name(annotation: Any) -> str:
     origin = get_origin(annotation)
     arguments = get_args(annotation)
+    if origin is Annotated:
+        return _type_name(arguments[0])
     if origin is Literal:
         return "literal"
     if origin in {Union, types.UnionType}:
@@ -132,6 +137,11 @@ def _type_name(annotation: Any) -> str:
 def _scaffold_value(annotation: Any, example: Any = None) -> Any:
     origin = get_origin(annotation)
     arguments = get_args(annotation)
+    if origin is Annotated:
+        inner = arguments[0]
+        if inner in {str, int, float, bool} and type(example) is inner:
+            return example
+        return _scaffold_value(inner, example)
     if origin in {Union, types.UnionType}:
         target = next((item for item in arguments if item is not type(None)), Any)
         return _scaffold_value(target, example)
@@ -187,7 +197,11 @@ class ContractRegistry:
         return ContractCatalog(
             schema="work-contract-catalog/v1",
             contracts=[
-                ContractCatalogEntry(id=contract_id, kind=contract.contract_kind)
+                ContractCatalogEntry(
+                    id=contract_id,
+                    kind=contract.contract_kind,
+                    caller_constructible=contract.contract_kind == "semantic_request",
+                )
                 for contract_id, contract in sorted(self._contracts.items())
             ],
         )
@@ -214,6 +228,7 @@ class ContractRegistry:
             schema="work-contract-description/v1",
             id=contract.contract_id,
             kind=contract.contract_kind,
+            caller_constructible=contract.contract_kind == "semantic_request",
             required=required,
             optional=optional,
             canonical_order=list(contract.canonical_order),
@@ -223,11 +238,18 @@ class ContractRegistry:
 
     def scaffold(self, contract_id: str) -> ContractScaffold:
         contract = self.model(contract_id)
-        if contract.contract_kind != "request":
+        if contract.contract_kind == "generated_request":
+            raise WorkError(
+                ExitCode.CONTRACT,
+                "generated_request_not_caller_constructible",
+                "Generated requests cannot be scaffolded as caller input.",
+                {"contract_id": contract_id, "kind": contract.contract_kind},
+            )
+        if contract.contract_kind != "semantic_request":
             raise WorkError(
                 ExitCode.CONTRACT,
                 "contract_scaffold_requires_request",
-                "Only request contracts have public input scaffolds.",
+                "Only semantic request contracts have public input scaffolds.",
                 {"contract_id": contract_id, "kind": contract.contract_kind},
             )
         example = dict(contract.contract_example or {})
@@ -247,6 +269,8 @@ registry.register(
     AttemptCloseContract,
     AttemptCloseRequestContract,
     AttemptStartContract,
+    AttemptStartPrepareContract,
+    AttemptStartPrepareRequestContract,
     AttemptStartRecoveryContract,
     AttemptStartRequestContract,
     AttemptValidationContract,
@@ -263,6 +287,7 @@ registry.register(
     ExecutionDeviationContract,
     ExecutionDeviationPreviewContract,
     ExecutionDeviationProposalContract,
+    ExecutionDeviationSemanticRequestContract,
     ExecutionDeviationRecordContract,
     ExecutionIndexContract,
     ExecutionRecoveryContract,
@@ -277,6 +302,7 @@ registry.register(
     ContractCatalog,
     ContractDescription,
     ContractScaffold,
+    DelegationBuildRequestContract,
     DelegationEnvelopeContract,
     DelegationValidationContract,
     ErrorContract,
@@ -303,7 +329,6 @@ registry.register(
     PlanContract,
     PlanCreateContract,
     PlanPrepareContract,
-    PlanPrepareRequestContract,
     PlanSemanticRequestContract,
     PlanValidationContract,
     DiscussionProgressContract,
@@ -313,6 +338,8 @@ registry.register(
     ProgressSaveContract,
     ProgressSaveRequestContract,
     HandoffContract,
+    DiscussionHandoffContract,
+    DiscussionHandoffRequestContract,
     HandoffSourceValidationContract,
     HandoffValidationContract,
     SpecTransactionContract,
@@ -320,9 +347,11 @@ registry.register(
     SpecificationUpdateRequestContract,
     SpecificationVerificationRequestContract,
     SpecificationPrepareContract, SpecificationUpdateContract, SpecificationVerificationContract,
+    SpecificationMigrationPrepareRequestContract,
     SpecificationMigrationPreviewContract,
     SpecificationMigrationPreviewRequestContract,
     SpecificationMigrationPublicationContract,
+    SpecificationReconciliationPrepareRequestContract,
     SpecificationReconciliationPreviewContract,
     SpecificationReconciliationPreviewRequestContract,
     SpecificationReconciliationPublicationContract,
@@ -352,5 +381,3 @@ registry.register(
     OperationEnvelopeContract,
     OperationResultContract,
 )
-
-

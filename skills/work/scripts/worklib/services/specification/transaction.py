@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import base64
+from datetime import datetime, timezone
 from pathlib import Path
+import secrets
 from typing import Any
 
 from ...technical.foundation.fingerprint import canonical_json_sha256, raw_sha256
@@ -34,6 +36,27 @@ def transaction_directory(
     return resolve_project_relative_path(project_root, f"outputs/work/transactions/{owner}/{workflow}/{transaction}", field="transaction_directory")
 
 
+def _new_workspace_id() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + secrets.token_hex(4)
+
+
+def create_transaction_workspace(project_root: Path, *, requirement_id: str | None, workflow_id: str) -> dict[str, str | None]:
+    """Allocate and exclusively create one transport workspace; never reuse evidence."""
+    transaction_id = _new_workspace_id()
+    relative, directory = transaction_directory(project_root, requirement_id=requirement_id,
+                                                workflow_id=workflow_id, transaction_id=transaction_id)
+    if directory.exists() or directory.is_symlink():
+        raise WorkError(ExitCode.WORKFLOW_STATE, "transaction_workspace_exists", "A generated transaction workspace already exists.", {"path": relative})
+    try:
+        directory.mkdir(parents=True, exist_ok=False)
+    except FileExistsError as error:
+        raise WorkError(ExitCode.WORKFLOW_STATE, "transaction_workspace_exists", "A generated transaction workspace already exists.", {"path": relative}) from error
+    except OSError as error:
+        raise WorkError(ExitCode.IO_FAILURE, "transaction_workspace_create_failed", "The transaction workspace could not be created.", {"path": relative}) from error
+    return {"schema": "work-transaction-workspace/v1", "requirement_id": requirement_id,
+            "workflow_id": workflow_id, "transaction_id": transaction_id, "path": relative}
+
+
 def encode_snapshot(raw: bytes) -> dict[str, str]:
     return {
         "raw_sha256": raw_sha256(raw),
@@ -43,6 +66,14 @@ def encode_snapshot(raw: bytes) -> dict[str, str]:
 
 def transaction_approval_sha256(files: list[dict[str, Any]], metadata: dict[str, Any]) -> str:
     return canonical_json_sha256({"files": files, "metadata": metadata})
+
+
+def derived_transaction_id(kind: str, approval_sha256: str) -> str:
+    if kind not in {"UPDATE", "MIGRATION", "RECONCILIATION"} or len(approval_sha256) != 64 or any(
+        character not in "0123456789abcdef" for character in approval_sha256
+    ):
+        raise WorkError(ExitCode.CONTRACT, "spec_transaction_identity", "A validated transaction kind and approval fingerprint are required.")
+    return f"SPEC-{kind}-{approval_sha256[:12].upper()}"
 
 
 def canonicalize_spec_transaction(contract: object) -> dict[str, Any]:
@@ -159,6 +190,7 @@ def publish_journal(
 
 __all__ = [
     "canonicalize_spec_transaction",
+    "derived_transaction_id",
     "completion_marker_matches",
     "encode_snapshot",
     "publish_journal",

@@ -20,7 +20,7 @@ class WorkflowSemanticModelTests(unittest.TestCase):
         plan = PlanSemanticRequestContract.model_validate(PlanSemanticRequestContract.contract_example)
         task = TaskSemanticRequestContract.model_validate(TaskSemanticRequestContract.contract_example)
         self.assertNotIn("artifacts", plan.to_canonical_dict())
-        self.assertNotIn("id", task.to_canonical_dict()["tasks"][0])
+        self.assertNotIn("id", task.to_canonical_dict()["upsert"][0])
 
     def test_workflow_state_preserves_confirmation_gate(self):
         state = WorkflowStateContract.model_validate(WorkflowStateContract.contract_example)

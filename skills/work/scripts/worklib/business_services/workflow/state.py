@@ -8,6 +8,7 @@ from ...services.workflow import (
     build_routing_selection, build_verified_state_sha256, inspect_requirement_state,
 )
 from ...models.specification.reconciliation import SpecificationReconciliationLedgerContract
+from .guidance import next_action_guidance
 
 
 def inspect_workflow_artifacts(project_root, requirement_id, *, plan_path=None):
@@ -77,6 +78,7 @@ def _result(skill_root, requirement_id: str, artifacts: dict[str, str], status: 
         "status": status, "next_action": next_action, "target": target,
         "requires_user_confirmation": confirmation, "required_checks": checks,
         "artifacts": artifacts, **routing, "details": details or {},
+        **next_action_guidance(next_action, requirement_id, artifacts),
     }).to_canonical_dict()
 
 

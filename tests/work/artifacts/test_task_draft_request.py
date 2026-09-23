@@ -181,11 +181,10 @@ class TaskDraftRequestTests(FileInputTestCase):
         self.request["open_questions"] = []
         self.request["next_discussion_point"] = None
         self.request["task_candidate"] = {"id": "TASK-002"}
-        self.assert_rejected("task_candidate_boundary_mismatch")
-        entry = self.index["tasks"][0]
+        self.assert_rejected("invalid_object_fields")
         self.request["task_candidate"] = {
-            **{field: entry[field] for field in ("id", "title", "goal", "skill_id", "dependencies")},
-            "instruction_selection": {"instructions_sha256": entry["instructions_sha256"]},
+            "steps": [{"key": "review", "action": "Review result.", "references": [{"kind": "validations", "key": "result"}]}],
+            "validations": [{"key": "result", "kind": "manual", "confirmer": "User", "criteria": "Result is observable.", "acceptance_positions": [1]}],
         }
         self.save()
         draft = read_task_draft(self.root, "example", "TASK-001")
@@ -193,7 +192,7 @@ class TaskDraftRequestTests(FileInputTestCase):
         self.assertEqual(draft["status"], "refined")
 
     def test_request_replaces_discussion_and_does_not_retain_omitted_candidate(self):
-        self.request["task_candidate"] = {"id": "TASK-001"}
+        self.request["task_candidate"] = {"steps": []}
         self.save()
         self.options["expected_revision"] = 2
         del self.request["task_candidate"]

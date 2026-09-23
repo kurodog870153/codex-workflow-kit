@@ -3,20 +3,25 @@
   "kinds": {
     "request": [
       "work-attempt-close-request/v1",
+      "work-attempt-start-prepare-request/v1",
       "work-attempt-start-request/v1",
       "work-command-correction-request/v1",
       "work-command-run-request/v1",
       "work-correction-create-request/v1",
+      "work-delegation-build-request/v1",
+      "work-discussion-handoff-request/v1",
       "work-execution-deviation-proposal/v1",
+      "work-execution-deviation-semantic-request/v1",
       "work-execution-recovery-prepare-request/v1",
       "work-execution-recovery-request/v1",
       "work-operation-envelope/v1",
-      "work-plan-prepare-request/v1",
       "work-plan-semantic-request/v1",
       "work-progress-save-request/v1",
       "work-record-finish-request/v1",
+      "work-spec-migration-prepare-request/v1",
       "work-spec-migration-preview-request/v1",
       "work-spec-prepare-request/v1",
+      "work-spec-reconciliation-prepare-request/v1",
       "work-spec-reconciliation-preview-request/v1",
       "work-spec-update-request/v1",
       "work-spec-verification-request/v1",
@@ -51,6 +56,7 @@
     ],
     "response": [
       "work-attempt-close/v1",
+      "work-attempt-start-prepare/v1",
       "work-attempt-start-recovery/v1",
       "work-attempt-start/v1",
       "work-attempt-validation/v1",
@@ -64,6 +70,7 @@
       "work-correction-create/v1",
       "work-correction-validation/v1",
       "work-delegation-validation/v1",
+      "work-discussion-handoff/v1",
       "work-execute-preflight/v1",
       "work-execute-worktree-snapshot/v1",
       "work-execute-worktree/v1",
@@ -134,8 +141,9 @@
       "work-task-planning-index-validation/v1",
       "work-task-repair-prepare/v1",
       "work-task-repair/v1",
-      "work-task-validation/v1"
-      ,"work-workflow-state/v1"
+      "work-task-validation/v1",
+      "work-transaction-workspace/v1",
+      "work-workflow-state/v1"
     ]
   }
 }

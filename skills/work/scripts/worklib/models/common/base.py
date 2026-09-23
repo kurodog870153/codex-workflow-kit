@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from .errors import ExitCode, WorkError
 
 
-ContractKind = Literal["request", "response", "artifact", "envelope"]
+ContractKind = Literal["semantic_request", "generated_request", "response", "artifact", "envelope"]
 
 
 class WorkContract(BaseModel):

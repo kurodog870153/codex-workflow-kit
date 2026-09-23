@@ -65,15 +65,15 @@ class ExecutionServiceTests(unittest.TestCase):
         record.assert_called_once()
 
     @patch("worklib.business_services.execution.workflow.require_no_spec_update")
-    @patch("worklib.orchestration.execution.ExecutionCapabilities.prepare_execution_deviation", return_value={"status": "preview"})
+    @patch("worklib.orchestration.execution.ExecutionCapabilities.prepare_semantic_execution_deviation", return_value={"status": "preview"})
     @patch("worklib.business_services.execution.workflow.state_writer")
-    def test_deviation_prepare_does_not_acquire_writer(
+    def test_semantic_deviation_prepare_does_not_acquire_writer(
         self, writer, prepare, require_no_spec_update
     ) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            with patch.object(ExecutionCapabilities, "prepare_execution_deviation", prepare):
+            with patch.object(ExecutionCapabilities, "prepare_semantic_execution_deviation", prepare):
                 result = ExecutionService(ExecutionCapabilities).execute(
-                    "deviation-prepare", **self.options(Path(temporary)),
+                    "deviation-prepare-semantic", **self.options(Path(temporary)),
                     raw_request=b"{}", source="test",
                 )
         self.assertEqual(result, {"status": "preview"})

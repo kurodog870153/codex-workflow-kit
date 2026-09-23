@@ -33,12 +33,11 @@ def finish_attempt_candidate(
     expected_kind: str, command_correction: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     record = copy.deepcopy(request["record"])
-    if record.get("id") != expected_record_id:
-        _fail("record_finish_record_id_mismatch", "The result record ID does not match the execution lock.", expected=expected_record_id, actual=record.get("id"))
-    if record.get("kind") != expected_kind:
-        _fail("record_finish_record_kind_mismatch", "The result record kind does not match the formal TASK record.", expected=expected_kind, actual=record.get("kind"))
-    if "correction" in record:
-        _fail("record_finish_untrusted_command_correction", "A record-finish request cannot supply command correction data.")
+    repeated = sorted(set(record) & {"id", "kind", "correction"})
+    if repeated:
+        _fail("record_finish_machine_fields", "Record identity and command correction are derived from the active lock.", fields=repeated)
+    record["id"] = expected_record_id
+    record["kind"] = expected_kind
     if command_correction is not None:
         if expected_kind != "command":
             raise WorkError(ExitCode.ARTIFACT_INTEGRITY, "record_finish_invalid_command_correction_lock", "Only a reserved command can carry command correction data.", None)

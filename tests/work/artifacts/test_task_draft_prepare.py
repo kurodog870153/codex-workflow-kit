@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -15,6 +16,8 @@ from worklib.business_services.task.draft_list import update_task_planning_list
 from worklib.orchestration.task import initialize_task_planning_request, prepare_task_planning_request
 from worklib.business_services.plan import render_plan_contract
 from worklib.models.common.errors import WorkError
+from worklib.business_services.task.draft_prepare import prepare_semantic_task_request
+from worklib.orchestration.task import TaskDraftOperations
 
 
 class DraftPreparationTests(unittest.TestCase):
@@ -37,6 +40,57 @@ class DraftPreparationTests(unittest.TestCase):
 
     def edit(self, payload, revision=1):
         return prepare_task_planning_request(self.root, "example", payload, expected_revision=revision, **self.options)
+
+    def semantic(self, payload, revision=0):
+        return prepare_semantic_task_request(self.root, "example", json.dumps(payload).encode(),
+            source="test", expected_revision=revision, operations=TaskDraftOperations, **self.options)
+
+    def semantic_item(self, *, existing=None, dependencies=None):
+        item = {key: copy.deepcopy(value) for key, value in self.boundary.items() if key != "id"}
+        item["dependencies"] = dependencies or []
+        if existing is not None:
+            item["existing_task_id"] = existing
+        return item
+
+    def test_semantic_split_allocates_ids_and_retires_old_task(self):
+        self.initialize()
+        payload = {"upsert": [self.semantic_item(),
+                   self.semantic_item(dependencies=[{"upsert_position": 1}])],
+                   "remove_task_ids": ["TASK-001"],
+                   "current_task": {"upsert_position": 1}, "reason": "Confirmed split"}
+        prepared = self.semantic(payload, revision=1)
+        self.assertEqual([item["id"] for item in prepared["index"]["tasks"]], ["TASK-002", "TASK-003"])
+        self.assertEqual(prepared["index"]["tasks"][1]["dependencies"], ["TASK-002"])
+        self.assertEqual(prepared["index"]["retired_task_ids"], ["TASK-001"])
+        self.assertEqual(read_task_planning_index(self.root, "example")["revision"], 1)
+
+    def test_semantic_merge_and_stale_revision(self):
+        second = copy.deepcopy(self.boundary)
+        second["id"] = "TASK-002"
+        self.request["tasks"].append(second)
+        self.initialize()
+        merged = self.semantic_item(existing="TASK-002")
+        merged["goal"] = "Merged outcome"
+        payload = {"upsert": [merged], "remove_task_ids": ["TASK-001"],
+                   "current_task": {"existing_task_id": "TASK-002"}, "reason": "Confirmed merge"}
+        prepared = self.semantic(payload, revision=1)
+        self.assertEqual([item["id"] for item in prepared["index"]["tasks"]], ["TASK-002"])
+        self.assertEqual(prepared["index"]["retired_task_ids"], ["TASK-001"])
+        with self.assertRaises(WorkError) as caught:
+            self.semantic(payload, revision=2)
+        self.assertEqual(caught.exception.code, "draft_revision_conflict")
+
+    def test_semantic_rejects_old_ids_and_removed_dependency(self):
+        self.initialize()
+        old = {"tasks": [self.boundary], "current_task": 1}
+        with self.assertRaises(WorkError) as caught:
+            self.semantic(old, revision=1)
+        self.assertEqual(caught.exception.code, "invalid_object_fields")
+        payload = {"upsert": [self.semantic_item(dependencies=[{"existing_task_id": "TASK-001"}])],
+                   "remove_task_ids": ["TASK-001"], "current_task": None, "reason": "Replace"}
+        with self.assertRaises(WorkError) as caught:
+            self.semantic(payload, revision=1)
+        self.assertEqual(caught.exception.code, "invalid_semantic_task_reference")
 
     def test_initial_preview_and_save_derive_metadata_without_formal_artifacts(self):
         before = self.snapshot()

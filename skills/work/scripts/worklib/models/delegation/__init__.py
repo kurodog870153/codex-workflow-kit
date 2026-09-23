@@ -1,4 +1,5 @@
 from .contracts import (
+    DelegationBuildRequestContract,
     DelegationEnvelopeContract,
     DelegationMode,
     DelegationRole,
@@ -6,6 +7,7 @@ from .contracts import (
 )
 
 __all__ = [
+    "DelegationBuildRequestContract",
     "DelegationEnvelopeContract",
     "DelegationMode",
     "DelegationRole",

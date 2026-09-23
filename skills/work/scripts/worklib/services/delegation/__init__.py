@@ -8,6 +8,7 @@ from .context_validation import (
     text_array,
 )
 from .envelope import (
+    build_delegation_envelope,
     MAIN_MODES,
     MARKERS,
     ROLES,
@@ -18,6 +19,7 @@ from .envelope import (
 from .transport import delegation_skill_root, parse_delegation_request
 
 __all__ = [
+    "build_delegation_envelope",
     "MAIN_MODES",
     "MARKERS",
     "ROLES",

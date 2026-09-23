@@ -68,7 +68,7 @@ class CliFileTransportTests(FileInputTestCase):
                 "schema": "work-paths/v1",
             },
         )
-        self.assertEqual(complete["project_root"], str(self.root))
+        self.assertEqual(complete["project_root"], str(self.root.resolve()))
 
     def test_full_evidence_bypasses_brief_projection_for_recovery(self):
         result = {

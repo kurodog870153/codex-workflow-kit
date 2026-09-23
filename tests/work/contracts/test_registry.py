@@ -18,7 +18,7 @@ from worklib.models.common.errors import WorkError
 
 class SampleContract(WorkContract):
     contract_id: ClassVar[str] = "work-sample/v1"
-    contract_kind: ClassVar[Literal["request"]] = "request"
+    contract_kind: ClassVar[Literal["semantic_request"]] = "semantic_request"
     canonical_order: ClassVar[tuple[str, ...]] = ("schema", "value")
     contract_example: ClassVar[dict[str, object]] = {
         "schema": "work-sample/v1",
@@ -40,6 +40,8 @@ class ContractRegistryTests(unittest.TestCase):
                 "work-attempt-authorization/v1",
                 "work-attempt-close-request/v1",
                 "work-attempt-close/v1",
+                "work-attempt-start-prepare-request/v1",
+                "work-attempt-start-prepare/v1",
                 "work-attempt-start-recovery/v1",
                 "work-attempt-start-request/v1",
                 "work-attempt-start/v1",
@@ -58,8 +60,11 @@ class ContractRegistryTests(unittest.TestCase):
                 "work-correction-create-request/v1",
                 "work-correction-create/v1",
                 "work-correction/v1",
+                "work-delegation-build-request/v1",
                 "work-delegation-envelope/v1",
                 "work-delegation-validation/v1",
+                "work-discussion-handoff-request/v1",
+                "work-discussion-handoff/v1",
                 "work-discussion-progress/v1",
                 "work-error/v1",
                 "work-execute-preflight/v1",
@@ -68,6 +73,7 @@ class ContractRegistryTests(unittest.TestCase):
                 "work-execution-deviation-preview/v1",
                 "work-execution-deviation-proposal/v1",
                 "work-execution-deviation-record/v1",
+                "work-execution-deviation-semantic-request/v1",
                 "work-execution-deviation/v1",
                 "work-execution-index/v1",
                 "work-execution-recovery-evidence/v1",
@@ -91,7 +97,6 @@ class ContractRegistryTests(unittest.TestCase):
                 "work-operation-envelope/v1",
                 "work-operation-result/v1",
                 "work-plan-create/v1",
-                "work-plan-prepare-request/v1",
                 "work-plan-prepare/v1",
                 "work-plan-semantic-request/v1",
                 "work-plan-validation/v1",
@@ -112,11 +117,13 @@ class ContractRegistryTests(unittest.TestCase):
                 "work-source-impact/v1",
                 "work-source-refresh-preview/v1",
                 "work-source-refresh-publication/v1",
+                "work-spec-migration-prepare-request/v1",
                 "work-spec-migration-preview-request/v1",
                 "work-spec-migration-preview/v1",
                 "work-spec-migration-publication/v1",
                 "work-spec-prepare-request/v1",
                 "work-spec-prepare/v1",
+                "work-spec-reconciliation-prepare-request/v1",
                 "work-spec-reconciliation-preview-request/v1",
                 "work-spec-reconciliation-preview/v1",
                 "work-spec-reconciliation-publication/v1",
@@ -160,12 +167,14 @@ class ContractRegistryTests(unittest.TestCase):
         self.assertEqual(description["optional"], [])
         self.assertEqual(description["canonical_order"], ["schema", "value"])
         self.assertEqual(description["fields"][1]["type"], "string")
+        self.assertEqual(description["kind"], "semantic_request")
+        self.assertTrue(description["caller_constructible"])
         self.assertNotIn("$defs", description)
         local.model(description["id"]).model_validate(description["example"])
 
     def test_all_public_request_contracts_have_complete_scaffolds(self) -> None:
         request_ids = [
-            item.id for item in registry.catalog().contracts if item.kind == "request"
+            item.id for item in registry.catalog().contracts if item.kind == "semantic_request"
         ]
 
         self.assertTrue(request_ids)
@@ -188,9 +197,22 @@ class ContractRegistryTests(unittest.TestCase):
         self.assertIsNotNone(scaffold)
         target = registry.model(scaffold["id"])
 
-        self.assertEqual(target.contract_kind, "request")
+        self.assertEqual(target.contract_kind, "semantic_request")
         self.assertEqual(scaffold["canonical_order"], list(target.canonical_order))
         target.model_validate(scaffold["example"])
+
+    def test_generated_requests_are_described_but_not_scaffolded(self) -> None:
+        contract_id = "work-spec-update-request/v1"
+        entry = next(item for item in registry.catalog().contracts if item.id == contract_id)
+        self.assertEqual(entry.kind, "generated_request")
+        self.assertFalse(entry.caller_constructible)
+        description = registry.describe(contract_id).to_canonical_dict()
+        self.assertEqual(description["kind"], "generated_request")
+        self.assertFalse(description["caller_constructible"])
+        registry.model(contract_id).model_validate(description["example"])
+        with self.assertRaises(WorkError) as caught:
+            registry.scaffold(contract_id)
+        self.assertEqual(caught.exception.code, "generated_request_not_caller_constructible")
 
     def test_duplicate_contract_id_is_rejected_atomically(self) -> None:
         local = ContractRegistry()

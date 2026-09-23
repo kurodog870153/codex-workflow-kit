@@ -21,13 +21,13 @@ from artifacts import test_plan as preparation_fixtures
 
 
 class PlanCliTests(FileInputTestCase):
-    def test_prepare_returns_candidate_and_validation_without_writes(self):
+    def test_semantic_prepare_returns_candidate_and_validation_without_writes(self):
         fixture = preparation_fixtures.InitialPlanPreparationTests()
         fixture.setUp()
         self.addCleanup(fixture.doCleanups)
         stdout, stderr = io.StringIO(), io.StringIO()
         code = main(self.input_arguments([
-            "--project-root", str(fixture.root), "plan", "prepare",
+            "--project-root", str(fixture.root), "plan", "semantic-prepare",
             "--input-file", "request.json", "--user-config-root", str(fixture.root),
         ], json.dumps(fixture.request)), stdout=stdout, stderr=stderr)
         self.assertEqual(code, ExitCode.SUCCESS, stdout.getvalue())
@@ -40,15 +40,15 @@ class PlanCliTests(FileInputTestCase):
         self.assertEqual(data["validation"]["schema"], "work-plan-validation/v1")
         self.assertEqual(list(fixture.root.iterdir()), [])
 
-    def test_prepare_output_file_preserves_unicode_canonical_plan_and_never_overwrites(self):
+    def test_semantic_prepare_output_file_preserves_unicode_canonical_plan_and_never_overwrites(self):
         fixture = preparation_fixtures.InitialPlanPreparationTests()
         fixture.setUp()
         self.addCleanup(fixture.doCleanups)
-        fixture.request["content"]["title"] = "跨平台計畫"
+        fixture.request["title"] = "跨平台計畫"
         output_path = fixture.root / "transaction" / "plan-candidate.json"
         output_path.parent.mkdir()
         arguments = [
-            "--project-root", str(fixture.root), "plan", "prepare",
+            "--project-root", str(fixture.root), "plan", "semantic-prepare",
             "--input-file", "request.json", "--user-config-root", str(fixture.root),
             "--output-file", str(output_path),
         ]
@@ -65,6 +65,14 @@ class PlanCliTests(FileInputTestCase):
         code = main(self.input_arguments(arguments, json.dumps(fixture.request)), stdout=stdout, stderr=io.StringIO())
         self.assertEqual(code, ExitCode.WORKFLOW_STATE)
         self.assertEqual(json.loads(stdout.getvalue())["reason_code"], "plan_prepare_output_exists")
+
+    def test_old_prepare_command_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            stdout = io.StringIO()
+            code = main(["--project-root", directory, "plan", "prepare",
+                "--input-file", "request.json", "--user-config-root", directory],
+                stdout=stdout, stderr=io.StringIO())
+        self.assertEqual(code, ExitCode.CLI_USAGE)
 
     def test_validate_input_file_arguments_parse(self) -> None:
         arguments = build_parser().parse_args(

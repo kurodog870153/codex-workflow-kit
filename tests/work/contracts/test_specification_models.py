@@ -28,25 +28,19 @@ class SpecificationPrepareContractTests(unittest.TestCase):
     def parse(self, request):
         return SpecificationPrepareRequestContract.parse_json_bytes(json.dumps(request).encode(), source="test")
 
-    def test_null_evidence_round_trips_without_inventing_missing_fields(self):
-        for operation, evidence in (("add", {"after": None}), ("remove", {"before": None}),
-                                    ("replace", {"before": None, "after": "reviewed"})):
-            with self.subTest(operation=operation):
-                request = self.request()
-                request["edits"] = [{"artifact": "task_index", "operation": operation,
-                                     "path": "/summary", **evidence}]
-                model = self.parse(request)
-                self.assertEqual(model.to_canonical_dict(), request)
-                self.assertEqual(self.parse(json.loads(model.render_canonical_json())).to_canonical_dict(), request)
+    def test_null_after_round_trips(self):
+        request = self.request()
+        request["edits"][0]["after"] = None
+        model = self.parse(request)
+        self.assertEqual(model.to_canonical_dict(), request)
+        self.assertEqual(self.parse(json.loads(model.render_canonical_json())).to_canonical_dict(), request)
 
     def test_missing_evidence_is_not_equivalent_to_null(self):
-        for field in ("before", "after"):
-            request = self.request()
-            del request["edits"][0][field]
-            with self.subTest(field=field), self.assertRaises(WorkError) as caught:
-                self.parse(request)
-            self.assertEqual(caught.exception.code, "spec_edit_fields")
-            self.assertEqual(caught.exception.exit_code, ExitCode.ARTIFACT_INTEGRITY)
+        request = self.request()
+        del request["edits"][0]["after"]
+        with self.assertRaises(WorkError) as caught:
+            self.parse(request)
+        self.assertEqual(caught.exception.exit_code, ExitCode.CONTRACT)
 
     def test_unknown_fields_preserve_locations(self):
         for nested in (False, True):
@@ -68,20 +62,50 @@ class SpecificationPrepareContractTests(unittest.TestCase):
                 self.assertEqual(caught.exception.code, code)
                 load.assert_not_called()
 
-    def test_schema_and_operation_errors_keep_reason_codes(self):
+    def test_schema_and_artifact_errors_keep_reason_codes(self):
         for field, value, code in (("schema", "unsupported", "spec_prepare_schema"),
-                                   ("operation", "unknown", "spec_edit_fields"),
                                    ("artifact", "unknown", "spec_prepare_artifact")):
             request = self.request()
-            target = request if field == "schema" else request["edits"][0]
+            target = request if field == "schema" else request["edits"][0]["target"]
             target[field] = value
             with self.subTest(field=field), self.assertRaises(WorkError) as caught:
                 self.parse(request)
             self.assertEqual(caught.exception.code, code)
 
+    def test_caller_authored_machine_fields_are_rejected(self):
+        for field in ("before", "operation", "path"):
+            request = self.request()
+            request["edits"][0][field] = "caller value"
+            with self.subTest(field=field), self.assertRaises(WorkError) as caught:
+                self.parse(request)
+            self.assertEqual(caught.exception.code, "invalid_contract_value" if field == "operation" else "invalid_object_fields")
+
+    def test_complete_task_and_formal_nested_evidence_are_rejected(self):
+        cases = [
+            {"target": {"artifact": "task_item", "task_id": "TASK-001"}, "field": "/", "after": {"schema": "work-task-item/v1"}},
+            {"target": {"artifact": "task_item", "task_id": "TASK-001"}, "field": "validations", "after": [{"id": "VAL-001"}]},
+            {"target": {"artifact": "task_item", "task_id": "TASK-001"}, "field": "validations", "semantic_after": [{"key": "verify", "id": "VAL-001"}]},
+            {"target": {"artifact": "plan"}, "field": "constraints", "semantic_after": [{"key": "boundary", "applies_to": ["GOAL-001"]}]},
+        ]
+        for edit in cases:
+            request = self.request()
+            request["edits"] = [edit]
+            with self.subTest(edit=edit), self.assertRaises(WorkError):
+                self.parse(request)
+
+    def test_semantic_task_addition_has_no_formal_identity(self):
+        request = self.request()
+        request["edits"] = [{"operation": "add_task", "task": {
+            "title": "Implement", "goal": "Deliver", "skill_id": None,
+            "selected_paths": [], "references": [], "dependency_positions": [],
+            "candidate": {"steps": [{"key": "check", "action": "Check.", "references": [{"kind": "validations", "key": "verify"}]}],
+                          "validations": [{"key": "verify", "kind": "manual", "confirmer": "user", "criteria": "Approved."}]},
+        }}]
+        self.assertEqual(self.parse(request).to_canonical_dict(), request)
+
     def test_registered_description_has_valid_example(self):
         description = registry.describe("work-spec-prepare-request/v1")
-        self.assertEqual(description.required, ["schema", "plan_path", "reason", "edits"])
+        self.assertEqual(description.required, ["schema", "requirement_id", "reason", "edits"])
         self.assertEqual(self.parse(description.example).to_canonical_dict(), description.example)
 
 
@@ -162,9 +186,10 @@ class SpecificationVerificationContractTests(unittest.TestCase):
                 self.assertEqual(caught.exception.exit_code, ExitCode.CONTRACT)
                 read.assert_not_called()
 
-    def test_record_sequence_can_exceed_three_digits(self):
-        request = {**SpecificationVerificationRequestContract.contract_example, "record_id": "SPEC-UPDATE-1000"}
-        self.assertEqual(SpecificationVerificationRequestContract.model_validate(request).record_id, "SPEC-UPDATE-1000")
+    def test_record_id_uses_approval_fingerprint_prefix(self):
+        record_id = "SPEC-UPDATE-ABCDEF012345"
+        request = {**SpecificationVerificationRequestContract.contract_example, "record_id": record_id}
+        self.assertEqual(SpecificationVerificationRequestContract.model_validate(request).record_id, record_id)
 
 
 class SpecificationResponseContractTests(unittest.TestCase):

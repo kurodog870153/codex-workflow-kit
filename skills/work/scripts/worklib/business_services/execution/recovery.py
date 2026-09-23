@@ -334,6 +334,8 @@ def _record_finish_recovery(
             )
         result_record = copy.deepcopy(prepared["records"][-1])
         result_record.pop("correction", None)
+        result_record.pop("id", None)
+        result_record.pop("kind", None)
         finish_request: dict[str, Any] = {
             "schema": "work-record-finish-request/v1",
             "record": result_record,

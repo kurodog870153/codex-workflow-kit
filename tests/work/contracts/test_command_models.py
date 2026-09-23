@@ -28,8 +28,6 @@ class CommandCorrectionRequestTests(unittest.TestCase):
     def request(self) -> dict[str, object]:
         return {
             "schema": "work-command-correction-request/v1",
-            "record_id": "CMD-001#2",
-            "original_command": {"mode": "argv", "argv": ["tool", "old"]},
             "actual_command": {"mode": "argv", "argv": ["tool", "new"]},
             "reason": "Use the authorized argument.",
         }
@@ -37,21 +35,52 @@ class CommandCorrectionRequestTests(unittest.TestCase):
     def parse(self, request: dict[str, object]) -> dict[str, object]:
         return parse_command_correction_request(
             json.dumps(request).encode("utf-8"), source="stdin"
-        ).to_execution_dict()
+        ).to_canonical_dict()
 
     def test_parses_and_canonicalizes_request(self) -> None:
         parsed = self.parse(self.request())
 
         self.assertEqual(parsed["schema"], "work-command-correction-request/v1")
-        self.assertEqual(parsed["record_id"], "CMD-001#2")
+        self.assertEqual(parsed["actual_command"], {"mode": "argv", "argv": ["tool", "new"]})
+        self.assertEqual(parsed["reason"], "Use the authorized argument.")
+
+    def test_parses_shell_command(self) -> None:
+        request = self.request()
+        request["actual_command"] = {"mode": "shell", "script": "echo hello"}
+
         self.assertEqual(
-            parsed["correction"],
-            {
-                "original_command": {"mode": "argv", "argv": ["tool", "old"]},
-                "actual_command": {"mode": "argv", "argv": ["tool", "new"]},
-                "reason": "Use the authorized argument.",
-            },
+            self.parse(request)["actual_command"],
+            {"mode": "shell", "script": "echo hello"},
         )
+
+    def test_rejects_invalid_command_shapes_and_values(self) -> None:
+        commands = (
+            {"mode": "argv", "script": "tool"},
+            {"mode": "shell", "argv": ["tool"]},
+            {"mode": "argv", "argv": ["tool"], "script": "tool"},
+            {"mode": "argv", "argv": ["tool"], "id": "CMD-001"},
+            {"mode": "argv", "argv": []},
+            {"mode": "argv", "argv": [" "]},
+            {"mode": "shell", "script": "  "},
+            {"mode": "invalid", "argv": ["tool"]},
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                request = self.request()
+                request["actual_command"] = command
+                with self.assertRaises(WorkError) as context:
+                    self.parse(request)
+                self.assertEqual(context.exception.code, "command_correction_invalid_fields")
+
+    def test_schema_discriminates_command_modes(self) -> None:
+        command_schema = CommandCorrectionRequestContract.model_json_schema()["properties"]["actual_command"]
+        self.assertEqual(command_schema["discriminator"]["propertyName"], "mode")
+        self.assertEqual(len(command_schema["oneOf"]), 2)
+        definitions = CommandCorrectionRequestContract.model_json_schema()["$defs"]
+        self.assertEqual(definitions["SemanticArgvCommandModel"]["required"], ["mode", "argv"])
+        self.assertEqual(definitions["SemanticShellCommandModel"]["required"], ["mode", "script"])
+        self.assertFalse(definitions["SemanticArgvCommandModel"]["additionalProperties"])
+        self.assertFalse(definitions["SemanticShellCommandModel"]["additionalProperties"])
 
     def test_rejects_missing_and_unknown_fields(self) -> None:
         request = self.request()
@@ -65,10 +94,11 @@ class CommandCorrectionRequestTests(unittest.TestCase):
         self.assertEqual(context.exception.details["missing"], ["reason"])
         self.assertEqual(context.exception.details["unknown"], ["extra"])
 
-    def test_rejects_invalid_schema_and_record_id(self) -> None:
+    def test_rejects_invalid_schema_and_formal_identity(self) -> None:
         cases = (
             ("schema", "invalid", "command_correction_invalid_schema"),
-            ("record_id", "OP-001", "command_correction_invalid_record_id"),
+            ("record_id", "CMD-001", "command_correction_invalid_fields"),
+            ("original_command", {"mode": "argv", "argv": ["tool", "old"]}, "command_correction_invalid_fields"),
         )
         for field, value, expected_code in cases:
             with self.subTest(field=field):

@@ -44,129 +44,41 @@ TOP_OPTIONAL = {
 }
 
 
-class PlanPrepareNestedModel(BaseModel):
+class PlanSemanticNestedModel(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid", frozen=True, validate_default=True)
 
 
-class PlanGoalModel(PlanPrepareNestedModel):
-    id: str
-    statement: str
+class PlanHierarchyChoiceModel(PlanSemanticNestedModel):
+    path: str
+    recommendation_reason: str
 
 
-class PlanScopeModel(PlanPrepareNestedModel):
-    id: str
-    kind: Literal["in_scope", "out_of_scope"]
-    statement: str
-    goal_ids: list[str] | None = None
+class PlanHierarchySelectionRequestModel(PlanSemanticNestedModel):
+    decision: Literal["instruction_paths", "general_only"]
+    selections: list[PlanHierarchyChoiceModel]
 
 
-class PlanApplicableModel(PlanPrepareNestedModel):
-    id: str
-    statement: str
-    applies_to: list[str]
+class PlanSkillChoiceModel(PlanSemanticNestedModel):
+    scope: str
+    root: str
+    source: str
+    recommendation_reason: str
+    dependency_status: str
+    mode_support: dict[str, str] | None = None
 
 
-class PlanRiskModel(PlanPrepareNestedModel):
-    id: str
-    condition: str
-    impact: str
-    mitigation: str
-    applies_to: list[str]
-
-
-class PlanMilestoneModel(PlanPrepareNestedModel):
-    id: str
-    statement: str
-    deliverable_ids: list[str]
-
-
-class PlanDeliverableModel(PlanPrepareNestedModel):
-    id: str
-    statement: str
-    goal_ids: list[str]
-    acceptance_ids: list[str]
-
-
-class PlanAcceptanceModel(PlanPrepareNestedModel):
-    id: str
-    statement: str
-    deliverable_ids: list[str]
-
-
-class PlanDecisionModel(PlanPrepareNestedModel):
-    id: str
-    statement: str
-    rationale: str
-    applies_to: list[str]
-
-
-class PlanPrepareContentModel(PlanPrepareNestedModel):
-    title: str
-    summary: str
-    goals: list[PlanGoalModel]
-    scope: list[PlanScopeModel]
-    constraints: list[PlanApplicableModel] | None = None
-    dependencies: list[PlanApplicableModel] | None = None
-    risks: list[PlanRiskModel] | None = None
-    milestones: list[PlanMilestoneModel] | None = None
-    deliverables: list[PlanDeliverableModel]
-    acceptance_criteria: list[PlanAcceptanceModel]
-    decisions: list[PlanDecisionModel] | None = None
-
-
-class PlanArtifactsModel(PlanPrepareNestedModel):
-    plan: str
-    task: str
-    execution: str
-
-
-class PlanPrepareRequestContract(WorkContract):
-    contract_id: ClassVar[str] = "work-plan-prepare-request/v1"
-    contract_kind: ClassVar[Literal["request"]] = "request"
-    canonical_order: ClassVar[tuple[str, ...]] = (
-        "requirement_id", "content", "hierarchy_selection", "skill_selection",
-        "references", "artifacts",
-    )
-    field_references: ClassVar[dict[str, str]] = {
-        "hierarchy_selection": "work-hierarchy-selection/v1",
-        "skill_selection": "work-skill-selection/v1",
-    }
-
-    requirement_id: str
-    content: PlanPrepareContentModel
-    hierarchy_selection: dict[str, Any]
-    skill_selection: dict[str, Any]
-    references: list[str]
-    artifacts: PlanArtifactsModel | None = None
-
-
-PlanPrepareRequestContract.contract_example = {
-    "requirement_id": "example",
-    "content": {
-        "title": "Example", "summary": "Example plan.",
-        "goals": [{"id": "GOAL-001", "statement": "Deliver the result."}],
-        "scope": [{"id": "SCOPE-001", "kind": "in_scope", "statement": "Implement the result.", "goal_ids": ["GOAL-001"]}],
-        "constraints": [{"id": "CONSTRAINT-001", "statement": "Preserve compatibility.", "applies_to": ["PLAN"]}],
-        "dependencies": [{"id": "DEPENDENCY-001", "statement": "Required source is available.", "applies_to": ["GOAL-001"]}],
-        "risks": [{"id": "RISK-001", "condition": "Source changes.", "impact": "Validation fails.", "mitigation": "Revalidate sources.", "applies_to": ["PLAN"]}],
-        "milestones": [{"id": "MILESTONE-001", "statement": "Result is ready.", "deliverable_ids": ["DELIVERABLE-001"]}],
-        "deliverables": [{"id": "DELIVERABLE-001", "statement": "Completed result.", "goal_ids": ["GOAL-001"], "acceptance_ids": ["ACCEPTANCE-001"]}],
-        "acceptance_criteria": [{"id": "ACCEPTANCE-001", "statement": "The result is verified.", "deliverable_ids": ["DELIVERABLE-001"]}],
-        "decisions": [{"id": "PLAN-DECISION-001", "statement": "Use the current contract.", "rationale": "Keep one source of truth.", "applies_to": ["PLAN"]}],
-    },
-    "hierarchy_selection": {"schema": "work-hierarchy-selection/v1", "decision": "general_only", "selected_paths": [], "entries": [], "catalog_sha256": "0" * 64, "selection_sha256": "0" * 64},
-    "skill_selection": {"schema": "work-skill-selection/v1", "decision": "base_only", "skills": [], "selection_sha256": "0" * 64},
-    "references": [],
-}
+class PlanSkillSelectionRequestModel(PlanSemanticNestedModel):
+    decision: Literal["external_skills", "base_only"]
+    skills: list[PlanSkillChoiceModel]
 
 
 class PlanSemanticRequestContract(WorkContract):
     contract_id: ClassVar[str] = "work-plan-semantic-request/v1"
-    contract_kind: ClassVar[Literal["request"]] = "request"
+    contract_kind: ClassVar[Literal["semantic_request"]] = "semantic_request"
     canonical_order: ClassVar[tuple[str, ...]] = (
         "requirement_id", "title", "summary", "goals", "scope",
-        "deliverables", "acceptance_criteria", "hierarchy_selection",
-        "skill_selection", "references",
+        "deliverables", "acceptance_criteria", "hierarchy_selection_request",
+        "skill_selection_request", "references",
     )
     requirement_id: str
     title: str
@@ -175,8 +87,8 @@ class PlanSemanticRequestContract(WorkContract):
     scope: list[str]
     deliverables: list[str]
     acceptance_criteria: list[str]
-    hierarchy_selection: dict[str, Any]
-    skill_selection: dict[str, Any]
+    hierarchy_selection_request: PlanHierarchySelectionRequestModel
+    skill_selection_request: PlanSkillSelectionRequestModel
     references: list[str]
 
 
@@ -185,8 +97,8 @@ PlanSemanticRequestContract.contract_example = {
     "goals": ["Deliver the result."], "scope": ["Implement the result."],
     "deliverables": ["Completed result."],
     "acceptance_criteria": ["The result is verified."],
-    "hierarchy_selection": PlanPrepareRequestContract.contract_example["hierarchy_selection"],
-    "skill_selection": PlanPrepareRequestContract.contract_example["skill_selection"],
+    "hierarchy_selection_request": {"decision": "general_only", "selections": []},
+    "skill_selection_request": {"decision": "base_only", "skills": []},
     "references": [],
 }
 

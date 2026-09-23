@@ -24,7 +24,7 @@ def preview_progress(project_root: Path, raw: bytes, *, source: str, expected_re
 def prepare_progress(project_root: Path, raw: bytes, *, source: str, requirement_id: str, mode: str, expected_revision: int) -> dict[str, Any]:
     value = parse_progress_request(raw, source=source)
     preview = lambda root, candidate, **kwargs: _preview(root, candidate, validate_progress=validate_progress_contract, read_progress=read_progress, **kwargs)
-    return _prepare(project_root, value, requirement_id=requirement_id, mode=mode, expected_revision=expected_revision, preview=preview, validate_keys=validate_strict_keys)
+    return _prepare(project_root, value, requirement_id=requirement_id, mode=mode, expected_revision=expected_revision, preview=preview, validate_keys=validate_strict_keys, read_progress=read_progress)
 
 
 def save_progress(project_root: Path, raw: bytes, *, source: str, expected_revision: int, approved_sha256: str) -> dict[str, Any]:

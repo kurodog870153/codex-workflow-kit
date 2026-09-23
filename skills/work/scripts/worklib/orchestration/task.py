@@ -17,14 +17,18 @@ from ..business_services.specification import (
     verify_specification as verify_specification_business,
 )
 from ..business_services.specification.migration import (
+    prepare_specification_migration as prepare_specification_migration_business,
     preview_specification_migration as preview_specification_migration_business,
     publish_specification_migration as publish_specification_migration_business,
 )
 from ..business_services.specification.reconciliation import (
+    prepare_specification_reconciliation as prepare_specification_reconciliation_business,
     preview_specification_reconciliation as preview_specification_reconciliation_business,
     publish_specification_reconciliation as publish_specification_reconciliation_business,
 )
-from ..business_services.plan import validate_plan_contract
+from ..business_services.plan import build_semantic_selections, validate_plan_contract, prepare_plan_json_contract, render_plan_contract
+from ..business_services.plan import _hierarchy as plan_hierarchy
+from ..business_services.plan import _instruction_sources as plan_instruction_sources
 from ..business_services.instruction import (
     build_instruction_selection,
     build_task_document_instruction_selection,
@@ -64,6 +68,14 @@ def preview_specification_migration(*args, **kwargs):
     )
 
 
+def prepare_specification_migration(*args, **kwargs):
+    return prepare_specification_migration_business(
+        *args, **kwargs, task_operations=TaskOperations,
+        validate_task_collection_contract=validate_task_collection_contract,
+        validate_plan_contract=validate_plan_contract,
+    )
+
+
 def publish_specification_migration(*args, **kwargs):
     return publish_specification_migration_business(
         *args,
@@ -77,6 +89,14 @@ def preview_specification_reconciliation(*args, **kwargs):
     return preview_specification_reconciliation_business(
         *args,
         **kwargs,
+        validate_task_collection_contract=validate_task_collection_contract,
+        validate_plan_contract=validate_plan_contract,
+    )
+
+
+def prepare_specification_reconciliation(*args, **kwargs):
+    return prepare_specification_reconciliation_business(
+        *args, **kwargs, task_operations=TaskOperations,
         validate_task_collection_contract=validate_task_collection_contract,
         validate_plan_contract=validate_plan_contract,
     )
@@ -96,6 +116,13 @@ from ..business_services.task.workflow import (
 
 
 class TaskOperations:
+    build_semantic_selections = staticmethod(build_semantic_selections)
+    plan_hierarchy = staticmethod(plan_hierarchy)
+    plan_instruction_sources = staticmethod(plan_instruction_sources)
+    prepare_plan_json_contract = staticmethod(prepare_plan_json_contract)
+    render_plan_contract = staticmethod(render_plan_contract)
+    build_instruction_selection = staticmethod(build_instruction_selection)
+    build_task_document_instruction_selection = staticmethod(build_task_document_instruction_selection)
     render_task_index_contract = staticmethod(render_task_index_contract)
     render_task_item_contract = staticmethod(render_task_item_contract)
     validate_task_collection_contract = staticmethod(validate_task_collection_contract)
@@ -160,6 +187,7 @@ def prepare_task_repair(*args, **kwargs):
         execution_history_fingerprints=execution_history_fingerprints,
         rebuild_execution_index=rebuild_execution_index,
         diagnose_task_collection=diagnose_task_collection,
+        instruction_operations=TaskOperations,
     )
 
 
@@ -173,8 +201,10 @@ def execute_task_command(
         project_root,
         request,
         prepare_specification=prepare_specification,
+        prepare_specification_migration=prepare_specification_migration,
         preview_specification_migration=preview_specification_migration,
         preview_specification_reconciliation=preview_specification_reconciliation,
+        prepare_specification_reconciliation=prepare_specification_reconciliation,
         publish_specification_migration=publish_specification_migration,
         publish_specification_reconciliation=publish_specification_reconciliation,
         update_specification=update_specification,
@@ -189,6 +219,7 @@ def execute_task_command(
 __all__ = [
     "TaskRequestInput",
     "execute_task_command",
+    "prepare_specification_migration",
     "diagnose_task_collection",
     "prepare_task_repair",
     "repair_task",

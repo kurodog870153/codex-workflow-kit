@@ -32,6 +32,7 @@ class ProgressServiceUnitTests(unittest.TestCase):
             result = prepare_progress(
                 Path(temporary), content, requirement_id="example", mode="plan",
                 expected_revision=0, preview=preview, validate_keys=validate_keys,
+                read_progress=lambda *_: self.fail("First revision must not read progress"),
             )
         self.assertEqual(calls, ["validate", "preview"])
         self.assertEqual(result["schema"], "work-progress-prepare/v1")

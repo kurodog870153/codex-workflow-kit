@@ -21,9 +21,12 @@ from ...services.task.draft.storage import (
 )
 from ...models.common.validation import ContractValuePolicy
 from ...models.common.errors import ExitCode, WorkError
+from ...models.specification.contracts import SpecificationPrepareRequestContract
+from ...models.task_collection.repair import TaskRepairPrepareRequestContract
 from ...services.task.document import parse_json_contract
 from ...services.task.storage import read_raw
 from ...services.specification.storage import storage_path
+from ...services.specification.source_resolution import resolve_plan_path, resolve_repair_artifacts
 from ...services.skill_catalog import parse_skill_root
 
 
@@ -87,8 +90,10 @@ def execute_task_command(
     request: TaskRequestInput | None,
     *,
     prepare_specification,
+    prepare_specification_migration,
     preview_specification_migration,
     preview_specification_reconciliation,
+    prepare_specification_reconciliation,
     publish_specification_migration,
     publish_specification_reconciliation,
     update_specification,
@@ -98,6 +103,11 @@ def execute_task_command(
     diagnose_task_collection,
     draft_operations,
 ) -> dict[str, object]:
+    if arguments.task_command == "migration-prepare":
+        return prepare_specification_migration(request.raw, project_root=project_root,
+            user_config_root=arguments.user_config_root,
+            skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
+            output_file=arguments.output_file)
     if arguments.task_command == "migration-preview":
         return preview_specification_migration(
             request.raw, project_root=project_root, user_config_root=arguments.user_config_root,
@@ -115,33 +125,31 @@ def execute_task_command(
             request.raw, project_root=project_root, user_config_root=arguments.user_config_root,
             skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
         )
+    if arguments.task_command == "reconciliation-prepare":
+        return prepare_specification_reconciliation(
+            request.raw, project_root=project_root, user_config_root=arguments.user_config_root,
+            skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
+            output_file=arguments.output_file,
+        )
     if arguments.task_command == "reconciliation-apply":
         return publish_specification_reconciliation(
             request.raw, approved_sha256=arguments.approved_sha256,
             project_root=project_root, user_config_root=arguments.user_config_root,
             skill_roots=[parse_skill_root(root) for root in arguments.skill_root],
         )
-    if arguments.task_command in {"draft-init-request", "draft-list-prepare"}:
-        options = dict(plan_path=arguments.plan_path, user_config_root=arguments.user_config_root,
-                       skill_roots=[parse_skill_root(root) for root in arguments.skill_root])
-        payload = parse_json_contract(request.raw, source=request.source)
-        if arguments.task_command == "draft-init-request":
-            return initialize_task_planning_request(project_root, arguments.requirement_id, payload,
-                prepare_only=arguments.prepare_only, operations=draft_operations, **options)
-        if arguments.expected_revision < 1:
-            raise WorkError(ExitCode.CLI_USAGE, "invalid_expected_revision", "List preparation requires an existing revision.")
-        return prepare_task_planning_request(project_root, arguments.requirement_id, payload,
-            expected_revision=arguments.expected_revision, operations=draft_operations, **options)
     if arguments.task_command == "semantic-prepare":
         return prepare_semantic_task_request(project_root, arguments.requirement_id, request.raw,
             source=request.source, plan_path=arguments.plan_path,
             user_config_root=arguments.user_config_root,
+            expected_revision=arguments.expected_revision,
             skill_roots=[parse_skill_root(root) for root in arguments.skill_root], operations=draft_operations)
     if arguments.task_command in {"spec-prepare", "repair-prepare"}:
         if arguments.task_command == "spec-prepare":
-            _require_collection_plan(project_root, parse_json_contract(request.raw, source=request.source).get("plan_path"))
+            semantic = SpecificationPrepareRequestContract.parse_json_bytes(request.raw, source=request.source)
+            _require_collection_plan(project_root, resolve_plan_path(project_root, semantic.requirement_id))
         elif arguments.task_command == "repair-prepare":
-            _require_collection_write_path(parse_json_contract(request.raw, source=request.source).get("artifacts", {}).get("task"))
+            semantic = TaskRepairPrepareRequestContract.parse_json_bytes(request.raw, source=request.source)
+            _require_collection_write_path(resolve_repair_artifacts(project_root, semantic.requirement_id)["task"])
         prepare = {"spec-prepare": prepare_specification,
                    "repair-prepare": prepare_task_repair}[arguments.task_command]
         result = prepare(

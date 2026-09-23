@@ -75,6 +75,63 @@ class HandoffContract(WorkContract):
     validation_requirements: list[str] | None = None
 
 
+class DiscussionHandoffRequestContract(WorkContract):
+    contract_id: ClassVar[str] = "work-discussion-handoff-request/v1"
+    contract_kind: ClassVar[Literal["semantic_request"]] = "semantic_request"
+    canonical_order: ClassVar[tuple[str, ...]] = (
+        "schema", "direction", "requirement_id", "summary", "confirmed_approach",
+        "requested_changes", "preserve", "affected_ids", "validation_requirements",
+    )
+    schema_: Literal["work-discussion-handoff-request/v1"] = Field(alias="schema")
+    direction: Literal["plan_to_task", "task_to_plan"]
+    requirement_id: str = Field(min_length=1, pattern=r"\S")
+    summary: str = Field(min_length=1, pattern=r"\S")
+    confirmed_approach: str | None = None
+    requested_changes: list[str] | None = None
+    preserve: list[str] | None = None
+    affected_ids: list[str] | None = None
+    validation_requirements: list[str] | None = None
+
+
+class DiscussionHandoffContract(WorkContract):
+    contract_id: ClassVar[str] = "work-discussion-handoff/v1"
+    contract_kind: ClassVar[Literal["response"]] = "response"
+    canonical_order: ClassVar[tuple[str, ...]] = (
+        "schema", "marker", "direction", "requirement_id", "source_stage",
+        "target_stage", "source_status", "source_validation", "grants_authorization",
+        "summary", "confirmed_approach", "requested_changes", "preserve",
+        "affected_ids", "validation_requirements",
+    )
+    schema_: Literal["work-discussion-handoff/v1"] = Field(alias="schema")
+    marker: Literal["WORK-DISCUSSION-HANDOFF"]
+    direction: Literal["plan_to_task", "task_to_plan"]
+    requirement_id: str
+    source_stage: Literal["plan", "task"]
+    target_stage: Literal["plan", "task"]
+    source_status: Literal["unsaved_discussion"]
+    source_validation: Literal["not_checked"]
+    grants_authorization: Literal[False]
+    summary: str
+    confirmed_approach: str | None = None
+    requested_changes: list[str] | None = None
+    preserve: list[str] | None = None
+    affected_ids: list[str] | None = None
+    validation_requirements: list[str] | None = None
+
+
+DiscussionHandoffRequestContract.contract_example = {
+    "schema": "work-discussion-handoff-request/v1", "direction": "task_to_plan",
+    "requirement_id": "example", "summary": "Review the unfinished discussion.",
+}
+DiscussionHandoffContract.contract_example = {
+    "schema": "work-discussion-handoff/v1", "marker": "WORK-DISCUSSION-HANDOFF",
+    "direction": "task_to_plan", "requirement_id": "example",
+    "source_stage": "task", "target_stage": "plan",
+    "source_status": "unsaved_discussion", "source_validation": "not_checked",
+    "grants_authorization": False, "summary": "Review the unfinished discussion.",
+}
+
+
 class HandoffValidationContract(WorkContract):
     contract_id: ClassVar[str] = "work-handoff-validation/v1"
     contract_kind: ClassVar[Literal["response"]] = "response"
@@ -98,4 +155,3 @@ class HandoffSourceValidationContract(HandoffValidationContract):
     plan_path: str | None = None
     task_path: str | None = None
     source: dict[str, Any]
-

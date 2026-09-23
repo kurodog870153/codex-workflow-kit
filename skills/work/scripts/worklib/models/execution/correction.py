@@ -11,7 +11,7 @@ from ..common.base import WorkContract
 
 class CorrectionCreateRequestContract(WorkContract):
     contract_id: ClassVar[str] = 'work-correction-create-request/v1'
-    contract_kind: ClassVar[Literal['request']] = 'request'
+    contract_kind: ClassVar[Literal['semantic_request']] = 'semantic_request'
     canonical_order: ClassVar[tuple[str, ...]] = ('schema', 'target_attempt_id', 'field', 'correct_value', 'reason', 'invalidates_completion')
     schema_: Literal['work-correction-create-request/v1'] = Field(alias='schema')
     target_attempt_id: str

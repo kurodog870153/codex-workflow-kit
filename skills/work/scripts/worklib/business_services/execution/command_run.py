@@ -108,19 +108,23 @@ def _prepare(raw, *, source, project_root, user_config_root, raw_task_path, raw_
         _fail("command_run_identity", "Unknown TASK ID.")
     index_relative = execution + "/index.json"
     index = _validate_index_bytes(snapshot(index_relative), source=index_relative)
-    attempt_id, record_id = request["attempt_id"], request["record_id"]
+    lock = index.get("lock")
+    if not isinstance(lock, dict) or lock.get("kind") != "execution" or lock.get("task_id") != task_id:
+        _fail("command_run_lock", "The active execution lock must reserve the requested TASK.")
+    attempt_id, record_id = lock.get("attempt_id"), lock.get("record_id")
+    if not isinstance(attempt_id, str) or not isinstance(record_id, str):
+        _fail("command_run_lock", "The active execution lock must reserve a CMD record.")
     attempt_directory = f"{execution}/{task_id}/{attempt_id}"
     attempt_relative = attempt_directory + "/attempt.json"
     attempt = _validate_attempt_bytes(snapshot(attempt_relative), project_root=project_root, source=attempt_relative)
     row = validate_execution_identity(task_contract=contract, task_validation=validation,
         index=index, attempt=attempt, task_id=task_id)
-    lock = index.get("lock")
     expected = {"kind": "execution", "task_id": task_id, "attempt_id": attempt_id,
                 "record_id": record_id, "execute_instructions_sha256": attempt["execute_instructions_sha256"]}
     if (attempt["attempt_id"] != attempt_id or attempt["status"] != "in_progress" or row["status"] != "in_progress"
         or row.get("latest_attempt") != attempt_id or not isinstance(lock, dict)
         or any(lock.get(key) != value for key, value in expected.items())):
-        _fail("command_run_lock", "The active Attempt and lock must reserve exactly the requested CMD.")
+        _fail("command_run_lock", "The active Attempt and lock must reserve exactly one CMD.")
     base_id = record_id.split("#", 1)[0]
     if next_record_id(base_id, attempt) != record_id:
         _fail("command_run_sequence", "The reserved CMD is not the next record instance.")
@@ -177,6 +181,7 @@ def _prepare(raw, *, source, project_root, user_config_root, raw_task_path, raw_
     if any(read_raw(storage_path(project_root, path)) != content for path, content in observed.items()):
         _fail("command_run_source_changed", "A command source changed during preparation.")
     preview = {"schema": "work-command-preview/v1", "request": request, "task_id": task_id,
+        "attempt_id": attempt_id, "record_id": record_id,
         "working_directory": str(cwd), "execution": settings, "invocation": invocation,
         "receipt_prefix": receipt, "sources": {path: raw_sha256(content) for path, content in observed.items()}}
     preview["approved_sha256"] = raw_sha256(_json(preview))
@@ -216,7 +221,7 @@ def run_command(raw, *, approved_sha256, **options):
                               preview["request"]["timeout_seconds"])
             receipt = CommandResultContract.model_validate({
                 "schema": "work-command-result/v1", "approved_sha256": approved_sha256,
-                "record_id": preview["request"]["record_id"], **result,
+                "record_id": preview["record_id"], **result,
             }).to_canonical_dict()
             write_command_receipt(
                 storage_path(root, prefix + ".finished.json"), _json(receipt)
@@ -227,7 +232,7 @@ def run_command(raw, *, approved_sha256, **options):
     response = {**receipt, "receipt_prefix": prefix, "record_finish_required": True}
     if result["status"] == "exited":
         response["record_finish_request"] = {"schema": "work-record-finish-request/v1", "record": {
-            "id": receipt["record_id"], "kind": "command", "exit_code": result["exit_code"],
+            "exit_code": result["exit_code"],
             "result": f"Command exited with code {result['exit_code']}; inspect retained execution evidence."}}
     response = CommandResultContract.model_validate(response).to_canonical_dict()
     if result["status"] != "exited" or result["exit_code"] != 0:

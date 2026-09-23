@@ -19,6 +19,8 @@ from cli_support import FileInputTestCase
 from worklib.cli import build_parser, main
 from worklib.business_services.task.workflow import _specification_summary
 from worklib.models.common.errors import ExitCode, WorkError
+from worklib.models.specification.contracts import SpecificationPrepareRequestContract
+from worklib.models.task_collection.repair import TaskRepairPrepareRequestContract
 from worklib.orchestration.task import TaskDraftOperations
 
 
@@ -144,7 +146,7 @@ class TaskCliTests(FileInputTestCase):
             with self.subTest(command=command), self.assertRaises(WorkError) as caught:
                 build_parser().parse_args(["--project-root", "/project", "task", command])
             self.assertEqual(caught.exception.exit_code, ExitCode.CLI_USAGE)
-    def test_draft_preparation_commands_use_file_transport(self):
+    def test_semantic_preparation_uses_file_transport(self):
         from artifacts import test_task_draft_prepare as fixtures
         fixture = fixtures.DraftPreparationTests()
         fixture.setUp()
@@ -153,19 +155,28 @@ class TaskCliTests(FileInputTestCase):
         source = ["--input-file", "request.json", "--requirement-id", "example",
                   "--plan-path", fixture.options["plan_path"], "--user-config-root", str(fixture.root)]
         output = io.StringIO()
-        code = main(self.input_arguments(common + ["draft-init-request", "--prepare-only"] + source,
-                    json.dumps(fixture.request)), stdout=output, stderr=io.StringIO())
+        initial = {"upsert": [{key: value for key, value in fixture.boundary.items() if key != "id"}],
+                   "remove_task_ids": [], "current_task": None, "reason": None}
+        initial["upsert"][0]["dependencies"] = []
+        code = main(self.input_arguments(common + ["semantic-prepare"] + source,
+                    json.dumps(initial)), stdout=output, stderr=io.StringIO())
         self.assertEqual(code, 0, output.getvalue())
         self.assertEqual(json.loads(output.getvalue())["data"]["status"], "prepared")
         fixture.initialize()
-        changed = copy.deepcopy(fixture.boundary)
+        changed = {key: copy.deepcopy(value) for key, value in fixture.boundary.items() if key != "id"}
+        changed["existing_task_id"] = "TASK-001"
         changed["goal"] = "Changed"
-        payload = {"upsert": [changed], "remove_task_ids": [], "current_task_id": None, "reason": "Confirmed"}
+        payload = {"upsert": [changed], "remove_task_ids": [], "current_task": None, "reason": "Confirmed"}
         output = io.StringIO()
-        code = main(self.input_arguments(common + ["draft-list-prepare", "--expected-revision", "1"] + source,
+        code = main(self.input_arguments(common + ["semantic-prepare", "--expected-revision", "1"] + source,
                     json.dumps(payload)), stdout=output, stderr=io.StringIO())
         self.assertEqual(code, 0, output.getvalue())
         self.assertEqual(json.loads(output.getvalue())["data"]["affected_task_ids"], ["TASK-001"])
+
+    def test_old_draft_prepare_commands_are_rejected(self):
+        for name in ("draft-init-request", "draft-list-prepare"):
+            with self.subTest(name=name), self.assertRaises(WorkError):
+                build_parser().parse_args(["--project-root", "/project", "task", name])
 
     def test_draft_status_dispatches_optional_explicit_task(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -404,10 +415,14 @@ class TaskCliTests(FileInputTestCase):
                 "task": "outputs/work/tasks/example/task.json",
                 "execution": "outputs/work/executions/example",
             }
-            plan_path.write_text(json.dumps({"artifacts": legacy_artifacts}), encoding="utf-8")
+            plan_path.write_text(json.dumps({"schema": "work-plan/v1", "requirement_id": "example",
+                                             "artifacts": legacy_artifacts}), encoding="utf-8")
             cases = [
                 ("create_task_artifacts", ["create", "--input-file", "request.json", "--plan-path", legacy_artifacts["plan"], "--task-path", legacy_artifacts["task"], "--execution-dir", legacy_artifacts["execution"]], {}),
-                ("prepare_specification", ["spec-prepare", "--input-file", "request.json"], {"plan_path": legacy_artifacts["plan"]}),
+                ("prepare_specification", ["spec-prepare", "--input-file", "request.json"],
+                 SpecificationPrepareRequestContract.contract_example),
+                ("prepare_task_repair", ["repair-prepare", "--input-file", "request.json"],
+                 TaskRepairPrepareRequestContract.contract_example),
                 ("update_specification", ["spec-validate", "--input-file", "request.json"], {"plan": {"artifacts": legacy_artifacts}}),
                 ("repair_task", ["repair-validate", "--input-file", "request.json"], {"artifacts": legacy_artifacts}),
             ]

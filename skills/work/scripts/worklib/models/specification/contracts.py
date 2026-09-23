@@ -7,44 +7,98 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 
 from ...protocol import SHA256_PATTERN
 from ..common.base import WorkContract
+from ..common.semantic import SemanticEvidencePolicy
 from ..plan import PlanContract
 from .transaction import SpecTransactionContract
 from ..task_collection import TaskArtifactsModel, TaskIndexContract, TaskItemContract
 from ..common.errors import ExitCode, WorkError
 
 
-class SpecificationEditModel(BaseModel):
+class SpecificationTargetModel(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid", frozen=True, validate_default=True)
 
     artifact: Literal["plan", "task_index", "task_item"]
-    operation: Literal["add", "replace", "remove"]
-    path: str
     task_id: str | None = None
-    before: Any = None
-    after: Any = None
-    affected_ids: list[str] | None = None
+
+
+_SIMPLE_FIELDS = {
+    "plan": {"title", "summary"},
+    "task_index": {"title", "summary"},
+    "task_item": {"title", "goal"},
+}
+_SEMANTIC_FIELDS = {
+    "plan": {"goals", "scope", "constraints", "dependencies", "risks", "milestones", "deliverables", "acceptance_criteria", "decisions"},
+    "task_index": {"decisions", "execution_defaults"},
+    "task_item": {"traceability", "dependencies", "inputs", "decisions", "files", "risks", "steps", "commands", "operations", "validations"},
+}
+class SpecificationSemanticTaskModel(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid", frozen=True, validate_default=True)
+
+    title: str = Field(min_length=1)
+    goal: str = Field(min_length=1)
+    skill_id: str | None
+    selected_paths: list[str]
+    references: list[str]
+    dependency_positions: list[int] = Field(default_factory=list)
+    candidate: dict[str, Any]
 
     @model_validator(mode="after")
-    def validate_evidence(self) -> "SpecificationEditModel":
-        required = {"add": {"after"}, "replace": {"before", "after"}, "remove": {"before"}}
-        if not required[self.operation] <= self.model_fields_set:
-            raise WorkError(ExitCode.ARTIFACT_INTEGRITY, "spec_edit_fields",
-                            "Edit evidence does not match its operation.")
+    def semantic_candidate(self) -> "SpecificationSemanticTaskModel":
+        SemanticEvidencePolicy.reject_formal_data(self.candidate)
+        return self
+
+
+class SpecificationSemanticEditModel(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid", frozen=True, validate_default=True)
+
+    target: SpecificationTargetModel | None = None
+    field: str | None = None
+    after: str | None = None
+    semantic_after: Any = None
+    operation: Literal["add_task", "remove_task"] | None = None
+    task: SpecificationSemanticTaskModel | None = None
+    task_position: int | None = None
+
+    @model_validator(mode="after")
+    def validate_semantic_operation(self) -> "SpecificationSemanticEditModel":
+        supplied = self.model_fields_set
+        if self.operation == "add_task":
+            if supplied != {"operation", "task"} or self.task is None:
+                raise ValueError("add_task requires only a semantic task.")
+            return self
+        if self.operation == "remove_task":
+            if supplied != {"operation", "task_position"} or self.task_position is None or self.task_position < 1:
+                raise ValueError("remove_task requires one-based task_position.")
+            return self
+        if self.operation is not None or self.target is None or self.field is None or supplied & {"task", "task_position"}:
+            raise ValueError("A field edit requires a target and field.")
+        artifact = self.target.artifact
+        if (artifact == "task_item") != (self.target.task_id is not None):
+            raise ValueError("Only a task_item field edit requires task_id.")
+        if self.field in _SIMPLE_FIELDS[artifact]:
+            if "after" not in supplied or "semantic_after" in supplied:
+                raise ValueError("Simple fields require after.")
+        elif self.field in _SEMANTIC_FIELDS[artifact]:
+            if "semantic_after" not in supplied or "after" in supplied:
+                raise ValueError("Machine-bearing fields require semantic_after.")
+            SemanticEvidencePolicy.reject_formal_data(self.semantic_after)
+        else:
+            raise ValueError("This specification field has no semantic operation.")
         return self
 
 
 class SpecificationPrepareRequestContract(WorkContract):
     contract_id: ClassVar[str] = "work-spec-prepare-request/v1"
-    contract_kind: ClassVar[Literal["request"]] = "request"
-    canonical_order: ClassVar[tuple[str, ...]] = ("schema", "plan_path", "reason", "edits")
+    contract_kind: ClassVar[Literal["semantic_request"]] = "semantic_request"
+    canonical_order: ClassVar[tuple[str, ...]] = ("schema", "requirement_id", "reason", "edits")
     field_constraints: ClassVar[dict[str, dict[str, Any]]] = {
         "edits": {"min_length": 1},
     }
 
     schema_: Literal["work-spec-prepare-request/v1"] = Field(alias="schema")
-    plan_path: str = Field(min_length=1, pattern=r"\S")
+    requirement_id: str = Field(min_length=1, pattern=r"\S")
     reason: str
-    edits: list[SpecificationEditModel] = Field(min_length=1)
+    edits: list[SpecificationSemanticEditModel] = Field(min_length=1)
 
     @classmethod
     def _work_error(cls, error: ValidationError) -> WorkError:
@@ -57,16 +111,14 @@ class SpecificationPrepareRequestContract(WorkContract):
             mapped = ("spec_prepare_schema", "Use work-spec-prepare-request/v1.")
         elif location == ("edits",) and first["type"] != "missing":
             mapped = ("spec_prepare_edits", "Supply non-empty collection edits.")
-        elif len(location) == 3 and location[0] == "edits" and first["type"] != "missing":
-            if location[-1] == "operation":
-                mapped = ("spec_edit_fields", "Edit evidence does not match its operation.")
-            elif location[-1] == "artifact":
+        elif len(location) == 4 and location[0] == "edits" and first["type"] != "missing":
+            if location[-1] == "artifact":
                 mapped = ("spec_prepare_artifact", "Use plan, task_index or task_item.")
         if mapped is not None:
             return WorkError(ExitCode.ARTIFACT_INTEGRITY, *mapped)
-        if location == ("plan_path",) and first["type"] != "missing":
+        if location == ("requirement_id",) and first["type"] != "missing":
             return WorkError(ExitCode.CONTRACT, "empty_text_value", "A non-empty string is required.",
-                             {"location": "plan_path"})
+                             {"location": "requirement_id"})
         result = super()._work_error(error)
         if result.details.get("location") == "contract":
             result.details["location"] = "spec_prepare"
@@ -79,10 +131,10 @@ class SpecificationPrepareRequestContract(WorkContract):
 
 SpecificationPrepareRequestContract.contract_example = {
     "schema": "work-spec-prepare-request/v1",
-    "plan_path": "outputs/work/plans/example.json",
+    "requirement_id": "example",
     "reason": "Confirmed goal revision",
-    "edits": [{"artifact": "task_item", "operation": "replace", "path": "/goal",
-               "task_id": "TASK-001", "before": "Original goal", "after": "Reviewed goal"}],
+    "edits": [{"target": {"artifact": "task_item", "task_id": "TASK-001"},
+               "field": "goal", "after": "Reviewed goal"}],
 }
 
 
@@ -97,7 +149,7 @@ class SpecificationExpectedModel(BaseModel):
 
 class SpecificationUpdateRequestContract(WorkContract):
     contract_id: ClassVar[str] = "work-spec-update-request/v1"
-    contract_kind: ClassVar[Literal["request"]] = "request"
+    contract_kind: ClassVar[Literal["generated_request"]] = "generated_request"
     canonical_order: ClassVar[tuple[str, ...]] = (
         "schema", "reason", "expected", "plan", "task_index", "task_items",
     )
@@ -146,25 +198,25 @@ SpecificationUpdateRequestContract.contract_example = {
 
 class SpecificationVerificationRequestContract(WorkContract):
     contract_id: ClassVar[str] = "work-spec-verification-request/v1"
-    contract_kind: ClassVar[Literal["request"]] = "request"
+    contract_kind: ClassVar[Literal["generated_request"]] = "generated_request"
     canonical_order: ClassVar[tuple[str, ...]] = (
         "schema", "requirement_id", "artifacts", "record_id",
     )
     field_constraints: ClassVar[dict[str, dict[str, Any]]] = {
-        "record_id": {"pattern": r"^SPEC-UPDATE-[0-9]{3,}$"},
+        "record_id": {"pattern": r"^SPEC-UPDATE-[0-9A-F]{12}$"},
     }
     contract_example: ClassVar[dict[str, Any]] = {
         "schema": "work-spec-verification-request/v1", "requirement_id": "example",
         "artifacts": {"plan": "outputs/work/plans/example.json",
                       "task": "outputs/work/tasks/example/index.json",
                       "execution": "outputs/work/executions/example"},
-        "record_id": "SPEC-UPDATE-002",
+        "record_id": SpecTransactionContract.contract_example["transaction_id"],
     }
 
     schema_: Literal["work-spec-verification-request/v1"] = Field(alias="schema")
     requirement_id: str = Field(min_length=1, pattern=r"\S")
     artifacts: TaskArtifactsModel
-    record_id: str = Field(pattern=r"^SPEC-UPDATE-[0-9]{3,}$")
+    record_id: str = Field(pattern=r"^SPEC-UPDATE-[0-9A-F]{12}$")
 
 
 class SpecificationNestedModel(BaseModel):
@@ -203,7 +255,7 @@ class SpecificationUpdateContract(WorkContract):
     schema_: Literal["work-spec-update/v1"] = Field(alias="schema")
     status: Literal["valid", "updated", "recovered"]
     requirement_id: str
-    record_id: str = Field(pattern=r"^SPEC-UPDATE-[0-9]{3,}$")
+    record_id: str = Field(pattern=r"^SPEC-UPDATE-[0-9A-F]{12}$")
     approved_sha256: str = Field(pattern=SHA256_PATTERN)
     affected_task_ids: list[str]
     changed_fields: list[str] | None = None
@@ -278,7 +330,7 @@ class SpecificationVerificationContract(WorkContract):
     schema_: Literal["work-spec-verification/v1"] = Field(alias="schema")
     status: Literal["verified"]
     verified: Literal[True]
-    record_id: str = Field(pattern=r"^SPEC-UPDATE-[0-9]{3,}$")
+    record_id: str = Field(pattern=r"^SPEC-UPDATE-[0-9A-F]{12}$")
     requirement_id: str
     artifacts: TaskArtifactsModel
     task_collection_sha256: str = Field(pattern=SHA256_PATTERN)
@@ -290,7 +342,7 @@ class SpecificationVerificationContract(WorkContract):
 
 SpecificationUpdateContract.contract_example = {
     "schema": "work-spec-update/v1", "status": "valid", "requirement_id": "example",
-    "record_id": "SPEC-UPDATE-002", "approved_sha256": SpecTransactionContract.contract_example["approval_sha256"],
+    "record_id": SpecTransactionContract.contract_example["transaction_id"], "approved_sha256": SpecTransactionContract.contract_example["approval_sha256"],
     "affected_task_ids": ["TASK-001"], "changed_fields": ["/task_items/TASK-001/goal"],
     "artifacts": SpecificationVerificationRequestContract.contract_example["artifacts"],
     "candidate": {key: SpecificationUpdateRequestContract.contract_example[key]
@@ -306,7 +358,7 @@ SpecificationPrepareContract.contract_example = {
 }
 SpecificationVerificationContract.contract_example = {
     "schema": "work-spec-verification/v1", "status": "verified", "verified": True,
-    "record_id": "SPEC-UPDATE-002", "requirement_id": "example",
+    "record_id": SpecTransactionContract.contract_example["transaction_id"], "requirement_id": "example",
     "artifacts": SpecificationVerificationRequestContract.contract_example["artifacts"],
     "task_collection_sha256": "0" * 64, "journal_sha256": "0" * 64,
     "verification_scope": "exact_specification_result", "execution_authorized": False,
@@ -314,7 +366,7 @@ SpecificationVerificationContract.contract_example = {
 }
 
 __all__ = [
-    "SpecificationEditModel",
+    "SpecificationTargetModel", "SpecificationSemanticEditModel",
     "SpecificationPrepareRequestContract",
     "SpecificationExpectedModel",
     "SpecificationUpdateRequestContract",

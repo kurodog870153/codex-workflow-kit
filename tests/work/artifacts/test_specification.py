@@ -41,8 +41,16 @@ class SpecificationCollectionUpdateTests(unittest.TestCase):
         self.common = {"project_root": self.root, "user_config_root": str(self.root)}
 
     def request(self, edits):
-        return {"schema": "work-spec-prepare-request/v1", "plan_path": self.plan_path,
-                "reason": "Confirmed collection revision", "edits": edits}
+        semantic = []
+        for edit in edits:
+            if edit.get("operation") in {"add_task", "remove_task"}:
+                semantic.append(edit)
+                continue
+            target = {key: edit[key] for key in ("artifact", "task_id") if key in edit}
+            semantic.append({"target": target, "field": edit["path"].removeprefix("/" ) or "/",
+                             "after": edit.get("after")})
+        return {"schema": "work-spec-prepare-request/v1", "requirement_id": "example",
+                "reason": "Confirmed collection revision", "edits": semantic}
 
     def prepare(self, edits):
         return prepare_specification(json.dumps(self.request(edits)).encode(), **self.common)
@@ -52,13 +60,19 @@ class SpecificationCollectionUpdateTests(unittest.TestCase):
         return update_specification(request, operation="apply",
                                     approved_sha256=prepared["preview"]["approved_sha256"], **self.common)
 
+    def semantic_task(self):
+        return {"title": "Second TASK", "goal": "Validate the second result.",
+                "skill_id": None, "selected_paths": [], "references": ["task.general.task-records"],
+                "dependency_positions": [1], "candidate": {
+                    "steps": [{"key": "check", "action": "Validate.",
+                               "references": [{"kind": "validations", "key": "verify"}]}],
+                    "validations": [{"key": "verify", "kind": "manual",
+                                     "confirmer": "user", "criteria": "Approved.",
+                                     "acceptance_positions": [1]}],
+                }}
+
     def test_single_item_publish_preserves_other_item_and_verifies(self):
-        first = json.loads((self.root / self.task_path).parent.joinpath("tasks/TASK-001.json").read_bytes())
-        second = copy.deepcopy(first)
-        second["id"] = "TASK-002"
-        second["dependencies"] = ["TASK-001"]
-        added = self.prepare([{"artifact": "task_item", "task_id": "TASK-002", "operation": "add",
-                               "path": "/", "after": second}])
+        added = self.prepare([{"operation": "add_task", "task": self.semantic_task()}])
         self.apply(added)
         untouched = (self.root / self.task_path).parent.joinpath("tasks/TASK-002.json").read_bytes()
         current = json.loads((self.root / self.task_path).parent.joinpath("tasks/TASK-001.json").read_bytes())
@@ -75,11 +89,9 @@ class SpecificationCollectionUpdateTests(unittest.TestCase):
         prepared = self.prepare([{"artifact": "task_index", "operation": "replace", "path": "/summary",
                                   "before": index["summary"], "after": index["summary"] + " revised"}])
         self.assertEqual(prepared["preview"]["status"], "valid")
-        first = json.loads((self.root / self.task_path).parent.joinpath("tasks/TASK-001.json").read_bytes())
-        second = copy.deepcopy(first); second["id"] = "TASK-002"; second["dependencies"] = ["TASK-001"]
-        added = self.prepare([{"artifact": "task_item", "task_id": "TASK-002", "operation": "add", "path": "/", "after": second}])
+        added = self.prepare([{"operation": "add_task", "task": self.semantic_task()}])
         self.apply(added)
-        removal = self.prepare([{"artifact": "task_item", "task_id": "TASK-002", "operation": "remove", "path": "/", "before": second}])
+        removal = self.prepare([{"operation": "remove_task", "task_position": 2}])
         self.assertEqual(removal["preview"]["status"], "valid")
         result = self.apply(removal)
         self.assertFalse((self.root / self.task_path).parent.joinpath("tasks/TASK-002.json").exists())

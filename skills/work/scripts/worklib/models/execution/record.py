@@ -7,7 +7,7 @@ from ..common.errors import ExitCode, WorkError
 
 class RecordFinishRequestContract(WorkContract):
     contract_id: ClassVar[str] = 'work-record-finish-request/v1'
-    contract_kind: ClassVar[Literal['request']] = 'request'
+    contract_kind: ClassVar[Literal['semantic_request']] = 'semantic_request'
     canonical_order: ClassVar[tuple[str, ...]] = ('schema', 'record', 'modified_files', 'authorization_evidence')
     schema_: Literal['work-record-finish-request/v1'] = Field(alias='schema')
     record: dict[str, Any]
@@ -16,6 +16,9 @@ class RecordFinishRequestContract(WorkContract):
 
     @model_validator(mode='after')
     def validate_modified_files(self) -> Self:
+        repeated = sorted(set(self.record) & {"id", "kind", "correction"})
+        if repeated:
+            raise WorkError(ExitCode.CONTRACT, 'record_finish_machine_fields', 'Record identity and command correction are derived from the active lock.', {'fields': repeated})
         if self.modified_files is not None:
             if not self.modified_files:
                 raise WorkError(ExitCode.CONTRACT, 'record_finish_invalid_modified_files', 'modified_files must be a non-empty array when present.')
@@ -54,7 +57,7 @@ class RecordFinishContract(WorkContract):
 
 RecordFinishRequestContract.contract_example = {
     "schema": "work-record-finish-request/v1",
-    "record": {"id": "VAL-001", "kind": "validation", "outcome": "success"},
+    "record": {"outcome": "passed", "evidence": "The approved check passed."},
 }
 
 

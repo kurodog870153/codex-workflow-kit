@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ...protocol import SHA256_PATTERN
 from ..common.base import WorkContract
+from ..plan import PlanSemanticRequestContract
+from .contracts import SpecificationSemanticEditModel
 
 
 class MigrationNestedModel(BaseModel):
@@ -37,6 +39,48 @@ class MigrationSemanticDecisionModel(MigrationNestedModel):
     resolution: str | None = None
 
 
+class MigrationSemanticTaskModel(MigrationNestedModel):
+    title: str = Field(min_length=1)
+    goal: str = Field(min_length=1)
+    skill_id: str | None = None
+    selected_paths: list[str]
+    references: list[str]
+    dependency_positions: list[int] = Field(default_factory=list)
+    candidate: dict[str, Any]
+
+
+class SpecificationMigrationPrepareRequestContract(WorkContract):
+    contract_id: ClassVar[str] = "work-spec-migration-prepare-request/v1"
+    contract_kind: ClassVar[Literal["semantic_request"]] = "semantic_request"
+    canonical_order: ClassVar[tuple[str, ...]] = (
+        "schema", "mode", "requirement_id", "reason", "edits", "plan", "task_title",
+        "task_summary", "execution_defaults", "tasks", "semantic_decisions",
+    )
+    schema_: Literal["work-spec-migration-prepare-request/v1"] = Field(alias="schema")
+    mode: Literal["revision", "reconstruction"]
+    requirement_id: str | None = None
+    reason: str | None = None
+    edits: list[SpecificationSemanticEditModel] | None = None
+    plan: PlanSemanticRequestContract | None = None
+    task_title: str | None = None
+    task_summary: str | None = None
+    execution_defaults: dict[str, str] | None = None
+    tasks: list[MigrationSemanticTaskModel] | None = None
+    semantic_decisions: list[MigrationSemanticDecisionModel] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_mode(self) -> "SpecificationMigrationPrepareRequestContract":
+        revision = {"requirement_id", "reason", "edits"}
+        reconstruction = {"plan", "task_title", "task_summary", "tasks"}
+        supplied = self.model_fields_set
+        if self.mode == "revision":
+            if not revision <= supplied or supplied & (reconstruction | {"execution_defaults"}) or not self.edits:
+                raise ValueError("Revision requires requirement ID, reason and semantic edits only.")
+        elif not reconstruction <= supplied or supplied & revision or not self.tasks:
+            raise ValueError("Reconstruction requires a semantic Plan and nonempty semantic TASK list only.")
+        return self
+
+
 class MigrationCheckModel(MigrationNestedModel):
     name: str
     status: Literal["passed", "failed"]
@@ -52,7 +96,7 @@ class MigrationDiffModel(MigrationNestedModel):
 
 class SpecificationMigrationPreviewRequestContract(WorkContract):
     contract_id: ClassVar[str] = "work-spec-migration-preview-request/v1"
-    contract_kind: ClassVar[Literal["request"]] = "request"
+    contract_kind: ClassVar[Literal["generated_request"]] = "generated_request"
     canonical_order: ClassVar[tuple[str, ...]] = (
         "schema", "sources", "candidates", "semantic_decisions",
     )
@@ -124,6 +168,12 @@ SpecificationMigrationPreviewRequestContract.contract_example = {
     ],
     "semantic_decisions": [],
 }
+SpecificationMigrationPrepareRequestContract.contract_example = {
+    "schema": "work-spec-migration-prepare-request/v1", "mode": "revision",
+    "requirement_id": "example", "reason": "Confirmed migration",
+    "edits": [{"target": {"artifact": "task_item", "task_id": "TASK-001"},
+               "field": "goal", "after": "Reviewed goal"}], "semantic_decisions": [],
+}
 SpecificationMigrationPreviewContract.contract_example = {
     "schema": "work-spec-migration-preview/v1", "status": "ready",
     "documents": ["outputs/work/plans/example.json"],
@@ -147,6 +197,8 @@ __all__ = [
     "MigrationSourceEvidenceModel",
     "MigrationCandidateDocumentModel",
     "MigrationSemanticDecisionModel",
+    "MigrationSemanticTaskModel",
+    "SpecificationMigrationPrepareRequestContract",
     "MigrationCheckModel",
     "MigrationDiffModel",
     "SpecificationMigrationPreviewRequestContract",

@@ -12,6 +12,7 @@ class ContractCatalogEntry(BaseModel):
 
     id: str
     kind: ContractKind
+    caller_constructible: bool
 
 
 class ContractFieldDescription(BaseModel):
@@ -44,6 +45,7 @@ class ContractDescription(WorkContract):
         "schema",
         "id",
         "kind",
+        "caller_constructible",
         "required",
         "optional",
         "canonical_order",
@@ -54,6 +56,7 @@ class ContractDescription(WorkContract):
         "schema": "work-contract-description/v1",
         "id": "work-contract-catalog/v1",
         "kind": "response",
+        "caller_constructible": False,
         "required": ["schema", "contracts"],
         "optional": [],
         "canonical_order": ["schema", "contracts"],
@@ -64,6 +67,7 @@ class ContractDescription(WorkContract):
     schema_: Literal["work-contract-description/v1"] = Field(alias="schema")
     id: str
     kind: ContractKind
+    caller_constructible: bool
     required: list[str]
     optional: list[str]
     canonical_order_: list[str] = Field(alias="canonical_order")
