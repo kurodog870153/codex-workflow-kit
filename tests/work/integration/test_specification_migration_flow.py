@@ -13,7 +13,7 @@ from contracts import test_task_collection as fixtures
 from worklib.services.attempt import build_initial_execution_index, render_execution_index
 from worklib.technical.foundation.fingerprint import raw_sha256
 from worklib.technical.infrastructure.json_contract import parse_json_contract
-from worklib.workflows.task import preview_specification_migration, publish_specification_migration
+from worklib.orchestration.task import preview_specification_migration, publish_specification_migration
 from worklib.business_services.task import load_task_collection
 
 

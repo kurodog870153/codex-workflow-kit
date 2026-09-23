@@ -41,6 +41,12 @@ class RecordFinishTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertEqual(overall_operation_result(records), expected)
 
+    def test_skipped_operation_is_not_reported_as_success(self) -> None:
+        self.assertIsNone(overall_operation_result([{
+            "id": "OP-001", "kind": "operation", "status": "skipped",
+            "reason": "Not applicable.", "deviation_id": "DEVIATION-001",
+        }]))
+
     def test_rejects_record_that_does_not_match_reservation(self) -> None:
         attempt = {"records": []}
         cases = (

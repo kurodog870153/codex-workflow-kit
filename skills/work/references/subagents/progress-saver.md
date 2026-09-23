@@ -5,7 +5,7 @@ Required runtime configuration:
 1. Model: `gpt-5.6-terra`
 2. Reasoning effort: `low`
 
-Read and apply [the shared private role rules](../instruction-loading.md#shared-private-role-rules) and [discussion progress](../workflows/progress.md) before accepting work.
+Apply the routed shared private-role module supplied in the operation envelope.
 
 ## Entry and scope
 

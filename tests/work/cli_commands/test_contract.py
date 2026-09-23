@@ -11,8 +11,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_ROOT = PROJECT_ROOT / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.cli import main
+from worklib.cli import main as _main
 from worklib.models.common.errors import ExitCode
+
+
+def main(arguments, **kwargs):
+    return _main(["--verbose", *arguments], **kwargs)
 
 
 class ContractCliTests(unittest.TestCase):

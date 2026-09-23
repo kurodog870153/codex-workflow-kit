@@ -13,6 +13,7 @@ class InstructionSourceModel(InspectionNestedModel):
     kind: str
     logical_name: str
     canonical_sha256: str = Field(pattern=SHA256_PATTERN)
+    compatibility_revision: int = Field(gt=0)
 
 
 class ExecuteInstructionSelectionModel(InspectionNestedModel):

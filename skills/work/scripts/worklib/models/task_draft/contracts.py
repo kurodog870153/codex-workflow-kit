@@ -128,6 +128,31 @@ class TaskDraftPrepareContract(WorkContract):
     drafts: dict[str, dict[str, Any]]
 
 
+class TaskSemanticItemModel(DraftNestedModel):
+    title: str
+    goal: str
+    scope: list[str]
+    skill_id: str | None
+    instruction_selection: dict[str, Any]
+    dependencies: list[int] = []
+
+
+class TaskSemanticRequestContract(WorkContract):
+    contract_id: ClassVar[str] = "work-task-semantic-request/v1"
+    contract_kind: ClassVar[Literal["request"]] = "request"
+    canonical_order: ClassVar[tuple[str, ...]] = ("tasks", "current_task")
+    tasks: list[TaskSemanticItemModel]
+    current_task: int | None = None
+
+
+TaskSemanticRequestContract.contract_example = {
+    "tasks": [{"title": "Implement", "goal": "Deliver the result.", "scope": ["Source"],
+               "skill_id": None, "instruction_selection": {"selected_paths": [], "references": []},
+               "dependencies": []}],
+    "current_task": 1,
+}
+
+
 class TaskDraftSaveContract(WorkContract):
     contract_id: ClassVar[str] = "work-task-draft-save/v1"
     contract_kind: ClassVar[Literal["response"]] = "response"

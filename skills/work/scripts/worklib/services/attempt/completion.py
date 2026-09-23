@@ -14,7 +14,9 @@ def _latest_record_outcomes(attempt: dict[str, Any]) -> dict[str, str]:
     for record in attempt["records"]:
         base_id = record["id"].split("#", 1)[0]
         if record["kind"] == "validation":
-            outcomes[base_id] = record["outcome"]
+            outcomes[base_id] = (
+                "skipped" if record.get("status") == "skipped" else record["outcome"]
+            )
     return outcomes
 
 
@@ -27,12 +29,12 @@ def validate_completed_coverage(
     failed = [
         record_id
         for record_id in required
-        if outcomes.get(record_id) not in {None, "passed"}
+        if outcomes.get(record_id) not in {None, "passed", "skipped"}
     ]
     if missing or failed:
         raise WorkError(
             ExitCode.WORKFLOW_STATE,
             "attempt_close_incomplete_validations",
-            "A completed Attempt requires every formal validation to pass.",
+            "A completed Attempt requires every formal validation to pass or have approved skipped evidence.",
             {"missing": missing, "failed": failed},
         )

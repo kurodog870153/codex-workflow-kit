@@ -6,7 +6,7 @@ from typing import Protocol
 
 from .draft_assembly import assemble_task_drafts, create_task_from_drafts
 from .draft_list import update_task_planning_list
-from .draft_prepare import initialize_task_planning_request, prepare_task_planning_request
+from .draft_prepare import initialize_task_planning_request, prepare_task_planning_request, prepare_semantic_task_request
 from .draft_request import save_task_draft_request
 from .draft_source import check_task_draft_sources
 from .draft_source_update import update_task_draft_sources
@@ -132,6 +132,11 @@ def execute_task_command(
             raise WorkError(ExitCode.CLI_USAGE, "invalid_expected_revision", "List preparation requires an existing revision.")
         return prepare_task_planning_request(project_root, arguments.requirement_id, payload,
             expected_revision=arguments.expected_revision, operations=draft_operations, **options)
+    if arguments.task_command == "semantic-prepare":
+        return prepare_semantic_task_request(project_root, arguments.requirement_id, request.raw,
+            source=request.source, plan_path=arguments.plan_path,
+            user_config_root=arguments.user_config_root,
+            skill_roots=[parse_skill_root(root) for root in arguments.skill_root], operations=draft_operations)
     if arguments.task_command in {"spec-prepare", "repair-prepare"}:
         if arguments.task_command == "spec-prepare":
             _require_collection_plan(project_root, parse_json_contract(request.raw, source=request.source).get("plan_path"))

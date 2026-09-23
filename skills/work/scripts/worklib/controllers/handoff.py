@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 
-from ..workflows.handoff import run_handoff
+from ..orchestration.handoff import run_handoff
 from . import SubparserRegistry
 
 

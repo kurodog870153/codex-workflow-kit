@@ -18,9 +18,9 @@ from worklib.services.attempt.validation import (
     build_initial_execution_index,
     render_execution_index,
 )
-from worklib.workflows.task import diagnose_task_collection
+from worklib.orchestration.task import diagnose_task_collection
 from worklib.business_services.task.index import render_task_index_contract
-from worklib.workflows.execution import ExecutionOperations, inspect_execute_worktree
+from worklib.orchestration.execution import ExecutionOperations, inspect_execute_worktree
 from worklib.models.common.errors import WorkError
 from worklib.technical.foundation.fingerprint import raw_sha256
 from worklib.business_services.task import load_task_collection
@@ -83,7 +83,7 @@ class TaskCollectionDiagnosticsTests(unittest.TestCase):
     def cli(self, arguments: list[str]) -> tuple[int, dict[str, object]]:
         output, errors = io.StringIO(), io.StringIO()
         code = main(
-            ["--project-root", str(self.root), *arguments],
+            ["--project-root", str(self.root), "--verbose", *arguments],
             stdout=output,
             stderr=errors,
         )

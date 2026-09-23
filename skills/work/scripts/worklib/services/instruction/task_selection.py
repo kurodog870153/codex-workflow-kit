@@ -12,7 +12,9 @@ from ...models.common.errors import ExitCode, WorkError
 from ...models.instruction import InstructionSource, InstructionSourceSet
 
 FIELDS = {"sources", "references", "instructions_sha256"}
-SOURCE_FIELDS = {"kind", "logical_name", "canonical_sha256"}
+OPTIONAL_FIELDS = {"routing_manifest"}
+SOURCE_FIELDS = {"kind", "logical_name", "canonical_sha256", "compatibility_revision"}
+LEGACY_SOURCE_FIELDS = SOURCE_FIELDS - {"compatibility_revision"}
 SHA256_PATTERN = re.compile(SHA256_PATTERN_TEXT)
 
 
@@ -42,9 +44,12 @@ def build_task_document_instruction_selection(task_sources: list[InstructionSour
 def validate_task_document_instruction_selection(value: object, expected: dict[str, object], *, location: str = "instruction_selection") -> dict[str, object]:
     if not isinstance(value, dict):
         raise WorkError(ExitCode.CONTRACT, "expected_object", "A JSON object is required.", {"location": location})
-    missing, unknown = sorted(FIELDS - set(value)), sorted(set(value) - FIELDS)
+    missing, unknown = sorted(FIELDS - set(value)), sorted(set(value) - FIELDS - OPTIONAL_FIELDS)
     if missing or unknown:
         raise WorkError(ExitCode.CONTRACT, "invalid_object_fields", "The JSON object has missing or unknown fields.", {"location": location, "missing": missing, "unknown": unknown})
+    if "routing_manifest" in value:
+        from ...models.workflow import InstructionSelectionManifestContract
+        InstructionSelectionManifestContract.model_validate(value["routing_manifest"])
     raw_sources = value["sources"]
     if not isinstance(raw_sources, list) or not raw_sources:
         raise WorkError(ExitCode.CONTRACT, "invalid_instruction_sources", "Document instruction sources must be a non-empty array.", {"location": f"{location}.sources"})
@@ -52,12 +57,13 @@ def validate_task_document_instruction_selection(value: object, expected: dict[s
     identities: set[tuple[str, str]] = set()
     for index, source in enumerate(raw_sources):
         source_location = f"{location}.sources[{index}]"
-        if not isinstance(source, dict) or set(source) != SOURCE_FIELDS:
+        if not isinstance(source, dict) or set(source) not in (SOURCE_FIELDS, LEGACY_SOURCE_FIELDS):
+            expected = SOURCE_FIELDS if isinstance(source, dict) and "compatibility_revision" in source else LEGACY_SOURCE_FIELDS
             details = {"location": source_location}
             if isinstance(source, dict):
                 details.update({
-                    "missing": sorted(SOURCE_FIELDS - set(source)),
-                    "unknown": sorted(set(source) - SOURCE_FIELDS),
+                    "missing": sorted(expected - set(source)),
+                    "unknown": sorted(set(source) - expected),
                 })
             raise WorkError(ExitCode.CONTRACT, "invalid_object_fields" if isinstance(source, dict) else "expected_object", "The JSON object has missing or unknown fields.", details)
         kind, name, digest = source["kind"], source["logical_name"], source["canonical_sha256"]
@@ -67,6 +73,9 @@ def validate_task_document_instruction_selection(value: object, expected: dict[s
             raise WorkError(ExitCode.CONTRACT, "invalid_instruction_logical_name", "The instruction source logical name must be non-empty.", {"location": f"{source_location}.logical_name"})
         if not isinstance(digest, str) or not SHA256_PATTERN.fullmatch(digest):
             raise WorkError(ExitCode.CONTRACT, INVALID_SHA256_ERROR_CODE, "A SHA-256 value must contain 64 lowercase hexadecimal characters.", {"location": f"{source_location}.canonical_sha256"})
+        revision = source.get("compatibility_revision")
+        if revision is not None and (not isinstance(revision, int) or isinstance(revision, bool) or revision < 1):
+            raise WorkError(ExitCode.CONTRACT, "invalid_compatibility_revision", "Compatibility revision must be a positive integer.", {"location": f"{source_location}.compatibility_revision"})
         if (kind, name) in identities:
             raise WorkError(ExitCode.CONTRACT, "duplicate_instruction_source", "Document instruction source identities must be unique.", {"location": source_location})
         identities.add((kind, name)); sources.append(dict(source))

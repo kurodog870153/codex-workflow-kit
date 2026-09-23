@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import ClassVar, Literal, Self
 
-from pydantic import Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..common.base import WorkContract
 from ..common.errors import ExitCode, WorkError
@@ -40,12 +40,20 @@ class AttemptCloseRequestContract(WorkContract):
         return self
 
 
+class PendingDeviationModel(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
+
+    deviation_id: str = Field(pattern=r"^DEVIATION-[0-9]{3}$")
+    classification: Literal["task_only", "plan_and_task"]
+    blocking: bool
+
+
 class AttemptCloseContract(WorkContract):
     contract_id: ClassVar[str] = "work-attempt-close/v1"
     contract_kind: ClassVar[Literal["response"]] = "response"
     canonical_order: ClassVar[tuple[str, ...]] = (
         "schema", "task_id", "attempt_id", "attempt_path", "index_path",
-        "attempt_status", "task_status", "overall_status", "lock_status",
+        "attempt_status", "task_status", "overall_status", "pending_deviations", "lock_status",
     )
     schema_: Literal["work-attempt-close/v1"] = Field(alias="schema")
     task_id: str
@@ -55,6 +63,7 @@ class AttemptCloseContract(WorkContract):
     attempt_status: Literal["completed", "stopped", "blocked"]
     task_status: str
     overall_status: str
+    pending_deviations: list[PendingDeviationModel]
     lock_status: Literal["released"]
 
 
@@ -64,7 +73,7 @@ AttemptCloseContract.contract_example = {
     "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
     "index_path": "outputs/work/executions/example/index.json",
     "attempt_status": "completed", "task_status": "completed",
-    "overall_status": "completed", "lock_status": "released",
+    "overall_status": "completed", "pending_deviations": [], "lock_status": "released",
 }
 
 

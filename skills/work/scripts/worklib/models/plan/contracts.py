@@ -160,6 +160,37 @@ PlanPrepareRequestContract.contract_example = {
 }
 
 
+class PlanSemanticRequestContract(WorkContract):
+    contract_id: ClassVar[str] = "work-plan-semantic-request/v1"
+    contract_kind: ClassVar[Literal["request"]] = "request"
+    canonical_order: ClassVar[tuple[str, ...]] = (
+        "requirement_id", "title", "summary", "goals", "scope",
+        "deliverables", "acceptance_criteria", "hierarchy_selection",
+        "skill_selection", "references",
+    )
+    requirement_id: str
+    title: str
+    summary: str
+    goals: list[str]
+    scope: list[str]
+    deliverables: list[str]
+    acceptance_criteria: list[str]
+    hierarchy_selection: dict[str, Any]
+    skill_selection: dict[str, Any]
+    references: list[str]
+
+
+PlanSemanticRequestContract.contract_example = {
+    "requirement_id": "example", "title": "Example", "summary": "Example plan.",
+    "goals": ["Deliver the result."], "scope": ["Implement the result."],
+    "deliverables": ["Completed result."],
+    "acceptance_criteria": ["The result is verified."],
+    "hierarchy_selection": PlanPrepareRequestContract.contract_example["hierarchy_selection"],
+    "skill_selection": PlanPrepareRequestContract.contract_example["skill_selection"],
+    "references": [],
+}
+
+
 class PlanContract(WorkContract):
     contract_id: ClassVar[str] = "work-plan/v1"
     contract_kind: ClassVar[Literal["artifact"]] = "artifact"

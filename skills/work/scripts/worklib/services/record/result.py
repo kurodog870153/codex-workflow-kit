@@ -11,7 +11,10 @@ def _fail(code: str, message: str, **details: object) -> None:
 
 
 def overall_operation_result(records: list[dict[str, Any]]) -> dict[str, Any] | None:
-    operations = [item for item in records if item["kind"] == "operation"]
+    operations = [
+        item for item in records
+        if item["kind"] == "operation" and item.get("status") != "skipped"
+    ]
     if not operations:
         return None
     effective = [item["id"] for item in operations if item["outcome"] == "success"]

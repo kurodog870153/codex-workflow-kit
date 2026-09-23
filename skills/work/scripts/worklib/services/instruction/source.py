@@ -12,6 +12,20 @@ from ...technical.foundation.fingerprint import (
 from ...technical.infrastructure.file_io import read_raw
 from ...technical.infrastructure.text_codec import canonical_bytes, canonical_sha256
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+COMPATIBILITY_REVISION_PATTERN = re.compile(
+    rb"(?m)^<!-- work-compatibility-revision: ([1-9][0-9]*) -->$"
+)
+
+
+def compatibility_revision(content: bytes) -> int:
+    matches = COMPATIBILITY_REVISION_PATTERN.findall(content)
+    if len(matches) > 1:
+        raise WorkError(
+            ExitCode.INPUT_FORMAT,
+            "duplicate_instruction_compatibility_revision",
+            "An instruction source may declare at most one compatibility revision.",
+        )
+    return int(matches[0]) if matches else 1
 
 
 def _load_source(
@@ -71,7 +85,11 @@ def _load_source(
         path=declared_path,
         canonical_content=canonical_content,
         canonical_sha256=canonical_sha256(raw, source=str(declared_path)),
+        compatibility_revision=compatibility_revision(canonical_content),
     )
+
+
+__all__ = ["compatibility_revision", "load_instruction_sources"]
 
 
 def _route_references(

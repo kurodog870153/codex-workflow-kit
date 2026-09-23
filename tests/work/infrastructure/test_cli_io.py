@@ -22,6 +22,7 @@ from worklib.services.attempt import authorization_sha256, minimal_authorization
 from worklib.services.correction.document import canonicalize_correction_contract
 from worklib.models.common.errors import ExitCode
 from worklib.technical.infrastructure.json_contract import render_json_contract
+from worklib.technical.infrastructure.cli_io import success_response
 
 
 class CliFileTransportTests(FileInputTestCase):
@@ -31,9 +32,12 @@ class CliFileTransportTests(FileInputTestCase):
         self.root = Path(directory.name) / "專案 workspace"
         self.root.mkdir()
 
-    def invoke(self, *arguments, expected_code=0):
+    def invoke(self, *arguments, expected_code=0, verbose=True):
         stdout, stderr = io.StringIO(), io.StringIO()
-        code = main(["--project-root", str(self.root), *arguments], stdout=stdout, stderr=stderr)
+        options = ["--project-root", str(self.root)]
+        if verbose:
+            options.append("--verbose")
+        code = main([*options, *arguments], stdout=stdout, stderr=stderr)
         self.assertEqual(code, expected_code, stdout.getvalue())
         self.assertEqual(stderr.getvalue(), "")
         response = json.loads(stdout.getvalue())
@@ -49,6 +53,33 @@ class CliFileTransportTests(FileInputTestCase):
         self.assertEqual(result["reason_code"], "ok")
         self.assertEqual(result["data"]["schema"], "work-paths/v1")
 
+    def test_success_defaults_to_brief_and_verbose_returns_complete_data(self):
+        brief = self.invoke(
+            "paths", "resolve", "--requirement-id", "example", verbose=False,
+        )["data"]
+        complete = self.invoke(
+            "paths", "resolve", "--requirement-id", "example",
+        )["data"]
+        self.assertEqual(
+            brief,
+            {
+                "paths": complete["paths"],
+                "requirement_id": "example",
+                "schema": "work-paths/v1",
+            },
+        )
+        self.assertEqual(complete["project_root"], str(self.root))
+
+    def test_full_evidence_bypasses_brief_projection_for_recovery(self):
+        result = {
+            "schema": "work-recovery/v1",
+            "status": "recovered",
+            "record_id": "RECOVERY-001",
+            "evidence": [{"detail": "retained"}],
+        }
+        response = success_response(result, full_evidence=True)
+        self.assertEqual(response["data"], result)
+
     def test_single_bom_and_no_bom_produce_identical_results(self):
         raw = b'{"decision":"general_only","selections":[]}'
         results = [self.invoke("hierarchy", "selection-build", "--input-file", self.input_file(prefix + raw)) for prefix in (b"", b"\xef\xbb\xbf")]
@@ -58,7 +89,7 @@ class CliFileTransportTests(FileInputTestCase):
     def test_invalid_encoding_and_json_are_rejected_without_artifact_writes(self):
         for raw, reason in ((b"\xff", "invalid_utf8"), ("{}".encode("utf-16"), "invalid_utf8"), (b"\xef\xbb\xbf\xef\xbb\xbf{}", "input_file_multiple_bom"), (b"", "invalid_json_contract"), (b"{", "invalid_json_contract"), (b'{"x":1,"x":2}', "duplicate_json_key")):
             with self.subTest(reason=reason, raw=raw):
-                response = self.invoke("attempt", "render", "--input-file", self.input_file(raw), expected_code=ExitCode.INPUT_FORMAT)
+                response = self.invoke("attempt", "render", "--input-file", self.input_file(raw), expected_code=ExitCode.INPUT_FORMAT, verbose=False)
                 self.assertEqual(response["status"], "rejected")
                 self.assertEqual(response["reason_code"], reason)
                 self.assertEqual(list(self.root.iterdir()), [])

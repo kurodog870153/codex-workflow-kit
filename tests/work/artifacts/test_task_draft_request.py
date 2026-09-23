@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from cli_support import FileInputTestCase
 
 from worklib.services.task.draft.storage import read_task_draft, read_task_planning_index, save_task_planning
-from worklib.workflows.task import save_task_draft_request
+from worklib.orchestration.task import save_task_draft_request
 from worklib.cli import main
 from worklib.business_services.plan import render_plan_contract, validate_plan_file
 from worklib.models.common.errors import ExitCode, WorkError
@@ -172,7 +172,7 @@ class TaskDraftRequestTests(FileInputTestCase):
         self.assert_rejected("draft_instruction_drift")
 
     def test_skill_validation_failure_is_preserved_without_writing(self):
-        with patch("worklib.workflows.task.TaskDraftOperations.validate_plan_contract", side_effect=WorkError(ExitCode.ARTIFACT_INTEGRITY, "skill_bundle_drift", "Changed skill.")):
+        with patch("worklib.orchestration.task.TaskDraftOperations.validate_plan_contract", side_effect=WorkError(ExitCode.ARTIFACT_INTEGRITY, "skill_bundle_drift", "Changed skill.")):
             self.assert_rejected("skill_bundle_drift")
 
     def test_refined_content_and_candidate_use_existing_contract(self):

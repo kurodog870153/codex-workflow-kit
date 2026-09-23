@@ -68,6 +68,7 @@ class WorkflowContinuationFlowTests(unittest.TestCase):
                 str(SCRIPT_ROOT / "work.py"),
                 "--project-root",
                 str(self.root),
+                "--verbose",
                 *arguments,
             ],
             stdin=subprocess.DEVNULL,

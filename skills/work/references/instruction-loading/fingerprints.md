@@ -1,0 +1,11 @@
+<!-- work-compatibility-revision: 1 -->
+# Canonical fingerprints
+
+
+1. Formal Plan, each formal TASK index or item, execution index, Attempt and Correction artifact is a single JSON object in its `.json` file, without Markdown titles, fences or trailing prose. Legacy Markdown artifacts are rejected, with no fallback. Canonical JSON uses contract-defined key order, two-space indentation, UTF-8 without BOM, NFC, LF and exactly one trailing LF. TASK derives exact-byte `task_index_sha256`, each `task_item_sha256`, and the canonical logical `task_collection_sha256`. Encode SHA-256 values as 64 lowercase hexadecimal characters.
+2. Canonical instruction source content uses the same BOM, NFC, line-ending, trailing-LF, UTF-8, and SHA-256 behavior.
+3. Preserve actual source order for instruction fingerprints. Start with `work.instruction-loading`, then `work.workflow.<mode>`, followed by selected instruction and routed reference sources in their actual load order. Never alphabetically sort sources for hashing.
+4. Each saved source contains only `kind`, `logical_name`, and `canonical_sha256`. `kind` is exactly `workflow`, `instruction`, or `reference`. Never save source layer, absolute path, platform separator, project root, or current working directory.
+5. Frame ordered sources as exact bytes. Start with ASCII `WORK-INSTRUCTIONS-SHA-256-V1\n`. For each source append ASCII `S`, followed by four length-prefixed values in this order: mode (`plan`, `task`, or `execute`), kind, logical name, and canonical content. A length-prefixed value is its UTF-8 byte length as unpadded ASCII decimal, one ASCII colon, then exactly that many bytes. Append one LF after each source and finish with ASCII `END\n`.
+6. Instruction logical names use the mode plus resolved hierarchy segments joined with dots, such as `task.web.backend.java`. Reference logical names use their declared globally unique reference name.
+7. `instructions_sha256` is the SHA-256 of the complete frame. A document fingerprint uses the first-occurrence union of sources applicable to its TASK entries while preserving actual load order. A per-TASK fingerprint uses only that TASK's applicable ordered sources. Unrelated source changes outside that subset do not change or block the per-TASK fingerprint.

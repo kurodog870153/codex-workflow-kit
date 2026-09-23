@@ -3,6 +3,11 @@
 from .catalog import CrossModeInstructionCatalog, InstructionCatalog
 from .contracts import InstructionCatalogContract, InstructionSelectionContract, InstructionsContract
 from .source import InstructionSource, InstructionSourceSet
+from .refresh import (
+    InstructionMigrationPreviewContract, InstructionMigrationPublicationContract,
+    SourceImpactContract, SourceRefreshPreviewContract, SourceRefreshPublicationContract,
+    SourceRefreshBatchPreviewContract, SourceRefreshBatchPublicationContract,
+)
 
 __all__ = [
     "CrossModeInstructionCatalog",
@@ -12,4 +17,11 @@ __all__ = [
     "InstructionSource",
     "InstructionSourceSet",
     "InstructionsContract",
+    "InstructionMigrationPreviewContract",
+    "InstructionMigrationPublicationContract",
+    "SourceImpactContract",
+    "SourceRefreshPreviewContract",
+    "SourceRefreshPublicationContract",
+    "SourceRefreshBatchPreviewContract",
+    "SourceRefreshBatchPublicationContract",
 ]

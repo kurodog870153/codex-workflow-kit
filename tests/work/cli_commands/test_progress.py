@@ -103,7 +103,7 @@ class ProgressCliTests(FileInputTestCase):
     def test_save_and_fresh_process_resume_preserve_decision_status_and_details(self):
         result = self.save()
         command = [sys.executable, "-B", str(SCRIPT_ROOT / "work.py"), "--project-root", str(self.root),
-                   "progress", "read", "--requirement-id", "example", "--mode", "plan"]
+                   "--verbose", "progress", "read", "--requirement-id", "example", "--mode", "plan"]
         restored = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", timeout=30,
                                   env={**os.environ, "PYTHONIOENCODING": "utf-8"})
         self.assertEqual(restored.returncode, 0, restored.stderr)

@@ -11,7 +11,9 @@ from ...services.command.formalization import formal_command
 from .context import validate_execution_identity
 from .instructions import validate_execute_instructions
 from ...services.record.sequencing import next_record_id
-from ...services.authorization.rules import authorization_evidence, require_record_scope
+from ...services.authorization.rules import (
+    authorization_evidence, effective_task, require_record_scope,
+)
 from .recovery import _validate_attempt_bytes, _validate_index_bytes
 from ...services.attempt.validation import canonicalize_command_correction
 from ...models.execution.command import (
@@ -124,6 +126,7 @@ def _prepare(raw, *, source, project_root, user_config_root, raw_task_path, raw_
         _fail("command_run_sequence", "The reserved CMD is not the next record instance.")
     validate_execute_instructions(task, attempt, operation="command_run", operations=operations)
     require_record_scope(attempt, base_id)
+    task = effective_task(task, attempt)
     command = formal_command(task, base_id)
     if "command_correction" in lock:
         correction = canonicalize_command_correction(lock["command_correction"])
@@ -179,7 +182,7 @@ def _prepare(raw, *, source, project_root, user_config_root, raw_task_path, raw_
     preview["approved_sha256"] = raw_sha256(_json(preview))
     canonical_preview = CommandPreviewContract.model_validate(preview).to_canonical_dict()
     if include_authorization:
-        return canonical_preview, authorization_evidence(attempt, lock)
+        return canonical_preview, authorization_evidence(attempt, lock, base_id)
     return canonical_preview
 
 

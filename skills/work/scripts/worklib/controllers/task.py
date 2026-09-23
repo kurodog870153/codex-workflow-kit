@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ..workflows.task import TaskRequestInput, execute_task_command
+from ..orchestration.task import TaskRequestInput, execute_task_command
 from . import SubparserRegistry
 
 
@@ -79,6 +79,12 @@ def register_task_commands(commands: SubparserRegistry) -> None:
 
     draft_init = task_commands.add_parser("draft-init", help="Save an initial planning index from a JSON request file.")
     draft_init.add_argument("--input-file", required=True)
+    semantic = task_commands.add_parser("semantic-prepare", help="Derive TASK planning machine fields from semantic input.")
+    semantic.add_argument("--input-file", required=True)
+    semantic.add_argument("--requirement-id", required=True)
+    semantic.add_argument("--plan-path", required=True)
+    semantic.add_argument("--user-config-root", required=True)
+    semantic.add_argument("--skill-root", action="append", default=[])
     for name in ("draft-init-request", "draft-list-prepare"):
         preparation = task_commands.add_parser(name)
         preparation.add_argument("--input-file", required=True)

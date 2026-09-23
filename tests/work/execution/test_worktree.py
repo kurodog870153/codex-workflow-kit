@@ -11,13 +11,13 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_ROOT = REPO_ROOT / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.workflows.execution import inspect_execute_worktree
+from worklib.orchestration.execution import inspect_execute_worktree
 
 
 class ExecuteWorktreeTests(unittest.TestCase):
     @patch("worklib.business_services.execution.worktree.collect_git_status", return_value=[])
     @patch("worklib.business_services.execution.worktree.canonical_sha256", return_value="a" * 64)
-    @patch("worklib.workflows.execution.ExecutionOperations.load_task_execution_context")
+    @patch("worklib.orchestration.execution.ExecutionOperations.load_task_execution_context")
     @patch("worklib.business_services.execution.worktree.execute_preflight")
     def test_forwards_instruction_fingerprints(
         self,

@@ -160,6 +160,8 @@ call :require_file "agents\openai.yaml"
 if errorlevel 1 exit /b 1
 call :require_file "references\instruction-loading.md"
 if errorlevel 1 exit /b 1
+call :require_file "references\instruction-loading\invocation.md"
+if errorlevel 1 exit /b 1
 for %%M in (plan task execute specification task-drafts repair progress) do (
     call :require_file "references\workflows\%%M.md"
     if errorlevel 1 exit /b 1
@@ -287,6 +289,8 @@ if errorlevel 1 exit /b 1
 call :copy_file "agents\openai.yaml"
 if errorlevel 1 exit /b 1
 call :copy_file "references\instruction-loading.md"
+if errorlevel 1 exit /b 1
+call :copy_tree "references\instruction-loading"
 if errorlevel 1 exit /b 1
 call :copy_tree "references\workflows"
 if errorlevel 1 exit /b 1

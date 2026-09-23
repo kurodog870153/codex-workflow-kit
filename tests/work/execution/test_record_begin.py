@@ -11,7 +11,7 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.business_services.execution.record_begin import _write_lock_update
-from worklib.workflows.execution import begin_record
+from worklib.orchestration.execution import begin_record
 from worklib.models.common.errors import ExitCode, WorkError
 
 

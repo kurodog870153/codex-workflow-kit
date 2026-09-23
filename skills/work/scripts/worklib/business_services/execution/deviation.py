@@ -18,7 +18,11 @@ from ...models.common.errors import ExitCode, WorkError
 from ...services.execution.command import canonical_json_sha256, raw_sha256, read_raw, normalize_relative_path
 from ...services.specification.transaction import require_no_spec_update
 from ...services.execution.command import storage_path, require_idle_writer, TransactionErrors, prepare_and_replace
-from ...services.deviation.validation import validate_deviation_action as _validate_action
+from ...services.deviation.validation import (
+    deviation_is_blocking,
+    deviation_reconciliation_target,
+    validate_deviation_action as _validate_action,
+)
 from .context import validate_execution_identity
 from .instructions import validate_execute_instructions
 from ...services.record.sequencing import formal_record_kind
@@ -106,11 +110,12 @@ def _prepare_execution_deviation(
     validate_execute_instructions(task, attempt, operation="deviation_prepare", operations=operations)
     record_kind = formal_record_kind(task, proposal["anchor_record_id"].split("#", 1)[0])
     _validate_action(proposal, task, record_kind)
-    require_deviation(attempt, proposal["action"])
     if any(read_raw(storage_path(project_root, path)) != content for path, content in observed.items()):
         _fail("deviation_source_changed", "A deviation source changed during preparation.")
     preview = {"schema": "work-execution-deviation-preview/v1", "proposal": proposal,
         "record_kind": record_kind, "action_validation": "passed", "semantic_review": "required",
+        "classification": deviation_reconciliation_target(proposal),
+        "blocking": deviation_is_blocking(proposal),
         "sources": {path: raw_sha256(content) for path, content in observed.items()}}
     preview["preview_sha256"] = canonical_json_sha256(preview)
     return ExecutionDeviationPreviewContract.model_validate(preview).to_canonical_dict()
@@ -127,10 +132,14 @@ TRANSACTION_ERRORS = TransactionErrors(
 
 def record_execution_deviation(
     raw: bytes, *, source: str, approved_sha256: str,
+    authorization_evidence: str,
     project_root: Path, user_config_root: str,
     raw_task_path: str, raw_execution_dir: str, task_id: str, skill_roots=None, operations=None,
 ) -> dict[str, object]:
     sha256(approved_sha256, location="approved_sha256")
+    evidence = nonempty_string(
+        authorization_evidence, location="authorization_evidence"
+    )
     proposal = ExecutionDeviationProposalContract.parse_json_bytes(
         raw, source=source
     ).to_canonical_dict()
@@ -142,7 +151,11 @@ def record_execution_deviation(
     attempt = _validate_attempt_bytes(
         attempt_raw, project_root=project_root, source=attempt_relative
     )
-    manifest_evidence = authorization_evidence(attempt)
+    if evidence == attempt["authorization"]["authorization_evidence"]:
+        _fail(
+            "deviation_record_authorization_evidence_reused",
+            "A runtime deviation cannot reuse the original Attempt authorization evidence.",
+        )
     deviations = list(attempt.get("execution_deviations", []))
     if any(item["approved_preview_sha256"] == approved_sha256 for item in deviations):
         _fail("deviation_record_duplicate", "This approved deviation is already recorded.")
@@ -164,7 +177,14 @@ def record_execution_deviation(
         "deviation_id": deviation_id,
         "approved_preview_sha256": approved_sha256,
         "proposal": proposal,
-        "decision": {"outcome": "approved", "evidence": manifest_evidence},
+        "supplemental_authorization": {
+            "schema": "work-execution-deviation-authorization/v1",
+            "preview_sha256": approved_sha256,
+            "action": proposal["action"],
+            "modifiable_files": proposal["modifiable_files"],
+            "authorization_evidence": evidence,
+        },
+        "decision": {"outcome": "approved", "evidence": evidence},
         "reconciliation_status": "pending",
     }
     candidate = copy.deepcopy(attempt)
@@ -186,6 +206,6 @@ def record_execution_deviation(
         "schema": "work-execution-deviation-record/v1",
         "task_id": task_id, "attempt_id": attempt_id,
         "deviation_id": deviation_id, "attempt_path": attempt_relative,
+        "classification": preview["classification"], "blocking": preview["blocking"],
         "record_status": "recorded", "lock_status": "record_reserved",
     }).to_canonical_dict()
-from ...services.authorization.rules import authorization_evidence, require_deviation

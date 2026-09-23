@@ -12,7 +12,8 @@ from ...protocol import (
 from ...models.common.errors import ExitCode, WorkError
 
 FIELDS = {"sources", "references", "instructions_sha256"}
-SOURCE_FIELDS = {"kind", "logical_name", "canonical_sha256"}
+SOURCE_FIELDS = {"kind", "logical_name", "canonical_sha256", "compatibility_revision"}
+LEGACY_SOURCE_FIELDS = SOURCE_FIELDS - {"compatibility_revision"}
 SHA256_PATTERN = re.compile(SHA256_PATTERN_TEXT)
 
 
@@ -50,7 +51,11 @@ def stored_selection(value, *, selected_paths=None, document=False):
         raise WorkError(ExitCode.CONTRACT, "invalid_instruction_sources", "Stored sources must be non-empty.")
     identities = set()
     for raw in sources:
-        source = _object(raw, SOURCE_FIELDS, "source")
+        if not isinstance(raw, dict) or set(raw) not in (SOURCE_FIELDS, LEGACY_SOURCE_FIELDS):
+            expected = SOURCE_FIELDS if isinstance(raw, dict) and "compatibility_revision" in raw else LEGACY_SOURCE_FIELDS
+            source = _object(raw, expected, "source")
+        else:
+            source = raw
         kind, name, digest = source["kind"], source["logical_name"], source["canonical_sha256"]
         if not isinstance(kind, str) or kind not in INSTRUCTION_SOURCE_KINDS:
             raise WorkError(ExitCode.CONTRACT, "invalid_instruction_kind", "Invalid stored source kind.")
@@ -58,6 +63,9 @@ def stored_selection(value, *, selected_paths=None, document=False):
             raise WorkError(ExitCode.CONTRACT, "invalid_instruction_logical_name", "Invalid stored source name.")
         if not isinstance(digest, str) or not SHA256_PATTERN.fullmatch(digest):
             raise WorkError(ExitCode.CONTRACT, INVALID_SHA256_ERROR_CODE, "A SHA-256 value must contain 64 lowercase hexadecimal characters.", {"location": "canonical_sha256"})
+        revision = source.get("compatibility_revision")
+        if revision is not None and (not isinstance(revision, int) or isinstance(revision, bool) or revision < 1):
+            raise WorkError(ExitCode.CONTRACT, "invalid_compatibility_revision", "Compatibility revision must be a positive integer.")
         if (kind, name) in identities:
             raise WorkError(ExitCode.CONTRACT, "duplicate_instruction_source", "Stored source identities must be unique.")
         identities.add((kind, name))

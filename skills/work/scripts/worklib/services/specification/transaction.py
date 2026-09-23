@@ -93,6 +93,7 @@ def require_no_spec_update(
         *directory.glob(".work-spec-update-*.json"),
         *directory.glob(".work-task-repair-*.json"),
         *directory.glob(".work-spec-migration-*.json"),
+        *directory.glob(".work-source-refresh-*.json"),
     ])
     for record in records:
         if record.relative_to(root).as_posix() == ignored_record:

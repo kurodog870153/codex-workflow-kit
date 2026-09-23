@@ -12,7 +12,7 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from tests.work.contracts import test_task_collection
-from worklib.workflows.task import prepare_specification, update_specification, verify_specification
+from worklib.orchestration.task import prepare_specification, update_specification, verify_specification
 from worklib.services.attempt.validation import (
     build_initial_execution_index,
     render_execution_index,

@@ -10,7 +10,7 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills/work/scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.services.task.draft.storage import save_task_planning, read_task_planning_index
-from worklib.workflows.task import assemble_task_drafts, create_task_from_drafts
+from worklib.orchestration.task import assemble_task_drafts, create_task_from_drafts
 from worklib.business_services.plan import render_plan_contract, validate_plan_contract
 from worklib.business_services.task import load_task_collection
 from worklib.models.common.errors import WorkError

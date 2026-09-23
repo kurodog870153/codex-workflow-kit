@@ -12,7 +12,7 @@ sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.models.common.errors import WorkError
 from worklib.business_services.execution.correction import _build_lock
-from worklib.workflows.execution import validate_execute_instructions
+from worklib.orchestration.execution import validate_execute_instructions
 from worklib.services.attempt.validation import (
     build_initial_execution_index,
     render_execution_index,

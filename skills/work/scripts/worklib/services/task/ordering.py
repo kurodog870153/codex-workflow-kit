@@ -74,7 +74,7 @@ def order_task_contract(contract: dict[str, Any]) -> dict[str, Any]:
         if isinstance(selection, dict):
             selection["sources"] = _order_array(
                 selection.get("sources"),
-                ("kind", "logical_name", "canonical_sha256"),
+                ("kind", "logical_name", "canonical_sha256", "compatibility_revision"),
             )
         ordered["instruction_selection"] = selection
     if "execution_defaults" in ordered:
@@ -106,7 +106,7 @@ def order_task_contract(contract: dict[str, Any]) -> dict[str, Any]:
                 if isinstance(selection, dict):
                     selection["sources"] = _order_array(
                         selection.get("sources"),
-                        ("kind", "logical_name", "canonical_sha256"),
+                        ("kind", "logical_name", "canonical_sha256", "compatibility_revision"),
                     )
                 task["instruction_selection"] = selection
             if "traceability" in task:

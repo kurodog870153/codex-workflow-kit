@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 
 from . import RequestInput, SubparserRegistry
-from ..workflows.execution import execution_service
+from ..orchestration.execution import execution_service
 
 
 def _add_execution_context_arguments(parser: argparse.ArgumentParser) -> None:
@@ -54,6 +54,8 @@ def register_execute_commands(commands: SubparserRegistry) -> None:
         execute_command.add_argument("--input-file", required=True)
         if command_name in {"command-run", "deviation-record"}:
             execute_command.add_argument("--approved-sha256", required=True)
+        if command_name == "deviation-record":
+            execute_command.add_argument("--authorization-evidence", required=True)
 
 
 def run_execute(

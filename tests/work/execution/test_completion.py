@@ -51,6 +51,10 @@ class CompletionTests(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.code, "attempt_close_incomplete_validations")
+        self.assertEqual(
+            context.exception.message,
+            "A completed Attempt requires every formal validation to pass or have approved skipped evidence.",
+        )
         self.assertEqual(context.exception.details["missing"], ["VAL-002"])
         self.assertEqual(context.exception.details["failed"], ["VAL-001"])
 
@@ -60,6 +64,18 @@ class CompletionTests(unittest.TestCase):
             attempt={
                 "carried_records": [{"record_id": "VAL-001"}],
                 "records": [],
+            },
+        )
+
+    def test_approved_skipped_validation_counts_as_completed_coverage(self) -> None:
+        validate_completed_coverage(
+            task={"validations": [{"id": "VAL-001"}]},
+            attempt={
+                "records": [{
+                    "id": "VAL-001", "kind": "validation",
+                    "status": "skipped", "reason": "Not applicable.",
+                    "deviation_id": "DEVIATION-001",
+                }],
             },
         )
 

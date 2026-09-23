@@ -11,7 +11,7 @@ from pydantic import ValidationError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/work/scripts"))
 
-from worklib.workflows.task import prepare_specification, update_specification, verify_specification
+from worklib.orchestration.task import prepare_specification, update_specification, verify_specification
 from worklib.models.specification.contracts import SpecificationVerificationRequestContract
 from worklib.models.specification.contracts import (
     SpecificationPrepareContract, SpecificationUpdateContract, SpecificationVerificationContract,

@@ -1,0 +1,13 @@
+<!-- work-compatibility-revision: 1 -->
+# Recover one execution transaction
+
+
+1. Use `<work-cli> execute recover --input-file "<request-path>"` only after record-begin, command-correction, record-finish, attempt-close, or Correction reports `recovery_required: true` and the user separately authorizes recovery of the observed state. Attempt-start continues to use `recover-attempt-start`.
+2. First use the read-only `<work-cli> execute recovery-prepare --input-file "<preparation-path>"` with the normal explicit TASK/execution paths, TASK ID and roots. Its input has exactly `schema: "work-execution-recovery-prepare-request/v1"`, the confirmed `transaction` (`record_begin`, `command_correction`, `record_finish`, `attempt_close` or `correction`) and `attempt_id`. It inventories the complete sorted `.work-*.tmp` set, checks formal identities and preserved canonical documents, and returns `data.request` in the existing `work-execution-recovery-request/v1` format plus lock, status and raw file fingerprints. Save only `data.request` for authorized recovery. No writer mutex file, target, journal or lock is created or modified.
+3. Require `work-execution-recovery/v1` with `status: recovered`. The command revalidates formal TASK identity, canonical Attempt, index, original lock fingerprint, and every prepared byte before advancing only the uniquely determined transaction.
+4. Any file-set change, byte mismatch, ambiguous state, unsupported attempt-start transaction, or write failure is a hard stop. Preserve all artifacts and locks; never retry automatically, roll back, delete a transaction file, rewrite a closed Attempt, or manually unlock.
+5. Preparation is an inventory for review, not approval or proof of a unique recovery target. `recovery_validation: requires_authorized_recover` remains explicit: the existing recovery command reconstructs and verifies the transaction targets after separate authorization. File hashes describe this snapshot; they are not added to the existing recovery request or an approval token. Preparation rejects mixed transactions and empty inventories unless the Attempt/lock show a supported record-finish or attempt-close post-write stage. Reinspect evidence before authorization; external effects and the recovery direction still require human review. Attempt-start continues to use its original request and dedicated recovery procedure.
+An authorized Attempt reuses the authorization manifest for matching commands,
+validations, external operations, file changes, and allowed deviations. Retries,
+recovery, failed or unknown results, and stopped or blocked closure require fresh
+authorization evidence. Any scope expansion stops before the operation.

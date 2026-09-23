@@ -23,8 +23,9 @@ from worklib.business_services.task.document import render_task_contract
 from worklib.business_services.task.creation import prepare_task_collection_create
 from worklib.business_services.execution import command_run
 from worklib.business_services.execution.instructions import BASE_EXECUTE_REFERENCES
-from worklib.workflows.execution import ExecutionOperations
-from worklib.workflows.execution import finish_record
+from worklib.orchestration.execution import ExecutionOperations
+from worklib.orchestration.execution import begin_record, finish_record
+from worklib.models.execution import ExecutionDeviationContract
 from worklib.models.common.errors import WorkError
 from worklib.technical.infrastructure.json_contract import parse_json_contract
 from worklib.business_services.plan import render_plan_contract, validate_plan_contract
@@ -173,6 +174,58 @@ class CommandRunTests(FileInputTestCase):
         preview = self.prepare()
         self.assertEqual(preview["invocation"]["argv"][-1], "print('corrected')")
         self.assertIn("corrected", self.run_cmd(preview["approved_sha256"])["stdout_tail"])
+
+    def test_supplemental_replacement_flows_from_record_begin_through_finish(self):
+        replacement = {
+            "kind": "replace_command",
+            "record_id": "CMD-001",
+            "replacement": {
+                "mode": "argv",
+                "argv": [sys.executable, "-c", "print('supplemental')"],
+            },
+        }
+        deviation = copy.deepcopy(ExecutionDeviationContract.contract_example)
+        deviation["proposal"]["action"] = copy.deepcopy(replacement)
+        deviation["proposal"]["modifiable_files"] = ["src/supplemental.py"]
+        deviation["supplemental_authorization"]["action"] = copy.deepcopy(replacement)
+        deviation["supplemental_authorization"]["modifiable_files"] = [
+            "src/supplemental.py"
+        ]
+        deviation["supplemental_authorization"]["authorization_evidence"] = (
+            "User approved the supplemental command."
+        )
+        deviation["decision"]["evidence"] = "User approved the supplemental command."
+        self.attempt["execution_deviations"] = [deviation]
+        self.index["lock"].pop("record_id")
+        self.save()
+
+        begun = begin_record(
+            project_root=self.root,
+            user_config_root=str(self.root),
+            raw_task_path=self.fixture.artifacts["task"],
+            raw_execution_dir=self.fixture.artifacts["execution"],
+            task_id="TASK-001",
+            base_record_id="CMD-001",
+        )
+        self.assertEqual(begun["record_id"], "CMD-001")
+        preview = self.prepare()
+        self.assertEqual(preview["invocation"]["argv"][-1], "print('supplemental')")
+        result = self.run_cmd(preview["approved_sha256"])
+        started = json.loads(
+            (self.root / (preview["receipt_prefix"] + ".started.json")).read_bytes()
+        )
+        self.assertEqual(
+            started["authorization_evidence"],
+            "User approved the supplemental command.",
+        )
+        self.assertIn("supplemental", result["stdout_tail"])
+        result["record_finish_request"]["modified_files"] = ["src/supplemental.py"]
+        self.assertEqual(
+            finish_record(
+                json.dumps(result["record_finish_request"]).encode(), **self.common
+            )["record_status"],
+            "recorded",
+        )
 
     def test_windows_cmd_preview_is_read_only_and_executes_through_fixed_launcher(self):
         windows = self.root / "Windows"

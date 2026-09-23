@@ -126,6 +126,7 @@ class ExecutionService:
                 raw_request,
                 source=source,
                 approved_sha256=approved_sha256,
+                authorization_evidence=authorization_evidence,
                 **common,
             )
         if operation in self.file_operations:

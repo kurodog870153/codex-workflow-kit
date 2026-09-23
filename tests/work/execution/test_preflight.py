@@ -12,7 +12,7 @@ SCRIPT_ROOT = SKILL_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.models.common.errors import WorkError
-from worklib.workflows.execution import execute_preflight
+from worklib.orchestration.execution import execute_preflight
 from worklib.business_services.execution.preflight import require_index_identity
 from worklib.services.preflight.validation import (
     require_index_identity as service_require_index_identity,

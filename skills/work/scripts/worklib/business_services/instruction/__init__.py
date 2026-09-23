@@ -13,6 +13,11 @@ from ...services.instruction.source import load_instruction_sources as _load_sou
 from ...services.instruction.task_selection import build_task_document_instruction_selection as _build_task_selection, validate_task_document_instruction_selection as _validate_task_selection
 from ...services.instruction.validation import parse_instruction_selection, validate_instruction_selection as _validate_selection
 from ...services.instruction.work_selection import build_work_instruction_selection as _build_work_selection, parse_work_instruction_selection, validate_work_instruction_selection as _validate_work_selection
+from .refresh import (
+    apply_source_refresh, apply_source_refresh_all, preview_source_refresh,
+    preview_source_refresh_all, source_impact,
+)
+from .migration import apply_instruction_migration, preview_instruction_migration
 
 
 def resolve_instruction_hierarchy(skill_root: Path, mode: str, selected_paths: list[str]) -> HierarchyContract:
@@ -107,4 +112,4 @@ def select(
     return InstructionSelectionContract.model_validate(value).to_canonical_dict()
 
 
-__all__ = ["build_instruction_selection", "build_task_document_instruction_selection", "build_work_instruction_selection", "catalog", "instruction_root", "load", "load_instruction_sources", "resolve", "resolve_instruction_hierarchy", "select", "validate_instruction_selection", "validate_task_document_instruction_selection", "validate_work_instruction_selection"]
+__all__ = ["apply_instruction_migration", "apply_source_refresh", "apply_source_refresh_all", "build_instruction_selection", "build_task_document_instruction_selection", "build_work_instruction_selection", "catalog", "instruction_root", "load", "load_instruction_sources", "preview_instruction_migration", "preview_source_refresh", "preview_source_refresh_all", "resolve", "resolve_instruction_hierarchy", "select", "source_impact", "validate_instruction_selection", "validate_task_document_instruction_selection", "validate_work_instruction_selection"]

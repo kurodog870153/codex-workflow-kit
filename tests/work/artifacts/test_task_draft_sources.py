@@ -10,7 +10,7 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills/work/scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.services.task.draft.storage import save_task_planning
-from worklib.workflows.task import check_task_draft_sources
+from worklib.orchestration.task import check_task_draft_sources
 from worklib.business_services.plan import render_plan_contract, validate_plan_file
 from worklib.models.common.errors import ExitCode, WorkError
 from worklib.business_services.hierarchy import build_hierarchy_selection
@@ -137,5 +137,5 @@ class TaskDraftSourceTests(unittest.TestCase):
 
     def test_plan_validation_failure_is_preserved(self):
         self.initialize()
-        with patch("worklib.workflows.task.TaskDraftOperations.validate_plan_contract", side_effect=WorkError(ExitCode.ARTIFACT_INTEGRITY, "skill_bundle_drift", "Changed skill.")):
+        with patch("worklib.orchestration.task.TaskDraftOperations.validate_plan_contract", side_effect=WorkError(ExitCode.ARTIFACT_INTEGRITY, "skill_bundle_drift", "Changed skill.")):
             self.assertEqual(self.invoke()[1]["code"], "skill_bundle_drift")

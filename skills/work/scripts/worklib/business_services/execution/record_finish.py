@@ -16,6 +16,7 @@ from ...models.common.errors import ExitCode, WorkError
 from .context import read_contract, find_task_row, load_lifecycle_task_context, validate_execution_identity
 from .instructions import validate_execute_instructions
 from ...services.record.sequencing import next_record_id, formal_record_kind
+from ...services.authorization.rules import effective_task
 from ...services.attempt.validation import render_execution_index, validate_execution_index
 from ...services.execution.lifecycle import read_raw, parse_json_contract, resolve_project_relative_path
 from ...services.skill_catalog import SkillRoot
@@ -227,6 +228,7 @@ def finish_record(
             "The execution lock does not reserve a record.",
         )
     base_record_id = record_id.split("#", 1)[0]
+    task = effective_task(task, attempt)
     record_kind = formal_record_kind(task, base_record_id)
     expected_record_id = next_record_id(base_record_id, attempt)
     if record_id != expected_record_id:
@@ -239,8 +241,19 @@ def finish_record(
         )
 
     validate_execute_instructions(task, attempt, operation="record_finish", operations=operations)
-    require_modified_files(attempt, request.get("modified_files", []))
-    require_result_evidence(request["record"], request.get("authorization_evidence"))
+    if request["record"].get("status") == "skipped" and "modified_files" in request:
+        _error(
+            ExitCode.CONTRACT,
+            "record_finish_skipped_modified_files",
+            "A skipped record cannot report modified files.",
+            record_id=record_id,
+        )
+    require_modified_files(
+        attempt, request.get("modified_files", []), base_record_id
+    )
+    require_result_evidence(
+        attempt, request["record"], request.get("authorization_evidence")
+    )
 
     finished_attempt = build_finished_attempt(
         attempt,

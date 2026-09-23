@@ -14,8 +14,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from cli_support import FileInputTestCase
 
-from worklib.cli import main
+from worklib.cli import main as _main
 from worklib.models.common.errors import ExitCode
+
+
+def main(arguments, **kwargs):
+    return _main(["--verbose", *arguments], **kwargs)
 
 
 class InstructionCatalogCliTests(FileInputTestCase):
@@ -291,10 +295,15 @@ class InstructionSourcesCliTests(FileInputTestCase):
         )
         self.assertEqual(len(result["instructions_sha256"]), 64)
         for source in result["sources"]:
-            self.assertEqual(
-                set(source),
-                {"kind", "logical_name", "canonical_sha256"},
-            )
+                self.assertEqual(
+                    set(source),
+                    {
+                        "kind",
+                        "logical_name",
+                        "canonical_sha256",
+                        "compatibility_revision",
+                    },
+                )
 
     def test_load_command_reports_unroutable_reference(self) -> None:
         with tempfile.TemporaryDirectory() as project_directory:

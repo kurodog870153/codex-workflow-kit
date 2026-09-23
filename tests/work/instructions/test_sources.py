@@ -71,8 +71,18 @@ class InstructionSourceTests(unittest.TestCase):
         self.assertEqual(contract["schema"], "work-instructions/v1")
         self.assertEqual(
             set(contract["sources"][0]),  # type: ignore[index]
-            {"kind", "logical_name", "canonical_sha256"},
+            {"kind", "logical_name", "canonical_sha256", "compatibility_revision"},
         )
+        self.assertEqual(contract["sources"][0]["compatibility_revision"], 1)  # type: ignore[index]
+
+    def test_explicit_compatibility_revision_is_loaded(self) -> None:
+        self._write_core("plan", ("general",))
+        workflow = self.skill_root / "references" / "workflows" / "plan.md"
+        workflow.write_bytes(b"<!-- work-compatibility-revision: 3 -->\nworkflow\n")
+
+        loaded = load_instruction_sources(self.skill_root, "plan", [])
+
+        self.assertEqual(loaded.sources[1].compatibility_revision, 3)
 
     def test_canonical_content_change_changes_fingerprint(self) -> None:
         workflow = self._write_core("plan", ("general",))

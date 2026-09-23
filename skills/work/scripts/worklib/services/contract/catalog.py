@@ -22,7 +22,9 @@ from ...models.hierarchy import (
     HierarchySelectionValidationContract,
 )
 from ...models.instruction import (
+    InstructionMigrationPreviewContract, InstructionMigrationPublicationContract,
     InstructionCatalogContract, InstructionSelectionContract, InstructionsContract,
+    SourceImpactContract, SourceRefreshPreviewContract, SourceRefreshPublicationContract,
 )
 from ...models.skill import (
     SkillBundleContract, SkillCatalogContract, SkillSelectionContract,
@@ -30,7 +32,7 @@ from ...models.skill import (
 )
 from ...models.plan import (
     PlanContract, PlanCreateContract, PlanPrepareContract,
-    PlanPrepareRequestContract, PlanValidationContract,
+    PlanPrepareRequestContract, PlanSemanticRequestContract, PlanValidationContract,
 )
 from ...models.progress import (
     DiscussionProgressContract, ProgressPrepareContract, ProgressPreviewContract,
@@ -72,7 +74,13 @@ from ...models.task_collection import (
 from ...models.task_draft import (
     TaskDraftContract, TaskDraftPrepareContract, TaskDraftRecoveryContract,
     TaskDraftSaveContract, TaskDraftSourceCheckContract, TaskDraftValidationContract,
-    TaskPlanningIndexContract, TaskPlanningIndexValidationContract,
+    TaskPlanningIndexContract, TaskPlanningIndexValidationContract, TaskSemanticRequestContract,
+)
+from ...models.workflow import (
+    InstructionSelectionManifestContract,
+    OperationEnvelopeContract,
+    OperationResultContract,
+    WorkflowStateContract,
 )
 from ...models.specification.transaction import SpecTransactionContract
 from ...models.task_collection.repair import (
@@ -280,8 +288,13 @@ registry.register(
     HierarchySelectionContract,
     HierarchySelectionValidationContract,
     InstructionCatalogContract,
+    InstructionMigrationPreviewContract,
+    InstructionMigrationPublicationContract,
     InstructionSelectionContract,
     InstructionsContract,
+    SourceImpactContract,
+    SourceRefreshPreviewContract,
+    SourceRefreshPublicationContract,
     SkillBundleContract,
     SkillCatalogContract,
     SkillSelectionContract,
@@ -291,6 +304,7 @@ registry.register(
     PlanCreateContract,
     PlanPrepareContract,
     PlanPrepareRequestContract,
+    PlanSemanticRequestContract,
     PlanValidationContract,
     DiscussionProgressContract,
     ProgressPrepareContract,
@@ -332,6 +346,11 @@ registry.register(
     TaskDraftValidationContract,
     TaskPlanningIndexContract,
     TaskPlanningIndexValidationContract,
+    TaskSemanticRequestContract,
+    WorkflowStateContract,
+    InstructionSelectionManifestContract,
+    OperationEnvelopeContract,
+    OperationResultContract,
 )
 
 

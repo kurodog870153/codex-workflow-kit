@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from artifacts import test_task_draft_sources as fixtures
 from worklib.services.task.draft.storage import read_task_planning_index, save_task_planning, recover_task_planning
 from worklib.business_services.task.draft_list import update_task_planning_list
-from worklib.workflows.task import initialize_task_planning_request, prepare_task_planning_request
+from worklib.orchestration.task import initialize_task_planning_request, prepare_task_planning_request
 from worklib.business_services.plan import render_plan_contract
 from worklib.models.common.errors import WorkError
 
