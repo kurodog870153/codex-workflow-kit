@@ -28,7 +28,7 @@ class RecordFinishRequestTests(unittest.TestCase):
     def test_parses_record_and_optional_modified_files(self) -> None:
         request = {
             "schema": "work-record-finish-request/v1",
-            "record": {"id": "VAL-001", "kind": "validation"},
+            "record": {"outcome": "passed"},
             "modified_files": ["src/app.py"],
         }
 
@@ -37,13 +37,15 @@ class RecordFinishRequestTests(unittest.TestCase):
     def test_rejects_invalid_request_values(self) -> None:
         base = {
             "schema": "work-record-finish-request/v1",
-            "record": {"id": "VAL-001", "kind": "validation"},
+            "record": {"outcome": "passed"},
         }
         cases = (
             ({**base, "schema": "invalid"}, "record_finish_invalid_schema"),
             ({**base, "record": []}, "record_finish_invalid_record"),
             ({**base, "modified_files": []}, "record_finish_invalid_modified_files"),
             ({**base, "modified_files": [""]}, "record_finish_invalid_modified_file"),
+            ({**base, "record": {"id": "VAL-001"}}, "record_finish_machine_fields"),
+            ({**base, "record": {"kind": "validation"}}, "record_finish_machine_fields"),
         )
         for request, expected_code in cases:
             with self.subTest(expected_code=expected_code):

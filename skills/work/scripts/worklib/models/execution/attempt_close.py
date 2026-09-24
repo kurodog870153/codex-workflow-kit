@@ -12,7 +12,7 @@ from ..common.errors import ExitCode, WorkError
 
 class AttemptCloseRequestContract(WorkContract):
     contract_id: ClassVar[str] = "work-attempt-close-request/v1"
-    contract_kind: ClassVar[Literal["request"]] = "request"
+    contract_kind: ClassVar[Literal["semantic_request"]] = "semantic_request"
     canonical_order: ClassVar[tuple[str, ...]] = (
         "schema", "status", "final_type", "reason", "authorization_evidence",
     )

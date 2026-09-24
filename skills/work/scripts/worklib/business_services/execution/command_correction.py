@@ -17,7 +17,7 @@ from ...services.attempt.validation import render_execution_index, validate_exec
 from ...services.execution.command import read_raw, resolve_project_relative_path
 from ...services.skill_catalog import SkillRoot
 from ...services.command.formalization import formal_command
-from ...services.authorization.rules import authorization_evidence, require_deviation
+from ...services.authorization.rules import authorization_evidence, effective_task, require_deviation
 
 
 LOCK_UPDATE_ERRORS = TransactionErrors(
@@ -86,9 +86,7 @@ def record_command_correction(
     skill_roots: list[SkillRoot] | None = None,
     operations=None,
 ) -> dict[str, object]:
-    request = parse_command_correction_request(
-        raw, source=source
-    ).to_execution_dict()
+    request = parse_command_correction_request(raw, source=source).to_canonical_dict()
     normalized_task, task_path = resolve_project_relative_path(
         project_root, raw_task_path, field="task_path"
     )
@@ -184,7 +182,6 @@ def record_command_correction(
         "task_id": task_id,
         "attempt_id": attempt_id,
         "execute_instructions_sha256": attempt["execute_instructions_sha256"],
-        "record_id": request["record_id"],
     }
     if not isinstance(lock, dict) or any(
         lock.get(field) != value for field, value in expected_lock.items()
@@ -202,8 +199,11 @@ def record_command_correction(
             "command_correction_already_recorded",
             "The reserved command already has a correction.",
         )
-    record_id = request["record_id"]
+    record_id = lock.get("record_id")
+    if not isinstance(record_id, str):
+        _error(ExitCode.LOCK_CONFLICT, "command_correction_lock_mismatch", "The execution lock has no reserved command.")
     base_record_id = record_id.split("#", 1)[0]
+    task = effective_task(task, attempt)
     if formal_record_kind(task, base_record_id) != "command":
         _error(
             ExitCode.CONTRACT,
@@ -219,30 +219,21 @@ def record_command_correction(
             expected=expected_record_id,
             actual=record_id,
         )
-    formal_command = canonicalize_command_correction(
+    correction = canonicalize_command_correction(
         {
             "original_command": formal_command(task, base_record_id),
-            "actual_command": request["correction"]["actual_command"],
-            "reason": request["correction"]["reason"],
+            "actual_command": request["actual_command"],
+            "reason": request["reason"],
             "authorization_evidence": authorization_evidence(attempt, lock),
         },
         location="formal_command_correction",
     )
-    if formal_command["original_command"] != request["correction"]["original_command"]:
-        _error(
-            ExitCode.CONTRACT,
-            "command_correction_original_mismatch",
-            "original_command does not match the formal TASK command.",
-            expected=formal_command["original_command"],
-            actual=request["correction"]["original_command"],
-        )
     action = {
         "kind": "replace_command",
         "record_id": record_id,
-        "replacement": formal_command["actual_command"],
+        "replacement": correction["actual_command"],
     }
     require_deviation(attempt, action)
-    request["correction"] = formal_command
 
     validate_execute_instructions(
         task,
@@ -250,7 +241,7 @@ def record_command_correction(
         operation="command_correction", operations=operations,
     )
 
-    updated_index = apply_command_correction(index, request["correction"])
+    updated_index = apply_command_correction(index, correction)
     safe_record = record_id.replace("#", "-retry-")
     temporary_path = execution_path / (
         f".work-command-correction-{task_id}-{attempt_id}-{safe_record}.tmp"

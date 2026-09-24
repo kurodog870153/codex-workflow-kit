@@ -46,6 +46,7 @@ class WorkflowStateTests(unittest.TestCase):
         self.assertEqual((result["status"], result["next_action"]),
                          ("execution_in_progress", "continue_execution"))
         self.assertFalse(result["requires_user_confirmation"])
+        self.assertIsNone(result["command"])
 
     def test_mismatched_active_execution_lock_requires_recovery(self):
         index = {
@@ -75,6 +76,10 @@ class WorkflowStateTests(unittest.TestCase):
         self.assertEqual((result["status"], result["next_action"]),
                          ("execution_reconciliation_pending", "review_reconciliation"))
         self.assertEqual(result["details"]["pending_deviation_ids"], ["DEVIATION-001"])
+        self.assertEqual(result["command"], "task reconciliation-prepare")
+        self.assertEqual(result["request_contract_id"], "work-spec-reconciliation-prepare-request/v1")
+        self.assertEqual(result["semantic_input_contract"], "work-spec-reconciliation-prepare-request/v1")
+        self.assertEqual(result["arguments"]["input_file"], "<semantic-input-file>")
 
     def test_reconciliation_ledger_resolution_removes_pending_route(self):
         index = {"overall_status": "completed", "tasks": [
@@ -105,6 +110,10 @@ class WorkflowStateTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertEqual((result["status"], result["next_action"]), ("plan_required", "prepare_plan"))
             self.assertTrue(result["requires_user_confirmation"])
+            self.assertEqual(result["request_contract_id"], "work-plan-semantic-request/v1")
+            self.assertEqual(result["command"], "plan semantic-prepare")
+            self.assertEqual(result["arguments"]["input_file"], "<semantic-input-file>")
+            self.assertEqual(result["semantic_input_contract"], "work-plan-semantic-request/v1")
             self.assertEqual(result["routing_status"], "VALID")
             self.assertEqual(result["required_instruction_sources"], [
                 "work.instruction-loading",

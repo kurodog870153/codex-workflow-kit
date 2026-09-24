@@ -22,6 +22,7 @@ from worklib.services.task.repair_fingerprint import (
     fingerprint_task_repair_evidence,
     task_repair_transaction_id,
 )
+from worklib.services.task.draft.validation import build_semantic_task_patch
 
 
 class TaskRepairFingerprintTests(unittest.TestCase):
@@ -47,6 +48,20 @@ class TaskRepairFingerprintTests(unittest.TestCase):
             },
         )
 
+    def test_nested_builder_allocates_ids_and_resolves_local_keys(self):
+        current = {"commands": [{"id": "CMD-001", "mode": "argv", "argv": ["tool", "old"]}],
+                   "validations": [{"id": "VAL-001", "kind": "manual", "confirmer": "user", "criteria": "Old"}]}
+        built = build_semantic_task_patch(current, {
+            "commands": [{"key": "old", "existing_position": 1, "mode": "argv", "argv": ["tool", "old"]},
+                         {"key": "rerun", "mode": "argv", "argv": ["tool", "new"]}],
+            "validations": [{"key": "verify", "kind": "automated", "command_keys": ["rerun"],
+                             "pass_condition": "Exit zero", "acceptance_positions": [1]}],
+        }, acceptance_ids=["ACCEPTANCE-001"])
+        self.assertEqual(built["commands"][1]["id"], "CMD-002")
+        self.assertEqual(built["validations"][0]["id"], "VAL-002")
+        self.assertEqual(built["validations"][0]["command_ids"], ["CMD-002"])
+        self.assertEqual(built["validations"][0]["acceptance_ids"], ["ACCEPTANCE-001"])
+
 
 class TaskRepairTests(unittest.TestCase):
     def setUp(self):
@@ -62,15 +77,29 @@ class TaskRepairTests(unittest.TestCase):
         execution_path.parent.mkdir(parents=True, exist_ok=True)
         execution_path.write_bytes(render_execution_index(execution))
 
-    def prepare_request(self, *, decisions=None):
+    def prepare_request(self, *, decisions=None, edits=None, missing_task=None):
         request = {
             "schema": "work-task-repair-prepare-request/v1", "stage": "complete",
-            "requirement_id": "example", "artifacts": self.artifacts,
+            "requirement_id": "example",
             "decisions": decisions or [{"location": "/", "decision": "Use the reviewed candidate."}],
-            "task_index": copy.deepcopy(self.fixture.index),
-            "task_items": {"TASK-001": copy.deepcopy(self.fixture.item)},
         }
+        if edits is not None:
+            request["edits"] = edits
+        if missing_task is not None:
+            request["missing_task"] = missing_task
         return prepare_task_repair(json.dumps(request).encode(), project_root=self.root, user_config_root=str(self.root))
+
+    def semantic_missing_task(self):
+        return {"task_position": 1, "title": self.fixture.item["title"], "goal": self.fixture.item["goal"],
+                "skill_id": None, "selected_paths": [], "references": ["task.general.task-records"],
+                "dependency_positions": [], "candidate": {
+                    "files": [{"key": "source", "action": "modify", "path": "src.txt"}],
+                    "commands": [{"key": "check", "mode": "argv", "argv": ["python", "--version"]}],
+                    "validations": [{"key": "passes", "kind": "automated", "command_keys": ["check"],
+                                     "pass_condition": "Exit code is zero.", "acceptance_positions": [1]}],
+                    "steps": [{"key": "modify", "action": "Modify the source.", "references": [{"kind": "files", "key": "source"}]},
+                              {"key": "validate", "action": "Run validation.", "references": [{"kind": "commands", "key": "check"}, {"kind": "validations", "key": "passes"}]}],
+                }}
 
     def run_repair(self, prepared, operation="validate", approval=None):
         return repair_task(json.dumps(prepared["request"]).encode(), project_root=self.root,
@@ -85,25 +114,36 @@ class TaskRepairTests(unittest.TestCase):
         index = copy.deepcopy(self.fixture.index)
         index["tasks"][0]["canonical_sha256"] = "0" * 64
         (self.root / self.fixture.index_path).write_text(json.dumps(index))
-        prepared = self.prepare_request()
+        prepared = self.prepare_request(edits=[{"task_id": "TASK-001", "field": "title", "after": self.fixture.item["title"]}])
         self.assertIn(self.fixture.index_path, prepared["preview"]["changed_paths"])
         result = self.run_repair(prepared, "apply", prepared["preview"]["approved_sha256"])
         self.assertEqual(result["status"], "repaired")
         self.assertTrue(load_task_collection(self.root, str(self.root), self.fixture.index_path)["task_count"])
 
+    def test_nested_file_repair_uses_semantic_position(self):
+        item = copy.deepcopy(self.fixture.item)
+        item["files"][0]["path"] = "wrong.txt"
+        item_path = (self.root / self.fixture.index_path).parent / "tasks" / "TASK-001.json"
+        item_path.write_bytes(render_task_item_contract(item))
+        prepared = self.prepare_request(edits=[{"task_id": "TASK-001", "field": "files",
+            "semantic_after": [{"key": "source", "existing_position": 1, "action": "modify", "path": "src.txt"}]}])
+        repaired = prepared["request"]["task_items"]["TASK-001"]
+        self.assertEqual(repaired["files"], self.fixture.item["files"])
+        self.assertEqual(repaired["steps"], self.fixture.item["steps"])
+
     def test_missing_item_is_restored_from_explicit_candidate(self):
         item_path = (self.root / self.fixture.index_path).parent / "tasks" / "TASK-001.json"
         item_path.unlink()
-        prepared = self.prepare_request()
+        prepared = self.prepare_request(missing_task=self.semantic_missing_task())
         self.run_repair(prepared, "apply", prepared["preview"]["approved_sha256"])
         self.assertEqual(item_path.read_bytes(), self.fixture.item_raw)
 
-    def test_missing_formal_index_is_restored_from_explicit_candidate(self):
+    def test_missing_formal_index_requires_reviewed_source(self):
         index_path = self.root / self.fixture.index_path
         index_path.unlink()
-        prepared = self.prepare_request()
-        self.run_repair(prepared, "apply", prepared["preview"]["approved_sha256"])
-        self.assertEqual(index_path.read_bytes(), self.fixture.index_raw)
+        with self.assertRaises(WorkError) as caught:
+            self.prepare_request()
+        self.assertEqual(caught.exception.code, "task_repair_ambiguous_source")
 
     def test_orphan_requires_explicit_removal_decision_and_is_not_adopted(self):
         orphan = (self.root / self.fixture.index_path).parent / "tasks" / "TASK-999.json"
@@ -126,7 +166,7 @@ class TaskRepairTests(unittest.TestCase):
     def test_interruption_recovers_identical_transaction(self):
         item_path = (self.root / self.fixture.index_path).parent / "tasks" / "TASK-001.json"
         item_path.unlink()
-        prepared = self.prepare_request()
+        prepared = self.prepare_request(missing_task=self.semantic_missing_task())
         with patch(
             "worklib.business_services.task.repair.publish_journal",
             side_effect=OSError("interrupted"),
@@ -159,8 +199,7 @@ class TaskRepairPreparationTests(unittest.TestCase):
             "requirement_id": "example",
             "artifacts": self.artifacts,
             "decisions": [{"location": "/", "decision": "Use candidate."}],
-            "task_index": copy.deepcopy(self.fixture.index),
-            "task_items": {"TASK-001": candidate},
+            "task": candidate,
         }
         with self.assertRaises(WorkError):
             prepare_task_repair(

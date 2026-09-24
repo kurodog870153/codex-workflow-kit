@@ -13,7 +13,7 @@ RecoveryTransaction = Literal[
 
 class ExecutionRecoveryRequestContract(WorkContract):
     contract_id: ClassVar[str] = 'work-execution-recovery-request/v1'
-    contract_kind: ClassVar[Literal['request']] = 'request'
+    contract_kind: ClassVar[Literal['generated_request']] = 'generated_request'
     canonical_order: ClassVar[tuple[str, ...]] = ('schema', 'transaction', 'attempt_id', 'transaction_files')
     schema_: Literal['work-execution-recovery-request/v1'] = Field(alias='schema')
     transaction: RecoveryTransaction
@@ -31,7 +31,7 @@ class ExecutionRecoveryRequestContract(WorkContract):
 
 class ExecutionRecoveryPrepareRequestContract(WorkContract):
     contract_id: ClassVar[str] = 'work-execution-recovery-prepare-request/v1'
-    contract_kind: ClassVar[Literal['request']] = 'request'
+    contract_kind: ClassVar[Literal['semantic_request']] = 'semantic_request'
     canonical_order: ClassVar[tuple[str, ...]] = ('schema', 'transaction', 'attempt_id')
     schema_: Literal['work-execution-recovery-prepare-request/v1'] = Field(alias='schema')
     transaction: RecoveryTransaction

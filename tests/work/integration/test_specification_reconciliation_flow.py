@@ -22,7 +22,12 @@ class SpecificationReconciliationFlowTests(unittest.TestCase):
             target = root / attempt_path
             target.parent.mkdir(parents=True)
             target.write_bytes(b"immutable attempt\n")
-            attempt = {"status": "completed", "execution_deviations": [copy.deepcopy(ExecutionDeviationContract.contract_example)]}
+            attempt = {"status": "completed", "task_id": "TASK-001", "attempt_id": "ATTEMPT-001",
+                       "task_spec_id": "TASK-SPEC-001",
+                       "execution_deviations": [copy.deepcopy(ExecutionDeviationContract.contract_example)]}
+            index_path = root / "outputs/work/executions/example/index.json"
+            index_path.write_text(json.dumps({"schema": "work-execution-index/v1", "task_spec_id": "TASK-SPEC-001",
+                                              "tasks": [{"id": "TASK-001", "latest_attempt": "ATTEMPT-001"}]}), encoding="utf-8")
             migration = {"schema": "work-spec-migration-preview-request/v1", "sources": [{"path": "old", "raw_sha256": "0" * 64}],
                          "candidates": [{"path": "new", "kind": "plan", "content": {}}], "semantic_decisions": []}
             request = {"schema": "work-spec-reconciliation-preview-request/v1", "attempt_path": attempt_path,

@@ -30,12 +30,28 @@ def preview_progress(project_root: Path, value: object, *, expected_revision: in
     return {"schema": "work-progress-preview/v1", "status": "valid", "path": relative, "expected_revision": expected_revision, "approved_sha256": hashlib.sha256(render_json_contract(binding)).hexdigest(), "progress": progress, "source_validation": "not_checked", "evidence_trust": "historical_context_only", "formal_readiness": "not_established"}
 
 
-def prepare_progress(project_root: Path, value: object, *, requirement_id: str, mode: str, expected_revision: int, preview: Callable[..., dict[str, Any]], validate_keys: Callable[..., dict[str, Any]]) -> dict[str, Any]:
+def prepare_progress(project_root: Path, value: object, *, requirement_id: str, mode: str, expected_revision: int, preview: Callable[..., dict[str, Any]], validate_keys: Callable[..., dict[str, Any]], read_progress: Callable[[Path, str, str], dict[str, Any]]) -> dict[str, Any]:
     if type(expected_revision) is not int or expected_revision < 0:
         raise WorkError(ExitCode.CONTRACT, "invalid_progress_revision", "The expected revision must be a nonnegative integer.")
     IdentifierPolicy.requirement_id(requirement_id)
     if mode not in ("plan", "task"):
         raise WorkError(ExitCode.CONTRACT, "invalid_progress_mode", "Only Plan and Task discussions can be saved.")
-    content = validate_keys(value, location="progress_prepare", required=set(FIELDS) - {"schema", "requirement_id", "mode", "revision", "status"})
+    semantic_fields = set(FIELDS) - {"schema", "requirement_id", "mode", "revision", "status"}
+    if expected_revision == 0:
+        content = validate_keys(value, location="progress_prepare", required=semantic_fields)
+        previous_sha = None
+    else:
+        changed = validate_keys(value, location="progress_prepare", required=set(), optional=semantic_fields)
+        if not changed:
+            raise WorkError(ExitCode.CONTRACT, "progress_prepare_empty_change", "Supply at least one changed discussion field.")
+        previous = read_progress(project_root, requirement_id, mode)
+        if previous["progress"]["revision"] != expected_revision:
+            raise WorkError(ExitCode.WORKFLOW_STATE, "progress_revision_conflict", "Read and review current progress before saving the next revision.")
+        previous_sha = previous["sha256"]
+        content = {key: previous["progress"][key] for key in semantic_fields}
+        content.update(changed)
     candidate = {"schema": "work-discussion-progress/v1", "requirement_id": requirement_id, "mode": mode, "revision": expected_revision + 1, "status": "discussion_only", **content}
-    return {**preview(project_root, candidate, expected_revision=expected_revision), "schema": "work-progress-prepare/v1"}
+    prepared = preview(project_root, candidate, expected_revision=expected_revision)
+    if previous_sha is not None and read_progress(project_root, requirement_id, mode)["sha256"] != previous_sha:
+        raise WorkError(ExitCode.WORKFLOW_STATE, "progress_revision_conflict", "The discussion changed during preparation.")
+    return {**prepared, "schema": "work-progress-prepare/v1"}

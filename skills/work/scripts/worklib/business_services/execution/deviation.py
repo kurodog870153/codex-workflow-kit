@@ -8,6 +8,7 @@ from typing import Any
 from ...models.execution import (
     ExecutionDeviationPreviewContract,
     ExecutionDeviationProposalContract,
+    ExecutionDeviationSemanticRequestContract,
     ExecutionDeviationRecordContract,
 )
 from ...services.attempt.validation import (
@@ -26,6 +27,7 @@ from ...services.deviation.validation import (
 from .context import validate_execution_identity
 from .instructions import validate_execute_instructions
 from ...services.record.sequencing import formal_record_kind
+from ...services.execution.semantic_deviation import formalize_semantic_action as _semantic_action
 from .recovery import _validate_attempt_bytes, _validate_index_bytes
 
 
@@ -57,6 +59,46 @@ def prepare_execution_deviation(
         skill_roots=skill_roots,
         operations=operations,
     )
+
+
+def prepare_semantic_execution_deviation(
+    raw: bytes, *, source: str, project_root: Path, user_config_root: str,
+    raw_task_path: str, raw_execution_dir: str, task_id: str,
+    skill_roots=None, operations=None,
+) -> dict[str, object]:
+    semantic = ExecutionDeviationSemanticRequestContract.parse_json_bytes(raw, source=source).to_canonical_dict()
+    require_idle_writer(project_root, raw_execution_dir)
+    execution = normalize_relative_path(raw_execution_dir, field="execution_dir")
+    task_relative = normalize_relative_path(raw_task_path, field="task_path")
+    require_no_spec_update(project_root, execution)
+    context = operations.load_task_execution_context(project_root, user_config_root, task_relative, task_id, skill_roots=skill_roots)
+    contract, validation = context["contract"], context["validation"]
+    if contract["artifacts"]["task"] != task_relative or contract["artifacts"]["execution"] != execution:
+        _fail("deviation_paths", "Explicit paths must match the formal TASK.")
+    index_relative = execution + "/index.json"
+    index = _validate_index_bytes(read_raw(storage_path(project_root, index_relative)), source=index_relative)
+    lock = index.get("lock")
+    if not isinstance(lock, dict) or lock.get("kind") != "execution" or lock.get("task_id") != task_id or not lock.get("record_id"):
+        _fail("deviation_active_record", "A matching reserved execution record is required.")
+    attempt_id, anchor = lock["attempt_id"], lock["record_id"]
+    attempt_relative = f"{execution}/{task_id}/{attempt_id}/attempt.json"
+    attempt = _validate_attempt_bytes(read_raw(storage_path(project_root, attempt_relative)),
+        project_root=project_root, source=attempt_relative)
+    row = validate_execution_identity(task_contract=contract, task_validation=validation,
+        index=index, attempt=attempt, task_id=task_id)
+    if attempt.get("status") != "in_progress" or row.get("status") != "in_progress" or row.get("latest_attempt") != attempt_id:
+        _fail("deviation_active_record", "The reserved record must belong to the current in-progress Attempt.")
+    task = next(item for item in contract["tasks"] if item["id"] == task_id)
+    base = anchor.split("#", 1)[0]
+    basis = [base] + [item["id"] for item in task.get("steps", []) if base in item.get("references", []) and item["id"] != base]
+    semantic["action"] = _semantic_action(semantic["action"], task, attempt, anchor)
+    proposal = {"schema": "work-execution-deviation-proposal/v1", "task_id": task_id,
+                "attempt_id": attempt_id, "anchor_record_id": anchor, "task_basis": basis, **semantic}
+    return _prepare_execution_deviation(
+        ExecutionDeviationProposalContract.model_validate(proposal).render_canonical_json(),
+        source=source, project_root=project_root, user_config_root=user_config_root,
+        raw_task_path=raw_task_path, raw_execution_dir=raw_execution_dir, task_id=task_id,
+        skill_roots=skill_roots, operations=operations)
 
 
 def _prepare_execution_deviation(

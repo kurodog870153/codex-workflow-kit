@@ -11,11 +11,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/work/script
 
 from worklib.models.specification.migration import (
     SpecificationMigrationPreviewContract, SpecificationMigrationPreviewRequestContract,
-    SpecificationMigrationPublicationContract,
+    SpecificationMigrationPublicationContract, SpecificationMigrationPrepareRequestContract,
 )
 
 
 class SpecificationMigrationContractTests(unittest.TestCase):
+    def test_revision_prepare_rejects_caller_plan_path(self):
+        example = copy.deepcopy(SpecificationMigrationPrepareRequestContract.contract_example)
+        self.assertEqual(SpecificationMigrationPrepareRequestContract.model_validate(example).to_canonical_dict(), example)
+        example["plan_path"] = "outputs/work/plans/example.json"
+        with self.assertRaises(ValidationError):
+            SpecificationMigrationPrepareRequestContract.model_validate(example)
+
     def test_examples_validate(self):
         for contract in (SpecificationMigrationPreviewRequestContract, SpecificationMigrationPreviewContract,
                          SpecificationMigrationPublicationContract):

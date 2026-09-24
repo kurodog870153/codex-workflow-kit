@@ -42,7 +42,11 @@ class ContractCliTests(unittest.TestCase):
         self.assertIn("work-contract-catalog/v1", contract_ids)
         self.assertIn("work-contract-description/v1", contract_ids)
         self.assertIn("work-contract-scaffold/v1", contract_ids)
-        self.assertIn("work-plan-prepare-request/v1", contract_ids)
+        self.assertIn("work-plan-semantic-request/v1", contract_ids)
+        self.assertNotIn("work-plan-prepare-request/v1", contract_ids)
+        generated = next(item for item in result["data"]["contracts"] if item["id"] == "work-spec-update-request/v1")
+        self.assertEqual(generated["kind"], "generated_request")
+        self.assertFalse(generated["caller_constructible"])
 
     def test_describe_returns_stable_public_description(self) -> None:
         code, result, stderr = self.run_cli(
@@ -86,18 +90,44 @@ class ContractCliTests(unittest.TestCase):
             result["reason_code"], "contract_scaffold_requires_request"
         )
 
-    def test_plan_prepare_scaffold_contains_complete_nested_shapes(self) -> None:
+    def test_scaffold_rejects_generated_request(self) -> None:
+        code, result, stderr = self.run_cli("scaffold", "work-spec-update-request/v1")
+        self.assertEqual(code, ExitCode.CONTRACT)
+        self.assertEqual(stderr, "")
+        self.assertEqual(result["reason_code"], "generated_request_not_caller_constructible")
+
+    def test_plan_semantic_scaffold_contains_selection_choices(self) -> None:
         code, result, stderr = self.run_cli(
-            "scaffold", "work-plan-prepare-request/v1"
+            "scaffold", "work-plan-semantic-request/v1"
         )
 
         self.assertEqual(code, ExitCode.SUCCESS)
         self.assertEqual(stderr, "")
         scaffold = result["data"]["scaffold"]
-        self.assertIn("dependencies", scaffold["content"])
         self.assertEqual(
-            list(scaffold["content"]["dependencies"][0]),
-            ["id", "statement", "applies_to"],
+            list(scaffold["hierarchy_selection_request"]),
+            ["decision", "selections"],
+        )
+        self.assertEqual(list(scaffold["skill_selection_request"]), ["decision", "skills"])
+        self.assertNotIn("content", scaffold)
+
+    def test_command_correction_describe_and_scaffold_show_command_modes(self) -> None:
+        contract_id = "work-command-correction-request/v1"
+        code, result, stderr = self.run_cli("describe", contract_id)
+        self.assertEqual(code, ExitCode.SUCCESS)
+        self.assertEqual(stderr, "")
+        command = next(field for field in result["data"]["fields"] if field["name"] == "actual_command")
+        schema = command["constraints"]["schema"]
+        self.assertEqual(schema["discriminator"]["propertyName"], "mode")
+        self.assertEqual(set(schema["discriminator"]["mapping"]), {"argv", "shell"})
+        self.assertEqual(len(schema["oneOf"]), 2)
+
+        code, result, stderr = self.run_cli("scaffold", contract_id)
+        self.assertEqual(code, ExitCode.SUCCESS)
+        self.assertEqual(stderr, "")
+        self.assertEqual(
+            result["data"]["scaffold"]["actual_command"],
+            {"mode": "argv", "argv": ["tool"]},
         )
 
 

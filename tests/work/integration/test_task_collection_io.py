@@ -179,15 +179,12 @@ class LargeTaskCollectionIOTests(unittest.TestCase):
         current = json.loads(before[target])
         request = {
             "schema": "work-spec-prepare-request/v1",
-            "plan_path": self.plan_path,
+            "requirement_id": "example",
             "reason": "Measure one-item publication",
             "edits": [
                 {
-                    "artifact": "task_item",
-                    "task_id": target,
-                    "operation": "replace",
-                    "path": "/goal",
-                    "before": current["goal"],
+                    "target": {"artifact": "task_item", "task_id": target},
+                    "field": "goal",
                     "after": current["goal"] + " Confirmed.",
                 }
             ],

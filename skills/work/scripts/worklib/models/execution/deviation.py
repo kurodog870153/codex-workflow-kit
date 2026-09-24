@@ -92,6 +92,61 @@ ExecutionDeviationAction = Annotated[
 ]
 
 
+PositivePosition = Annotated[int, Field(gt=0)]
+
+
+class SemanticReplaceCommandActionModel(ExecutionDeviationNestedModel):
+    kind: Literal["replace_command"]
+    replacement: DeviationCommandModel
+
+
+class SemanticAddCommandActionModel(ExecutionDeviationNestedModel):
+    kind: Literal["add_command"]
+    command: DeviationCommandModel
+
+
+class SemanticAddValidationModel(ExecutionDeviationNestedModel):
+    kind: Literal["automated", "manual"]
+    command_positions: list[PositivePosition] | None = None
+    pass_condition: NonEmptyText | None = None
+    confirmer: NonEmptyText | None = None
+    criteria: NonEmptyText | None = None
+    acceptance_positions: list[PositivePosition] | None = None
+
+
+class SemanticAddValidationActionModel(ExecutionDeviationNestedModel):
+    kind: Literal["add_validation"]
+    validation: SemanticAddValidationModel
+
+
+class SemanticSkipRecordActionModel(ExecutionDeviationNestedModel):
+    kind: Literal["skip_record"]
+    reason: NonEmptyText
+
+
+class SemanticAdjustOperationModel(ExecutionDeviationNestedModel):
+    kind: NonEmptyText
+    action: NonEmptyText
+    target: NonEmptyText
+    validation_position: PositivePosition
+    command_position: PositivePosition | None = None
+
+
+class SemanticAdjustOperationActionModel(ExecutionDeviationNestedModel):
+    kind: Literal["adjust_operation"]
+    operation: SemanticAdjustOperationModel
+
+
+ExecutionDeviationSemanticAction = Annotated[
+    SemanticReplaceCommandActionModel
+    | SemanticAddCommandActionModel
+    | SemanticAddValidationActionModel
+    | SemanticSkipRecordActionModel
+    | SemanticAdjustOperationActionModel,
+    Field(discriminator="kind"),
+]
+
+
 class ExecutionDeviationImpactModel(ExecutionDeviationNestedModel):
     semantic_boundary_fields: ClassVar[tuple[str, ...]] = (
         "requirement_changed",
@@ -142,7 +197,7 @@ class ExecutionDeviationAuthorizationContract(WorkContract):
 
 class ExecutionDeviationProposalContract(WorkContract):
     contract_id: ClassVar[str] = "work-execution-deviation-proposal/v1"
-    contract_kind: ClassVar[Literal["request"]] = "request"
+    contract_kind: ClassVar[Literal["generated_request"]] = "generated_request"
     canonical_order: ClassVar[tuple[str, ...]] = (
         "schema", "task_id", "attempt_id", "anchor_record_id", "task_basis", "gap", "action",
         "modifiable_files", "impact", "side_effects",
@@ -176,6 +231,24 @@ class ExecutionDeviationProposalContract(WorkContract):
         elif isinstance(action, AdjustOperationActionModel):
             if action.operation.id != base_anchor:
                 raise ValueError("An adjusted operation must preserve its anchor record ID.")
+        return self
+
+
+class ExecutionDeviationSemanticRequestContract(WorkContract):
+    contract_id: ClassVar[str] = "work-execution-deviation-semantic-request/v1"
+    contract_kind: ClassVar[Literal["semantic_request"]] = "semantic_request"
+    canonical_order: ClassVar[tuple[str, ...]] = (
+        "gap", "action", "modifiable_files", "impact", "side_effects",
+    )
+    gap: NonEmptyText
+    action: ExecutionDeviationSemanticAction
+    modifiable_files: list[str]
+    impact: ExecutionDeviationImpactModel
+    side_effects: list[NonEmptyText]
+
+    @model_validator(mode="after")
+    def validate_file_scope(self) -> Self:
+        ExecutionDeviationNestedModel.validate_file_paths(self.modifiable_files)
         return self
 
 
@@ -294,6 +367,14 @@ ExecutionDeviationProposalContract.contract_example = {
     "modifiable_files": [],
     "impact": _IMPACT_EXAMPLE,
     "side_effects": ["Runs the existing validation command."],
+}
+ExecutionDeviationSemanticRequestContract.contract_example = {
+    key: ExecutionDeviationProposalContract.contract_example[key]
+    for key in ExecutionDeviationSemanticRequestContract.canonical_order
+}
+ExecutionDeviationSemanticRequestContract.contract_example["action"] = {
+    "kind": "replace_command",
+    "replacement": {"mode": "argv", "argv": ["C:/tools/tool.cmd", "test"]},
 }
 ExecutionDeviationContract.contract_example = {
     "schema": "work-execution-deviation/v1",

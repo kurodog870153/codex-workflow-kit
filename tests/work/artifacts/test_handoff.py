@@ -39,6 +39,23 @@ from worklib.services.attempt import build_initial_execution_index, render_execu
 
 
 class HandoffArtifactTests(FileInputTestCase):
+    def test_unsaved_discussion_builder_does_not_claim_formal_source(self):
+        request = {"schema": "work-discussion-handoff-request/v1", "direction": "task_to_plan",
+                   "requirement_id": "example", "summary": "Review unfinished discussion.",
+                   "requested_changes": ["Clarify the scope"]}
+        args = self.input_arguments(["--project-root", str(self.root), "--verbose", "handoff",
+                                     "build-discussion", "--input-file", "request.json"], json.dumps(request))
+        output = io.StringIO()
+        self.assertEqual(main(args, stdout=output), 0, output.getvalue())
+        handoff = json.loads(output.getvalue())["data"]
+        self.assertEqual(handoff["schema"], "work-discussion-handoff/v1")
+        self.assertEqual((handoff["source_stage"], handoff["target_stage"]), ("task", "plan"))
+        self.assertEqual(handoff["source_validation"], "not_checked")
+        self.assertFalse(handoff["grants_authorization"])
+        self.assertNotIn("artifacts", handoff)
+        with self.assertRaises(WorkError):
+            validate_handoff_contract(handoff, project_root=self.root)
+
     def verify_return(self, contract, *, task_id=None, attempt_id=None, preflight=False, direction=None, plan_path=None):
         before = self.snapshot()
         original = copy.deepcopy(contract)

@@ -13,11 +13,48 @@ from contracts import test_task_collection as fixtures
 from worklib.services.attempt import build_initial_execution_index, render_execution_index
 from worklib.technical.foundation.fingerprint import raw_sha256
 from worklib.technical.infrastructure.json_contract import parse_json_contract
-from worklib.orchestration.task import preview_specification_migration, publish_specification_migration
+from worklib.orchestration.task import prepare_specification_migration, preview_specification_migration, publish_specification_migration
 from worklib.business_services.task import load_task_collection
 
 
 class SpecificationMigrationFlowTests(unittest.TestCase):
+    def test_semantic_reconstruction_prepares_invalid_source_set(self):
+        fixture = fixtures.TaskCollectionTests("test_loads_complete_collection_and_rejects_single_file_artifact")
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        root = fixture.root
+        artifacts = fixture.index["artifacts"]
+        plan = parse_json_contract((root / artifacts["plan"]).read_bytes(), source="Plan")
+        semantic_plan = {"requirement_id": "example", "title": plan["title"], "summary": plan["summary"],
+                         "goals": [row["statement"] for row in plan["goals"]],
+                         "scope": [row["statement"] for row in plan["scope"]],
+                         "deliverables": [row["statement"] for row in plan["deliverables"]],
+                         "acceptance_criteria": [row["statement"] for row in plan["acceptance_criteria"]],
+                         "hierarchy_selection_request": {"decision": "general_only", "selections": []},
+                         "skill_selection_request": {"decision": "base_only", "skills": []},
+                         "references": []}
+        task = {"title": fixture.item["title"], "goal": fixture.item["goal"], "skill_id": None,
+                "selected_paths": [], "references": ["task.general.task-records"], "dependency_positions": [],
+                "candidate": {"files": [{"key": "source", "action": "modify", "path": "src.txt"}],
+                              "commands": [{"key": "check", "mode": "argv", "argv": ["python", "--version"]}],
+                              "validations": [{"key": "pass", "kind": "automated", "command_keys": ["check"],
+                                               "pass_condition": "Exit code is zero.", "acceptance_positions": [1]}],
+                              "steps": [{"key": "modify", "action": "Modify the source.", "references": [{"kind": "files", "key": "source"}]},
+                                        {"key": "verify", "action": "Run validation.", "references": [{"kind": "commands", "key": "check"}, {"kind": "validations", "key": "pass"}]}]}}
+        for path in (artifacts["plan"], fixture.index_path,
+                     fixture.index_path.rsplit("/", 1)[0] + "/tasks/TASK-001.json"):
+            (root / path).write_bytes(b'{"schema":"incompatible"}\n')
+        request = {"schema": "work-spec-migration-prepare-request/v1", "mode": "reconstruction",
+                   "plan": semantic_plan, "task_title": fixture.index["title"],
+                   "task_summary": fixture.index["summary"],
+                   "execution_defaults": fixture.index["execution_defaults"], "tasks": [task],
+                   "semantic_decisions": []}
+        result = prepare_specification_migration(json.dumps(request).encode(), project_root=root, user_config_root=str(root))
+        self.assertEqual(result["preview"]["status"], "ready")
+        self.assertEqual(len(result["request"]["candidates"]), 4)
+        self.assertEqual(result["request"]["candidates"][3]["content"]["steps"][0]["id"], "STEP-001")
+        self.assertEqual((root / artifacts["plan"]).read_bytes(), b'{"schema":"incompatible"}\n')
+
     def test_current_candidates_publish_as_one_recoverable_set(self):
         fixture = fixtures.TaskCollectionTests("test_loads_complete_collection_and_rejects_single_file_artifact")
         fixture.setUp()

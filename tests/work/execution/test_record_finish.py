@@ -10,7 +10,7 @@ sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.business_services.execution.record_finish import build_finished_attempt
 from worklib.models.common.errors import WorkError
-from worklib.services.record.result import overall_operation_result
+from worklib.services.record.result import finish_attempt_candidate, overall_operation_result
 
 
 class RecordFinishTests(unittest.TestCase):
@@ -47,26 +47,30 @@ class RecordFinishTests(unittest.TestCase):
             "reason": "Not applicable.", "deviation_id": "DEVIATION-001",
         }]))
 
-    def test_rejects_record_that_does_not_match_reservation(self) -> None:
+    def test_derives_record_identity_and_rejects_machine_fields(self) -> None:
         attempt = {"records": []}
+        candidate = finish_attempt_candidate(
+            attempt, {"record": {"outcome": "passed", "evidence": "Checked."}},
+            expected_record_id="VAL-001", expected_kind="validation",
+        )
+        self.assertEqual(candidate["records"][0]["id"], "VAL-001")
+        self.assertEqual(candidate["records"][0]["kind"], "validation")
         cases = (
             (
-                {"record": {"id": "VAL-002", "kind": "validation"}},
-                "record_finish_record_id_mismatch",
+                {"record": {"id": "VAL-002"}},
+                "record_finish_machine_fields",
             ),
             (
-                {"record": {"id": "VAL-001", "kind": "operation"}},
-                "record_finish_record_kind_mismatch",
+                {"record": {"kind": "operation"}},
+                "record_finish_machine_fields",
             ),
             (
                 {
                     "record": {
-                        "id": "VAL-001",
-                        "kind": "validation",
                         "correction": {},
                     }
                 },
-                "record_finish_untrusted_command_correction",
+                "record_finish_machine_fields",
             ),
         )
         for request, expected_code in cases:

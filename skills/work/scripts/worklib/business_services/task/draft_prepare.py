@@ -168,23 +168,65 @@ def initialize_task_planning_request(project_root: Path, requirement_id: str, re
 
 def prepare_semantic_task_request(project_root: Path, requirement_id: str, raw: bytes, *, source: str,
                                   plan_path: str, user_config_root: str,
+                                  expected_revision: int = 0,
                                   skill_roots: list[SkillRoot] | None = None,
                                   operations=None) -> dict[str, object]:
     semantic = TaskSemanticRequestContract.parse_json_bytes(raw, source=source).to_canonical_dict()
-    count = len(semantic["tasks"])
-    tasks = []
-    for index, item in enumerate(semantic["tasks"], 1):
-        if any(type(dependency) is not int or dependency < 1 or dependency > count or dependency == index
-               for dependency in item["dependencies"]):
-            _fail("invalid_semantic_task_dependency", "Semantic TASK dependencies must reference another one-based task position.")
-        tasks.append({"id": f"TASK-{index:03d}", "title": item["title"], "goal": item["goal"],
-                      "scope": item["scope"], "skill_id": item["skill_id"],
-                      "dependencies": [f"TASK-{dependency:03d}" for dependency in item["dependencies"]],
-                      "instruction_selection": item["instruction_selection"]})
-    current = semantic["current_task"]
-    if current is not None and (current < 1 or current > count):
-        _fail("invalid_semantic_current_task", "current_task must reference a one-based task position.")
-    return prepare_task_planning_request(project_root, requirement_id,
-        {"tasks": tasks, "current_task_id": f"TASK-{current:03d}" if current is not None else None},
-        plan_path=plan_path, user_config_root=user_config_root, skill_roots=skill_roots,
-        operations=operations)
+    if type(expected_revision) is not int or expected_revision < 0:
+        _fail("invalid_expected_revision", "Supply a nonnegative expected revision.")
+    previous = None if expected_revision == 0 else read_task_planning_index(project_root, requirement_id)
+    if previous and previous["revision"] != expected_revision:
+        _fail("draft_revision_conflict", "Reload the current index before preparing a list change.")
+    if not previous and (semantic["remove_task_ids"] or semantic["reason"] is not None):
+        _fail("invalid_semantic_initial_request", "Initial TASK planning cannot remove tasks or supply a list-change reason.")
+    if previous and (not isinstance(semantic["reason"], str) or not semantic["reason"].strip()):
+        _fail("invalid_semantic_reason", "List changes require a non-empty reason.")
+    old = {entry["id"]: entry for entry in previous["tasks"]} if previous else {}
+    removed = semantic["remove_task_ids"]
+    if len(removed) != len(set(removed)) or not set(removed) <= set(old):
+        _fail("invalid_removed_task_ids", "Remove each active TASK at most once.")
+    highest = max((int(task_id[5:]) for task_id in set(old) | set(previous.get("retired_task_ids", []))), default=0) if previous else 0
+    ids, seen_existing = [], set()
+    for item in semantic["upsert"]:
+        existing = item.get("existing_task_id")
+        if existing is not None:
+            if existing not in old or existing in removed or existing in seen_existing:
+                _fail("invalid_semantic_existing_task", "An upsert may identify one active, unremoved TASK once.")
+            seen_existing.add(existing)
+            ids.append(existing)
+        else:
+            highest += 1
+            ids.append(f"TASK-{highest:03d}")
+    def resolve(reference: dict[str, object]) -> str:
+        existing, position = reference.get("existing_task_id"), reference.get("upsert_position")
+        if (existing is None) == (position is None):
+            _fail("invalid_semantic_task_reference", "A TASK reference needs exactly one existing ID or upsert position.")
+        if existing is not None:
+            if existing not in old or existing in removed:
+                _fail("invalid_semantic_task_reference", "The referenced existing TASK is unavailable.")
+            return existing
+        if type(position) is not int or position < 1 or position > len(ids):
+            _fail("invalid_semantic_task_reference", "The upsert position is out of range.")
+        return ids[position - 1]
+    upsert = []
+    for task_id, item in zip(ids, semantic["upsert"]):
+        dependencies = [resolve(reference) for reference in item["dependencies"]]
+        if task_id in dependencies:
+            _fail("invalid_semantic_task_dependency", "A TASK cannot depend on itself.")
+        boundary = {"id": task_id, "title": item["title"], "goal": item["goal"],
+                    "scope": item["scope"], "skill_id": item["skill_id"],
+                    "dependencies": sorted(set(dependencies))}
+        if item.get("instruction_selection") is not None:
+            boundary["instruction_selection"] = item["instruction_selection"]
+        elif task_id not in old:
+            _fail("draft_selection_required", "New TASKs require a confirmed instruction selection.")
+        upsert.append(boundary)
+    current = resolve(semantic["current_task"]) if semantic["current_task"] is not None else None
+    if current in removed:
+        _fail("invalid_semantic_current_task", "The current TASK cannot be removed.")
+    payload = ({"upsert": upsert, "remove_task_ids": removed, "current_task_id": current,
+                "reason": semantic["reason"]} if previous else
+               {"tasks": upsert, "current_task_id": current})
+    return prepare_task_planning_request(project_root, requirement_id, payload,
+        expected_revision=expected_revision, plan_path=plan_path, user_config_root=user_config_root,
+        skill_roots=skill_roots, operations=operations)

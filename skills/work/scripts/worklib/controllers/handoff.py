@@ -14,6 +14,8 @@ def register_handoff_commands(commands: SubparserRegistry) -> None:
     for command_name in ("validate", "render"):
         handoff_command = handoff_commands.add_parser(command_name)
         handoff_command.add_argument("--input-file", required=True)
+    discussion = handoff_commands.add_parser("build-discussion", help="Build an unverified handoff from unsaved semantic discussion.")
+    discussion.add_argument("--input-file", required=True)
     for command_name in ("verify-plan-to-task", "verify-task-to-execute"):
         verify = handoff_commands.add_parser(command_name, help="Verify incoming handoff identity against the selected current source.")
         verify.add_argument("--input-file", required=True)

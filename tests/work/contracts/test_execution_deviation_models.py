@@ -17,6 +17,7 @@ from worklib.models.execution import (
     ExecutionDeviationPreviewContract,
     ExecutionDeviationProposalContract,
     ExecutionDeviationRecordContract,
+    ExecutionDeviationSemanticRequestContract,
 )
 from worklib.models.execution import (
     ExecutionDeviationContract as ModelExecutionDeviationContract,
@@ -44,6 +45,7 @@ class ExecutionDeviationContractTests(unittest.TestCase):
             ExecutionDeviationProposalContract, ExecutionDeviationContract,
             ExecutionDeviationPreviewContract, ExecutionDeviationRecordContract,
             ExecutionDeviationAuthorizationContract,
+            ExecutionDeviationSemanticRequestContract,
         ):
             with self.subTest(contract=contract.contract_id):
                 model = contract.model_validate(copy.deepcopy(contract.contract_example))
@@ -66,6 +68,24 @@ class ExecutionDeviationContractTests(unittest.TestCase):
                 proposal["action"] = action
                 parsed = ExecutionDeviationProposalContract.model_validate(proposal)
                 self.assertEqual(parsed.action.kind, action["kind"])
+
+    def test_semantic_actions_reject_formal_ids_and_references(self) -> None:
+        example = copy.deepcopy(ExecutionDeviationSemanticRequestContract.contract_example)
+        actions = (
+            {"kind": "replace_command", "record_id": "CMD-001", "replacement": {"mode": "argv", "argv": ["tool"]}},
+            {"kind": "skip_record", "record_id": "CMD-001", "reason": "Skip."},
+            {"kind": "add_command", "after_record_id": "CMD-001", "command": {"mode": "argv", "argv": ["tool"]}},
+            {"kind": "add_command", "command": {"id": "CMD-002", "mode": "argv", "argv": ["tool"]}},
+            {"kind": "add_validation", "validation": {"id": "VAL-002", "kind": "manual", "confirmer": "user", "criteria": "Reviewed."}},
+            {"kind": "add_validation", "validation": {"kind": "automated", "command_ids": ["CMD-001"]}},
+            {"kind": "adjust_operation", "operation": {"id": "OP-001", "kind": "file", "action": "Update.", "target": "src/app.py", "validation_position": 1}},
+            {"kind": "adjust_operation", "operation": {"kind": "file", "action": "Update.", "target": "src/app.py", "validation_id": "VAL-001"}},
+        )
+        for action in actions:
+            with self.subTest(action=action):
+                example["action"] = action
+                with self.assertRaises(ValidationError):
+                    ExecutionDeviationSemanticRequestContract.model_validate(example)
 
     def test_rejects_missing_unknown_and_mixed_action_fields(self) -> None:
         cases = []

@@ -21,6 +21,7 @@ from ...services.instruction.catalog import (
 from ...services.instruction.hierarchy import instruction_hierarchy_projection
 from ...services.instruction.history import stored_selection
 from ...services.instruction.source import load_instruction_sources
+from ...services.instruction.root import instruction_root
 from ...services.instruction.work_selection import validate_work_instruction_selection
 from ...services.plan import document as plan_document
 from ...services.plan.ordering import order_plan_contract
@@ -31,6 +32,7 @@ from ...services.attempt.validation import (
     validate_execution_index,
 )
 from ...services.specification.transaction import (
+    derived_transaction_id,
     completion_marker_matches,
     encode_snapshot,
     render_spec_transaction,
@@ -48,6 +50,9 @@ from ...services.specification import transaction as spec_transactions
 from ...services.specification.document_io import parse_json_contract, raw_sha256
 from ...services.specification.history import execution_history_fingerprints
 from ...services.specification.storage import read_raw, storage_path, write_prepared_output
+from ...services.specification.semantic_edit import formalize_specification_edits
+from ...services.specification.source_resolution import resolve_plan_path
+from ...services.task.draft.validation import build_semantic_task_candidate, build_semantic_task_patch
 from ...services.specification.writer_lock import require_idle_writer, state_writer
 from ...models.common.errors import ExitCode, WorkError
 from ...services.plan.validation import validate_plan_contract as validate_plan_value
@@ -100,7 +105,7 @@ def _publication_followup(result: dict[str, object]) -> None:
 
 PLAN_FIELDS = {"title", "summary", "goals", "scope", "constraints", "dependencies", "risks", "milestones", "deliverables", "acceptance_criteria", "decisions"}
 INDEX_FIELDS = {"title", "summary", "decisions", "execution_defaults"}
-ITEM_FIELDS = {"title", "goal", "traceability", "dependencies", "steps", "validations", "commands", "operations"}
+ITEM_FIELDS = {"title", "goal", "traceability", "dependencies", "inputs", "decisions", "files", "risks", "steps", "validations", "commands", "operations"}
 
 
 def _hierarchy(value: object, work_root: Path) -> dict[str, object]:
@@ -315,7 +320,7 @@ def prepare_specification(raw_request: bytes, *, project_root: Path, user_config
     request = SpecificationPrepareRequestContract.parse_json_bytes(
         raw_request, source="specification preparation",
     ).to_canonical_dict()
-    plan_path = request["plan_path"]
+    plan_path = resolve_plan_path(project_root, request["requirement_id"])
     baseline = _load(
         project_root, user_config_root, plan_path,
         task_operations=task_operations, skill_roots=skill_roots,
@@ -323,7 +328,11 @@ def prepare_specification(raw_request: bytes, *, project_root: Path, user_config
     require_no_spec_update(project_root, baseline["artifacts"]["execution"])
     require_idle_writer(project_root, baseline["artifacts"]["execution"])
     plan, index, items = (copy.deepcopy(baseline[key]) for key in ("plan", "index", "items"))
-    edits = request["edits"]
+    edits = formalize_specification_edits(
+        request["edits"], baseline, task_operations,
+        skill_root=instruction_root(), task_candidate_builder=build_semantic_task_candidate,
+        task_patch_builder=build_semantic_task_patch,
+    )
     seen: set[tuple[object, ...]] = set()
     normalized: list[dict[str, Any]] = []
     plan_changed = False
@@ -350,7 +359,7 @@ def prepare_specification(raw_request: bytes, *, project_root: Path, user_config
             task_id = nonempty_string(edit.get("task_id"), location=f"edits[{position}].task_id")
             if pointer == "/" and operation == "add":
                 if task_id in items or not isinstance(edit.get("after"), dict):
-                    _fail("spec_item_add", "A new TASK item requires a new ID and complete object.")
+                    _fail("spec_item_add", "A semantic TASK addition must produce one new TASK item.")
                 items[task_id] = copy.deepcopy(edit["after"])
             elif pointer == "/" and operation == "remove":
                 if task_id not in items or edit.get("before") != items[task_id]:
@@ -366,6 +375,11 @@ def prepare_specification(raw_request: bytes, *, project_root: Path, user_config
             _fail("spec_prepare_artifact", "Use plan, task_index or task_item.")
         if artifact != "plan":
             normalized.append({key: copy.deepcopy(edit[key]) for key in ("artifact", "task_id", "operation", "path", "before", "after") if key in edit})
+    if any(edit["artifact"] == "task_item" and edit["path"] == "/" for edit in edits):
+        index["instruction_selection"] = task_operations.build_task_document_instruction_selection(
+            [items[task_id]["instruction_selection"] for task_id in sorted(items)],
+            skill_root=instruction_root(),
+        )
     plan_raw = _render_plan_contract(plan)
     plan_validation = _validate_plan_contract(
         plan_raw,
@@ -468,9 +482,10 @@ def _validate_collection(request: dict[str, Any], *, baseline: dict[str, Any], p
                 "history_sha256": execution_history_fingerprints(project_root, baseline["artifacts"]["execution"]),
                 "source_sha256": {key: raw_sha256(value) for key, value in source.items()},
                 "candidate_sha256": {key: raw_sha256(value) for key, value in candidate.items()}}
-    transaction_id = "SPEC-UPDATE-" + request["task_index"]["spec_id"].rsplit("-", 1)[1]
+    approval = transaction_approval_sha256(files, metadata)
+    transaction_id = derived_transaction_id("UPDATE", approval)
     journal = {"schema": "work-spec-transaction/v1", "transaction_id": transaction_id,
-               "approval_sha256": transaction_approval_sha256(files, metadata), "state": "prepared", "published_count": 0,
+               "approval_sha256": approval, "state": "prepared", "published_count": 0,
                "metadata": metadata, "files": files}
     render_spec_transaction(journal)
     changed_fields = _changed_collection_fields(
@@ -492,7 +507,10 @@ def update_specification(raw_request: bytes, *, project_root: Path, user_config_
     ).to_canonical_dict()
     plan = request["plan"]
     artifacts = _artifacts(plan, plan["artifacts"]["plan"])
-    journal_relative = artifacts["execution"] + "/.work-spec-update-SPEC-UPDATE-" + request["task_index"]["spec_id"].rsplit("-", 1)[1] + ".json"
+    if operation == "recover":
+        sha256(approved_sha256, location="approved_sha256")
+        transaction_id = derived_transaction_id("UPDATE", approved_sha256)
+        journal_relative = artifacts["execution"] + "/.work-spec-update-" + transaction_id + ".json"
     if operation == "recover":
         journal = validate_spec_transaction(read_raw(storage_path(project_root, journal_relative)), source=journal_relative)
         if journal["metadata"]["request"] != request: _fail("spec_update_recovery_request", "Recovery requires the identical request.")
@@ -510,6 +528,7 @@ def update_specification(raw_request: bytes, *, project_root: Path, user_config_
             skill_roots=skill_roots,
         )
         journal = result["transaction"]
+        journal_relative = artifacts["execution"] + "/.work-spec-update-" + journal["transaction_id"] + ".json"
     if operation == "validate":
         result["next_step"] = {"command": "task spec-update", "input": "same_request", "approved_sha256": result["approved_sha256"]}
         return SpecificationUpdateContract.model_validate(result).to_canonical_dict()

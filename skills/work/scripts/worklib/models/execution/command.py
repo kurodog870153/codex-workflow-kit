@@ -4,24 +4,45 @@ from __future__ import annotations
 
 from typing import Annotated, Any, ClassVar, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from ...protocol import SHA256_PATTERN
 from ..common.base import WorkContract
 
 
+NonEmptyCommandText = Annotated[str, Field(min_length=1, pattern=r"\S")]
+
+
+class SemanticArgvCommandModel(BaseModel):
+    model_config = ConfigDict(strict=True, extra='forbid', frozen=True)
+
+    mode: Literal['argv']
+    argv: list[NonEmptyCommandText] = Field(min_length=1)
+
+
+class SemanticShellCommandModel(BaseModel):
+    model_config = ConfigDict(strict=True, extra='forbid', frozen=True)
+
+    mode: Literal['shell']
+    script: NonEmptyCommandText
+
+
+SemanticCommand = Annotated[
+    SemanticArgvCommandModel | SemanticShellCommandModel,
+    Field(discriminator='mode'),
+]
+
+
 class CommandCorrectionRequestContract(WorkContract):
     contract_id: ClassVar[str] = 'work-command-correction-request/v1'
-    contract_kind: ClassVar[Literal['request']] = 'request'
-    canonical_order: ClassVar[tuple[str, ...]] = ('schema', 'record_id', 'original_command', 'actual_command', 'reason')
+    contract_kind: ClassVar[Literal['semantic_request']] = 'semantic_request'
+    canonical_order: ClassVar[tuple[str, ...]] = ('schema', 'actual_command', 'reason')
+    field_constraints: ClassVar[dict[str, dict[str, Any]]] = {
+        'actual_command': {'schema': TypeAdapter(SemanticCommand).json_schema()},
+    }
     schema_: Literal['work-command-correction-request/v1'] = Field(alias='schema')
-    record_id: str
-    original_command: dict[str, Any]
-    actual_command: dict[str, Any]
+    actual_command: SemanticCommand
     reason: str
-
-    def to_execution_dict(self) -> dict[str, Any]:
-        return {'schema': self.contract_id, 'record_id': self.record_id, 'correction': {'original_command': self.original_command, 'actual_command': self.actual_command, 'reason': self.reason}}
 
 
 class CommandCorrectionContract(WorkContract):
@@ -39,11 +60,9 @@ class CommandCorrectionContract(WorkContract):
 
 class CommandRunRequestContract(WorkContract):
     contract_id: ClassVar[str] = 'work-command-run-request/v1'
-    contract_kind: ClassVar[Literal['request']] = 'request'
-    canonical_order: ClassVar[tuple[str, ...]] = ('schema', 'attempt_id', 'record_id', 'timeout_seconds')
+    contract_kind: ClassVar[Literal['semantic_request']] = 'semantic_request'
+    canonical_order: ClassVar[tuple[str, ...]] = ('schema', 'timeout_seconds')
     schema_: Literal['work-command-run-request/v1'] = Field(alias='schema')
-    attempt_id: str
-    record_id: str
     timeout_seconds: int
 
 
@@ -78,10 +97,12 @@ CommandInvocation = Annotated[
 class CommandPreviewContract(WorkContract):
     contract_id: ClassVar[str] = 'work-command-preview/v1'
     contract_kind: ClassVar[Literal['response']] = 'response'
-    canonical_order: ClassVar[tuple[str, ...]] = ('schema', 'request', 'task_id', 'working_directory', 'execution', 'invocation', 'receipt_prefix', 'sources', 'approved_sha256')
+    canonical_order: ClassVar[tuple[str, ...]] = ('schema', 'request', 'task_id', 'attempt_id', 'record_id', 'working_directory', 'execution', 'invocation', 'receipt_prefix', 'sources', 'approved_sha256')
     schema_: Literal['work-command-preview/v1'] = Field(alias='schema')
     request: CommandRunRequestContract
     task_id: str
+    attempt_id: str
+    record_id: str
     working_directory: str
     execution: dict[str, Any]
     invocation: CommandInvocation
@@ -119,8 +140,6 @@ class CommandResultContract(WorkContract):
 
 CommandCorrectionRequestContract.contract_example = {
     "schema": "work-command-correction-request/v1",
-    "record_id": "CMD-001",
-    "original_command": {"mode": "argv", "argv": ["tool", "old"]},
     "actual_command": {"mode": "argv", "argv": ["tool", "new"]},
     "reason": "Use the authorized argument.",
 }
@@ -135,8 +154,7 @@ CommandCorrectionContract.contract_example = {
 
 
 CommandRunRequestContract.contract_example = {
-    "schema": "work-command-run-request/v1", "attempt_id": "ATTEMPT-001",
-    "record_id": "CMD-001", "timeout_seconds": 60,
+    "schema": "work-command-run-request/v1", "timeout_seconds": 60,
 }
 
 
@@ -144,6 +162,7 @@ CommandPreviewContract.contract_example = {
     "schema": "work-command-preview/v1",
     "request": CommandRunRequestContract.contract_example,
     "task_id": "TASK-001",
+    "attempt_id": "ATTEMPT-001", "record_id": "CMD-001",
     "working_directory": "/project", "execution": {"os": "linux"},
     "invocation": {
         "kind": "direct", "executable": "/usr/bin/tool",
@@ -170,4 +189,4 @@ CommandResultContract.contract_example = {
 }
 
 
-__all__ = ["CommandCorrectionRequestContract","CommandCorrectionContract","CommandRunRequestContract","CommandInvocationModel","DirectCommandInvocationModel","WindowsBatchInvocationModel","CommandInvocation","CommandPreviewContract","CommandStartedContract","CommandResultContract"]
+__all__ = ["SemanticArgvCommandModel","SemanticShellCommandModel","SemanticCommand","CommandCorrectionRequestContract","CommandCorrectionContract","CommandRunRequestContract","CommandInvocationModel","DirectCommandInvocationModel","WindowsBatchInvocationModel","CommandInvocation","CommandPreviewContract","CommandStartedContract","CommandResultContract"]

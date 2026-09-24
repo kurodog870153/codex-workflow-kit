@@ -11,7 +11,7 @@ from ...models.plan import TOP_OPTIONAL, TOP_REQUIRED, PlanSemanticRequestContra
 from ...models.skill import SkillRoot
 from ...services.hierarchy.fingerprint import hierarchy_selection_sha256
 from ...services.hierarchy.path import build_hierarchy
-from ...services.hierarchy.selection import build_hierarchy_selection_snapshot
+from ...services.hierarchy.selection import build_hierarchy_selection_snapshot, parse_hierarchy_selection_request
 from ...services.hierarchy.validation import validate_hierarchy_selection_snapshot
 from ...services.instruction.catalog import build_cross_mode_instruction_catalog, build_instruction_catalog
 from ...services.instruction.hierarchy import instruction_hierarchy_projection
@@ -26,6 +26,7 @@ from ...services.plan.persistence import create_plan_exclusively
 from ...services.plan.validation import validate_plan_contract as validate_plan_value
 from ...services.skill_catalog import parse_skill_root, snapshot_catalog_skill
 from ...services.skill_selection import validate_skill_roots
+from ...services.skill_selection import build_skill_selection
 from ...services.skill_selection import selection_sha256
 from ...services.skill_selection import validate_skill_selection as validate_skill_selection_value
 
@@ -154,19 +155,26 @@ def validate_plan_file(project_root: Path, user_config_root: str, raw_path: str,
         _allow_task_index=str(contract.get("artifacts", {}).get("task", "")).endswith("/index.json"))
 
 
-def prepare_initial_plan(raw: bytes, *, source: str, project_root: Path, user_config_root: str,
-                         skill_roots: list[SkillRoot] | None = None,
-                         output_file: str | None = None) -> dict[str, object]:
-    request = _strict(document.parse(raw, source=source), location="plan_prepare",
-        required={"requirement_id", "content", "hierarchy_selection", "skill_selection", "references"}, optional={"artifacts"})
+def build_semantic_selections(semantic: dict[str, Any], *, skill_roots: list[SkillRoot] | None = None) -> tuple[dict[str, object], dict[str, object]]:
+    decision, selected, reasons = parse_hierarchy_selection_request(semantic["hierarchy_selection_request"])
+    build_hierarchy("plan", selected)
+    catalog = build_cross_mode_instruction_catalog(document.installed_work_root()).as_dict()
+    hierarchy = build_hierarchy_selection_snapshot(decision, selected, reasons, catalog)
+    entries, catalog_sha256 = hierarchy["entries"], hierarchy["catalog_sha256"]
+    assert isinstance(entries, list) and isinstance(catalog_sha256, str)
+    hierarchy["selection_sha256"] = hierarchy_selection_sha256(decision, selected, entries, catalog_sha256)
+    roots = skill_roots or []
+    request = semantic["skill_selection_request"]
+    skill = build_skill_selection(request, roots=roots, snapshots=_skill_snapshots(request, roots))
+    return hierarchy, skill
+
+
+def _prepare_initial_plan(request: dict[str, Any], *, source: str, project_root: Path, user_config_root: str,
+                          skill_roots: list[SkillRoot] | None = None,
+                          output_file: str | None = None) -> dict[str, object]:
     requirement = _text(request["requirement_id"], location="requirement_id")
-    content = _strict(request["content"], location="content",
-        required={"title", "summary", "goals", "scope", "deliverables", "acceptance_criteria"}, optional=TOP_OPTIONAL - {"changes"})
-    if "artifacts" in request:
-        supplied = _strict(request["artifacts"], location="artifacts", required={"plan", "task", "execution"})
-        artifacts = document.validate_artifact_paths(project_root, requirement, supplied, actual_plan_path=supplied["plan"])
-    else:
-        artifacts = document.default_artifact_paths(project_root, requirement)
+    content = request["content"]
+    artifacts = document.default_artifact_paths(project_root, requirement)
     _, path = document.resolve_project_relative_path(project_root, artifacts["plan"], field="plan_path")
     if path.exists():
         raise WorkError(ExitCode.WORKFLOW_STATE, "plan_already_exists", "Initial preparation cannot revise an existing Plan.")
@@ -222,6 +230,7 @@ def prepare_semantic_plan(raw: bytes, *, source: str, project_root: Path, user_c
                           skill_roots: list[SkillRoot] | None = None,
                           output_file: str | None = None) -> dict[str, object]:
     semantic = PlanSemanticRequestContract.parse_json_bytes(raw, source=source).to_canonical_dict()
+    hierarchy, skill = build_semantic_selections(semantic, skill_roots=skill_roots)
     goal_ids = [f"GOAL-{index:03d}" for index in range(1, len(semantic["goals"]) + 1)]
     deliverable_ids = [f"DELIVERABLE-{index:03d}" for index in range(1, len(semantic["deliverables"]) + 1)]
     acceptance_ids = [f"ACCEPTANCE-{index:03d}" for index in range(1, len(semantic["acceptance_criteria"]) + 1)]
@@ -236,16 +245,16 @@ def prepare_semantic_plan(raw: bytes, *, source: str, project_root: Path, user_c
                                 for item_id, statement in zip(acceptance_ids, semantic["acceptance_criteria"])],
     }
     request = {"requirement_id": semantic["requirement_id"], "content": content,
-               "hierarchy_selection": semantic["hierarchy_selection"],
-               "skill_selection": semantic["skill_selection"],
+               "hierarchy_selection": hierarchy,
+               "skill_selection": skill,
                "references": semantic["references"]}
-    return prepare_initial_plan(document.render(request), source=source, project_root=project_root,
-                                user_config_root=user_config_root, skill_roots=skill_roots,
-                                output_file=output_file)
+    return _prepare_initial_plan(request, source=source, project_root=project_root,
+                                 user_config_root=user_config_root, skill_roots=skill_roots,
+                                 output_file=output_file)
 
 
 def parse_roots(values: list[str]) -> list[SkillRoot]:
     return [parse_skill_root(value) for value in values]
 
 
-__all__ = ["create_plan_file", "parse_roots", "prepare_initial_plan", "prepare_semantic_plan", "prepare_plan_json_contract", "render_plan_contract", "validate_plan_contract", "validate_plan_file", "validate_plan_json_contract", "validate_plan_request"]
+__all__ = ["create_plan_file", "parse_roots", "prepare_semantic_plan", "prepare_plan_json_contract", "render_plan_contract", "validate_plan_contract", "validate_plan_file", "validate_plan_json_contract", "validate_plan_request"]

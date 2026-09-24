@@ -97,7 +97,7 @@ class ExecutionTransactionRecoveryTests(unittest.TestCase):
             index["lock"]["record_id"] = "VAL-001"
             request = {
                 "schema": "work-record-finish-request/v1",
-                "record": record,
+                "record": {"outcome": record["outcome"], "evidence": record["evidence"]},
             }
             operation = finish_record
         elif transaction == "deviation_record":

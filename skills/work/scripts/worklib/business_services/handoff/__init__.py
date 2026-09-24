@@ -10,7 +10,7 @@ from ...models.handoff import RETURN_FIELDS
 from ...services.attempt import render_attempt_contract, validate_attempt_file, validate_execution_index
 from ...services.handoff import (
     BASE_EXECUTE_REFERENCES, BLOCKING_STOPPED_TYPES, RECOVERY_REFERENCE,
-    build_handoff, find_task_row, plan_item_ids, render_handoff_json_contract,
+    build_discussion_handoff, build_handoff, find_task_row, plan_item_ids, render_handoff_json_contract,
     require_index_identity, require_known_affected_ids, require_matching_handoff_source,
     task_affected_ids, task_fingerprints, validate_execute_instruction_selection,
     validate_execution_identity, validate_handoff_contract, validate_handoff_json_contract,
@@ -444,6 +444,8 @@ def run_handoff(
     *,
     operations,
 ) -> dict[str, object]:
+    if arguments.handoff_command == "build-discussion":
+        return build_discussion_handoff(request.raw, source=request.source)
     if arguments.handoff_command in {"verify-task-to-plan", "verify-execute-to-plan", "verify-execute-to-task"}:
         return verify_return_handoff(
             project_root, parse_json_contract(request.raw, source=request.source),

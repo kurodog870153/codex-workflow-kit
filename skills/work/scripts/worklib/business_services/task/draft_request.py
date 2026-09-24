@@ -14,7 +14,7 @@ from ...services.task.draft.storage import (
 from .draft_source import check_task_draft_sources
 from ...models.common.validation import ContractValuePolicy
 from ...models.common.errors import ExitCode, WorkError
-from ...services.task.draft.validation import resolve_draft_instruction_selection
+from ...services.task.draft.validation import resolve_draft_instruction_selection, validate_semantic_task_candidate
 from ...services.skill_catalog import SkillRoot
 
 
@@ -40,6 +40,8 @@ def save_task_draft_request(
                   "open_questions", "next_discussion_point"},
         optional={"task_candidate"},
     )
+    if "task_candidate" in payload:
+        validate_semantic_task_candidate(payload["task_candidate"], refined=payload["status"] == "refined")
     if type(expected_revision) is not int or expected_revision < 1:
         raise WorkError(ExitCode.WORKFLOW_STATE, "invalid_expected_revision", "An existing planning revision is required.")
     current = read_task_planning_index(project_root, requirement_id)

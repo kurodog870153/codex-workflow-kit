@@ -5,13 +5,18 @@ import json
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/work/scripts"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from contracts import test_task as fixtures
 from contracts.test_progress import discussion
-from worklib.business_services.delegation import validate_delegation
+from worklib.business_services.delegation import build_delegation_request, validate_delegation
+from worklib.models.plan import PlanContract
+from worklib.models.progress import DiscussionProgressContract
+from worklib.models.task_collection import TaskIndexContract, TaskItemContract
+from worklib.models.execution.index import ExecutionIndexContract
 from worklib.services.delegation import MARKERS, validate_delegation_envelope
 from worklib.models.common.errors import WorkError
 from worklib.business_services.instruction import build_instruction_selection
@@ -63,6 +68,45 @@ class DelegationTests(unittest.TestCase):
     def validate(self, value, **options):
         return validate_delegation(value, role=value["role"], sender=value["sender"], project_root=self.root,
                                    skill_root=fixtures.SKILL_ROOT, **options)
+
+    def test_builder_covers_six_roles_without_granting_authority(self):
+        for role in ("plan", "task-coordinator", "execute", "task-skill", "artifact-editor", "progress-saver"):
+            expected = self.envelope(role)
+            request = {"schema": "work-delegation-build-request/v1", "role": role,
+                       "request": "Confirmed role request"}
+            if role == "progress-saver":
+                request.update(mode="task", source_progress_path="outputs/work/progress/example/task/progress.json",
+                               content=expected["context"]["content"], continuation_point="Continue discussion")
+            else:
+                request["source_plan_path"] = self.fixture.artifacts["plan"]
+            if role in ("execute", "task-skill"):
+                request["task_id"] = "TASK-001"
+            if role == "artifact-editor":
+                request.update(mode="execute", confirmed_request={"reason": "Reviewed"},
+                               decisions=["Confirmed revision"], affected_task_ids=["TASK-001"],
+                               continuation_point="Return to Execute")
+            plan = expected["context"].get("source_plan", self.plan)
+            if role == "task-skill":
+                item = expected["context"]["task_boundary"]
+            else:
+                item = {"id": "TASK-001", "title": "Task", "goal": "Reviewed scope", "skill_id": None}
+            target = self.fixture.contract["tasks"][0]
+            def formal(_root, _path, contract):
+                return {
+                    PlanContract: plan,
+                    DiscussionProgressContract: discussion(),
+                    TaskIndexContract: {"tasks": [{"id": "TASK-001", "path": "tasks/TASK-001.json"}]},
+                    TaskItemContract: item,
+                    ExecutionIndexContract: {"tasks": [target]},
+                }[contract]
+            with self.subTest(role=role), patch(
+                "worklib.business_services.delegation.validation._formal", side_effect=formal,
+            ):
+                built = build_delegation_request(json.dumps(request).encode(), source="test", project_root=self.root)
+                self.assertEqual(built["role"], role)
+                self.assertEqual(built["sender"], "task-coordinator" if role == "task-skill" else "parent")
+                self.assertNotIn("authorized", built)
+                self.assertFalse(self.validate(built)["grants_authorization"])
 
     def test_all_roles_validate_without_mutation_or_authority(self):
         for role in MARKERS:

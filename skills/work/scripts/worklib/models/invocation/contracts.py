@@ -30,7 +30,7 @@ InvocationEntry = Annotated[WorkflowEntry | ProgressResumeEntry | TaskPlanningEn
 
 class InvocationContract(WorkContract):
     contract_id: ClassVar[str] = "work-invocation/v1"
-    contract_kind: ClassVar[Literal["request"]] = "request"
+    contract_kind: ClassVar[Literal["semantic_request"]] = "semantic_request"
     canonical_order: ClassVar[tuple[str, ...]] = ("schema", "mode", "request", "entry")
     contract_example: ClassVar[dict[str, object]] = {
         "schema": "work-invocation/v1", "mode": "plan",

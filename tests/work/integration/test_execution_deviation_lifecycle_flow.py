@@ -16,8 +16,8 @@ from worklib.business_services.instruction import build_instruction_selection
 from worklib.business_services.task import load_task_collection
 from worklib.business_services.workflow.state import load_latest_attempts, workflow_state
 from worklib.orchestration.execution import (
-    begin_record, close_attempt, finish_record, prepare_execution_deviation,
-    record_execution_deviation, start_attempt,
+    begin_record, close_attempt, finish_record,
+    prepare_semantic_execution_deviation, record_execution_deviation, start_attempt,
 )
 from worklib.orchestration.task import (
     preview_specification_reconciliation, publish_specification_reconciliation,
@@ -89,7 +89,9 @@ class ExecutionDeviationLifecycleFlowTests(unittest.TestCase):
             "schema": "work-execution-deviation-proposal/v1",
             "task_id": "TASK-001", "attempt_id": "ATTEMPT-001",
             "anchor_record_id": reserved["record_id"],
-            "task_basis": [task["steps"][0]["id"], "VAL-001"],
+            "task_basis": ["VAL-001", *(
+                step["id"] for step in task["steps"]
+                if "VAL-001" in step.get("references", []))],
             "gap": "The runtime validation result requires an explicit retry.",
             "action": {
                 "kind": "skip_record", "record_id": reserved["record_id"],
@@ -105,9 +107,15 @@ class ExecutionDeviationLifecycleFlowTests(unittest.TestCase):
             },
             "side_effects": [],
         }
-        preview = prepare_execution_deviation(
-            json.dumps(proposal).encode(), source="test", **common
+        semantic = {key: proposal[key] for key in (
+            "gap", "modifiable_files", "impact", "side_effects")}
+        semantic["action"] = {
+            "kind": "skip_record", "reason": proposal["action"]["reason"]}
+        preview = prepare_semantic_execution_deviation(
+            json.dumps(semantic).encode(), source="test", **common
         )
+        self.assertEqual(preview["proposal"], proposal)
+        proposal = preview["proposal"]
         recorded = record_execution_deviation(
             json.dumps(proposal).encode(), source="test",
             approved_sha256=preview["preview_sha256"],
@@ -118,7 +126,6 @@ class ExecutionDeviationLifecycleFlowTests(unittest.TestCase):
         finish_record(json.dumps({
             "schema": "work-record-finish-request/v1",
             "record": {
-                "id": reserved["record_id"], "kind": "validation",
                 "status": "skipped",
                 "reason": proposal["action"]["reason"],
                 "deviation_id": recorded["deviation_id"],

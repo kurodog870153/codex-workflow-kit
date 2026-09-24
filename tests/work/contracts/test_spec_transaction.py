@@ -8,7 +8,7 @@ from pathlib import Path
 SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
-from worklib.services.specification.transaction import encode_snapshot, render_spec_transaction, transaction_approval_sha256, validate_spec_transaction
+from worklib.services.specification.transaction import derived_transaction_id, encode_snapshot, render_spec_transaction, transaction_approval_sha256, validate_spec_transaction
 from worklib.models.common.errors import WorkError
 
 
@@ -19,7 +19,28 @@ class SpecTransactionContractTests(unittest.TestCase):
             {"phase": 20, "path": "tasks/TASK-001.json", "operation": "replace", "before": encode_snapshot(b"old"), "after": encode_snapshot(b"new")},
             {"phase": 20, "path": "tasks/TASK-002.json", "operation": "add", "after": encode_snapshot(b"added")},
         ]
-        return {"schema": "work-spec-transaction/v1", "transaction_id": "SPEC-UPDATE-002", "approval_sha256": transaction_approval_sha256(files, metadata), "state": "prepared", "published_count": 0, "metadata": metadata, "files": files}
+        approval = transaction_approval_sha256(files, metadata)
+        return {"schema": "work-spec-transaction/v1", "transaction_id": derived_transaction_id("UPDATE", approval), "approval_sha256": approval, "state": "prepared", "published_count": 0, "metadata": metadata, "files": files}
+
+    def test_id_is_stable_and_rejects_caller_selected_identity(self):
+        first = self.contract()
+        self.assertEqual(first["transaction_id"], self.contract()["transaction_id"])
+        different = copy.deepcopy(first)
+        different["metadata"]["request"] = {"schema": "different/v1"}
+        different["approval_sha256"] = transaction_approval_sha256(different["files"], different["metadata"])
+        different["transaction_id"] = derived_transaction_id("UPDATE", different["approval_sha256"])
+        self.assertNotEqual(first["transaction_id"], different["transaction_id"])
+        first["transaction_id"] = "SPEC-UPDATE-002"
+        with self.assertRaises(WorkError):
+            render_spec_transaction(first)
+
+    def test_shared_journal_keeps_other_workflow_identifiers(self):
+        for identity in ("TASK-REPAIR-ABCDEF012345", "SOURCE-REFRESH-ABCDEF012345",
+                         "INSTRUCTION-MIGRATION-ABCDEF012345"):
+            with self.subTest(identity=identity):
+                transaction = self.contract()
+                transaction["transaction_id"] = identity
+                self.assertEqual(validate_spec_transaction(render_spec_transaction(transaction), source="test")["transaction_id"], identity)
 
     def test_round_trip(self):
         raw = render_spec_transaction(self.contract())

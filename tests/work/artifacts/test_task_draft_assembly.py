@@ -48,14 +48,13 @@ class TaskDraftAssemblyTests(unittest.TestCase):
             _allow_task_index=True,
         )
         selection = build_instruction_selection(skill_root=work_root, mode="task", selected_paths=[], reference_names=["task.general.task-records"])
+        self.selection = selection
         source = {key: validation[key] for key in ("plan_sha256", "hierarchy_selection_sha256", "skill_selection_sha256")}
         index = {"schema": "work-task-planning-index/v1", "requirement_id": "example", "revision": 1, "current_task_id": "TASK-001", "source": source,
-                 "tasks": [{"id": "TASK-001", "title": "Task", "goal": "Result", "scope": ["Source"], "skill_id": None, "dependencies": [], "status": "planned", "boundary_revision": 1, "instructions_sha256": selection["instructions_sha256"]}]}
+                 "tasks": [{"id": "TASK-001", "title": "Task", "goal": "Result", "scope": ["Source"], "skill_id": None, "dependencies": [], "status": "planned", "boundary_revision": 1, "instructions_sha256": selection["instructions_sha256"], "instruction_selection": {"selected_paths": [], "references": ["task.general.task-records"]}}]}
         save_task_planning(self.root, index, expected_revision=0)
-        candidate = {"id": "TASK-001", "title": "Task", "goal": "Result", "skill_id": None, "instruction_selection": selection,
-                     "traceability": {"goal_ids": ["GOAL-001"], "deliverable_ids": ["DELIVERABLE-001"], "acceptance_ids": ["ACCEPTANCE-001"]},
-                     "steps": [{"id": "STEP-001", "action": "Review result.", "references": ["VAL-001"]}],
-                     "validations": [{"id": "VAL-001", "kind": "manual", "confirmer": "User", "criteria": "Result is observable.", "acceptance_ids": ["ACCEPTANCE-001"]}]}
+        candidate = {"steps": [{"key": "review", "action": "Review result.", "references": [{"kind": "validations", "key": "result"}]}],
+                     "validations": [{"key": "result", "kind": "manual", "confirmer": "User", "criteria": "Result is observable.", "acceptance_positions": [1]}]}
         self.draft = {"schema": "work-task-draft/v1", "requirement_id": "example", "task_id": "TASK-001", "revision": 1, "boundary_revision": 1,
                       "source": source, "instructions_sha256": selection["instructions_sha256"], "status": "refined", "notes": [], "confirmed_decisions": [],
                       "tentative": [], "open_questions": [], "next_discussion_point": None, "task_candidate": candidate}
@@ -77,7 +76,12 @@ class TaskDraftAssemblyTests(unittest.TestCase):
         before = {p: p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
         assembled = self.assemble()
         self.assertEqual(before, {p: p.read_bytes() for p in self.root.rglob("*") if p.is_file()})
-        self.assertEqual(assembled["contract"]["tasks"], [self.draft["task_candidate"]])
+        formal_task = assembled["contract"]["tasks"][0]
+        self.assertEqual(formal_task["id"], "TASK-001")
+        self.assertEqual(formal_task["instruction_selection"], self.selection)
+        self.assertEqual(formal_task["traceability"]["goal_ids"], ["GOAL-001"])
+        self.assertEqual(formal_task["steps"], [{"id": "STEP-001", "action": "Review result.", "references": ["VAL-001"]}])
+        self.assertEqual(formal_task["validations"][0]["acceptance_ids"], ["ACCEPTANCE-001"])
         self.assertIn("task_collection_sha256", assembled)
         result = create_task_from_drafts(self.root, "example", self.metadata, approved_sha256=assembled["approval_sha256"], **self.options)
         self.assertEqual(result["status"], "created")
@@ -141,18 +145,50 @@ class TaskDraftAssemblyTests(unittest.TestCase):
 
     def test_full_contract_validation_rejects_missing_steps(self):
         self.draft["task_candidate"].pop("steps")
-        self.save()
         with self.assertRaises(WorkError) as context:
-            self.assemble()
+            self.save()
         self.assertEqual(context.exception.code, "invalid_object_fields")
-        self.assertEqual(context.exception.details["location"], "contract")
+        self.assertEqual(context.exception.details["location"], "task_candidate")
         self.assertEqual(context.exception.details["missing"], ["steps"])
 
-    def test_candidate_cannot_change_confirmed_boundary(self):
+    def test_candidate_cannot_supply_confirmed_boundary(self):
         self.draft["task_candidate"]["goal"] = "Different goal"
         with self.assertRaises(WorkError) as context:
             self.save()
-        self.assertEqual(context.exception.code, "task_candidate_boundary_mismatch")
+        self.assertEqual(context.exception.code, "invalid_object_fields")
+
+    def test_python_allocates_local_ids_and_resolves_semantic_references(self):
+        self.draft["task_candidate"]["files"] = [{"key": "report", "action": "create", "path": "report.txt"}]
+        self.draft["task_candidate"]["steps"][0]["references"].append({"kind": "files", "key": "report"})
+        self.save()
+        task = self.assemble()["contract"]["tasks"][0]
+        self.assertEqual(task["files"][0]["id"], "FILE-001")
+        self.assertEqual(task["steps"][0]["references"], ["VAL-001", "FILE-001"])
+
+    def test_formal_ids_duplicate_keys_and_unknown_references_are_rejected(self):
+        baseline = copy.deepcopy(self.draft["task_candidate"])
+        for field, value, code in (
+            ("id", "VAL-001", "invalid_object_fields"),
+            ("key", "VAL-001", "invalid_semantic_key"),
+        ):
+            with self.subTest(field=field):
+                candidate = copy.deepcopy(baseline)
+                candidate["validations"][0][field] = value
+                self.draft["task_candidate"] = candidate
+                with self.assertRaises(WorkError) as context:
+                    self.save()
+                self.assertEqual(context.exception.code, code)
+        candidate = copy.deepcopy(baseline)
+        candidate["validations"].append(copy.deepcopy(candidate["validations"][0]))
+        self.draft["task_candidate"] = candidate
+        with self.assertRaises(WorkError) as context:
+            self.save()
+        self.assertEqual(context.exception.code, "duplicate_semantic_key")
+        candidate["validations"].pop()
+        candidate["steps"][0]["references"] = [{"kind": "validations", "key": "missing"}]
+        with self.assertRaises(WorkError) as context:
+            self.save()
+        self.assertEqual(context.exception.code, "invalid_semantic_reference")
 
     def test_source_drift_rejects_assembly(self):
         self.save()

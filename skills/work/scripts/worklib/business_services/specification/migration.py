@@ -1,12 +1,15 @@
-"""Read-only diagnostics for an AI-produced specification migration candidate set."""
+"""Semantic migration preparation and reviewed cross-file publication."""
 from __future__ import annotations
 
 import copy
 import difflib
+import base64
+import json
 from pathlib import Path
 from typing import Any, Callable
 
 from ...models.specification.migration import (
+    SpecificationMigrationPrepareRequestContract,
     SpecificationMigrationPreviewContract, SpecificationMigrationPreviewRequestContract,
     SpecificationMigrationPublicationContract,
 )
@@ -25,12 +28,159 @@ from ...services.specification.storage import (
     storage_path,
 )
 from ...services.specification.transaction import (
+    derived_transaction_id,
     encode_snapshot,
     require_no_spec_update,
     transaction_approval_sha256,
     validate_spec_transaction,
 )
 from ...services.specification.writer_lock import require_idle_writer, state_writer
+from ...services.specification.storage import write_prepared_output
+from ...services.plan import document as plan_document
+from ...services.instruction.work_selection import build_work_instruction_selection
+from ...services.instruction.root import instruction_root
+from ...services.task.draft.validation import build_semantic_task_candidate
+from ...services.attempt.validation import build_initial_execution_index, render_execution_index
+
+
+def _revision_candidates(request: dict[str, Any], *, project_root: Path, user_config_root: str, skill_roots, task_operations) -> dict[str, Any]:
+    from .workflow import prepare_specification
+    semantic = {"schema": "work-spec-prepare-request/v1", "requirement_id": request["requirement_id"],
+                "reason": request["reason"], "edits": request["edits"]}
+    prepared = prepare_specification(render_json_contract(semantic), project_root=project_root,
+                                     user_config_root=user_config_root, task_operations=task_operations,
+                                     skill_roots=skill_roots)
+    transaction = prepared["preview"]["transaction"]
+    candidate = prepared["request"]
+    artifacts = candidate["plan"]["artifacts"]
+    index_path = artifacts["task"]
+    execution_path = artifacts["execution"] + "/index.json"
+    directory = index_path.rsplit("/", 1)[0]
+    after_bytes = {row["path"]: base64.b64decode(row["after"]["base64"])
+                   for row in transaction["files"] if "after" in row}
+    execution_raw = after_bytes.get(execution_path)
+    if execution_raw is None:
+        _, resolved = resolve_project_relative_path(project_root, execution_path, field="execution_path")
+        execution_raw = read_raw(resolved)
+    documents = [
+        {"path": artifacts["plan"], "kind": "plan", "content": candidate["plan"]},
+        {"path": index_path, "kind": "task_index", "content": candidate["task_index"]},
+        {"path": execution_path, "kind": "execution_index", "content": json.loads(execution_raw)},
+    ]
+    documents.extend({"path": f"{directory}/tasks/{task_id}.json", "kind": "task_item",
+                      "task_id": task_id, "content": item}
+                     for task_id, item in sorted(candidate["task_items"].items()))
+    return {"schema": "work-spec-migration-preview-request/v1",
+            "sources": [{"path": path, "raw_sha256": digest} for path, digest in sorted(transaction["metadata"]["source_sha256"].items())],
+            "candidates": documents, "semantic_decisions": request.get("semantic_decisions", [])}
+
+
+def _reconstruction_candidates(request: dict[str, Any], *, project_root: Path, user_config_root: str,
+                               skill_roots, validate_task_collection_contract, task_operations) -> dict[str, Any]:
+    semantic = request["plan"]
+    requirement = semantic["requirement_id"]
+    artifacts = plan_document.default_artifact_paths(project_root, requirement)
+    hierarchy, skill = task_operations.build_semantic_selections(semantic, skill_roots=skill_roots)
+    hierarchy = task_operations.plan_hierarchy(hierarchy, plan_document.installed_work_root())
+    instruction = build_work_instruction_selection(task_operations.plan_instruction_sources(plan_document.installed_work_root(), hierarchy["selected_paths"], semantic["references"]))
+    goal_ids = [f"GOAL-{position:03d}" for position in range(1, len(semantic["goals"]) + 1)]
+    deliverable_ids = [f"DELIVERABLE-{position:03d}" for position in range(1, len(semantic["deliverables"]) + 1)]
+    acceptance_ids = [f"ACCEPTANCE-{position:03d}" for position in range(1, len(semantic["acceptance_criteria"]) + 1)]
+    plan = {"schema": "work-plan/v1", "requirement_id": requirement, "status": "confirmed",
+            "title": semantic["title"], "summary": semantic["summary"], "artifacts": artifacts,
+            "hierarchy_selection": hierarchy, "work_instruction_selection": instruction,
+            "skill_selection": skill,
+            "goals": [{"id": item_id, "statement": statement} for item_id, statement in zip(goal_ids, semantic["goals"])],
+            "scope": [{"id": f"SCOPE-{position:03d}", "kind": "in_scope", "statement": statement, "goal_ids": goal_ids}
+                      for position, statement in enumerate(semantic["scope"], 1)],
+            "deliverables": [{"id": item_id, "statement": statement, "goal_ids": goal_ids, "acceptance_ids": acceptance_ids}
+                             for item_id, statement in zip(deliverable_ids, semantic["deliverables"])],
+            "acceptance_criteria": [{"id": item_id, "statement": statement, "deliverable_ids": deliverable_ids}
+                                    for item_id, statement in zip(acceptance_ids, semantic["acceptance_criteria"])]}
+    plan_validation, plan_raw = task_operations.prepare_plan_json_contract(task_operations.render_plan_contract(plan), source="semantic migration Plan",
+        actual_plan_path=artifacts["plan"], project_root=project_root, user_config_root=user_config_root, skill_roots=skill_roots)
+    task_ids = [f"TASK-{position:03d}" for position in range(1, len(request["tasks"]) + 1)]
+    dependency_files = {task_id: {row["key"]: f"FILE-{position:03d}" for position, row in enumerate(item["candidate"].get("files", []), 1)}
+                        for task_id, item in zip(task_ids, request["tasks"])}
+    items = {}
+    for position, (task_id, item) in enumerate(zip(task_ids, request["tasks"]), 1):
+        dependency_positions = item["dependency_positions"]
+        if any(type(dep) is not int or dep < 1 or dep >= position for dep in dependency_positions) or len(dependency_positions) != len(set(dependency_positions)):
+            _fail("migration_dependency_position", "TASK dependencies must refer to distinct earlier positions.")
+        dependencies = [task_ids[dep - 1] for dep in dependency_positions]
+        selection = task_operations.build_instruction_selection(skill_root=instruction_root(), mode="task",
+                                                selected_paths=item["selected_paths"], reference_names=item["references"])
+        nested = build_semantic_task_candidate(item["candidate"], acceptance_ids=acceptance_ids,
+                                                dependency_ids=dependencies, dependency_files=dependency_files)
+        task = {"schema": "work-task-item/v1", "id": task_id, "title": item["title"], "goal": item["goal"],
+                "skill_id": item["skill_id"], "instruction_selection": selection,
+                "traceability": {"goal_ids": goal_ids, "deliverable_ids": deliverable_ids, "acceptance_ids": acceptance_ids},
+                **({"dependencies": dependencies} if dependencies else {}), **nested}
+        task_operations.validate_task_item_contract(task_operations.render_task_item_contract(task), source=task_id, expected_task_id=task_id)
+        items[task_id] = task
+    selections = [item["instruction_selection"] for item in items.values()]
+    index = {"schema": "work-task-index/v1", "requirement_id": requirement, "spec_id": "TASK-SPEC-001",
+             "status": "confirmed", "title": request["task_title"], "summary": request["task_summary"],
+             "artifacts": artifacts,
+             "source_plan": {"canonical_sha256": plan_validation["plan_sha256"],
+                             "hierarchy_selection_sha256": plan_validation["hierarchy_selection_sha256"]},
+             "instruction_selection": task_operations.build_task_document_instruction_selection(selections, skill_root=instruction_root()),
+             "tasks": [{"id": task_id, "path": f"tasks/{task_id}.json",
+                        "canonical_sha256": task_operations.validate_task_item_contract(task_operations.render_task_item_contract(item), source=task_id, expected_task_id=task_id)["task_item_sha256"]}
+                       for task_id, item in items.items()],
+             "readiness": {"status": "passed", "spec_id": "TASK-SPEC-001"}}
+    if request.get("execution_defaults") is not None:
+        index["execution_defaults"] = request["execution_defaults"]
+    index_raw = task_operations.render_task_index_contract(index)
+    raw_items = {task_id: task_operations.render_task_item_contract(item) for task_id, item in items.items()}
+    validation = validate_task_collection_contract(index_raw, raw_items, source=artifacts["task"],
+        actual_index_path=artifacts["task"], project_root=project_root, user_config_root=user_config_root,
+        skill_roots=skill_roots, validate_file_state=False, _source_plan_raw=plan_raw)
+    execution = build_initial_execution_index(validation["collection_contract"], validation)
+    execution_path = artifacts["execution"] + "/index.json"
+    documents = [{"path": artifacts["plan"], "kind": "plan", "content": json.loads(plan_raw)},
+                 {"path": artifacts["task"], "kind": "task_index", "content": json.loads(index_raw)},
+                 {"path": execution_path, "kind": "execution_index", "content": json.loads(render_execution_index(execution))}]
+    directory = artifacts["task"].rsplit("/", 1)[0]
+    documents.extend({"path": f"{directory}/tasks/{task_id}.json", "kind": "task_item", "task_id": task_id,
+                      "content": json.loads(raw_items[task_id])} for task_id in items)
+    sources = []
+    for document in documents:
+        path, resolved = resolve_project_relative_path(project_root, document["path"], field="migration_source")
+        if resolved.exists():
+            if resolved.is_symlink() or not resolved.is_file():
+                _fail("migration_source_unsafe", "Migration source is not a regular file.", path=path)
+            sources.append({"path": path, "raw_sha256": raw_sha256(read_raw(resolved))})
+    if not sources:
+        _fail("migration_source_missing", "Cross-file migration requires retained source bytes.")
+    existing_tasks = storage_path(project_root, directory + "/tasks")
+    if existing_tasks.exists() and (existing_tasks.is_symlink() or any(entry.name not in {f"{task_id}.json" for task_id in items} for entry in existing_tasks.iterdir())):
+        _fail("migration_unreviewed_task_source", "Unknown TASK source files require a separate semantic decision.")
+    if execution_history_fingerprints(project_root, artifacts["execution"]):
+        _fail("migration_history_present", "Reconstruction cannot replace an execution index with immutable history without a dedicated semantic operation.")
+    return {"schema": "work-spec-migration-preview-request/v1", "sources": sources,
+            "candidates": documents, "semantic_decisions": request.get("semantic_decisions", [])}
+
+
+def prepare_specification_migration(raw_request: bytes, *, project_root: Path, user_config_root: str,
+                                    skill_roots=None, task_operations=None,
+                                    validate_task_collection_contract=None, validate_plan_contract=None,
+                                    output_file: str | None = None) -> dict[str, object]:
+    request = SpecificationMigrationPrepareRequestContract.parse_json_bytes(raw_request, source="migration preparation").to_canonical_dict()
+    if request["mode"] == "revision":
+        prepared = _revision_candidates(request, project_root=project_root, user_config_root=user_config_root,
+                                        skill_roots=skill_roots, task_operations=task_operations)
+    else:
+        prepared = _reconstruction_candidates(request, project_root=project_root, user_config_root=user_config_root,
+                                              skill_roots=skill_roots, validate_task_collection_contract=validate_task_collection_contract,
+                                              task_operations=task_operations)
+    preview = preview_specification_migration(render_json_contract(prepared), project_root=project_root,
+        user_config_root=user_config_root, skill_roots=skill_roots,
+        validate_task_collection_contract=validate_task_collection_contract,
+        validate_plan_contract=validate_plan_contract)
+    if output_file is not None:
+        write_prepared_output(output_file, prepared)
+    return {"request": prepared, "preview": preview, "output_file": output_file}
 
 
 def _fail(code: str, message: str, **details: object) -> None:
@@ -232,7 +382,7 @@ def _transaction(
     approval = transaction_approval_sha256(files, metadata)
     return {
         "schema": "work-spec-transaction/v1",
-        "transaction_id": "SPEC-MIGRATION-" + preview["fingerprint"][:12].upper(),
+        "transaction_id": derived_transaction_id("MIGRATION", approval),
         "approval_sha256": approval, "state": "prepared", "published_count": 0,
         "metadata": metadata, "files": files,
     }

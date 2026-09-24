@@ -32,6 +32,7 @@ from .technical.infrastructure.work_paths import (
     resolve_root,
 )
 from .technical.infrastructure.cli_io import FileInput, error_response, read_input_file, success_response
+from .services.specification.transaction import create_transaction_workspace
 
 
 class HelpRequested(Exception):
@@ -106,6 +107,12 @@ def build_parser() -> WorkArgumentParser:
 
     register_workflow_commands(commands)
 
+    workspace_parser = commands.add_parser("workspace")
+    workspace_commands = workspace_parser.add_subparsers(dest="workspace_command", required=True)
+    workspace_create = workspace_commands.add_parser("create", help="Allocate a Python-owned transaction workspace.")
+    workspace_create.add_argument("--requirement-id")
+    workspace_create.add_argument("--workflow-id", required=True)
+
     register_execute_commands(commands)
     register_invocation_commands(commands)
     register_delegation_commands(commands)
@@ -173,6 +180,10 @@ def _run(
 
     if arguments.command == "workflow":
         return run_workflow(arguments, project_root)
+
+    if arguments.command == "workspace":
+        return create_transaction_workspace(project_root, requirement_id=arguments.requirement_id,
+                                            workflow_id=arguments.workflow_id)
 
     if arguments.command == "execute":
         return run_execute(arguments, project_root, request)

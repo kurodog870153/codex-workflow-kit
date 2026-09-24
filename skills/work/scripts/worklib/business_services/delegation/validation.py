@@ -2,11 +2,19 @@
 from __future__ import annotations
 
 import re
+import copy
 from pathlib import Path
 
+from ...models.delegation import DelegationBuildRequestContract
+from ...models.plan import PlanContract
+from ...models.progress import DiscussionProgressContract
+from ...models.task_collection import TaskIndexContract, TaskItemContract
+from ...models.execution.index import ExecutionIndexContract
+from ...services.specification.storage import read_raw, resolve_project_relative_path
 from ...models.progress import FIELDS
 from ...services.delegation import (
     MAIN_MODES,
+    build_delegation_envelope,
     artifact_paths,
     delegation_skill_root,
     delegation_validation_result,
@@ -26,6 +34,107 @@ from ...services.instruction.history import stored_selection
 from ...services.invocation import parse_invocation
 from ...services.progress.validation import validate_progress_contract
 from ...services.skill_selection import SKILL_FIELDS, TOP_FIELDS, selection_sha256
+
+
+def _formal(project_root: Path, path: str, contract):
+    normalized, resolved = resolve_project_relative_path(project_root, path, field="source_path")
+    return contract.parse_json_bytes(read_raw(resolved), source=normalized).to_canonical_dict()
+
+
+def build_delegation_request(raw: bytes, *, source: str, project_root: Path):
+    """Derive internal role context from existing formal source artifacts."""
+    request = DelegationBuildRequestContract.parse_json_bytes(raw, source=source).to_canonical_dict()
+    role = request["role"]
+    mode = MAIN_MODES.get(role, request.get("mode", "task" if role == "task-skill" else None))
+    if role == "task-skill" and request.get("mode") not in (None, "task"):
+        fail("Task skill delegation must remain in Task mode.")
+    if role == "progress-saver" and mode not in {"plan", "task"}:
+        fail("Progress saver requires Plan or Task mode.")
+    if role == "artifact-editor" and mode not in {"plan", "task", "execute"}:
+        fail("Artifact editor requires an originating mode.")
+    if request.get("mode") is not None and role in MAIN_MODES and request["mode"] != mode:
+        fail("The role determines its originating mode.")
+    required = {"role", "request"}
+    if role == "progress-saver":
+        required |= {"source_progress_path", "content", "continuation_point"}
+        allowed = required | {"schema", "mode", "save_approval"}
+    else:
+        required.add("source_plan_path")
+        allowed = required | {"schema"}
+        if role in {"execute", "task-skill"}:
+            required.add("task_id")
+            allowed.add("task_id")
+        if role == "task-skill":
+            allowed |= {"repository_evidence", "saved_discussion"}
+        if role == "artifact-editor":
+            required |= {"confirmed_request", "decisions", "affected_task_ids", "continuation_point"}
+            allowed |= required | {"mode", "repository_evidence"}
+    if not required <= request.keys() or not request.keys() <= allowed:
+        fail("The selected role requires only its semantic source and decision fields.")
+    if role == "progress-saver":
+        progress = _formal(project_root, request["source_progress_path"], DiscussionProgressContract)
+        if progress["mode"] != mode:
+            fail("Saved discussion mode differs from the delegated mode.")
+        context = {"requirement_id": progress["requirement_id"], "content": request["content"],
+                   "expected_revision": progress["revision"],
+                   "continuation_point": request["continuation_point"]}
+        if "save_approval" in request:
+            context["save_approval"] = request["save_approval"]
+    else:
+        plan = _formal(project_root, request["source_plan_path"], PlanContract)
+        if plan["artifacts"]["plan"] != request["source_plan_path"]:
+            fail("Source Plan path differs from its formal artifact routing.")
+        context = {key: copy.deepcopy(plan[key]) for key in (
+            "hierarchy_selection", "work_instruction_selection", "skill_selection")}
+        if role == "task-coordinator":
+            context["source_plan"] = plan
+        elif role in {"execute", "task-skill"}:
+            index = _formal(project_root, plan["artifacts"]["task"], TaskIndexContract)
+            reference = next((item for item in index["tasks"] if item["id"] == request["task_id"]), None)
+            if reference is None:
+                fail("The selected TASK is absent from the formal index.")
+            directory = plan["artifacts"]["task"].rsplit("/", 1)[0]
+            item = _formal(project_root, f"{directory}/{reference['path']}", TaskItemContract)
+            if item["id"] != request["task_id"]:
+                fail("The TASK item identity differs from its index reference.")
+            if role == "execute":
+                execution = _formal(project_root, plan["artifacts"]["execution"] + "/index.json", ExecutionIndexContract)
+                target = next((row for row in execution["tasks"] if row["id"] == request["task_id"]), None)
+                if target is None or target["skill_id"] != item["skill_id"]:
+                    fail("Execution TASK and formal TASK skill identity disagree.")
+                skill = [value for value in plan["skill_selection"]["skills"] if value["id"] == target["skill_id"]]
+                context.update(target_task=target,
+                               hierarchy_selection_sha256=plan["hierarchy_selection"]["selection_sha256"],
+                               execute_skill_selection={"schema": "work-skill-selection/v1",
+                                                        "decision": "external_skills" if skill else "base_only",
+                                                        "skills": skill,
+                                                        "selection_sha256": selection_sha256("external_skills" if skill else "base_only", skill)})
+            else:
+                skill = next((value for value in plan["skill_selection"]["skills"] if value["id"] == item["skill_id"]), None)
+                if skill is None:
+                    fail("Task skill is not present in the formal Plan selection.")
+                context = {"task_boundary": {key: item[key] for key in ("id", "title", "goal", "skill_id")},
+                           "skill_snapshot": skill, "source_plan": plan,
+                           "work_instruction_selection": plan["work_instruction_selection"],
+                           "repository_evidence": request.get("repository_evidence", []),
+                           "saved_discussion": request.get("saved_discussion", [])}
+        elif role == "artifact-editor":
+            context = {"requirement_id": plan["requirement_id"], "artifacts": plan["artifacts"],
+                       "confirmed_request": request["confirmed_request"], "decisions": request["decisions"],
+                       "affected_task_ids": request["affected_task_ids"],
+                       "hierarchy_selection": plan["hierarchy_selection"],
+                       "skill_selection": plan["skill_selection"],
+                       "repository_evidence": request.get("repository_evidence", []),
+                       "continuation_point": request["continuation_point"]}
+    envelope = build_delegation_envelope(
+        role=role, mode=mode, request=request["request"],
+        project_root=project_root, skill_root=delegation_skill_root(), context=context,
+    )
+    validate_delegation(
+        envelope, role=role, sender=envelope["sender"], project_root=project_root,
+        skill_root=delegation_skill_root(),
+    )
+    return envelope
 
 
 def _skills(value):

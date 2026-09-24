@@ -83,6 +83,21 @@ class ExecuteCliTests(FileInputTestCase):
         self.assertTrue(arguments.input_file)
         self.assertEqual(arguments.confirmed_input, [])
 
+    def test_attempt_start_prepare_is_read_only_command(self) -> None:
+        arguments = build_parser().parse_args(
+            self.common_arguments() + ["attempt-start-prepare"] + self.execute_scope_arguments()
+            + ["--input-file", "request.json"])
+        self.assertEqual(arguments.execute_command, "attempt-start-prepare")
+        self.assertTrue(arguments.input_file)
+
+    def test_deviation_prepare_uses_semantic_command_only(self) -> None:
+        arguments = build_parser().parse_args(
+            self.common_arguments() + ["deviation-prepare-semantic"] + self.execute_scope_arguments()
+            + ["--input-file", "request.json"])
+        self.assertEqual(arguments.execute_command, "deviation-prepare-semantic")
+        with self.assertRaises(WorkError):
+            build_parser().parse_args(self.common_arguments() + ["deviation-prepare"])
+
         with self.assertRaises(WorkError) as context:
             build_parser().parse_args(
                 self.common_arguments()
@@ -94,13 +109,13 @@ class ExecuteCliTests(FileInputTestCase):
 
     def test_deviation_prepare_requires_input_file(self) -> None:
         arguments = build_parser().parse_args(
-            self.common_arguments() + ["deviation-prepare"] + self.execute_scope_arguments()
+            self.common_arguments() + ["deviation-prepare-semantic"] + self.execute_scope_arguments()
             + ["--input-file", "request.json"]
         )
-        self.assertEqual(arguments.execute_command, "deviation-prepare")
+        self.assertEqual(arguments.execute_command, "deviation-prepare-semantic")
         with self.assertRaises(WorkError):
             build_parser().parse_args(
-                self.common_arguments() + ["deviation-prepare"] + self.execute_scope_arguments()
+                self.common_arguments() + ["deviation-prepare-semantic"] + self.execute_scope_arguments()
             )
 
     def test_deviation_record_requires_only_approved_preview(self) -> None:

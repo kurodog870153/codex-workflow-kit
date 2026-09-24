@@ -105,13 +105,11 @@ class ExecutionOutputLayoutTests(unittest.TestCase):
             )
 
     def finish_validation(self) -> None:
-        reserved = begin_record(base_record_id="VAL-001", **self.common)
+        begin_record(base_record_id="VAL-001", **self.common)
         result = finish_record(
             json.dumps({
                 "schema": "work-record-finish-request/v1",
                 "record": {
-                    "id": reserved["record_id"],
-                    "kind": "validation",
                     "outcome": "passed",
                     "evidence": "The approved check passed.",
                 },

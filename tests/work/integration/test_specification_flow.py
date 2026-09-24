@@ -73,12 +73,15 @@ class SpecificationFlowTests(unittest.TestCase):
         changed["statement"] = "Use the confirmed boundary."
         edits = self.request_file("edits.json", {
             "schema": "work-spec-prepare-request/v1",
-            "plan_path": self.artifacts["plan"],
+            "requirement_id": "example",
             "reason": "Confirm the constraint wording.",
             "edits": [{
-                "artifact": "plan", "operation": "replace", "path": "/constraints",
-                "before": [self.constraint], "after": [changed],
-                "affected_ids": ["CONSTRAINT-001"],
+                "target": {"artifact": "plan"},
+                "field": "constraints", "semantic_after": [{
+                    "key": "boundary", "existing_position": 1,
+                    "statement": changed["statement"],
+                    "applies_to": [{"collection": "goals", "position": 1}],
+                }],
             }],
         })
         prepared_path = self.requests / "prepared.json"

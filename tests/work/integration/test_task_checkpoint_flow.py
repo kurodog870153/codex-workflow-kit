@@ -45,15 +45,13 @@ class TaskCheckpointFlowTests(FileInputTestCase):
         selection = build_instruction_selection(skill_root=work_root, mode="task", selected_paths=[], reference_names=["task.general.task-records"])
         source = {key: validation[key] for key in ("plan_sha256", "hierarchy_selection_sha256", "skill_selection_sha256")}
         index = {"schema": "work-task-planning-index/v1", "requirement_id": "example", "revision": 1, "current_task_id": "TASK-001", "source": source,
-                 "tasks": [{"id": "TASK-001", "title": "Task", "goal": "Result", "scope": ["Source"], "skill_id": None, "dependencies": [], "status": "planned", "boundary_revision": 1, "instructions_sha256": selection["instructions_sha256"]}]}
+                 "tasks": [{"id": "TASK-001", "title": "Task", "goal": "Result", "scope": ["Source"], "skill_id": None, "dependencies": [], "status": "planned", "boundary_revision": 1, "instructions_sha256": selection["instructions_sha256"], "instruction_selection": {"selected_paths": [], "references": ["task.general.task-records"]}}]}
         second = copy.deepcopy(index["tasks"][0])
         second.update(id="TASK-002", title="Second task", dependencies=["TASK-001"])
         index["tasks"].append(second)
         self.cli("task", "draft-init", "--input-file", "request.json", payload=index)
-        candidate = {"id": "TASK-001", "title": "Task", "goal": "Result", "skill_id": None, "instruction_selection": selection,
-                     "traceability": {"goal_ids": ["GOAL-001"], "deliverable_ids": ["DELIVERABLE-001"], "acceptance_ids": ["ACCEPTANCE-001"]},
-                     "steps": [{"id": "STEP-001", "action": "Review result.", "references": ["VAL-001"]}],
-                     "validations": [{"id": "VAL-001", "kind": "manual", "confirmer": "User", "criteria": "Result is observable.", "acceptance_ids": ["ACCEPTANCE-001"]}]}
+        candidate = {"steps": [{"key": "review", "action": "Review result.", "references": [{"kind": "validations", "key": "result"}]}],
+                     "validations": [{"key": "result", "kind": "manual", "confirmer": "User", "criteria": "Result is observable.", "acceptance_positions": [1]}]}
         self.draft = {"schema": "work-task-draft/v1", "requirement_id": "example", "task_id": "TASK-001", "revision": 1, "boundary_revision": 1,
                       "source": source, "instructions_sha256": selection["instructions_sha256"], "status": "refined", "notes": [], "confirmed_decisions": [],
                       "tentative": [], "open_questions": [], "next_discussion_point": None, "task_candidate": candidate}
@@ -115,7 +113,6 @@ class TaskCheckpointFlowTests(FileInputTestCase):
 
         second = copy.deepcopy(self.draft)
         second["task_id"] = "TASK-002"
-        second["task_candidate"].update(id="TASK-002", title="Second task", dependencies=["TASK-001"])
         second["notes"] = ["TASK-002 independent discussion evidence"]
         self.save_discussion(second)
         only_first = self.read_draft("TASK-001")
@@ -157,8 +154,6 @@ class TaskCheckpointFlowTests(FileInputTestCase):
                                "--user-config-root", str(self.root), "--general-only", "--reference", "task.general.task-records")
             self.assertEqual(checked["status"], "valid")
             discussion = self.read_draft(task_id)
-            entry = next(entry for entry in index["tasks"] if entry["id"] == task_id)
-            discussion["task_candidate"]["goal"] = entry["goal"]
             discussion.update(revision=discussion["revision"] + 1, status="refined", next_discussion_point=None)
             self.save_discussion(discussion)
 

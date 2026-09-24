@@ -13,7 +13,7 @@ sys.path.insert(0, str(SCRIPT_ROOT))
 from worklib.technical.infrastructure import specification_storage as transactions
 from worklib.models.common.errors import ExitCode, WorkError
 from worklib.services.specification import transaction as publication
-from worklib.services.specification.transaction import encode_snapshot, transaction_approval_sha256
+from worklib.services.specification.transaction import create_transaction_workspace, derived_transaction_id, encode_snapshot, transaction_approval_sha256
 
 
 class SpecificationTransactionTests(unittest.TestCase):
@@ -32,6 +32,29 @@ class SpecificationTransactionTests(unittest.TestCase):
 
     def replace(self, **kwargs):
         transactions.replace_checked(self.path, b"old", b"new", self.temporary, **kwargs)
+
+    def test_python_allocates_distinct_workspace_paths_and_preserves_existing_evidence(self):
+        first = create_transaction_workspace(self.root, requirement_id="example", workflow_id="specification")
+        second = create_transaction_workspace(self.root, requirement_id="example", workflow_id="specification")
+        self.assertNotEqual(first["transaction_id"], second["transaction_id"])
+        self.assertTrue((self.root / first["path"]).is_dir())
+        self.assertTrue((self.root / second["path"]).is_dir())
+        (self.root / first["path"] / "request.json").write_text("evidence")
+        pending = create_transaction_workspace(self.root, requirement_id=None, workflow_id="invocation")
+        self.assertIn("/pending/invocation/", pending["path"])
+        self.assertEqual((self.root / first["path"] / "request.json").read_text(), "evidence")
+
+    def test_workspace_rejects_invalid_segments_and_generated_collision(self):
+        with self.assertRaises(WorkError):
+            create_transaction_workspace(self.root, requirement_id="pending", workflow_id="specification")
+        with self.assertRaises(WorkError):
+            create_transaction_workspace(self.root, requirement_id="example", workflow_id="../escape")
+        with patch.object(publication, "_new_workspace_id", return_value="20260915T103000Z-a1b2c3d4"):
+            first = create_transaction_workspace(self.root, requirement_id="example", workflow_id="specification")
+            with self.assertRaises(WorkError) as caught:
+                create_transaction_workspace(self.root, requirement_id="example", workflow_id="specification")
+        self.assertEqual(caught.exception.code, "transaction_workspace_exists")
+        self.assertTrue((self.root / first["path"]).is_dir())
 
     def test_exclusive_write_syncs_and_preserves_existing_bytes(self):
         with patch.object(transactions.os, "fsync", wraps=os.fsync) as sync:
@@ -102,7 +125,8 @@ class SpecificationTransactionTests(unittest.TestCase):
             {"phase": 10, "path": "a.json", "operation": "replace", "before": encode_snapshot(b"old-a"), "after": encode_snapshot(b"new-a")},
             {"phase": 20, "path": "b.json", "operation": "replace", "before": encode_snapshot(b"old-b"), "after": encode_snapshot(b"new-b")},
         ]
-        return {"schema": "work-spec-transaction/v1", "transaction_id": "SPEC-UPDATE-002", "approval_sha256": transaction_approval_sha256(files, metadata), "state": "prepared", "published_count": 0, "metadata": metadata, "files": files}
+        approval = transaction_approval_sha256(files, metadata)
+        return {"schema": "work-spec-transaction/v1", "transaction_id": derived_transaction_id("UPDATE", approval), "approval_sha256": approval, "state": "prepared", "published_count": 0, "metadata": metadata, "files": files}
 
     def test_multi_file_publish_and_idempotent_recovery(self):
         (self.root / "a.json").write_bytes(b"old-a")

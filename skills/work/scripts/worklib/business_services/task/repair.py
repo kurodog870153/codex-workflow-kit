@@ -9,7 +9,7 @@ from ...services.attempt.validation import render_execution_index, validate_exec
 from ...services.specification.transaction import encode_snapshot, render_spec_transaction, transaction_approval_sha256, validate_spec_transaction
 from .collection import validate_task_collection_contract
 from .index import render_task_index_contract
-from .item import render_task_item_contract
+from .item import render_task_item_contract, validate_task_item_contract
 from ...models.task_collection.repair import (
     TaskRepairContract,
     TaskRepairPrepareContract,
@@ -30,6 +30,10 @@ from ...services.task.storage import resolve_project_relative_path, validate_tas
 from ...services.specification.storage import storage_path
 from ...services.specification.transaction import require_no_spec_update
 from ...services.specification.writer_lock import require_idle_writer, state_writer
+from ...services.task.draft.validation import build_semantic_task_candidate, build_semantic_task_patch
+from ...services.specification.semantic_edit import TASK_GROUPS, _index_decisions, _object, _task_positions, _traceability
+from ...services.specification.source_resolution import resolve_repair_artifacts
+from ...services.instruction.root import instruction_root
 
 
 nonempty_string = ContractValuePolicy.nonempty_string
@@ -252,23 +256,144 @@ def prepare_task_repair(
     execution_history_fingerprints,
     rebuild_execution_index,
     diagnose_task_collection,
+    instruction_operations,
 ) -> dict[str, Any]:
     value = TaskRepairPrepareRequestContract.parse_json_bytes(
         raw, source="TASK collection repair preparation",
     ).to_canonical_dict()
-    artifacts = _artifacts(project_root, value["requirement_id"], value["artifacts"])
-    candidate_paths = {artifacts["task"]}
-    directory = artifacts["task"].rsplit("/", 1)[0]
-    candidate_paths.update(
-        f"{directory}/tasks/{task_id}.json" for task_id in value["task_items"]
-    )
+    artifacts = _artifacts(project_root, value["requirement_id"],
+                           resolve_repair_artifacts(project_root, value["requirement_id"]))
     source = _sources(project_root, artifacts)
+    index_raw = source.get(artifacts["task"])
+    if index_raw is None:
+        _fail("task_repair_ambiguous_source", "A missing TASK index cannot be reconstructed without a confirmed source.")
+    index = parse_json_contract(index_raw, source=artifacts["task"])
+    if not isinstance(index, dict) or index.get("requirement_id") != value["requirement_id"] or index.get("artifacts") != artifacts:
+        _fail("task_repair_identity", "Repair must preserve requirement and artifact routing.")
+    items: dict[str, dict[str, Any]] = {}
+    directory = artifacts["task"].rsplit("/", 1)[0]
+    references = index.get("tasks")
+    if not isinstance(references, list) or not references:
+        _fail("task_repair_ambiguous_source", "A TASK index with identified item references is required.")
+    replacement = value.get("missing_task")
+    used_replacement = False
+    plan = parse_json_contract(read_raw(storage_path(project_root, artifacts["plan"])), source=artifacts["plan"])
+    if not isinstance(plan, dict) or plan.get("requirement_id") != value["requirement_id"] or plan.get("artifacts") != artifacts:
+        _fail("task_repair_ambiguous_source", "The source Plan does not establish the TASK identity and routing.")
+    for position, reference in enumerate(references, 1):
+        if not isinstance(reference, dict) or not isinstance(reference.get("id"), str) or reference.get("path") != f"tasks/{reference['id']}.json":
+            _fail("task_repair_ambiguous_source", "TASK item references must have unambiguous IDs and paths.")
+        task_id = reference["id"]
+        path = f"{directory}/{reference['path']}"
+        if replacement is not None and replacement["task_position"] == position:
+            if path in source:
+                _fail("task_repair_ambiguous_source", "A semantic missing TASK can only fill an absent item.", path=path)
+            dependencies = [references[item - 1]["id"] for item in replacement["dependency_positions"] if type(item) is int and 1 <= item <= len(references)]
+            if len(dependencies) != len(replacement["dependency_positions"]) or len(dependencies) != len(set(dependencies)) or task_id in dependencies:
+                _fail("task_repair_ambiguous_source", "Missing TASK dependency positions are invalid.")
+            instruction = instruction_operations.build_instruction_selection(skill_root=instruction_root(), mode="task", selected_paths=replacement["selected_paths"], reference_names=replacement["references"])
+            acceptance_ids = [item["id"] for item in plan["acceptance_criteria"]]
+            semantic = build_semantic_task_candidate(replacement["candidate"], acceptance_ids=acceptance_ids, dependency_ids=dependencies)
+            items[task_id] = {
+                "schema": "work-task-item/v1", "id": task_id, "title": replacement["title"],
+                "goal": replacement["goal"], "skill_id": replacement["skill_id"],
+                "instruction_selection": instruction,
+                "traceability": {"goal_ids": [item["id"] for item in plan["goals"]],
+                                 "deliverable_ids": [item["id"] for item in plan["deliverables"]],
+                                 "acceptance_ids": acceptance_ids},
+                **({"dependencies": dependencies} if dependencies else {}), **semantic,
+            }
+            used_replacement = True
+        elif path in source:
+            item = parse_json_contract(source[path], source=path)
+            if not isinstance(item, dict) or item.get("id") != task_id:
+                _fail("task_repair_ambiguous_source", "A source TASK item has a conflicting identity.", path=path)
+            items[task_id] = item
+        else:
+            _fail("task_repair_ambiguous_source", "A missing TASK item requires a confirmed semantic TASK decision.", path=path)
+    if replacement is not None and not used_replacement:
+        _fail("task_repair_ambiguous_source", "The missing TASK position does not match an index reference.")
+    selections = [items[reference["id"]]["instruction_selection"] for reference in references]
+    if instruction_operations.build_task_document_instruction_selection(selections, skill_root=instruction_root()) != index["instruction_selection"]:
+        _fail("task_repair_ambiguous_source", "The reconstructed TASK selection does not match the source index.")
+    seen: set[tuple[str | None, str]] = set()
+    protected_index = {"schema", "requirement_id", "spec_id", "artifacts", "tasks", "source_plan", "instruction_selection", "readiness"}
+    protected_item = {"schema", "id", "source", "skill_id", "instruction_selection"}
+    nested_changes: dict[str, dict[str, Any]] = {}
+    for edit in value.get("edits") or []:
+        task_id, field = edit.get("task_id"), edit["field"]
+        if task_id is not None and field in TASK_GROUPS and not edit.get("remove"):
+            nested_changes.setdefault(task_id, {})[field] = edit["semantic_after"]
+    nested_values: dict[str, dict[str, Any]] = {}
+    task_ids = [reference["id"] for reference in references]
+    for task_id, replacements in nested_changes.items():
+        if task_id not in items:
+            _fail("task_repair_ambiguous_source", "An edit targets an unknown TASK item.", task_id=task_id)
+        current = items[task_id]
+        for group in TASK_GROUPS:
+            rows = current.get(group) or []
+            if not isinstance(rows, list) or any(not isinstance(row, dict) or not isinstance(row.get("id"), str) for row in rows):
+                _fail("task_repair_ambiguous_source", "Nested source records need identifiable formal IDs.", field=group)
+        dependency_edit = next((edit for edit in value.get("edits") or [] if edit.get("task_id") == task_id and edit["field"] == "dependencies"), None)
+        dependency_ids = (_task_positions(dependency_edit["semantic_after"], task_ids, location="dependency_positions")
+                          if dependency_edit is not None and not dependency_edit.get("remove") else current.get("dependencies") or [])
+        if any(dep_id not in items for dep_id in dependency_ids):
+            _fail("task_repair_ambiguous_source", "A dependency TASK source is missing.")
+        dependency_files = {dep_id: {f"existing-{position}": row["id"] for position, row in enumerate(items[dep_id].get("files") or [], 1)}
+                            for dep_id in dependency_ids}
+        nested_values[task_id] = build_semantic_task_patch(
+            current, replacements, acceptance_ids=[row["id"] for row in plan["acceptance_criteria"]],
+            dependency_ids=dependency_ids, dependency_files=dependency_files,
+        )
+    for edit in value.get("edits") or []:
+        task_id, field = edit.get("task_id"), edit["field"]
+        identity = (task_id, field)
+        if identity in seen:
+            _fail("task_repair_duplicate_edit", "Repair edits must target each field only once.")
+        seen.add(identity)
+        if task_id is not None and task_id not in items:
+            _fail("task_repair_ambiguous_source", "An edit targets an unknown TASK item.", task_id=task_id)
+        if field in (protected_item if task_id is not None else protected_index):
+            _fail("task_repair_protected_field", "Formal identity and source bindings are not semantic repair fields.", field=field)
+        target = items[task_id] if task_id is not None else index
+        present = field in target
+        if edit.get("remove"):
+            if not present:
+                _fail("task_repair_edit_state", "A remove target does not exist in source.")
+            del target[field]
+        else:
+            if "after" in edit:
+                after = edit["after"]
+            elif task_id is not None and field in TASK_GROUPS:
+                after = nested_values[task_id][field]
+            elif task_id is not None and field == "traceability":
+                after = _traceability(edit["semantic_after"], plan)
+            elif task_id is not None and field == "dependencies":
+                after = _task_positions(edit["semantic_after"], task_ids, location="dependency_positions")
+            elif field == "decisions":
+                after = _index_decisions(edit["semantic_after"], index)
+            elif field == "execution_defaults":
+                after = _object(edit["semantic_after"], required={"working_directory", "os", "shell"}, location="execution_defaults")
+            else:
+                _fail("task_repair_protected_field", "This repair field has no semantic builder.", field=field)
+            target[field] = copy.deepcopy(after)
+    for reference in references:
+        task_id = reference["id"]
+        item_raw = render_task_item_contract(items[task_id])
+        validation = validate_task_item_contract(item_raw, source=task_id, expected_task_id=task_id)
+        reference["canonical_sha256"] = validation["task_item_sha256"]
+    candidate_paths = {artifacts["task"]}
+    candidate_paths.update(
+        f"{directory}/tasks/{task_id}.json" for task_id in items
+    )
     paths = sorted(
         set(source) | candidate_paths | {artifacts["execution"] + "/index.json"}
     )
     prepared = {
-        **copy.deepcopy(value),
         "schema": "work-task-repair-request/v1",
+        "stage": value["stage"], "requirement_id": value["requirement_id"],
+        "artifacts": artifacts, "decisions": value["decisions"],
+        "task_index": index, "task_items": items,
         "expected": fingerprint_task_repair_evidence(source, paths),
     }
     prepared = parse_json_contract(

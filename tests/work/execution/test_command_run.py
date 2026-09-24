@@ -22,6 +22,7 @@ from worklib.services.attempt import build_initial_execution_index, render_execu
 from worklib.business_services.task.document import render_task_contract
 from worklib.business_services.task.creation import prepare_task_collection_create
 from worklib.business_services.execution import command_run
+from worklib.business_services.execution.command_correction import record_command_correction
 from worklib.business_services.execution.instructions import BASE_EXECUTE_REFERENCES
 from worklib.orchestration.execution import ExecutionOperations
 from worklib.orchestration.execution import begin_record, finish_record
@@ -66,8 +67,7 @@ class CommandRunTests(FileInputTestCase):
         self.common = dict(project_root=self.root, user_config_root=str(self.root),
             raw_task_path=self.fixture.artifacts["task"], raw_execution_dir=self.fixture.artifacts["execution"],
             task_id="TASK-001", source="test")
-        self.request = {"schema": "work-command-run-request/v1", "attempt_id": "ATTEMPT-001",
-                        "record_id": "CMD-001", "timeout_seconds": 10}
+        self.request = {"schema": "work-command-run-request/v1", "timeout_seconds": 10}
         self.configure([sys.executable, "-c", "print('observed')"])
 
     def configure(self, argv):
@@ -138,6 +138,7 @@ class CommandRunTests(FileInputTestCase):
         self.configure([sys.executable, "-c", script, *arguments])
         before = self.snapshot()
         preview = self.prepare()
+        self.assertEqual((preview["attempt_id"], preview["record_id"]), ("ATTEMPT-001", "CMD-001"))
         self.assertEqual(before, self.snapshot())
         result = self.run_cmd(preview["approved_sha256"])
         self.assertEqual(json.loads((self.root / "observed.json").read_text()), arguments)
@@ -174,6 +175,35 @@ class CommandRunTests(FileInputTestCase):
         preview = self.prepare()
         self.assertEqual(preview["invocation"]["argv"][-1], "print('corrected')")
         self.assertIn("corrected", self.run_cmd(preview["approved_sha256"])["stdout_tail"])
+
+    def test_correction_derives_identity_and_effective_original_command(self):
+        replacement = {"mode": "argv", "argv": [sys.executable, "-c", "print('replacement')"]}
+        corrected = {"mode": "argv", "argv": [sys.executable, "-c", "print('corrected')"]}
+        action = {"kind": "replace_command", "record_id": "CMD-001", "replacement": corrected}
+        deviation = copy.deepcopy(ExecutionDeviationContract.contract_example)
+        deviation["proposal"]["action"] = {**action, "replacement": replacement}
+        deviation["supplemental_authorization"]["action"] = copy.deepcopy(deviation["proposal"]["action"])
+        self.attempt["execution_deviations"] = [deviation]
+        self.attempt["authorization"]["allowed_deviations"] = [action]
+        self.attempt["authorization_sha256"] = authorization_sha256(self.attempt["authorization"])
+        self.save()
+        request = {"schema": "work-command-correction-request/v1", "actual_command": corrected,
+                   "reason": "Use the equivalent command."}
+        result = record_command_correction(json.dumps(request).encode(), **self.common,
+                                           operations=ExecutionOperations)
+        self.assertEqual((result["attempt_id"], result["record_id"]), ("ATTEMPT-001", "CMD-001"))
+        correction = json.loads(self.index_path.read_bytes())["lock"]["command_correction"]
+        self.assertEqual(correction["original_command"], replacement)
+        self.assertEqual(correction["actual_command"], corrected)
+
+    def test_run_request_rejects_caller_identity(self):
+        for field, value in (("attempt_id", "ATTEMPT-001"), ("record_id", "CMD-001")):
+            with self.subTest(field=field):
+                self.request[field] = value
+                with self.assertRaises(WorkError) as error:
+                    self.prepare()
+                self.assertEqual(error.exception.code, "invalid_object_fields")
+                self.request.pop(field)
 
     def test_supplemental_replacement_flows_from_record_begin_through_finish(self):
         replacement = {

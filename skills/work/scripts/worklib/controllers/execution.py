@@ -26,7 +26,7 @@ def register_execute_commands(commands: SubparserRegistry) -> None:
         _add_execution_context_arguments(execute_command)
         execute_command.add_argument("--confirmed-input", action="append", default=[])
 
-    for command_name in ("attempt-start", "recover-attempt-start"):
+    for command_name in ("attempt-start", "attempt-start-prepare", "recover-attempt-start"):
         execute_command = execute_commands.add_parser(command_name)
         _add_execution_context_arguments(execute_command)
         execute_command.add_argument("--confirmed-input", action="append", default=[])
@@ -45,7 +45,7 @@ def register_execute_commands(commands: SubparserRegistry) -> None:
         "recover",
         "recovery-prepare",
         "command-prepare",
-        "deviation-prepare",
+        "deviation-prepare-semantic",
         "deviation-record",
         "command-run",
     ):

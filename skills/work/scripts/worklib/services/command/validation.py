@@ -1,7 +1,5 @@
 """Command request parsing and validation."""
 
-import re
-
 from pydantic import ValidationError
 
 from ...technical.infrastructure.json_contract import parse_json_contract
@@ -25,8 +23,6 @@ def parse_command_correction_request(raw: bytes, *, source: str) -> CommandCorre
         if field_issues:
             raise WorkError(ExitCode.CONTRACT, 'command_correction_invalid_fields', 'The command-correction request has missing or unknown fields.', {'missing': sorted((str(issue['loc'][-1]) for issue in field_issues if issue['type'] == 'missing')), 'unknown': sorted((str(issue['loc'][-1]) for issue in field_issues if issue['type'] == 'extra_forbidden'))}) from error
         raise WorkError(ExitCode.CONTRACT, 'command_correction_invalid_fields', 'The command-correction request is invalid.') from error
-    if not request.record_id.startswith('CMD-'):
-        raise WorkError(ExitCode.CONTRACT, 'command_correction_invalid_record_id', 'record_id must identify a reserved CMD record.', {'record_id': request.record_id})
     return request
 
 
@@ -47,9 +43,7 @@ def parse_command_run_request(raw: bytes, *, source: str) -> CommandRunRequestCo
             raise WorkError(ExitCode.WORKFLOW_STATE, 'command_run_schema', 'Use work-command-run-request/v1.', {}) from error
         if location == ('timeout_seconds',):
             raise WorkError(ExitCode.WORKFLOW_STATE, 'command_run_timeout', 'timeout_seconds must be an integer from 1 to 3600.', {}) from error
-        raise WorkError(ExitCode.WORKFLOW_STATE, 'command_run_identity', 'Supply explicit canonical Attempt and reserved CMD IDs.', {}) from error
-    if not re.fullmatch('ATTEMPT-[0-9]{3}', request.attempt_id) or not re.fullmatch('CMD-[0-9]{3}(?:#[1-9][0-9]*)?', request.record_id):
-        raise WorkError(ExitCode.WORKFLOW_STATE, 'command_run_identity', 'Supply explicit canonical Attempt and reserved CMD IDs.', {})
+        raise WorkError(ExitCode.WORKFLOW_STATE, 'command_run_request', 'The command-run request is invalid.', {}) from error
     if not 1 <= request.timeout_seconds <= 3600:
         raise WorkError(ExitCode.WORKFLOW_STATE, 'command_run_timeout', 'timeout_seconds must be an integer from 1 to 3600.', {})
     return request

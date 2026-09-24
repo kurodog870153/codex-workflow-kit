@@ -7,6 +7,7 @@ reading or writing artifacts belong to the future persistence layer.
 
 from __future__ import annotations
 
+import copy
 import re
 from typing import Any
 
@@ -36,6 +37,215 @@ def validate_draft_instruction_selection(value: object) -> dict[str, list[str]]:
         if not isinstance(values, list) or any(not isinstance(item, str) or not item.strip() for item in values) or len(values) != len(set(values)):
             raise WorkError(ExitCode.CONTRACT, "invalid_source_selection", "Instruction selections must be unique string arrays.")
     return {field: list(values) for field, values in value.items()}
+
+
+TASK_CANDIDATE_FIELDS = {"steps", "validations", "files", "commands", "decisions", "inputs", "risks", "operations"}
+_CANDIDATE_ITEMS = {
+    "inputs": ({"key", "kind", "precondition"}, {"source", "dependency_position", "file_key"}),
+    "decisions": ({"key", "statement", "rationale"}, set()),
+    "files": ({"key", "action"}, {"path", "source", "destination"}),
+    "risks": ({"key", "condition", "impact", "mitigation"}, set()),
+    "steps": ({"key", "action", "references"}, set()),
+    "commands": ({"key", "mode"}, {"argv", "script", "execution"}),
+    "operations": ({"key", "kind", "action", "target", "validation_key"}, {"command_key"}),
+    "validations": ({"key", "kind"}, {"command_keys", "pass_condition", "confirmer", "criteria", "acceptance_positions"}),
+}
+_CANDIDATE_PREFIX = {"inputs": "INPUT", "decisions": "TASK-DECISION", "files": "FILE", "risks": "RISK", "steps": "STEP", "commands": "CMD", "operations": "OP", "validations": "VAL"}
+
+
+def _candidate_key(value: object, *, location: str) -> str:
+    if not isinstance(value, str) or not re.fullmatch(r"[a-z][a-z0-9_-]*", value):
+        raise WorkError(ExitCode.CONTRACT, "invalid_semantic_key", "Use a local lowercase semantic key, not a formal ID.", {"location": location})
+    return value
+
+
+def _positions(value: object, *, location: str, size: int) -> list[int]:
+    if not isinstance(value, list) or not value or any(type(position) is not int or position < 1 or position > size for position in value) or len(value) != len(set(value)):
+        raise WorkError(ExitCode.CONTRACT, "invalid_semantic_position", "Positions must uniquely identify existing one-based items.", {"location": location})
+    return value
+
+
+def validate_semantic_task_candidate(value: object, *, refined: bool) -> dict[str, Any]:
+    candidate = strict_keys(value, location="task_candidate",
+        required={"steps", "validations"} if refined else set(),
+        optional=TASK_CANDIDATE_FIELDS)
+    keys: dict[str, dict[str, str]] = {}
+    for group, (required, optional) in _CANDIDATE_ITEMS.items():
+        if group not in candidate:
+            continue
+        rows = candidate[group]
+        if not isinstance(rows, list) or (refined and not rows):
+            raise WorkError(ExitCode.CONTRACT, "invalid_semantic_items", "A refined candidate group must be a nonempty array.", {"location": group})
+        keys[group] = {}
+        for position, raw in enumerate(rows, 1):
+            row = strict_keys(raw, location=f"task_candidate.{group}[{position}]", required=required, optional=optional)
+            key = _candidate_key(row["key"], location=f"{group}[{position}].key")
+            if key in keys[group]:
+                raise WorkError(ExitCode.CONTRACT, "duplicate_semantic_key", "Local semantic keys must be unique within a group.", {"location": group, "key": key})
+            keys[group][key] = f"{_CANDIDATE_PREFIX[group]}-{position:03d}"
+            if group == "steps":
+                if not isinstance(row["references"], list) or not row["references"]:
+                    raise WorkError(ExitCode.CONTRACT, "invalid_semantic_reference", "A step requires semantic references.")
+                for reference in row["references"]:
+                    strict_keys(reference, location="step.reference", required={"kind", "key"})
+            if group == "validations" and "command_keys" in row:
+                if not isinstance(row["command_keys"], list) or not row["command_keys"]:
+                    raise WorkError(ExitCode.CONTRACT, "invalid_semantic_reference", "Automated validations require command keys.")
+            if group == "validations" and "acceptance_positions" in row:
+                positions = row["acceptance_positions"]
+                if not isinstance(positions, list) or not positions or any(type(item) is not int or item < 1 for item in positions) or len(positions) != len(set(positions)):
+                    raise WorkError(ExitCode.CONTRACT, "invalid_semantic_position", "Acceptance positions must be unique positive integers.")
+    def resolve(group: str, key: object) -> str:
+        local = _candidate_key(key, location=group)
+        if local not in keys.get(group, {}):
+            raise WorkError(ExitCode.CONTRACT, "invalid_semantic_reference", "A local semantic reference is unknown.", {"group": group, "key": local})
+        return keys[group][local]
+    for row in candidate.get("steps", []):
+        for reference in row["references"]:
+            group = reference["kind"]
+            if group not in _CANDIDATE_ITEMS or group == "steps":
+                raise WorkError(ExitCode.CONTRACT, "invalid_semantic_reference", "A step reference kind is unsupported.")
+            resolve(group, reference["key"])
+    for row in candidate.get("validations", []):
+        for key in row.get("command_keys", []):
+            resolve("commands", key)
+    for row in candidate.get("operations", []):
+        resolve("validations", row["validation_key"])
+        if "command_key" in row:
+            resolve("commands", row["command_key"])
+    return copy.deepcopy(candidate)
+
+
+def build_semantic_task_candidate(value: object, *, acceptance_ids: list[str], dependency_ids: list[str] | None = None, dependency_files: dict[str, dict[str, str]] | None = None) -> dict[str, Any]:
+    candidate = validate_semantic_task_candidate(value, refined=True)
+    maps = {group: {row["key"]: f"{_CANDIDATE_PREFIX[group]}-{position:03d}" for position, row in enumerate(candidate.get(group, []), 1)} for group in _CANDIDATE_ITEMS}
+    def lookup(group: str, key: str) -> str:
+        return maps[group][key]
+    result: dict[str, Any] = {}
+    for group in _CANDIDATE_ITEMS:
+        if group not in candidate:
+            continue
+        rows = []
+        for position, original in enumerate(candidate[group], 1):
+            row = {field: copy.deepcopy(item) for field, item in original.items() if field != "key"}
+            row["id"] = f"{_CANDIDATE_PREFIX[group]}-{position:03d}"
+            if group == "steps":
+                row["references"] = [lookup(reference["kind"], reference["key"]) for reference in row["references"]]
+            elif group == "validations":
+                if "command_keys" in row:
+                    row["command_ids"] = [lookup("commands", key) for key in row.pop("command_keys")]
+                if "acceptance_positions" in row:
+                    row["acceptance_ids"] = [acceptance_ids[item - 1] for item in _positions(row.pop("acceptance_positions"), location="acceptance_positions", size=len(acceptance_ids))]
+            elif group == "operations":
+                row["validation_id"] = lookup("validations", row.pop("validation_key"))
+                if "command_key" in row:
+                    row["command_id"] = lookup("commands", row.pop("command_key"))
+            elif group == "inputs" and row["kind"] == "task_output":
+                dependencies = dependency_ids or []
+                files = dependency_files or {}
+                if set(row) != {"id", "kind", "precondition", "dependency_position", "file_key"}:
+                    raise WorkError(ExitCode.CONTRACT, "invalid_semantic_reference", "Task-output input requires a dependency position and file key.")
+                dep_position = _positions([row.pop("dependency_position")], location="dependency_position", size=len(dependencies))[0]
+                dep_id = dependencies[dep_position - 1]
+                file_key = _candidate_key(row.pop("file_key"), location="file_key")
+                if file_key not in files.get(dep_id, {}):
+                    raise WorkError(ExitCode.CONTRACT, "invalid_semantic_reference", "Dependency file key is unknown.")
+                row["source"] = f"{dep_id}/{files[dep_id][file_key]}"
+            elif group == "inputs" and ("dependency_position" in row or "file_key" in row):
+                raise WorkError(ExitCode.CONTRACT, "invalid_semantic_reference", "Only task-output inputs use dependency file references.")
+            rows.append(row)
+        result[group] = rows
+    return result
+
+
+def build_semantic_task_patch(
+    current: dict[str, Any], replacements: dict[str, list[dict[str, Any]] | None],
+    *, acceptance_ids: list[str], dependency_ids: list[str] | None = None,
+    dependency_files: dict[str, dict[str, str]] | None = None,
+) -> dict[str, list[dict[str, Any]] | None]:
+    """Resolve local keys against retained records and allocate new nested IDs."""
+    aliases: dict[str, dict[str, str]] = {}
+    for group, prefix in _CANDIDATE_PREFIX.items():
+        aliases[group] = {
+            f"existing-{position}": row["id"]
+            for position, row in enumerate(current.get(group) or [], 1)
+        }
+        if group not in replacements or replacements[group] is None:
+            continue
+        rows = replacements[group]
+        if not isinstance(rows, list):
+            raise WorkError(ExitCode.CONTRACT, "invalid_semantic_items", "Nested semantic edits require arrays.")
+        used: set[int] = set()
+        next_number = max((int(row["id"].rsplit("-", 1)[1]) for row in current.get(group) or []), default=0)
+        aliases[group] = {}
+        for position, row in enumerate(rows, 1):
+            if not isinstance(row, dict):
+                raise WorkError(ExitCode.CONTRACT, "invalid_semantic_items", "Nested semantic rows must be objects.")
+            key = _candidate_key(row.get("key"), location=f"{group}[{position}].key")
+            if key in aliases[group]:
+                raise WorkError(ExitCode.CONTRACT, "duplicate_semantic_key", "Local semantic keys must be unique.")
+            old_position = row.get("existing_position")
+            if old_position is not None:
+                if type(old_position) is not int or old_position < 1 or old_position > len(current.get(group) or []) or old_position in used:
+                    raise WorkError(ExitCode.CONTRACT, "invalid_semantic_position", "An existing position must identify one retained record.")
+                used.add(old_position)
+                record_id = current[group][old_position - 1]["id"]
+                if f"existing-{old_position}" in aliases[group] or key == f"existing-{old_position}":
+                    raise WorkError(ExitCode.CONTRACT, "duplicate_semantic_key", "Local semantic keys must be unique.")
+                aliases[group][f"existing-{old_position}"] = record_id
+            else:
+                next_number += 1
+                record_id = f"{prefix}-{next_number:03d}"
+            aliases[group][key] = record_id
+    def resolve(group: str, key: object) -> str:
+        name = _candidate_key(key, location=group)
+        try:
+            return aliases[group][name]
+        except KeyError as error:
+            raise WorkError(ExitCode.CONTRACT, "invalid_semantic_reference", "A local semantic reference is unknown.", {"group": group, "key": name}) from error
+    result: dict[str, list[dict[str, Any]] | None] = {}
+    for group, rows in replacements.items():
+        if group not in _CANDIDATE_ITEMS:
+            raise WorkError(ExitCode.CONTRACT, "invalid_semantic_items", "This nested group is unsupported.")
+        if rows is None:
+            result[group] = None
+            continue
+        required, optional = _CANDIDATE_ITEMS[group]
+        formal_rows = []
+        for position, original in enumerate(rows, 1):
+            row = strict_keys(original, location=f"semantic_after.{group}[{position}]",
+                              required=required, optional=optional | {"existing_position"})
+            formal = {key: copy.deepcopy(value) for key, value in row.items() if key not in {"key", "existing_position"}}
+            formal["id"] = resolve(group, row["key"])
+            if group == "steps":
+                if not isinstance(row["references"], list) or not row["references"]:
+                    raise WorkError(ExitCode.CONTRACT, "invalid_semantic_reference", "Steps require semantic references.")
+                formal["references"] = [resolve(reference["kind"], reference["key"])
+                                        for value in row["references"]
+                                        for reference in [strict_keys(value, location="step.reference", required={"kind", "key"})]]
+            elif group == "validations":
+                if "command_keys" in formal:
+                    formal["command_ids"] = [resolve("commands", key) for key in formal.pop("command_keys")]
+                if "acceptance_positions" in formal:
+                    formal["acceptance_ids"] = [acceptance_ids[item - 1] for item in _positions(formal.pop("acceptance_positions"), location="acceptance_positions", size=len(acceptance_ids))]
+            elif group == "operations":
+                formal["validation_id"] = resolve("validations", formal.pop("validation_key"))
+                if "command_key" in formal:
+                    formal["command_id"] = resolve("commands", formal.pop("command_key"))
+            elif group == "inputs" and formal["kind"] == "task_output":
+                dependencies = dependency_ids or []
+                files = dependency_files or {}
+                dep_position = _positions([formal.pop("dependency_position")], location="dependency_position", size=len(dependencies))[0]
+                file_key = _candidate_key(formal.pop("file_key"), location="file_key")
+                dep_id = dependencies[dep_position - 1]
+                if file_key not in files.get(dep_id, {}):
+                    raise WorkError(ExitCode.CONTRACT, "invalid_semantic_reference", "Dependency file key is unknown.")
+                formal["source"] = f"{dep_id}/{files[dep_id][file_key]}"
+            elif group == "inputs" and ("dependency_position" in formal or "file_key" in formal):
+                raise WorkError(ExitCode.CONTRACT, "invalid_semantic_reference", "Only task-output inputs use dependency file references.")
+            formal_rows.append(formal)
+        result[group] = formal_rows
+    return result
 
 
 def resolve_draft_instruction_selection(entry: dict[str, object], *, selected_paths: list[str] | None = None, reference_names: list[str] | None = None) -> dict[str, list[str]]:
@@ -308,18 +518,7 @@ Revisions describe data versions; neither revisions nor status grant authority.
     if "draft_ref" in entry and draft["revision"] != entry["draft_ref"]["revision"]:
         _reject("draft_index_mismatch", "The draft revision must match its index reference.", "revision")
     if "task_candidate" in draft:
-        candidate = draft["task_candidate"]
-        if not isinstance(candidate, dict):
-            _reject("invalid_task_candidate", "The structured TASK candidate must be an object.", "task_candidate")
-        if draft["status"] == "refined":
-            for field in ("id", "title", "goal", "skill_id"):
-                if field not in candidate or candidate[field] != entry[field]:
-                    _reject("task_candidate_boundary_mismatch", "The candidate differs from its confirmed TASK boundary.", field)
-            if candidate.get("dependencies", []) != entry["dependencies"]:
-                _reject("task_candidate_boundary_mismatch", "The candidate dependencies differ from the index.", "dependencies")
-            selection = candidate.get("instruction_selection")
-            if not isinstance(selection, dict) or selection.get("instructions_sha256") != entry["instructions_sha256"]:
-                _reject("task_candidate_boundary_mismatch", "The candidate instruction fingerprint differs from the index.", "instruction_selection")
+        validate_semantic_task_candidate(draft["task_candidate"], refined=draft["status"] == "refined")
     return TaskDraftValidationContract.model_validate({
         "schema": "work-task-draft-validation/v1",
         "requirement_id": draft["requirement_id"],
@@ -334,7 +533,6 @@ Revisions describe data versions; neither revisions nor status grant authority.
 __all__ = [
     "DRAFT_SCHEMA", "INDEX_SCHEMA", "SOURCE_FIELDS",
     "resolve_draft_instruction_selection", "resolve_task_dependencies",
-    "validate_draft_instruction_selection", "validate_task_draft",
+    "validate_draft_instruction_selection", "validate_semantic_task_candidate", "build_semantic_task_candidate", "build_semantic_task_patch", "validate_task_draft",
     "validate_task_planning_index",
 ]
-

@@ -79,6 +79,18 @@ class ProgressStorageTests(unittest.TestCase):
         history = self.root / Path(first["path"]).parent / "history/1/progress.json"
         self.assertEqual(history.read_bytes(), original)
 
+    def test_prepare_merges_only_changed_discussion_fields(self):
+        self.save()
+        changes = {"notes": ["New note"], "open_questions": []}
+        result = self.prepare(changes, revision=1)
+        self.assertEqual(result["progress"]["notes"], ["New note"])
+        self.assertEqual(result["progress"]["open_questions"], [])
+        self.assertEqual(result["progress"]["context"], self.value["context"])
+        self.assertEqual(result["progress"]["confirmed_decisions"], self.value["confirmed_decisions"])
+        with self.assertRaises(WorkError) as caught:
+            self.prepare({}, revision=1)
+        self.assertEqual(caught.exception.code, "progress_prepare_empty_change")
+
     def test_prepare_rejects_machine_overrides_missing_content_and_invalid_revision(self):
         for field in ("schema", "requirement_id", "mode", "revision", "status"):
             with self.subTest(field=field):

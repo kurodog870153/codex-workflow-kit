@@ -88,8 +88,8 @@ class OperationContextFlowTests(unittest.TestCase):
             )
             envelope, _ = build_cli_operation_context(arguments, root, SKILL_ROOT)
         self.assertEqual(envelope["artifacts"]["task_path"]["path"],
-                         str(root / "outputs/work/tasks/example/index.json"))
-        self.assertEqual(envelope["artifacts"]["input_file"]["path"], str(request))
+                         str((root / "outputs/work/tasks/example/index.json").resolve()))
+        self.assertEqual(envelope["artifacts"]["input_file"]["path"], str(request.resolve()))
 
     def test_command_run_is_explicit_external_effect(self):
         with tempfile.TemporaryDirectory() as directory:

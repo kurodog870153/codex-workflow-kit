@@ -128,28 +128,36 @@ class TaskDraftPrepareContract(WorkContract):
     drafts: dict[str, dict[str, Any]]
 
 
+class TaskSemanticReferenceModel(DraftNestedModel):
+    existing_task_id: str | None = None
+    upsert_position: int | None = None
+
+
 class TaskSemanticItemModel(DraftNestedModel):
+    existing_task_id: str | None = None
     title: str
     goal: str
     scope: list[str]
     skill_id: str | None
-    instruction_selection: dict[str, Any]
-    dependencies: list[int] = []
+    instruction_selection: DraftInstructionSelectionModel | None = None
+    dependencies: list[TaskSemanticReferenceModel]
 
 
 class TaskSemanticRequestContract(WorkContract):
     contract_id: ClassVar[str] = "work-task-semantic-request/v1"
-    contract_kind: ClassVar[Literal["request"]] = "request"
-    canonical_order: ClassVar[tuple[str, ...]] = ("tasks", "current_task")
-    tasks: list[TaskSemanticItemModel]
-    current_task: int | None = None
+    contract_kind: ClassVar[Literal["semantic_request"]] = "semantic_request"
+    canonical_order: ClassVar[tuple[str, ...]] = ("upsert", "remove_task_ids", "current_task", "reason")
+    upsert: list[TaskSemanticItemModel]
+    remove_task_ids: list[str]
+    current_task: TaskSemanticReferenceModel | None
+    reason: str | None
 
 
 TaskSemanticRequestContract.contract_example = {
-    "tasks": [{"title": "Implement", "goal": "Deliver the result.", "scope": ["Source"],
+    "upsert": [{"title": "Implement", "goal": "Deliver the result.", "scope": ["Source"],
                "skill_id": None, "instruction_selection": {"selected_paths": [], "references": []},
                "dependencies": []}],
-    "current_task": 1,
+    "remove_task_ids": [], "current_task": {"upsert_position": 1}, "reason": None,
 }
 
 

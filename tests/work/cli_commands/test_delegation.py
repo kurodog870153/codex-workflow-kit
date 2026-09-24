@@ -14,6 +14,23 @@ from worklib.cli import main
 
 
 class DelegationCommandTests(FileInputTestCase):
+    def test_build_derives_transport_and_plan_context_from_formal_plan(self):
+        fixture = fixtures.DelegationTests()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        request = {"schema": "work-delegation-build-request/v1", "role": "task-coordinator",
+                   "request": "Coordinate the confirmed TASK work.",
+                   "source_plan_path": fixture.fixture.artifacts["plan"]}
+        args = self.input_arguments(["--project-root", str(fixture.root), "delegation", "build",
+                                     "--input-file", "build.json"], json.dumps(request))
+        out = io.StringIO()
+        self.assertEqual(main(args, stdout=out), 0, out.getvalue())
+        data = json.loads(out.getvalue())["data"]
+        self.assertEqual(data["sender"], "parent")
+        self.assertEqual(data["marker"], "WORK_DELEGATION_V1")
+        self.assertEqual(data["context"]["source_plan"], fixture.plan)
+        self.assertNotIn("authorized", data)
+
     def test_cli_uses_independent_role_and_json_input_without_writes(self):
         fixture = fixtures.DelegationTests()
         fixture.setUp()

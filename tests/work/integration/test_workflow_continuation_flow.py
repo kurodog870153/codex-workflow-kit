@@ -91,16 +91,15 @@ class WorkflowContinuationFlowTests(unittest.TestCase):
             "spec-prepare.json",
             {
                 "schema": "work-spec-prepare-request/v1",
-                "plan_path": self.artifacts["plan"],
+                "requirement_id": "example",
                 "reason": "Confirm the constraint wording and save progress.",
                 "edits": [
                     {
-                        "artifact": "plan",
-                        "operation": "replace",
-                        "path": "/constraints",
-                        "before": [self.constraint],
-                        "after": [changed],
-                        "affected_ids": ["CONSTRAINT-001"],
+                        "target": {"artifact": "plan"},
+                        "field": "constraints",
+                        "semantic_after": [{"key": "boundary", "existing_position": 1,
+                                            "statement": changed["statement"],
+                                            "applies_to": [{"collection": "goals", "position": 1}]}],
                     }
                 ],
             },

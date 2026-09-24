@@ -21,14 +21,16 @@ class ExecutionService:
             "recover": capabilities.recover_execution,
             "recovery-prepare": capabilities.prepare_execution_recovery,
             "command-prepare": capabilities.prepare_command,
-            "deviation-prepare": capabilities.prepare_execution_deviation,
+            "attempt-start-prepare": capabilities.prepare_attempt_start,
+            "deviation-prepare-semantic": capabilities.prepare_semantic_execution_deviation,
         }
     READ_ONLY_OPERATIONS = {
         "preflight",
         "worktree",
         "recovery-prepare",
         "command-prepare",
-        "deviation-prepare",
+        "attempt-start-prepare",
+        "deviation-prepare-semantic",
         "command-run",
     }
 

@@ -15,6 +15,7 @@ from ...models.common.errors import ExitCode, WorkError
 from ...services.plan.document import parse as parse_json_contract
 from ...services.task.storage import read_project_task_source
 from ...services.instruction.root import instruction_root
+from ...services.task.draft.validation import resolve_draft_instruction_selection, validate_semantic_task_candidate, build_semantic_task_candidate
 from ...models.skill import SkillRoot
 
 
@@ -42,6 +43,12 @@ def assemble_task_drafts(
     if plan_validation["requirement_id"] != requirement_id or any(plan_validation[key] != value for key, value in index["source"].items()):
         raise WorkError(ExitCode.ARTIFACT_INTEGRITY, "draft_source_drift", "The planning source differs from the current validated Plan.")
     tasks = []
+    semantic_candidates = {}
+    for entry in index["tasks"]:
+        discussion = read_task_draft(project_root, requirement_id, entry["id"])
+        if isinstance(discussion.get("task_candidate"), dict):
+            semantic_candidates[entry["id"]] = validate_semantic_task_candidate(discussion["task_candidate"], refined=True)
+    dependency_files = {task_id: {row["key"]: f"FILE-{position:03d}" for position, row in enumerate(candidate.get("files", []), 1)} for task_id, candidate in semantic_candidates.items()}
     for entry in sorted(index["tasks"], key=lambda item: item["id"]):
         if entry["status"] != "refined":
             raise WorkError(ExitCode.WORKFLOW_STATE, "draft_not_refined", "Every active TASK must complete discussion before assembly.", {"task_id": entry["id"]})
@@ -49,7 +56,20 @@ def assemble_task_drafts(
         candidate = discussion.get("task_candidate")
         if not isinstance(candidate, dict):
             raise WorkError(ExitCode.CONTRACT, "task_candidate_required", "A structured candidate is required; discussion notes cannot be inferred into a TASK.", {"task_id": entry["id"]})
-        tasks.append(copy.deepcopy(candidate))
+        candidate = build_semantic_task_candidate(candidate, acceptance_ids=[item["id"] for item in plan["acceptance_criteria"]], dependency_ids=entry["dependencies"], dependency_files=dependency_files)
+        selected = resolve_draft_instruction_selection(entry)
+        instruction = operations.build_instruction_selection(
+            skill_root=instruction_root(), mode="task",
+            selected_paths=selected["selected_paths"], reference_names=selected["references"])
+        if instruction["instructions_sha256"] != entry["instructions_sha256"]:
+            raise WorkError(ExitCode.ARTIFACT_INTEGRITY, "draft_instruction_drift", "The TASK instruction selection differs from its confirmed boundary.")
+        traceability = {field: [item["id"] for item in plan[source_field]] for field, source_field in (
+            ("goal_ids", "goals"), ("deliverable_ids", "deliverables"),
+            ("acceptance_ids", "acceptance_criteria"))}
+        tasks.append({"id": entry["id"], "title": entry["title"], "goal": entry["goal"],
+                      "skill_id": entry["skill_id"], "dependencies": entry["dependencies"],
+                      "instruction_selection": instruction, "traceability": traceability,
+                      **copy.deepcopy(candidate)})
     contract = {
         "schema": "work-task-collection-projection/v1", "requirement_id": requirement_id,
         "spec_id": "TASK-SPEC-001", "status": "confirmed", **copy.deepcopy(fields),
