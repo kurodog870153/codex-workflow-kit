@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work"
@@ -13,7 +14,11 @@ SCRIPT_ROOT = SKILL_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.models.common.errors import WorkError
-from worklib.business_services.plan import render_plan_contract, validate_plan_contract
+from worklib.business_services.plan import (
+    prepare_plan_json_contract, render_plan_contract, validate_plan_contract,
+    validate_plan_file,
+)
+from worklib.services.plan import document
 from worklib.services.skill_selection import selection_sha256
 from worklib.business_services.instruction import build_work_instruction_selection
 from worklib.business_services.hierarchy import build_hierarchy_selection
@@ -101,6 +106,24 @@ class PlanInstructionContractTests(unittest.TestCase):
             self.contract["work_instruction_selection"]["instructions_sha256"],  # type: ignore[index]
         )
         self.assertNotIn("rules_sha256", result)
+
+    def test_prepare_and_file_validation_parse_plan_once(self) -> None:
+        raw = render_plan_contract(self.contract)
+        options = {
+            "source": "test", "actual_plan_path": "outputs/work/plans/example.json",
+            "project_root": self.project_root, "user_config_root": str(self.project_root),
+        }
+        with patch.object(document, "parse", wraps=document.parse) as parsed:
+            _, rendered = prepare_plan_json_contract(raw, **options)
+        self.assertEqual(rendered, raw)
+        self.assertEqual(parsed.call_count, 1)
+
+        path = self.project_root / options["actual_plan_path"]
+        path.parent.mkdir(parents=True)
+        path.write_bytes(raw)
+        with patch.object(document, "parse", wraps=document.parse) as parsed:
+            validate_plan_file(self.project_root, str(self.project_root), options["actual_plan_path"])
+        self.assertEqual(parsed.call_count, 1)
 
     def test_render_uses_canonical_instruction_field_order(self) -> None:
         raw = render_plan_contract(dict(reversed(self.contract.items())))

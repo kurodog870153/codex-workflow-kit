@@ -29,9 +29,19 @@ from worklib.services.attempt.validation import (
     validate_execution_index,
 )
 from worklib.services.attempt import minimal_authorization
+from worklib.business_services.execution import attempt_start
+from worklib.services.attempt import validation as attempt_validation
 
 
 class ExecuteInstructionAttemptStartTests(unittest.TestCase):
+    def test_read_index_reuses_parsed_document_for_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "index.json"
+            path.write_bytes(render_execution_index(self.index()))
+            with patch.object(attempt_validation, "parse_json_contract", side_effect=AssertionError("duplicate parse")):
+                raw, contract = attempt_start._read_index(path)
+        self.assertEqual(raw, render_execution_index(contract))
+
     def test_prepare_derives_exact_authorization_and_retry_source(self) -> None:
         task = {"id": "TASK-001", "commands": [{"id": "CMD-001", "mode": "argv", "argv": ["tool"]}],
                 "validations": [], "operations": [],
@@ -72,6 +82,83 @@ class ExecuteInstructionAttemptStartTests(unittest.TestCase):
                 project_root=REPO_ROOT, user_config_root=str(REPO_ROOT), raw_task_path="task.json",
                 raw_execution_dir="outputs/work/executions/example", task_id="TASK-001", operations=operations)
         self.assertEqual(omitted["request"]["continuation"]["carried_records"], [])
+
+    def test_prepare_reuses_worktree_context_and_rechecks_after_authorization(self) -> None:
+        task = {"id": "TASK-001", "commands": [], "validations": [], "operations": [], "files": []}
+        context = {"contract": {"tasks": [task], "execution_defaults": None}}
+        operations = SimpleNamespace(load_task_execution_context=lambda *args, **kwargs: self.fail("duplicate context load"))
+        choice = {"command_positions": [], "validation_positions": [], "modifiable_files": [],
+                  "external_operation_positions": [], "allowed_deviations": [],
+                  "authorization_evidence": "User approved this scope.", "carried_records": []}
+        worktree = {"task_status": "pending", "snapshot_sha256": "a" * 64}
+        index = {"tasks": [{"id": "TASK-001", "status": "pending"}]}
+        inspections = []
+
+        def inspect(**kwargs):
+            inspections.append(kwargs)
+            if kwargs.get("_context_out") is not None:
+                kwargs["_context_out"]["context"] = context
+            return worktree
+
+        with patch("worklib.business_services.execution.attempt_start.inspect_execute_worktree", side_effect=inspect), \
+             patch("worklib.business_services.execution.attempt_start._read_index", return_value=(b"", index)):
+            result = prepare_attempt_start(json.dumps(choice).encode(), source="test",
+                project_root=REPO_ROOT, user_config_root=str(REPO_ROOT), raw_task_path="task.json",
+                raw_execution_dir="outputs/work/executions/example", task_id="TASK-001", operations=operations)
+        self.assertEqual(result["request"]["worktree_snapshot_sha256"], "a" * 64)
+        self.assertEqual(len(inspections), 2)
+
+    def test_start_rechecks_worktree_context_before_authorization(self) -> None:
+        context = {"contract": {"tasks": [{"id": "TASK-001"}]}}
+        operations = SimpleNamespace(
+            load_task_execution_context=lambda *args, **kwargs: self.fail("duplicate context load"),
+            recheck_task_execution_context=lambda *args, **kwargs: context,
+        )
+        request = {"worktree_snapshot_sha256": "a" * 64, "authorization": {}}
+
+        def inspect(**kwargs):
+            kwargs["_context_out"]["context"] = context
+            return {"snapshot_sha256": "a" * 64}
+
+        with patch("worklib.business_services.execution.attempt_start.parse_attempt_start_request",
+                   return_value=SimpleNamespace(to_canonical_dict=lambda: request)), \
+             patch("worklib.business_services.execution.attempt_start.inspect_execute_worktree", side_effect=inspect), \
+             patch("worklib.business_services.execution.attempt_start.validate_authorization_scope",
+                   side_effect=RuntimeError("authorization reached")):
+            with self.assertRaisesRegex(RuntimeError, "authorization reached"):
+                attempt_start.start_attempt(b"{}", source="test", project_root=REPO_ROOT,
+                    user_config_root=str(REPO_ROOT), raw_task_path="task.json",
+                    raw_execution_dir="outputs/work/executions/example", task_id="TASK-001",
+                    operations=operations)
+
+    def test_recovery_rechecks_preflight_context_before_authorization(self) -> None:
+        context = {"contract": {"tasks": [{"id": "TASK-001"}]}}
+        operations = SimpleNamespace(
+            load_task_execution_context=lambda *args, **kwargs: self.fail("duplicate context load"),
+            recheck_task_execution_context=lambda *args, **kwargs: context,
+        )
+        request = {"authorization": {}}
+
+        def preflight(**kwargs):
+            kwargs["_context_out"]["context"] = context
+            return {"execute_instructions_sha256": "a" * 64}
+
+        with patch("worklib.business_services.execution.attempt_start.parse_attempt_start_request",
+                   return_value=SimpleNamespace(to_canonical_dict=lambda: request)), \
+             patch("worklib.business_services.execution.attempt_start._paths",
+                   return_value=("execution", REPO_ROOT, "execution/index.json", REPO_ROOT / "index.json")), \
+             patch("worklib.business_services.execution.attempt_start._read_index",
+                   return_value=(b"", {"tasks": [], "lock": None})), \
+             patch("worklib.business_services.execution.attempt_start._recovery_candidate",
+                   return_value="ATTEMPT-001"), \
+             patch("worklib.business_services.execution.attempt_start.execute_preflight", side_effect=preflight), \
+             patch("worklib.business_services.execution.attempt_start.validate_authorization_scope",
+                   side_effect=RuntimeError("authorization reached")):
+            with self.assertRaisesRegex(RuntimeError, "authorization reached"):
+                attempt_start.recover_attempt_start(b"{}", source="test", project_root=REPO_ROOT,
+                    user_config_root=str(REPO_ROOT), raw_task_path="task.json",
+                    raw_execution_dir="outputs/work/executions/example", task_id="TASK-001",
+                    operations=operations)
 
     def test_prepare_rejects_formal_scope_and_deviation_ids(self) -> None:
         from worklib.models.execution.attempt_start import AttemptStartPrepareRequestContract

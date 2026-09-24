@@ -512,9 +512,11 @@ def recover_correction(
                 "The canonical Correction lock target is not preserved.",
             )
         lock_raw = read_raw(lock_temporary)
-        validate_execution_index(lock_raw, source=str(lock_temporary))
         locked_contract = parse_json_contract(
             lock_raw, source=str(lock_temporary)
+        )
+        validate_execution_index(
+            lock_raw, source=str(lock_temporary), parsed_contract=locked_contract,
         )
         transaction_lock = locked_contract.get("lock")
         base_index = index

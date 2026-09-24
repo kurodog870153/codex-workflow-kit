@@ -1050,8 +1050,9 @@ def validate_execution_index(
     *,
     source: str,
     expected: dict[str, Any] | None = None,
+    parsed_contract: dict[str, Any] | None = None,
 ) -> dict[str, object]:
-    contract = parse_json_contract(raw, source=source)
+    contract = parsed_contract if parsed_contract is not None else parse_json_contract(raw, source=source)
     schema = contract.get("schema") if isinstance(contract, dict) else None
     if schema == "work-execution-index/v1":
         fingerprint_fields = {"task_collection_sha256", "task_index_sha256"}

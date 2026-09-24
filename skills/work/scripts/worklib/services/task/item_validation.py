@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from typing import Any
+from pydantic import ValidationError
 
 from ...protocol import TASK_ID_PATTERN as TASK_ID_PATTERN_TEXT
 from ...models.common.errors import ExitCode, WorkError
@@ -64,8 +65,8 @@ def render_task_item_contract(contract: dict[str, Any], *, ordered_contract: dic
     return render_json_contract(ordered_contract)
 
 
-def validate_task_item_contract(raw: bytes, *, source: str, expected_task_id: str, ordered_contract: dict[str, Any], required_fields: set[str], optional_fields: set[str]) -> dict[str, object]:
-    untyped = parse_json_contract(raw, source=source)
+def validate_task_item_contract(raw: bytes, *, source: str, expected_task_id: str, ordered_contract: dict[str, Any], required_fields: set[str], optional_fields: set[str], parsed_contract: dict[str, Any] | None = None) -> dict[str, object]:
+    untyped = parsed_contract if parsed_contract is not None else parse_json_contract(raw, source=source)
     missing = sorted(
         field for field in {"schema", *required_fields}
         if field not in untyped or (field != "skill_id" and untyped[field] is None)
@@ -78,7 +79,13 @@ def validate_task_item_contract(raw: bytes, *, source: str, expected_task_id: st
             "The JSON object has missing or unknown fields.",
             {"location": "contract", "missing": missing, "unknown": unknown},
         )
-    model = TaskItemContract.parse_json_bytes(raw, source=source)
+    if parsed_contract is None:
+        model = TaskItemContract.parse_json_bytes(raw, source=source)
+    else:
+        try:
+            model = TaskItemContract.model_validate(untyped)
+        except ValidationError as error:
+            raise TaskItemContract._work_error(error) from error
     contract = model.to_canonical_dict()
     strict_keys(
         contract,

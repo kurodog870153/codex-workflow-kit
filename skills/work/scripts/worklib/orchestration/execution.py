@@ -15,13 +15,14 @@ from ..business_services.execution.command_correction import record_command_corr
 from ..business_services.execution.command_run import prepare_command as _prepare_command, run_command as _run_command
 from ..business_services.execution.deviation import prepare_execution_deviation as _prepare_execution_deviation, prepare_semantic_execution_deviation as _prepare_semantic_execution_deviation, record_execution_deviation as _record_execution_deviation
 from ..business_services.instruction import build_instruction_selection
-from ..business_services.task.io import load_task_execution_context
+from ..business_services.task.io import load_task_execution_context, recheck_task_execution_context
 from ..business_services.execution.workflow import ExecutionService
 
 
 class ExecutionOperations:
     build_instruction_selection = staticmethod(build_instruction_selection)
     load_task_execution_context = staticmethod(load_task_execution_context)
+    recheck_task_execution_context = staticmethod(recheck_task_execution_context)
 
 
 class ExecutionCapabilities(ExecutionOperations):

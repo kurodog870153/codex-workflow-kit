@@ -153,8 +153,10 @@ def validate_task_index_contract(
     ordered_contract: dict[str, Any],
     required_fields: set[str],
     optional_fields: set[str],
+    model: TaskIndexContract | None = None,
 ) -> dict[str, object]:
-    model = TaskIndexContract.parse_json_bytes(raw, source=source)
+    if model is None:
+        model = TaskIndexContract.parse_json_bytes(raw, source=source)
     contract = model.to_canonical_dict()
     strict_keys(contract, location="task_index", required=required_fields, optional=optional_fields)
     requirement_id = nonempty_string(contract["requirement_id"], location="requirement_id")

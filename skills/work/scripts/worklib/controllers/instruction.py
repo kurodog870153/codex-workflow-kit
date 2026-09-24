@@ -4,7 +4,6 @@ import argparse
 from pathlib import Path
 
 from . import SubparserRegistry
-from ..business_services.instruction import apply_instruction_migration, apply_source_refresh, apply_source_refresh_all, catalog, instruction_root, load, preview_instruction_migration, preview_source_refresh, preview_source_refresh_all, resolve, select, source_impact
 
 
 def register_instruction_commands(commands: SubparserRegistry) -> None:
@@ -42,6 +41,13 @@ def register_instruction_commands(commands: SubparserRegistry) -> None:
 
 
 def run_instructions(arguments: argparse.Namespace, project_root: Path) -> dict[str, object]:
+    from ..business_services.instruction import (
+        apply_instruction_migration, apply_source_refresh, apply_source_refresh_all,
+        catalog, instruction_root, load, preview_instruction_migration,
+        preview_source_refresh, preview_source_refresh_all, resolve, select,
+        source_impact,
+    )
+
     skill_root = instruction_root()
     if arguments.instructions_command == "impact":
         return source_impact(project_root, skill_root)

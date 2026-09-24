@@ -64,10 +64,11 @@ class ExecutionService:
             "task_id": task_id,
             "skill_roots": parsed_skill_roots,
         }
+        prevalidated_context = None
         if operation not in self.READ_ONLY_OPERATIONS:
             task_path = storage_path(project_root, raw_task_path)
             if task_path.is_file():
-                self.capabilities.load_task_execution_context(
+                prevalidated_context = self.capabilities.load_task_execution_context(
                     project_root,
                     user_config_root,
                     raw_task_path,
@@ -86,6 +87,7 @@ class ExecutionService:
                         base_record_id=base_record_id,
                         approved_sha256=approved_sha256,
                         authorization_evidence=authorization_evidence,
+                        prevalidated_context=prevalidated_context,
                     )
         return self._execute_operation(
             operation,
@@ -96,6 +98,7 @@ class ExecutionService:
             base_record_id=base_record_id,
             approved_sha256=approved_sha256,
             authorization_evidence=authorization_evidence,
+            prevalidated_context=prevalidated_context,
         )
 
     def _execute_operation(
@@ -109,6 +112,7 @@ class ExecutionService:
         base_record_id: str | None,
         approved_sha256: str | None,
         authorization_evidence: str | None,
+        prevalidated_context: dict[str, object] | None,
     ) -> dict[str, object]:
         if operation == "record-begin":
             return self.capabilities.begin_record(
@@ -150,4 +154,7 @@ class ExecutionService:
             if operation == "attempt-start"
             else self.capabilities.recover_attempt_start
         )
-        return lifecycle(raw_request, source=source, **inspection_common)
+        return lifecycle(
+            raw_request, source=source,
+            _prevalidated_context=prevalidated_context, **inspection_common,
+        )

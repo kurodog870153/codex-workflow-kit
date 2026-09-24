@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ..business_services.progress import prepare_progress, preview_progress, read_progress, save_progress
 from . import SubparserRegistry
 
 
@@ -27,6 +26,8 @@ def register_progress_commands(commands: SubparserRegistry) -> None:
 def run_progress(
     arguments: argparse.Namespace, project_root: Path, request,
 ) -> dict[str, object]:
+    from ..business_services.progress import prepare_progress, preview_progress, read_progress, save_progress
+
     if arguments.progress_command == "read":
         return read_progress(project_root, arguments.requirement_id, arguments.mode)
     if arguments.progress_command == "prepare":

@@ -335,7 +335,11 @@ class CommandRunTests(FileInputTestCase):
 
     def test_timeout_keeps_receipts_and_never_invents_exit_code(self):
         preview = self.prepare()
-        with patch.object(command_execution.subprocess, "run", side_effect=subprocess.TimeoutExpired("controlled", 10)) as run:
+        with patch.object(command_run, "_execute", return_value={
+            "status": "timed_out", "exit_code": None,
+            "stdout_tail": "", "stdout_truncated": False,
+            "stderr_tail": "", "stderr_truncated": False,
+        }) as run:
             with self.assertRaises(WorkError) as error:
                 self.run_cmd(preview["approved_sha256"])
             run.assert_called_once()
@@ -343,6 +347,26 @@ class CommandRunTests(FileInputTestCase):
         self.assertIsNone(error.exception.details["exit_code"])
         self.assertNotIn("record_finish_request", error.exception.details)
         self.assertEqual(len(list(self.attempt_path.parent.glob(".work-command-*"))), 2)
+
+    def test_pipe_timeout_terminates_process_and_returns_bounded_output(self):
+        result = command_execution.execute_command(
+            [sys.executable, "-S", "-c", "import sys,time; print('started', flush=True); time.sleep(3)"],
+            str(self.root), 1,
+        )
+        self.assertEqual(result["status"], "timed_out")
+        self.assertIsNone(result["exit_code"])
+        self.assertIn("started", result["stdout_tail"])
+
+    def test_pipe_drains_large_stdout_and_stderr_together(self):
+        result = command_execution.execute_command(
+            [sys.executable, "-c", "import sys; sys.stdout.write('o'*200000); sys.stderr.write('e'*200000); sys.exit(7)"],
+            str(self.root), 10,
+        )
+        self.assertEqual((result["status"], result["exit_code"]), ("exited", 7))
+        self.assertEqual(result["stdout_tail"], "o" * 4096)
+        self.assertEqual(result["stderr_tail"], "e" * 4096)
+        self.assertTrue(result["stdout_truncated"])
+        self.assertTrue(result["stderr_truncated"])
 
     def test_partial_receipt_blocks_execution(self):
         preview = self.prepare()

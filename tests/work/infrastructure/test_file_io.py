@@ -37,6 +37,12 @@ class FileIoTests(unittest.TestCase):
 
             self.assertEqual(context.exception.code, "file_not_found")
 
+    def test_directory_is_rejected_as_non_regular_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaises(WorkError) as context:
+                read_raw(Path(temporary))
+        self.assertEqual(context.exception.code, "file_not_found")
+
     def test_invalid_utf8_preserves_error_contract(self) -> None:
         with self.assertRaises(WorkError) as context:
             decode_utf8(b"\xff", source="test input")

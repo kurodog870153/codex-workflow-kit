@@ -214,8 +214,9 @@ def validate_plan_contract(
     skill_selection_sha256: str,
     ordered_contract: dict[str, Any],
     _allow_task_index: bool = False,
+    parsed_contract: dict[str, Any] | None = None,
 ) -> dict[str, object]:
-    contract = parse_json_contract(raw, source=source)
+    contract = parsed_contract if parsed_contract is not None else parse_json_contract(raw, source=source)
     _strict_keys(
         contract,
         location="plan",

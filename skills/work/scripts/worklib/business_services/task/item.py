@@ -16,9 +16,11 @@ def render_task_item_contract(contract: dict[str, Any]) -> bytes:
     return render_item(contract, ordered_contract=order_task_item_contract(contract))
 
 
-def validate_task_item_contract(raw: bytes, *, source: str, expected_task_id: str) -> dict[str, object]:
-    contract = parse_task_contract(raw, source=source)
+def validate_task_item_contract(raw: bytes, *, source: str, expected_task_id: str,
+                                parsed_contract: dict[str, Any] | None = None) -> dict[str, object]:
+    contract = parsed_contract if parsed_contract is not None else parse_task_contract(raw, source=source)
     stored_selection(contract["instruction_selection"])
     return validate_item(raw, source=source, expected_task_id=expected_task_id,
         ordered_contract=order_task_item_contract(contract),
-        required_fields=TASK_REQUIRED, optional_fields=TASK_OPTIONAL)
+        required_fields=TASK_REQUIRED, optional_fields=TASK_OPTIONAL,
+        parsed_contract=contract)

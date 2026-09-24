@@ -3,11 +3,6 @@ from __future__ import annotations
 import argparse
 
 from . import SubparserRegistry
-from ..business_services.contract import (
-    describe_contract,
-    list_contracts,
-    scaffold_contract,
-)
 
 
 def register_contract_commands(commands: SubparserRegistry) -> None:
@@ -21,6 +16,8 @@ def register_contract_commands(commands: SubparserRegistry) -> None:
 
 
 def run_contract(arguments: argparse.Namespace) -> dict[str, object]:
+    from ..business_services.contract import describe_contract, list_contracts, scaffold_contract
+
     if arguments.contract_command == "list":
         return list_contracts()
     if arguments.contract_command == "scaffold":

@@ -1,5 +1,8 @@
 """Low-level file reads and file fingerprint adapters."""
 
+import errno
+import os
+import stat
 from pathlib import Path
 
 from ...models.common.errors import ExitCode, WorkError
@@ -8,16 +11,25 @@ from .text_codec import canonical_sha256, decode_utf8
 
 
 def read_raw(path: Path) -> bytes:
-    if not path.is_file():
-        raise WorkError(
-            ExitCode.ARTIFACT_INTEGRITY,
-            "file_not_found",
-            "The required file does not exist or is not a regular file.",
-            {"path": str(path)},
-        )
     try:
-        return path.read_bytes()
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NONBLOCK", 0))
+        with os.fdopen(descriptor, "rb") as stream:
+            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                raise WorkError(
+                    ExitCode.ARTIFACT_INTEGRITY,
+                    "file_not_found",
+                    "The required file does not exist or is not a regular file.",
+                    {"path": str(path)},
+                )
+            return stream.read()
     except OSError as error:
+        if error.errno in {errno.ENOENT, errno.ENOTDIR} or path.is_dir():
+            raise WorkError(
+                ExitCode.ARTIFACT_INTEGRITY,
+                "file_not_found",
+                "The required file does not exist or is not a regular file.",
+                {"path": str(path)},
+            ) from error
         raise WorkError(
             ExitCode.IO_FAILURE,
             "file_read_failed",

@@ -186,6 +186,45 @@ EVENT_SOURCES: dict[str, tuple[str, ...]] = {
 }
 
 
+class RoutingSourceSession:
+    """Source fingerprints shared within one routing build."""
+
+    def __init__(self, skill_root: Path) -> None:
+        self.skill_root = skill_root
+        self._sources: dict[str, tuple[str, str]] = {}
+
+    def _read(self, logical_name: str) -> bytes:
+        relative = SOURCE_CATALOG[logical_name][0]
+        try:
+            return read_raw(self.skill_root / relative)
+        except (OSError, WorkError) as error:
+            raise WorkError(
+                ExitCode.ARTIFACT_INTEGRITY,
+                "routed_instruction_source_missing",
+                "A routed instruction source is missing or unreadable.",
+                {"logical_name": logical_name, "path": relative},
+            ) from error
+
+    def fingerprint(self, logical_name: str) -> str:
+        if logical_name not in self._sources:
+            path = self.skill_root / SOURCE_CATALOG[logical_name][0]
+            raw = self._read(logical_name)
+            self._sources[logical_name] = (
+                raw_sha256(raw), canonical_sha256(raw, source=str(path)),
+            )
+        return self._sources[logical_name][1]
+
+    def recheck(self) -> None:
+        for logical_name, (expected_raw_sha256, _) in self._sources.items():
+            if raw_sha256(self._read(logical_name)) != expected_raw_sha256:
+                raise WorkError(
+                    ExitCode.ARTIFACT_INTEGRITY,
+                    "routed_instruction_source_changed",
+                    "A routed instruction source changed during routing construction.",
+                    {"logical_name": logical_name},
+                )
+
+
 def _infer_mode(next_action: str) -> str:
     if next_action == "prepare_plan":
         return "plan"
@@ -226,7 +265,8 @@ def build_routing_selection(skill_root: Path, *, status: str, next_action: str,
                             artifact_lifecycle: str = "current",
                             formal_events: tuple[str, ...] = (), role: str = "main",
                             authorization_state: str | None = None,
-                            verified_state_sha256: str = "") -> dict[str, object]:
+                            verified_state_sha256: str = "",
+                            source_session: RoutingSourceSession | None = None) -> dict[str, object]:
     routing_input = RoutingInput(
         mode=mode or _infer_mode(next_action), status=status, operation=next_action,
         artifact_lifecycle=artifact_lifecycle,
@@ -254,24 +294,20 @@ def build_routing_selection(skill_root: Path, *, status: str, next_action: str,
                    f"mode:{routing_input.mode}"]
         reasons.extend(f"event:{event}" for event in routing_input.formal_events)
     ordered = tuple(sorted(logical_names, key=lambda name: SOURCE_CATALOG[name][2]))
+    sources_for_build = source_session or RoutingSourceSession(skill_root)
+    if sources_for_build.skill_root != skill_root:
+        raise WorkError(
+            ExitCode.CONTRACT, "routed_instruction_root_mismatch",
+            "The routing source session belongs to another skill root.",
+        )
     sources: list[dict[str, object]] = []
     for logical_name in ordered:
         relative, revision, _order = SOURCE_CATALOG[logical_name]
-        path = skill_root / relative
-        try:
-            raw = read_raw(path)
-        except (OSError, WorkError) as error:
-            raise WorkError(
-                ExitCode.ARTIFACT_INTEGRITY,
-                "routed_instruction_source_missing",
-                "A routed instruction source is missing or unreadable.",
-                {"logical_name": logical_name, "path": relative},
-            ) from error
         sources.append({
             "logical_name": logical_name,
             "path": relative,
             "compatibility_revision": revision,
-            "canonical_sha256": canonical_sha256(raw, source=str(path)),
+            "canonical_sha256": sources_for_build.fingerprint(logical_name),
         })
     manifest: dict[str, object] = {
         "schema": "work-instruction-selection-manifest/v1",

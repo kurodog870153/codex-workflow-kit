@@ -11,8 +11,18 @@ def render_task_index_contract(contract: dict[str, Any]) -> bytes:
     checked = TaskIndexContract.model_validate(contract).to_canonical_dict()
     return render_index(checked, ordered_contract=order_task_index_contract(checked))
 
-def validate_task_index_contract(raw: bytes, *, source: str, actual_index_path: str, project_root: Path) -> dict[str, object]:
-    contract = TaskIndexContract.parse_json_bytes(raw, source=source).to_canonical_dict()
+def validate_task_index_contract(raw: bytes, *, source: str, actual_index_path: str, project_root: Path,
+                                 parsed_contract: dict[str, Any] | None = None) -> dict[str, object]:
+    if parsed_contract is None:
+        model = TaskIndexContract.parse_json_bytes(raw, source=source)
+    else:
+        from pydantic import ValidationError
+        try:
+            model = TaskIndexContract.model_validate(parsed_contract)
+        except ValidationError as error:
+            raise TaskIndexContract._work_error(error) from error
+    contract = model.to_canonical_dict()
     stored_selection(contract["instruction_selection"], document=True)
     return validate_index(raw, source=source, actual_index_path=actual_index_path, project_root=project_root,
-        ordered_contract=order_task_index_contract(contract), required_fields=TOP_REQUIRED, optional_fields=TOP_OPTIONAL)
+        ordered_contract=order_task_index_contract(contract), required_fields=TOP_REQUIRED, optional_fields=TOP_OPTIONAL,
+        model=model)
