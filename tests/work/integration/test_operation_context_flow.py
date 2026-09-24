@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/work/scripts"))
 
@@ -12,6 +13,8 @@ from worklib.models.common.errors import WorkError
 from worklib.business_services.workflow import (
     build_cli_operation_context, execute_with_operation_context, validate_operation_context,
 )
+from worklib.technical.infrastructure.cli_io import read_input_file
+from worklib.business_services.workflow import operation
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work"
@@ -39,6 +42,30 @@ class OperationContextFlowTests(unittest.TestCase):
             )
         self.assertEqual(calls, ["worker"])
         self.assertEqual(result["schema"], "work-progress-read/v1")
+
+    def test_context_rechecks_bindings_once_before_worker(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            arguments = self.arguments(root)
+            with patch.object(operation, "_artifact_bindings", wraps=operation._artifact_bindings) as bindings:
+                execute_with_operation_context(
+                    arguments, root, SKILL_ROOT,
+                    lambda: {"schema": "work-progress-read/v1", "status": "saved"},
+                )
+        self.assertEqual(bindings.call_count, 2)
+
+    def test_pre_read_request_is_bound_and_changed_file_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            arguments = self.arguments(root)
+            request = read_input_file(arguments.input_file)
+            Path(arguments.input_file).write_text('{"changed":true}\n', encoding="utf-8")
+            with self.assertRaises(WorkError) as caught:
+                execute_with_operation_context(
+                    arguments, root, SKILL_ROOT,
+                    lambda: self.fail("worker must not run"), request=request,
+                )
+        self.assertEqual(caught.exception.code, "operation_artifact_drift")
 
     def test_artifact_drift_is_rejected_before_worker(self):
         with tempfile.TemporaryDirectory() as directory:

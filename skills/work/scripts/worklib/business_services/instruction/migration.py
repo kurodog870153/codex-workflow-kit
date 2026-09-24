@@ -26,7 +26,9 @@ from ...services.task.index_validation import render_task_index_contract
 from ...services.task.item_validation import render_task_item_contract
 from ...services.task.ordering import order_task_contract, order_task_index_contract, order_task_item_contract
 from ...services.plan.validation import render_plan_contract
-from ...services.workflow.routing import ROUTER_COMPATIBILITY_REVISION, build_routing_selection
+from ...services.workflow.routing import (
+    ROUTER_COMPATIBILITY_REVISION, RoutingSourceSession, build_routing_selection,
+)
 
 
 def _fail(code: str, message: str, **details: object) -> None:
@@ -38,8 +40,11 @@ def _read(path: Path) -> tuple[bytes, dict[str, Any]]:
     return raw, parse_json_contract(raw, source=str(path))
 
 
-def _manifest(skill_root: Path, *, mode: str, status: str, operation: str, raw: bytes) -> dict[str, Any]:
-    artifact = parse_json_contract(raw, source="migration routing state")
+def _manifest(skill_root: Path, *, mode: str, status: str, operation: str, raw: bytes,
+              routing_sources: RoutingSourceSession | None = None,
+              artifact: dict[str, Any] | None = None) -> dict[str, Any]:
+    if artifact is None:
+        artifact = parse_json_contract(raw, source="migration routing state")
     state = {
         key: artifact[key]
         for key in ("schema", "requirement_id", "spec_id", "task_spec_id", "id", "status", "overall_status")
@@ -49,6 +54,7 @@ def _manifest(skill_root: Path, *, mode: str, status: str, operation: str, raw: 
         skill_root, status=status, next_action=operation, confirmation=False,
         mode=mode, artifact_lifecycle="confirmed",
         authorization_state="authorized", verified_state_sha256=canonical_json_sha256(state),
+        source_session=routing_sources,
     )
     if routing["routing_status"] != "VALID":
         _fail("instruction_migration_routing_review_required", "The new router could not build a valid manifest.", status=status, operation=operation)
@@ -66,6 +72,7 @@ def _render_index(value: dict[str, Any]) -> bytes:
 
 def _build(project_root: Path, skill_root: Path, requirement_id: str) -> dict[str, Any]:
     artifacts = default_artifact_paths(project_root, requirement_id)
+    routing_sources = RoutingSourceSession(skill_root)
     before: dict[str, bytes] = {}
     after: dict[str, bytes] = {}
     excluded: list[dict[str, Any]] = []
@@ -75,7 +82,7 @@ def _build(project_root: Path, skill_root: Path, requirement_id: str) -> dict[st
         _fail("instruction_migration_plan_missing", "The requirement Plan does not exist.")
     plan_raw, plan = _read(plan_path)
     plan = copy.deepcopy(plan)
-    plan_manifest = _manifest(skill_root, mode="plan", status="plan_confirmed", operation="prepare_plan", raw=plan_raw)
+    plan_manifest = _manifest(skill_root, mode="plan", status="plan_confirmed", operation="prepare_plan", raw=plan_raw, routing_sources=routing_sources, artifact=plan)
     if plan["work_instruction_selection"].get("routing_manifest") != plan_manifest:
         plan["work_instruction_selection"]["routing_manifest"] = plan_manifest
         before[artifacts["plan"]] = plan_raw
@@ -95,7 +102,7 @@ def _build(project_root: Path, skill_root: Path, requirement_id: str) -> dict[st
             relative = base + "/" + reference["path"]
             raw, item = _read(storage_path(project_root, relative))
             item = copy.deepcopy(item)
-            manifest = _manifest(skill_root, mode="task", status="task_confirmed", operation="choose_task", raw=raw)
+            manifest = _manifest(skill_root, mode="task", status="task_confirmed", operation="choose_task", raw=raw, routing_sources=routing_sources, artifact=item)
             if item["instruction_selection"].get("routing_manifest") != manifest:
                 item["instruction_selection"]["routing_manifest"] = manifest
                 before[relative] = raw
@@ -103,7 +110,7 @@ def _build(project_root: Path, skill_root: Path, requirement_id: str) -> dict[st
                 counts["task_items"] += 1
             items[reference["id"]] = item
             item_paths[reference["id"]] = relative
-        index_manifest = _manifest(skill_root, mode="task", status="task_confirmed", operation="confirm_review", raw=index_raw)
+        index_manifest = _manifest(skill_root, mode="task", status="task_confirmed", operation="confirm_review", raw=index_raw, routing_sources=routing_sources, artifact=index)
         if index["instruction_selection"].get("routing_manifest") != index_manifest or counts["task_items"] or counts["plans"]:
             index["source_plan"]["canonical_sha256"] = canonical_sha256(effective_plan, source=artifacts["plan"])
             index["instruction_selection"]["routing_manifest"] = index_manifest
@@ -126,6 +133,7 @@ def _build(project_root: Path, skill_root: Path, requirement_id: str) -> dict[st
                 execution["instruction_selection_manifest"] = _manifest(
                     skill_root, mode="execute", status="execution_bound",
                     operation="select_task_for_execution", raw=execution_raw,
+                    routing_sources=routing_sources, artifact=execution,
                 )
                 if index is not None and artifacts["task"] in after:
                     execution["task_index_sha256"] = canonical_sha256(after[artifacts["task"]], source=artifacts["task"])
@@ -158,6 +166,7 @@ def _build(project_root: Path, skill_root: Path, requirement_id: str) -> dict[st
         "affected": counts, "excluded": excluded, "files": files,
         "approved_sha256": canonical_json_sha256(evidence),
     }).to_canonical_dict()
+    routing_sources.recheck()
     return {"preview": preview, "before": before, "after": after, "artifacts": artifacts}
 
 

@@ -4,6 +4,7 @@ import shutil
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -18,6 +19,7 @@ from worklib.business_services.instruction.refresh import (
     preview_source_refresh,
     preview_source_refresh_all,
 )
+from worklib.business_services.instruction import migration as migration_service
 from worklib.business_services.task import load_task_collection
 from worklib.business_services.plan import render_plan_contract
 from worklib.models.common.errors import WorkError
@@ -56,6 +58,14 @@ class InstructionRefreshFlowTests(unittest.TestCase):
         for mode in ("plan", "task"):
             path = self.skill_root / "references" / "workflows" / f"{mode}.md"
             path.write_bytes(path.read_bytes() + b"\nCompatible wording update.\n")
+
+    def test_preview_reuses_parsed_artifacts_for_routing(self) -> None:
+        with patch.object(
+            migration_service, "parse_json_contract",
+            side_effect=AssertionError("duplicate routing artifact parse"),
+        ):
+            preview = preview_source_refresh(self.root, self.skill_root, "example")
+        self.assertEqual(preview["status"], "refreshable")
 
     def test_preview_and_apply_refresh_complete_dependency_chain(self) -> None:
         history = (

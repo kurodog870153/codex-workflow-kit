@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import stat
 from pathlib import Path
 
 from .path_safety import resolve_project_relative_path
@@ -17,18 +18,23 @@ def storage_path(root: Path, relative: str) -> Path:
     """Require ordinary storage, without links, junctions or hard-link aliases."""
     _, resolved = resolve_project_relative_path(root, relative, field="spec_update")
     candidate = root
+    final_stat = None
     for part in relative.split("/"):
         candidate = candidate / part
-        if candidate.is_symlink() or (
-            candidate.exists()
-            and getattr(candidate.lstat(), "st_file_attributes", 0) & 0x400
+        try:
+            final_stat = candidate.lstat()
+        except FileNotFoundError:
+            final_stat = None
+            continue
+        if stat.S_ISLNK(final_stat.st_mode) or (
+            getattr(final_stat, "st_file_attributes", 0) & 0x400
         ):
             raise WorkError(
                 ExitCode.CONTRACT,
                 "spec_update_link",
                 "Specification storage cannot contain links.",
             )
-    if resolved.is_file() and resolved.stat().st_nlink != 1:
+    if final_stat is not None and stat.S_ISREG(final_stat.st_mode) and final_stat.st_nlink != 1:
         raise WorkError(
             ExitCode.CONTRACT,
             "spec_update_alias",

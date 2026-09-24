@@ -5,10 +5,6 @@ from pathlib import Path
 from typing import Any
 
 from . import SubparserRegistry
-from ..business_services.hierarchy import (
-    build_hierarchy, build_hierarchy_selection_json,
-    validate_hierarchy_selection_json,
-)
 
 
 def register_hierarchy_commands(commands: SubparserRegistry) -> None:
@@ -23,6 +19,11 @@ def register_hierarchy_commands(commands: SubparserRegistry) -> None:
 
 
 def run_hierarchy(arguments: argparse.Namespace, project_root: Path, request: Any) -> dict[str, object]:
+    from ..business_services.hierarchy import (
+        build_hierarchy, build_hierarchy_selection_json,
+        validate_hierarchy_selection_json,
+    )
+
     if arguments.hierarchy_command == "resolve":
         result = build_hierarchy(arguments.work_directory, arguments.paths).as_dict()
         result["project_root"] = str(project_root)

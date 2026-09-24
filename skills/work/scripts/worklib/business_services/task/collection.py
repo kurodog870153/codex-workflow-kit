@@ -30,12 +30,16 @@ def validate_task_collection_contract(
     validate_file_state: bool = True,
     skill_roots: list[SkillRoot] | None = None,
     _source_plan_raw: bytes | None = None,
+    _parsed_index: dict[str, Any] | None = None,
+    _parsed_items: dict[str, dict[str, Any]] | None = None,
+    _index_validation: dict[str, object] | None = None,
+    _item_validations: dict[str, dict[str, object]] | None = None,
 ) -> dict[str, object]:
-    index_validation = validate_task_index_contract(
+    index_validation = _index_validation if _index_validation is not None else validate_task_index_contract(
         index_raw, source=source, actual_index_path=actual_index_path,
-        project_root=project_root,
+        project_root=project_root, parsed_contract=_parsed_index,
     )
-    index = parse_task_contract(index_raw, source=source)
+    index = _parsed_index if _parsed_index is not None else parse_task_contract(index_raw, source=source)
     expected_ids = index_validation["task_ids"]
     assert isinstance(expected_ids, list)
     require_item_set(item_raw, expected_ids)
@@ -44,9 +48,12 @@ def validate_task_collection_contract(
     for reference in index["tasks"]:
         task_id = reference["id"]
         raw = item_raw[task_id]
-        validation = validate_task_item_contract(
-            raw, source=f"{source} {reference['path']}", expected_task_id=task_id
-        )
+        validation = (_item_validations or {}).get(task_id)
+        if validation is None:
+            validation = validate_task_item_contract(
+                raw, source=f"{source} {reference['path']}", expected_task_id=task_id,
+                parsed_contract=(_parsed_items or {}).get(task_id),
+            )
         actual_sha = validation["task_item_sha256"]
         if actual_sha != reference["canonical_sha256"]:
             raise WorkError(
@@ -55,7 +62,7 @@ def validate_task_collection_contract(
                 {"task_id": task_id, "expected": reference["canonical_sha256"], "actual": actual_sha},
             )
         item_validations[task_id] = validation
-        items.append(parse_task_contract(raw, source=f"{source} {reference['path']}"))
+        items.append((_parsed_items or {}).get(task_id) or parse_task_contract(raw, source=f"{source} {reference['path']}"))
     artifacts = index["artifacts"]
     if _source_plan_raw is None:
         _, _, plan_raw = read_project_task_source(
@@ -63,11 +70,12 @@ def validate_task_collection_contract(
         )
     else:
         plan_raw = _source_plan_raw
+    plan = parse_task_contract(plan_raw, source="TASK collection source Plan")
     plan_validation = validate_task_source_plan(
         plan_raw, source="TASK collection source Plan",
         actual_plan_path=artifacts["plan"], project_root=project_root,
         user_config_root=user_config_root, skill_roots=skill_roots,
-        _allow_task_index=True,
+        _allow_task_index=True, _parsed_contract=plan,
     )
     actual_plan_sha = plan_validation["plan_sha256"]
     if index["source_plan"]["canonical_sha256"] != actual_plan_sha:
@@ -76,7 +84,6 @@ def validate_task_collection_contract(
     if index["source_plan"]["hierarchy_selection_sha256"] != plan_validation["hierarchy_selection_sha256"]:
         raise WorkError(ExitCode.ARTIFACT_INTEGRITY, "source_plan_hierarchy_selection_mismatch",
                         "The TASK collection hierarchy selection fingerprint does not match the Plan.")
-    plan = parse_task_contract(plan_raw, source="TASK collection source Plan")
     if plan["requirement_id"] != index["requirement_id"] or plan["artifacts"] != artifacts:
         raise WorkError(ExitCode.ARTIFACT_INTEGRITY, "source_plan_identity_mismatch",
                         "The TASK collection identity or artifacts do not match the source Plan.")

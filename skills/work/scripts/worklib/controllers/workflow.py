@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ..orchestration.workflow import workflow_state
 from . import SubparserRegistry
 
 
@@ -19,6 +18,8 @@ def register_workflow_commands(commands: SubparserRegistry) -> None:
 
 
 def run_workflow(arguments: argparse.Namespace, project_root: Path) -> dict[str, object]:
+    from ..orchestration.workflow import workflow_state
+
     return workflow_state(project_root, arguments.requirement_id,
                           plan_path=arguments.plan_path,
                           user_config_root=arguments.user_config_root,

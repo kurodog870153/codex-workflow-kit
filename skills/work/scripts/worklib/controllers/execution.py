@@ -4,7 +4,6 @@ import argparse
 from pathlib import Path
 
 from . import RequestInput, SubparserRegistry
-from ..orchestration.execution import execution_service
 
 
 def _add_execution_context_arguments(parser: argparse.ArgumentParser) -> None:
@@ -63,6 +62,8 @@ def run_execute(
     project_root: Path,
     request: RequestInput | None,
 ) -> dict[str, object]:
+    from ..orchestration.execution import execution_service
+
     return execution_service.execute(
         arguments.execute_command,
         project_root=project_root,

@@ -17,6 +17,8 @@ from worklib.business_services.task import (
     load_task_collection,
     load_task_execution_context,
 )
+from worklib.business_services.task.io import recheck_task_execution_context
+from worklib.models.common.errors import WorkError
 from worklib.services.attempt.validation import (
     build_initial_execution_index,
     render_execution_index,
@@ -28,6 +30,10 @@ from worklib.business_services.task.item import (
 )
 from worklib.technical.infrastructure.file_io import read_raw
 from worklib.technical.infrastructure import specification_storage as spec_transactions
+from worklib.services.task import item_validation
+from worklib.business_services.task import collection as task_collection
+from worklib.services.plan import validation as plan_validation
+from worklib.business_services.task import validation_session
 
 
 TASK_COUNT = 100
@@ -139,14 +145,18 @@ class LargeTaskCollectionIOTests(unittest.TestCase):
         self,
     ) -> None:
         target = f"TASK-{TASK_COUNT:03d}"
-        context, execute_paths, execute_bytes = self._measure_collection_reads(
-            lambda: load_task_execution_context(
-                self.root,
-                str(self.root),
-                self.index_path,
-                target,
+        with patch.object(item_validation, "parse_json_contract", wraps=item_validation.parse_json_contract) as parse_item, \
+             patch.object(plan_validation, "parse_json_contract", wraps=plan_validation.parse_json_contract) as parse_plan:
+            context, execute_paths, execute_bytes = self._measure_collection_reads(
+                lambda: load_task_execution_context(
+                    self.root,
+                    str(self.root),
+                    self.index_path,
+                    target,
+                )
             )
-        )
+        parse_item.assert_not_called()
+        parse_plan.assert_not_called()
         execute_names = [path.name for path in execute_paths]
         self.assertEqual(
             execute_names,
@@ -158,14 +168,46 @@ class LargeTaskCollectionIOTests(unittest.TestCase):
             ["TASK-001", target],
         )
 
-        _, full_paths, full_bytes = self._measure_collection_reads(
-            lambda: load_task_collection(
-                self.root, str(self.root), self.index_path
+        with patch.object(item_validation, "parse_json_contract", wraps=item_validation.parse_json_contract) as parse_item, \
+             patch.object(plan_validation, "parse_json_contract", wraps=plan_validation.parse_json_contract) as parse_plan, \
+             patch.object(validation_session, "build_instruction_catalog", wraps=validation_session.build_instruction_catalog) as build_catalog, \
+             patch.object(task_collection, "validate_task_item_contract", wraps=task_collection.validate_task_item_contract) as validate_item:
+            _, full_paths, full_bytes = self._measure_collection_reads(
+                lambda: load_task_collection(
+                    self.root, str(self.root), self.index_path
+                )
             )
-        )
+        parse_item.assert_not_called()
+        parse_plan.assert_not_called()
+        validate_item.assert_not_called()
+        self.assertLessEqual(build_catalog.call_count, 12)
         self.assertEqual(len(full_paths), TASK_COUNT + 1)
         self.assertEqual(full_bytes, execute_bytes)
         self.assertIn("TASK-050.json", execute_names)
+
+    def test_execution_context_recheck_reads_sources_without_reparsing_items(self) -> None:
+        context = load_task_execution_context(
+            self.root, str(self.root), self.index_path, "TASK-100"
+        )
+        with patch.object(item_validation, "parse_json_contract", side_effect=AssertionError("duplicate item parse")):
+            self.assertIs(recheck_task_execution_context(
+                self.root, str(self.root), self.index_path, context
+            ), context)
+        changed = self.collection / "tasks" / "TASK-050.json"
+        original_item = changed.read_bytes()
+        changed.write_bytes(original_item + b" ")
+        with self.assertRaises(WorkError) as caught:
+            recheck_task_execution_context(
+                self.root, str(self.root), self.index_path, context
+            )
+        self.assertEqual(caught.exception.code, "execute_worktree_task_changed")
+        changed.write_bytes(original_item)
+        plan = self.root / self.plan_path
+        plan.write_bytes(plan.read_bytes() + b" ")
+        with self.assertRaises(WorkError):
+            recheck_task_execution_context(
+                self.root, str(self.root), self.index_path, context
+            )
 
     def test_single_item_update_preserves_unrelated_item_bytes(self) -> None:
         target = f"TASK-{TASK_COUNT:03d}"

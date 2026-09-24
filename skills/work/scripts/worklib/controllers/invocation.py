@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from ..business_services.invocation import parse_invocation_request
 from . import RequestInput, SubparserRegistry
 
 
@@ -14,4 +13,6 @@ def register_invocation_commands(commands: SubparserRegistry) -> None:
 
 
 def run_invocation(request: RequestInput) -> dict[str, object]:
+    from ..business_services.invocation import parse_invocation_request
+
     return parse_invocation_request(request.raw, source=request.source)

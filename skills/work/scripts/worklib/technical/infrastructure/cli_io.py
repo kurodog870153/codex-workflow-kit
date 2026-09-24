@@ -9,6 +9,8 @@ from typing import Any
 
 from ...models.common.cli import CliResultContract, ErrorContract
 from ...models.common.errors import ExitCode, WorkError
+from ..foundation.fingerprint import raw_sha256
+from .file_io import read_raw
 from .text_codec import decode_utf8
 from ..foundation.jsonio import canonical_json
 
@@ -74,6 +76,7 @@ def brief_success_data(result: dict[str, Any]) -> dict[str, Any]:
 class FileInput:
     raw: bytes
     source: str
+    source_raw_sha256: str
 
 
 def read_input_file(value: str) -> FileInput:
@@ -81,10 +84,8 @@ def read_input_file(value: str) -> FileInput:
     path = Path(value)
     try:
         path = path.resolve(strict=True)
-        if not path.is_file():
-            raise OSError("The input must be a regular file.")
-        raw = path.read_bytes()
-    except (OSError, ValueError, RuntimeError) as error:
+        raw = read_raw(path)
+    except (OSError, ValueError, RuntimeError, WorkError) as error:
         raise WorkError(
             ExitCode.IO_FAILURE,
             "input_file_read_failed",
@@ -100,7 +101,7 @@ def read_input_file(value: str) -> FileInput:
             "The request file may contain at most one leading UTF-8 BOM.",
             {"source": source},
         )
-    return FileInput(text.encode("utf-8"), source)
+    return FileInput(text.encode("utf-8"), source, raw_sha256(raw))
 
 
 def success_response(

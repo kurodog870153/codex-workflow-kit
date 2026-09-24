@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work"
@@ -21,6 +22,7 @@ from worklib.services.attempt.validation import (
     build_initial_execution_index,
     render_execution_index,
 )
+from worklib.services.attempt import validation as attempt_validation
 from worklib.business_services.instruction import build_instruction_selection
 from worklib.business_services.plan import render_plan_contract, validate_plan_file
 from worklib.services.skill_catalog import SkillRoot, snapshot_catalog_skill
@@ -369,13 +371,14 @@ Instructions
             render_execution_index(index)
         )
 
-        result = execute_preflight(
-            project_root=fixture.root,
-            user_config_root=str(fixture.root),
-            raw_task_path=fixture.index_path,
-            raw_execution_dir=logical["artifacts"]["execution"],
-            task_id="TASK-001",
-        )
+        with patch.object(attempt_validation, "parse_json_contract", side_effect=AssertionError("duplicate index parse")):
+            result = execute_preflight(
+                project_root=fixture.root,
+                user_config_root=str(fixture.root),
+                raw_task_path=fixture.index_path,
+                raw_execution_dir=logical["artifacts"]["execution"],
+                task_id="TASK-001",
+            )
 
         self.assertEqual(
             result["task_collection_sha256"],

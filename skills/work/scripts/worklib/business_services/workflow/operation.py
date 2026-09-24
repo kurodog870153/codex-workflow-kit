@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from ...models.common.errors import ExitCode, WorkError
 from ...models.workflow import OperationEnvelopeContract, OperationResultContract
@@ -14,6 +14,11 @@ from ...services.workflow import (
 
 
 _BOUND_COMMANDS = frozenset({"plan", "task", "execute", "delegation", "progress", "handoff"})
+
+
+class _RequestBinding(Protocol):
+    source: str
+    source_raw_sha256: str
 _OPERATION_EFFECTS = {
     "plan": {"create": "write", "semantic-prepare": "read_only", "validate": "read_only"},
     "task": {
@@ -102,7 +107,7 @@ def _operation_effect(command: str, operation: str) -> str:
 
 
 def _artifact_bindings(
-    arguments: argparse.Namespace, project_root: Path,
+    arguments: argparse.Namespace, project_root: Path, request: _RequestBinding | None = None,
 ) -> dict[str, dict[str, str]]:
     bindings: dict[str, dict[str, str]] = {}
     for name, value in sorted(vars(arguments).items()):
@@ -115,7 +120,14 @@ def _artifact_bindings(
         else:
             path = resolve_operation_artifact_path(project_root, value, field=name)
         state = "missing"
-        if path.is_file():
+        if name == "input_file" and request is not None:
+            if str(path) != request.source:
+                raise WorkError(
+                    ExitCode.ARTIFACT_INTEGRITY, "operation_artifact_drift",
+                    "A bound operation artifact changed before the worker started.",
+                )
+            state = request.source_raw_sha256
+        elif path.is_file():
             state = build_raw_state_sha256(path.read_bytes())
         elif path.is_dir():
             state = "directory"
@@ -129,12 +141,13 @@ def _context_payload(envelope: dict[str, Any]) -> dict[str, Any]:
 
 def build_cli_operation_context(
     arguments: argparse.Namespace, project_root: Path, skill_root: Path,
+    request: _RequestBinding | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]] | None:
     if str(arguments.command) not in _BOUND_COMMANDS:
         return None
     mode, next_action, events, role = _routing_identity(arguments)
     operation = _command_operation(arguments)
-    artifacts = _artifact_bindings(arguments, project_root)
+    artifacts = _artifact_bindings(arguments, project_root, request)
     state_payload = {
         "command": arguments.command, "operation": operation, "mode": mode,
         "events": list(events), "role": role, "artifacts": artifacts,
@@ -170,7 +183,6 @@ def build_cli_operation_context(
     }
     envelope["context_sha256"] = build_verified_state_sha256(envelope)
     canonical = OperationEnvelopeContract.model_validate(envelope).to_canonical_dict()
-    validate_operation_context(canonical, routing, arguments, project_root=project_root)
     return canonical, routing
 
 
@@ -198,9 +210,9 @@ def validate_operation_context(
 
 def execute_with_operation_context(
     arguments: argparse.Namespace, project_root: Path, skill_root: Path,
-    worker: Callable[[], dict[str, object]],
+    worker: Callable[[], dict[str, object]], *, request: _RequestBinding | None = None,
 ) -> dict[str, object]:
-    prepared = build_cli_operation_context(arguments, project_root, skill_root)
+    prepared = build_cli_operation_context(arguments, project_root, skill_root, request)
     if prepared is None:
         return worker()
     envelope, routing = prepared

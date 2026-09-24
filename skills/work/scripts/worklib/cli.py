@@ -23,7 +23,6 @@ from .controllers.delegation import register_delegation_commands, run_delegation
 from .controllers.contract import register_contract_commands, run_contract
 from .controllers.invocation import register_invocation_commands, run_invocation
 from .models.common.errors import ExitCode, WorkError
-from .business_services.workflow import execute_with_operation_context
 from .technical.infrastructure.file_io import fingerprint_file
 from .technical.foundation.jsonio import write_json
 from .technical.infrastructure.work_paths import (
@@ -32,7 +31,6 @@ from .technical.infrastructure.work_paths import (
     resolve_root,
 )
 from .technical.infrastructure.cli_io import FileInput, error_response, read_input_file, success_response
-from .services.specification.transaction import create_transaction_workspace
 
 
 class HelpRequested(Exception):
@@ -182,6 +180,8 @@ def _run(
         return run_workflow(arguments, project_root)
 
     if arguments.command == "workspace":
+        from .services.specification.transaction import create_transaction_workspace
+
         return create_transaction_workspace(project_root, requirement_id=arguments.requirement_id,
                                             workflow_id=arguments.workflow_id)
 
@@ -216,9 +216,12 @@ def main(
         project_root = resolve_root(arguments.project_root, label="project root")
         path = getattr(arguments, "input_file", None)
         request = read_input_file(path) if path is not None else None
+        from .business_services.workflow import execute_with_operation_context
+
         result = execute_with_operation_context(
             arguments, project_root, Path(__file__).resolve().parents[2],
             lambda: _run(arguments, project_root, request),
+            request=request,
         )
         # Preserve the existing data order independently of the fixed envelope.
         preserve_order = (

@@ -3,7 +3,10 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ..orchestration.task import TaskRequestInput, execute_task_command
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..orchestration.task import TaskRequestInput
 from . import SubparserRegistry
 
 
@@ -167,4 +170,6 @@ def run_task(
     project_root: Path,
     request: TaskRequestInput | None,
 ) -> dict[str, object]:
+    from ..orchestration.task import execute_task_command
+
     return execute_task_command(arguments, project_root, request)

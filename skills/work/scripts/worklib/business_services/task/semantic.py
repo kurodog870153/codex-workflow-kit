@@ -22,6 +22,7 @@ from ...services.task.structure import TASK_OPTIONAL, TASK_REQUIRED, TOP_OPTIONA
 from .hierarchy import validate_task_hierarchy_paths
 from .instruction import validate_task_document_selection
 from .plan import validate_task_source_plan
+from .validation_session import ValidationSession
 
 
 def _context(
@@ -52,6 +53,7 @@ def _context(
         )
     else:
         plan_raw = source_plan_raw
+    plan_contract = parse_task_contract(plan_raw, source="TASK source Plan")
     plan_validation = validate_task_source_plan(
         plan_raw,
         source="TASK source Plan",
@@ -61,8 +63,8 @@ def _context(
         skill_roots=skill_roots,
         _historical_work_sources=historical_work_sources,
         _allow_task_index=True,
+        _parsed_contract=plan_contract,
     )
-    plan_contract = parse_task_contract(plan_raw, source="TASK source Plan")
     task_ids, dependencies = validate_task_context_plan(
         contract,
         tasks,
@@ -76,11 +78,13 @@ def _context(
         if isinstance(task, dict)
     ]
     work_root = instruction_root()
+    session = ValidationSession(work_root)
     document_selection = (
         stored_document_selection(contract.get("instruction_selection"), selections)
         if historical_work_sources
         else validate_task_document_selection(
-            contract.get("instruction_selection"), selections, skill_root=work_root
+            contract.get("instruction_selection"), selections, skill_root=work_root,
+            session=session,
         )
     )
     confirmed_selection = plan_contract.get("hierarchy_selection")
@@ -95,7 +99,9 @@ def _context(
             confirmed_selection=confirmed_selection,
             skill_root=work_root,
             location=f"{task.get('id')}.instruction_selection.selected_paths",
+            session=session,
         )
+    session.recheck()
     topo_order, ancestors = resolve_task_dependencies(task_ids, dependencies)
     decisions = contract.get("decisions")
     known_ids = set(task_ids) | {

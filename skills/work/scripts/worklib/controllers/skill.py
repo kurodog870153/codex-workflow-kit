@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 
 from . import SubparserRegistry
-from ..business_services.skill import build_selection, catalog, snapshot, validate_selection
 
 
 def register_skill_commands(commands: SubparserRegistry) -> None:
@@ -24,6 +23,8 @@ def register_skill_commands(commands: SubparserRegistry) -> None:
 
 
 def run_skills(arguments: argparse.Namespace, request) -> dict[str, object]:
+    from ..business_services.skill import build_selection, catalog, snapshot, validate_selection
+
     if arguments.skills_command == "selection-build":
         return build_selection(request.raw, source=request.source, roots=arguments.root)
     if arguments.skills_command == "selection-validate":

@@ -26,7 +26,7 @@ class ExecuteWorktreeTests(unittest.TestCase):
         _mocked_sha256,
         _mocked_status,
     ) -> None:
-        mocked_preflight.return_value = {
+        preflight_result = {
             "requirement_id": "example",
             "task_spec_id": "TASK-SPEC-001",
             "task_id": "TASK-001",
@@ -43,7 +43,7 @@ class ExecuteWorktreeTests(unittest.TestCase):
             "execution_dir": "outputs/work/executions/example",
             "dependencies": [],
         }
-        mocked_context.return_value = {
+        context = {
             "contract": {"tasks": [{"id": "TASK-001"}]},
             "validation": {
                 "schema": "work-task-execution-validation/v1",
@@ -56,7 +56,14 @@ class ExecuteWorktreeTests(unittest.TestCase):
             "sources": {},
         }
 
-        with patch(
+        def preflight(**kwargs):
+            kwargs["_context_out"]["context"] = context
+            return preflight_result
+
+        mocked_preflight.side_effect = preflight
+
+        prevalidated = {"contract": {"tasks": [{"id": "TASK-001"}]}}
+        with patch("worklib.orchestration.execution.ExecutionOperations.recheck_task_execution_context", return_value=context) as recheck, patch(
             "worklib.business_services.execution.worktree.read_raw",
             side_effect=[b"index", b"item"],
         ):
@@ -66,7 +73,12 @@ class ExecuteWorktreeTests(unittest.TestCase):
                 raw_task_path="outputs/work/tasks/example/task.json",
                 raw_execution_dir="outputs/work/executions/example",
                 task_id="TASK-001",
+                _prevalidated_context=prevalidated,
             )
+
+        mocked_context.assert_not_called()
+        recheck.assert_called_once()
+        self.assertIs(mocked_preflight.call_args.kwargs["_prevalidated_context"], prevalidated)
 
         self.assertEqual(result["task_instructions_sha256"], "b" * 64)
         self.assertEqual(result["execute_instructions_sha256"], "c" * 64)

@@ -7,10 +7,13 @@ from ...models.common.errors import ExitCode, WorkError
 from ...models.skill import SkillRoot
 from ...services.task.collection_validation import collection_fingerprint_sha256
 from ...services.task.document import parse_task_contract
+from ...services.task.index_validation import resolve_task_collection_item_path
 from ...services.task.storage import (
     read_project_task_source,
+    read_raw,
     read_task_index,
     read_task_item,
+    resolve_project_relative_path,
     task_collection_item_names,
 )
 from .collection import validate_task_collection_contract
@@ -24,6 +27,7 @@ def _index(project_root: Path, raw_index_path: str):
     validation = validate_task_index_contract(
         raw, source=raw_index_path, actual_index_path=normalized,
         project_root=project_root,
+        parsed_contract=contract,
     )
     if validation["requirement_id"] != contract.get("requirement_id"):
         raise WorkError(ExitCode.ARTIFACT_INTEGRITY, "task_index_identity_mismatch",
@@ -36,7 +40,7 @@ def _item(project_root: Path, raw_index_path: str, reference: dict[str, Any], *,
         project_root, raw_index_path, reference, requirement_id=requirement_id
     )
     validation = validate_task_item_contract(
-        raw, source=str(path), expected_task_id=reference["id"]
+        raw, source=str(path), expected_task_id=reference["id"], parsed_contract=contract,
     )
     if validation["task_item_sha256"] != reference["canonical_sha256"]:
         raise WorkError(ExitCode.ARTIFACT_INTEGRITY, "task_item_fingerprint_mismatch",
@@ -48,12 +52,14 @@ def _item(project_root: Path, raw_index_path: str, reference: dict[str, Any], *,
 def _all_items(project_root: Path, raw_index_path: str, index: dict[str, Any]):
     raw_items: dict[str, bytes] = {}
     items: dict[str, dict[str, Any]] = {}
+    validations: dict[str, dict[str, object]] = {}
     for reference in index["tasks"]:
-        raw, item, _ = _item(project_root, raw_index_path, reference,
+        raw, item, validation = _item(project_root, raw_index_path, reference,
                              requirement_id=index["requirement_id"])
         raw_items[reference["id"]] = raw
         items[reference["id"]] = item
-    return raw_items, items
+        validations[reference["id"]] = validation
+    return raw_items, items, validations
 
 
 def _reject_orphans(project_root: Path, raw_index_path: str, index: dict[str, Any]) -> None:
@@ -151,7 +157,43 @@ def load_task_execution_context(project_root: Path, user_config_root: str,
         "task_instructions_sha256": {current: item["instruction_selection"]["instructions_sha256"] for current, item in items.items()},
         "task_skill_ids": {current: item["skill_id"] for current, item in items.items()},
         "hierarchy_selection_sha256": index["source_plan"]["hierarchy_selection_sha256"]}
-    return {"contract": contract, "validation": validation, "sources": sources}
+    return {"contract": contract, "validation": validation, "sources": sources, "index": index}
+
+
+def recheck_task_execution_context(project_root: Path, user_config_root: str,
+                                   raw_task_path: str, context: dict[str, object], *,
+                                   skill_roots: list[SkillRoot] | None = None) -> dict[str, object]:
+    index = context["index"]
+    sources = context["sources"]
+    assert isinstance(index, dict) and isinstance(sources, dict)
+    _, index_path = resolve_project_relative_path(project_root, raw_task_path, field="task_index_path")
+    if read_raw(index_path) != sources[raw_task_path]:
+        raise WorkError(ExitCode.ARTIFACT_INTEGRITY, "execute_worktree_task_changed",
+                        "The formal TASK changed after preflight.")
+    for reference in index["tasks"]:
+        _, item_path = resolve_task_collection_item_path(
+            project_root, index["requirement_id"], raw_task_path,
+            reference["id"], reference["path"],
+        )
+        relative = f"{raw_task_path.rsplit('/', 1)[0]}/{reference['path']}"
+        if read_raw(item_path) != sources[relative]:
+            raise WorkError(ExitCode.ARTIFACT_INTEGRITY, "execute_worktree_task_changed",
+                            "The formal TASK changed after preflight.")
+    _, plan_path, plan_raw = read_project_task_source(
+        project_root, index["artifacts"]["plan"], field="plan_path"
+    )
+    plan_validation = validate_task_source_plan(
+        plan_raw, source=str(plan_path), actual_plan_path=index["artifacts"]["plan"],
+        project_root=project_root, user_config_root=user_config_root,
+        skill_roots=skill_roots, _allow_task_index=True,
+    )
+    if index["source_plan"]["canonical_sha256"] != plan_validation["plan_sha256"]:
+        raise WorkError(ExitCode.ARTIFACT_INTEGRITY, "source_plan_fingerprint_mismatch",
+                        "The TASK collection source Plan fingerprint does not match the validated Plan.")
+    if index["source_plan"]["hierarchy_selection_sha256"] != plan_validation["hierarchy_selection_sha256"]:
+        raise WorkError(ExitCode.ARTIFACT_INTEGRITY, "source_plan_hierarchy_selection_mismatch",
+                        "The TASK collection hierarchy selection fingerprint does not match the Plan.")
+    return context
 
 
 def load_task_collection(project_root: Path, user_config_root: str, raw_index_path: str, *,
@@ -159,17 +201,19 @@ def load_task_collection(project_root: Path, user_config_root: str, raw_index_pa
                          skill_roots: list[SkillRoot] | None = None,
                          raw: bytes | None = None) -> dict[str, object]:
     if raw is None:
-        index_raw, index, _ = _index(project_root, raw_index_path)
+        index_raw, index, index_validation = _index(project_root, raw_index_path)
     else:
-        validate_task_index_contract(raw, source=raw_index_path,
-            actual_index_path=raw_index_path, project_root=project_root)
         index_raw, index = raw, parse_task_contract(raw, source=raw_index_path)
-    raw_items, _ = _all_items(project_root, raw_index_path, index)
+        index_validation = validate_task_index_contract(raw, source=raw_index_path,
+            actual_index_path=raw_index_path, project_root=project_root,
+            parsed_contract=index)
+    raw_items, parsed_items, item_validations = _all_items(project_root, raw_index_path, index)
     _reject_orphans(project_root, raw_index_path, index)
     return validate_task_collection_contract(index_raw, raw_items, source=raw_index_path,
         actual_index_path=raw_index_path, project_root=project_root,
         user_config_root=user_config_root, validate_file_state=validate_file_state,
-        skill_roots=skill_roots)
+        skill_roots=skill_roots, _parsed_index=index, _parsed_items=parsed_items,
+        _index_validation=index_validation, _item_validations=item_validations)
 
 
-__all__ = ["load_task_closure", "load_task_collection", "load_task_execution_context"]
+__all__ = ["load_task_closure", "load_task_collection", "load_task_execution_context", "recheck_task_execution_context"]

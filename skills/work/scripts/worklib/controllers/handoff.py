@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 
-from ..orchestration.handoff import run_handoff
 from . import SubparserRegistry
 
 
@@ -52,3 +51,9 @@ def register_handoff_commands(commands: SubparserRegistry) -> None:
             context = verify.add_mutually_exclusive_group(required=True)
             context.add_argument("--attempt-id")
             context.add_argument("--preflight", action="store_true")
+
+
+def run_handoff(*args, **kwargs):
+    from ..orchestration.handoff import run_handoff as operation
+
+    return operation(*args, **kwargs)

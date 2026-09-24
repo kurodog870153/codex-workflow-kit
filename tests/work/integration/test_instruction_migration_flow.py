@@ -4,6 +4,7 @@ import shutil
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT / "skills/work/scripts"))
@@ -11,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from contracts import test_task_collection as fixtures
 from worklib.business_services.instruction import apply_instruction_migration, preview_instruction_migration
+from worklib.business_services.instruction import migration as migration_service
 from worklib.business_services.task import load_task_collection
 from worklib.services.attempt import build_initial_execution_index, render_execution_index
 from worklib.models.common.errors import WorkError
@@ -54,6 +56,34 @@ class InstructionMigrationFlowTests(unittest.TestCase):
                 self.root, self.skill_root, "example", preview["approved_sha256"],
             )
         self.assertEqual(caught.exception.code, "instruction_migration_approval_changed")
+
+    def test_preview_rejects_router_source_changed_during_build(self) -> None:
+        source = self.skill_root / "references" / "instruction-loading.md"
+        original_manifest = migration_service._manifest
+        calls = 0
+
+        def change_after_first_manifest(*args, **kwargs):
+            nonlocal calls
+            result = original_manifest(*args, **kwargs)
+            calls += 1
+            if calls == 1:
+                source.write_bytes(source.read_bytes() + b"\nDrift.\n")
+            return result
+
+        with patch.object(migration_service, "_manifest", side_effect=change_after_first_manifest):
+            with self.assertRaises(WorkError) as caught:
+                preview_instruction_migration(self.root, self.skill_root, "example")
+        self.assertGreater(calls, 1)
+        self.assertEqual(caught.exception.code, "routed_instruction_source_changed")
+
+    def test_preview_parses_each_artifact_once(self) -> None:
+        with patch.object(
+            migration_service, "parse_json_contract",
+            wraps=migration_service.parse_json_contract,
+        ) as parse:
+            preview = preview_instruction_migration(self.root, self.skill_root, "example")
+        self.assertEqual(preview["status"], "migration_required")
+        self.assertEqual(parse.call_count, 4)
 
     def test_active_attempt_blocks_without_changing_artifacts_or_history(self) -> None:
         execution = parse_json_contract(self.execution.read_bytes(), source="execution")

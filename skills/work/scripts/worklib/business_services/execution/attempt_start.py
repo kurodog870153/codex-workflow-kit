@@ -81,8 +81,9 @@ def _error(
 
 def _read_index(index_path: Path) -> tuple[bytes, dict[str, Any]]:
     raw = read_raw(index_path)
-    validate_execution_index(raw, source=str(index_path))
-    return raw, parse_json_contract(raw, source=str(index_path))
+    contract = parse_json_contract(raw, source=str(index_path))
+    validate_execution_index(raw, source=str(index_path), parsed_contract=contract)
+    return raw, contract
 
 
 def _replace_index(
@@ -517,10 +518,14 @@ def prepare_attempt_start(
     operations=None,
 ) -> dict[str, object]:
     choice = AttemptStartPrepareRequestContract.parse_json_bytes(raw_request, source=source).to_canonical_dict()
+    validated_context: dict[str, object] = {}
     worktree = inspect_execute_worktree(project_root=project_root, user_config_root=user_config_root,
         raw_task_path=raw_task_path, raw_execution_dir=raw_execution_dir, task_id=task_id,
-        confirmed_inputs=confirmed_inputs, skill_roots=skill_roots, operations=operations)
-    context = operations.load_task_execution_context(project_root, user_config_root, raw_task_path, task_id, skill_roots=skill_roots)
+        confirmed_inputs=confirmed_inputs, skill_roots=skill_roots,
+        _context_out=validated_context, operations=operations)
+    context = validated_context.get("context")
+    if context is None:
+        context = operations.load_task_execution_context(project_root, user_config_root, raw_task_path, task_id, skill_roots=skill_roots)
     task = next(item for item in context["contract"]["tasks"] if item["id"] == task_id)
     defaults = context["contract"].get("execution_defaults")
 
@@ -617,9 +622,11 @@ def start_attempt(
     confirmed_inputs: list[str] | None = None,
     skill_roots: list[SkillRoot] | None = None,
     now: datetime | None = None,
+    _prevalidated_context: dict[str, object] | None = None,
     operations=None,
 ) -> dict[str, object]:
     request = parse_attempt_start_request(raw_request, source=source).to_canonical_dict()
+    validated_context: dict[str, object] = {}
     worktree = inspect_execute_worktree(
         project_root=project_root,
         user_config_root=user_config_root,
@@ -628,6 +635,8 @@ def start_attempt(
         task_id=task_id,
         confirmed_inputs=confirmed_inputs,
         skill_roots=skill_roots,
+        _context_out=validated_context,
+        _prevalidated_context=_prevalidated_context,
         operations=operations,
     )
     if worktree["snapshot_sha256"] != request["worktree_snapshot_sha256"]:
@@ -638,7 +647,13 @@ def start_attempt(
             expected=request["worktree_snapshot_sha256"],
             actual=worktree["snapshot_sha256"],
         )
-    context = operations.load_task_execution_context(project_root, user_config_root, raw_task_path, task_id, skill_roots=skill_roots)
+    context = validated_context.get("context")
+    if context is None:
+        context = operations.load_task_execution_context(project_root, user_config_root, raw_task_path, task_id, skill_roots=skill_roots)
+    else:
+        context = operations.recheck_task_execution_context(
+            project_root, user_config_root, raw_task_path, context, skill_roots=skill_roots,
+        )
     task = next(item for item in context["contract"]["tasks"] if item["id"] == task_id)
     request["authorization"] = validate_authorization_scope(
         request["authorization"], task=task, defaults=context["contract"].get("execution_defaults")
@@ -748,6 +763,7 @@ def recover_attempt_start(
     confirmed_inputs: list[str] | None = None,
     skill_roots: list[SkillRoot] | None = None,
     now: datetime | None = None,
+    _prevalidated_context: dict[str, object] | None = None,
     operations=None,
 ) -> dict[str, object]:
     request = parse_attempt_start_request(raw_request, source=source).to_canonical_dict()
@@ -762,6 +778,7 @@ def recover_attempt_start(
         "pending_retry" if request.get("continuation") is not None else "pending"
     )
     allowed_lock = index.get("lock")
+    validated_context: dict[str, object] = {}
     preflight = execute_preflight(
         project_root=project_root,
         user_config_root=user_config_root,
@@ -774,9 +791,17 @@ def recover_attempt_start(
         _allow_attempt_start_transaction=True,
         _eligible_statuses={"pending", "pending_retry", "in_progress"},
         _rule_status=original_status,
+        _context_out=validated_context,
+        _prevalidated_context=_prevalidated_context,
         operations=operations,
     )
-    context = operations.load_task_execution_context(project_root, user_config_root, raw_task_path, task_id, skill_roots=skill_roots)
+    context = validated_context.get("context")
+    if context is None:
+        context = operations.load_task_execution_context(project_root, user_config_root, raw_task_path, task_id, skill_roots=skill_roots)
+    else:
+        context = operations.recheck_task_execution_context(
+            project_root, user_config_root, raw_task_path, context, skill_roots=skill_roots,
+        )
     task = next(item for item in context["contract"]["tasks"] if item["id"] == task_id)
     request["authorization"] = validate_authorization_scope(
         request["authorization"], task=task, defaults=context["contract"].get("execution_defaults")

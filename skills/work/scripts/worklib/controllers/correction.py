@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ..business_services.correction import handle_correction_request
 from . import RequestInput, SubparserRegistry
 
 
@@ -27,4 +26,6 @@ def run_correction(
     project_root: Path,
     request: RequestInput | None,
 ) -> dict[str, object]:
+    from ..business_services.correction import handle_correction_request
+
     return handle_correction_request(arguments, project_root, request)

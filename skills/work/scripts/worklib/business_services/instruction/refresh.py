@@ -20,6 +20,7 @@ from ...services.instruction.refresh import (
 )
 from ...services.instruction.selection import build_instruction_selection
 from ...services.instruction.source import load_instruction_sources
+from ...services.instruction.catalog import build_instruction_catalog
 from ...services.instruction.task_selection import build_task_document_instruction_selection
 from ...services.instruction.work_selection import build_work_instruction_selection
 from ...services.specification import transaction as transactions
@@ -32,6 +33,8 @@ from ...services.task.index_validation import render_task_index_contract as rend
 from ...services.task.item_validation import render_task_item_contract as render_ordered_task_item_contract
 from ...services.task.ordering import order_task_contract, order_task_index_contract, order_task_item_contract
 from ...services.plan.validation import render_plan_contract
+from ...services.instruction.validation_session import ValidationSession
+from ...services.workflow.routing import RoutingSourceSession
 from .migration import _manifest
 
 
@@ -48,10 +51,13 @@ def _hierarchy(mode: str, selection: dict[str, Any]) -> HierarchyContract:
     )
 
 
-def _current(skill_root: Path, mode: str, selection: dict[str, Any]):
-    return load_instruction_sources(
-        skill_root, mode, _hierarchy(mode, selection), list(selection["references"]),
-    )
+def _current(skill_root: Path, mode: str, selection: dict[str, Any], *,
+             session: ValidationSession | None = None):
+    hierarchy = _hierarchy(mode, selection)
+    references = list(selection["references"])
+    if session is not None:
+        return session.sources(mode, hierarchy, references)
+    return load_instruction_sources(skill_root, mode, hierarchy, references)
 
 
 def _compatibility(stored: dict[str, Any], current_sources: list[dict[str, Any]]) -> tuple[str, list[str]]:
@@ -158,25 +164,31 @@ def _discover_requirements(project_root: Path) -> dict[str, dict[str, str]]:
     return discovered
 
 
-def _build_requirement(project_root: Path, skill_root: Path, requirement_id: str) -> dict[str, Any]:
-    artifacts = _discover_requirements(project_root).get(
-        requirement_id, default_artifact_paths(project_root, requirement_id),
-    )
+def _build_requirement(project_root: Path, skill_root: Path, requirement_id: str, *,
+                       artifacts: dict[str, str] | None = None) -> dict[str, Any]:
+    if artifacts is None:
+        artifacts = _discover_requirements(project_root).get(
+            requirement_id, default_artifact_paths(project_root, requirement_id),
+        )
     plan_path = storage_path(project_root, artifacts["plan"])
     if not plan_path.is_file():
         _fail("source_refresh_plan_missing", "The requirement Plan does not exist.", requirement_id=requirement_id)
     before: dict[str, bytes] = {}
     after: dict[str, bytes] = {}
     blocked: list[dict[str, Any]] = []
+    session = ValidationSession(skill_root, build_catalog=build_instruction_catalog,
+                                load_sources=load_instruction_sources)
+    routing_sources = RoutingSourceSession(skill_root)
     changed_sources: set[str] = set()
     counts = {"plans": 0, "task_items": 0, "task_indexes": 0, "execution_indexes": 0}
 
     plan_raw, plan = _read_json(plan_path)
     plan_selection = plan["work_instruction_selection"]
-    plan_loaded = _current(skill_root, "plan", plan_selection)
+    plan_loaded = _current(skill_root, "plan", plan_selection, session=session)
     plan_current = build_work_instruction_selection(plan_loaded)
     plan_current["routing_manifest"] = _manifest(
         skill_root, mode="plan", status="plan_confirmed", operation="prepare_plan", raw=plan_raw,
+        routing_sources=routing_sources, artifact=plan,
     )
     state, changed = _combined_compatibility(
         plan_selection, plan_current["sources"], plan_current["routing_manifest"],
@@ -202,11 +214,12 @@ def _build_requirement(project_root: Path, skill_root: Path, requirement_id: str
         for reference in index["tasks"]:
             relative = base + "/" + reference["path"]
             raw, item = _read_json(storage_path(project_root, relative))
-            loaded = _current(skill_root, "task", item["instruction_selection"])
+            loaded = _current(skill_root, "task", item["instruction_selection"], session=session)
             task_loaded_sets.append(loaded)
             current = build_instruction_selection(loaded)
             current["routing_manifest"] = _manifest(
                 skill_root, mode="task", status="task_confirmed", operation="choose_task", raw=raw,
+                routing_sources=routing_sources, artifact=item,
             )
             item_state, item_changed = _combined_compatibility(
                 item["instruction_selection"], current["sources"], current["routing_manifest"],
@@ -226,6 +239,7 @@ def _build_requirement(project_root: Path, skill_root: Path, requirement_id: str
         index_current = build_task_document_instruction_selection(task_loaded_sets)
         index_current["routing_manifest"] = _manifest(
             skill_root, mode="task", status="task_confirmed", operation="confirm_review", raw=index_raw,
+            routing_sources=routing_sources, artifact=index,
         )
         index_state, index_changed = _combined_compatibility(
             index["instruction_selection"], index_current["sources"], index_current["routing_manifest"],
@@ -257,6 +271,7 @@ def _build_requirement(project_root: Path, skill_root: Path, requirement_id: str
                     execution["instruction_selection_manifest"] = _manifest(
                         skill_root, mode="execute", status="execution_bound",
                         operation="select_task_for_execution", raw=execution_raw,
+                        routing_sources=routing_sources, artifact=execution,
                     )
                     execution["task_index_sha256"] = canonical_sha256(index_raw_new, source=artifacts["task"])
                     execution["task_collection_sha256"] = collection_fingerprint_sha256(
@@ -290,6 +305,8 @@ def _build_requirement(project_root: Path, skill_root: Path, requirement_id: str
         "affected": counts, "blocked": blocked, "files": files,
         "approved_sha256": canonical_json_sha256(evidence),
     }).to_canonical_dict()
+    routing_sources.recheck()
+    session.recheck()
     return {"preview": preview, "before": before, "after": after, "artifacts": artifacts,
             "changed_source_names": changed_sources}
 
@@ -297,8 +314,10 @@ def _build_requirement(project_root: Path, skill_root: Path, requirement_id: str
 def source_impact(project_root: Path, skill_root: Path) -> dict[str, object]:
     requirements = []
     changed_names: set[str] = set()
-    for requirement_id in sorted(_discover_requirements(project_root)):
-        built = _build_requirement(project_root, skill_root, requirement_id)
+    discovered = _discover_requirements(project_root)
+    for requirement_id in sorted(discovered):
+        built = _build_requirement(project_root, skill_root, requirement_id,
+                                   artifacts=discovered[requirement_id])
         requirements.append(built["preview"])
         changed_names.update(built["changed_source_names"])
     changed = len(changed_names)

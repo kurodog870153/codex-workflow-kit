@@ -12,22 +12,25 @@ from ...services.instruction.task_selection import (
     validate_task_document_instruction_selection as validate_document_selection,
 )
 from ...services.instruction.validation import parse_instruction_selection
+from .validation_session import ValidationSession
 
 
-def _hierarchy(skill_root: Path, selected_paths: list[str]) -> HierarchyContract:
-    catalog = build_instruction_catalog(skill_root, "task")
+def _hierarchy(skill_root: Path, selected_paths: list[str],
+               session: ValidationSession | None = None) -> HierarchyContract:
+    catalog = session.catalog("task") if session is not None else build_instruction_catalog(skill_root, "task")
     hierarchy = build_hierarchy("task", selected_paths)
     instruction_hierarchy_projection(catalog, hierarchy)
     return hierarchy
 
 
-def _sources(value: object, skill_root: Path, location: str) -> InstructionSourceSet:
+def _sources(value: object, skill_root: Path, location: str,
+             session: ValidationSession | None = None) -> InstructionSourceSet:
     parsed = parse_instruction_selection(value, location=location)
-    current = load_instruction_sources(
-        skill_root,
-        "task",
-        _hierarchy(skill_root, parsed["selected_paths"]),
-        parsed["references"],
+    hierarchy = _hierarchy(skill_root, parsed["selected_paths"], session)
+    current = (
+        session.sources("task", hierarchy, parsed["references"])
+        if session is not None
+        else load_instruction_sources(skill_root, "task", hierarchy, parsed["references"])
     )
     return validate_instruction_selection(value, current, location=location)
 
@@ -37,9 +40,10 @@ def validate_task_document_selection(
     task_selections: list[object],
     *,
     skill_root: Path,
+    session: ValidationSession | None = None,
 ) -> dict[str, object]:
     sources = [
-        _sources(selection, skill_root, f"tasks[{index}].instruction_selection")
+        _sources(selection, skill_root, f"tasks[{index}].instruction_selection", session)
         for index, selection in enumerate(task_selections)
     ]
     expected = build_task_document_instruction_selection(sources)

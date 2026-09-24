@@ -72,8 +72,11 @@ def inspect_execute_worktree(
     task_id: str,
     confirmed_inputs: list[str] | None = None,
     skill_roots: list[SkillRoot] | None = None,
+    _context_out: dict[str, object] | None = None,
+    _prevalidated_context: dict[str, object] | None = None,
     operations=None,
 ) -> dict[str, object]:
+    preflight_context: dict[str, object] = {}
     preflight = execute_preflight(
         project_root=project_root,
         user_config_root=user_config_root,
@@ -82,6 +85,8 @@ def inspect_execute_worktree(
         task_id=task_id,
         confirmed_inputs=confirmed_inputs,
         skill_roots=skill_roots,
+        _context_out=preflight_context,
+        _prevalidated_context=_prevalidated_context,
         operations=operations,
     )
     normalized_task = str(preflight["task_path"])
@@ -99,13 +104,17 @@ def inspect_execute_worktree(
             "execute_worktree_task_changed",
             "The formal TASK changed after preflight.",
         )
-    task_context = operations.load_task_execution_context(
-        project_root,
-        user_config_root,
-        normalized_task,
-        task_id,
-        skill_roots=skill_roots,
-    )
+    task_context = preflight_context.get("context")
+    if task_context is None:
+        task_context = operations.load_task_execution_context(
+            project_root, user_config_root, normalized_task, task_id,
+            skill_roots=skill_roots,
+        )
+    else:
+        task_context = operations.recheck_task_execution_context(
+            project_root, user_config_root, normalized_task, task_context,
+            skill_roots=skill_roots,
+        )
     validation = task_context["validation"]
     assert isinstance(validation, dict)
     fingerprints = {
@@ -119,6 +128,8 @@ def inspect_execute_worktree(
             "execute_worktree_task_changed",
             "The formal TASK changed after preflight.",
         )
+    if _context_out is not None:
+        _context_out["context"] = task_context
     task_contract = task_context["contract"]
     assert isinstance(task_contract, dict)
     tasks = {item["id"]: item for item in task_contract["tasks"]}

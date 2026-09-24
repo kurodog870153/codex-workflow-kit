@@ -68,8 +68,8 @@ def _validate_attempt_bytes(raw: bytes, *, project_root: Path, source: str) -> d
 
 
 def _validate_index_bytes(raw: bytes, *, source: str) -> dict[str, Any]:
-    validate_execution_index(raw, source=source)
     contract = parse_json_contract(raw, source=source)
+    validate_execution_index(raw, source=source, parsed_contract=contract)
     return contract
 
 

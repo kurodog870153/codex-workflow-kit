@@ -11,13 +11,32 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work" / "scripts
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 from worklib.business_services.instruction.refresh import (
-    _compatibility, _discover_requirements, _routing_compatibility,
-    apply_source_refresh_all,
+    _compatibility, _current, _discover_requirements, _routing_compatibility,
+    apply_source_refresh_all, source_impact,
 )
+from worklib.business_services.instruction import build_instruction_selection
+from worklib.services.instruction.validation_session import ValidationSession
+from worklib.services.instruction.catalog import build_instruction_catalog
+from worklib.business_services.instruction import refresh as refresh_service
 from worklib.models.common.errors import WorkError
 
 
 class InstructionRefreshTests(unittest.TestCase):
+    def test_same_source_selection_is_loaded_once_then_rechecked(self) -> None:
+        skill_root = Path(__file__).resolve().parents[3] / "skills" / "work"
+        selection = build_instruction_selection(
+            skill_root=skill_root, mode="task", selected_paths=[], reference_names=[],
+        )
+        with patch.object(refresh_service, "load_instruction_sources",
+                          wraps=refresh_service.load_instruction_sources) as load:
+            session = ValidationSession(skill_root, build_catalog=build_instruction_catalog,
+                                        load_sources=load)
+            first = _current(skill_root, "task", selection, session=session)
+            second = _current(skill_root, "task", selection, session=session)
+            session.recheck()
+        self.assertIs(first, second)
+        self.assertEqual(load.call_count, 2)
+
     def source(self, digest: str, revision: int | None = 1):
         value = {"kind": "workflow", "logical_name": "work.workflow.plan", "canonical_sha256": digest}
         if revision is not None:
@@ -62,6 +81,24 @@ class InstructionRefreshTests(unittest.TestCase):
             )
             discovered = _discover_requirements(root)
         self.assertEqual(discovered["custom"]["plan"], "outputs/work/custom/specification.json")
+
+    def test_source_impact_discovers_requirements_once(self) -> None:
+        artifacts = {
+            name: {"plan": f"{name}.json", "task": f"{name}/task.json", "execution": name}
+            for name in ("alpha", "beta")
+        }
+        def built(_root, _skill_root, requirement_id, *, artifacts):
+            return {"preview": {"status": "valid", "files": [], "blocked": [],
+                                 "requirement_id": requirement_id},
+                    "changed_source_names": set()}
+        with patch("worklib.business_services.instruction.refresh._discover_requirements",
+                   return_value=artifacts) as discover, \
+             patch("worklib.business_services.instruction.refresh._build_requirement",
+                   side_effect=built) as build:
+            result = source_impact(Path("."), Path("."))
+        discover.assert_called_once()
+        self.assertEqual(build.call_count, 2)
+        self.assertEqual(result["affected_requirements"], 0)
 
     def test_routing_source_change_with_same_revision_is_refreshable(self) -> None:
         stored = {"router_compatibility_revision": 3, "selection_sha256": "a" * 64,

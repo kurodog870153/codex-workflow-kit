@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ..business_services.plan import create_plan_file, parse_roots, prepare_semantic_plan, validate_plan_request
 from . import SubparserRegistry
 
 
@@ -36,6 +35,10 @@ def run_plan(
     project_root: Path,
     request: object | None,
 ) -> dict[str, object]:
+    from ..business_services.plan import (
+        create_plan_file, parse_roots, prepare_semantic_plan, validate_plan_request,
+    )
+
     skill_roots = parse_roots(arguments.skill_root)
     raw = getattr(request, "raw", None)
     source = getattr(request, "source", None)

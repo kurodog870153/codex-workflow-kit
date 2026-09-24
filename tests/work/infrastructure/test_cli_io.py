@@ -23,6 +23,8 @@ from worklib.services.correction.document import canonicalize_correction_contrac
 from worklib.models.common.errors import ExitCode
 from worklib.technical.infrastructure.json_contract import render_json_contract
 from worklib.technical.infrastructure.cli_io import success_response
+from worklib.technical.infrastructure.cli_io import read_input_file
+from worklib.technical.foundation.fingerprint import raw_sha256
 
 
 class CliFileTransportTests(FileInputTestCase):
@@ -86,6 +88,12 @@ class CliFileTransportTests(FileInputTestCase):
         self.assertEqual(results[0], results[1])
         self.assertEqual(list(self.root.iterdir()), [])
 
+    def test_file_input_keeps_the_source_bytes_fingerprint(self):
+        raw = b'\xef\xbb\xbf{}'
+        value = read_input_file(self.input_file(raw))
+        self.assertEqual(value.raw, b'{}')
+        self.assertEqual(value.source_raw_sha256, raw_sha256(raw))
+
     def test_invalid_encoding_and_json_are_rejected_without_artifact_writes(self):
         for raw, reason in ((b"\xff", "invalid_utf8"), ("{}".encode("utf-16"), "invalid_utf8"), (b"\xef\xbb\xbf\xef\xbb\xbf{}", "input_file_multiple_bom"), (b"", "invalid_json_contract"), (b"{", "invalid_json_contract"), (b'{"x":1,"x":2}', "duplicate_json_key")):
             with self.subTest(reason=reason, raw=raw):
@@ -105,7 +113,7 @@ class CliFileTransportTests(FileInputTestCase):
 
     def test_unreadable_file_retains_io_error_category(self):
         path = self.input_file("{}")
-        with patch("worklib.technical.infrastructure.cli_io.Path.read_bytes", side_effect=PermissionError):
+        with patch("worklib.technical.infrastructure.cli_io.read_raw", side_effect=PermissionError):
             response = self.invoke("attempt", "render", "--input-file", path, expected_code=ExitCode.IO_FAILURE)
         self.assertEqual(response["reason_code"], "input_file_read_failed")
 

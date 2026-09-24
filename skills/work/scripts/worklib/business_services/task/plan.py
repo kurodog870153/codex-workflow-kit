@@ -85,9 +85,10 @@ def render_plan_contract(contract: dict[str, Any]) -> bytes:
 
 def validate_task_source_plan(raw: bytes, *, source: str, actual_plan_path: str, project_root: Path,
                            user_config_root: str, skill_roots: list[SkillRoot] | None = None,
-                           _historical_work_sources: bool = False, _allow_task_index: bool = False) -> dict[str, object]:
+                           _historical_work_sources: bool = False, _allow_task_index: bool = False,
+                           _parsed_contract: dict[str, Any] | None = None) -> dict[str, object]:
     del user_config_root
-    contract = document.parse(raw, source=source)
+    contract = _parsed_contract if _parsed_contract is not None else document.parse(raw, source=source)
     _strict(contract, location="plan", required=TOP_REQUIRED, optional=TOP_OPTIONAL)
     work_root = document.installed_work_root()
     hierarchy = _hierarchy(contract.get("hierarchy_selection"), work_root)
@@ -105,7 +106,8 @@ def validate_task_source_plan(raw: bytes, *, source: str, actual_plan_path: str,
     return validate_plan_value(raw, source=source, actual_plan_path=actual_plan_path,
         project_root=project_root, hierarchy_selection=hierarchy,
         instruction_fingerprint=instruction_sha, skill_selection_sha256=skill["selection_sha256"],
-        ordered_contract=order_plan_contract(contract), _allow_task_index=_allow_task_index)
+        ordered_contract=order_plan_contract(contract), _allow_task_index=_allow_task_index,
+        parsed_contract=contract)
 
 
 

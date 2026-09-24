@@ -5,6 +5,7 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "skills/work/scripts"))
 
@@ -15,14 +16,47 @@ from worklib.services.workflow.routing import (
     EVENT_SOURCES,
     FORMAL_EVENTS,
     SOURCE_CATALOG,
+    RoutingSourceSession,
     build_routing_selection,
 )
+from worklib.services.workflow import routing as routing_service
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[3] / "skills" / "work"
 
 
 class InstructionRoutingTests(unittest.TestCase):
+    def test_session_reads_each_source_once_and_rechecks_before_return(self) -> None:
+        session = RoutingSourceSession(SKILL_ROOT)
+        with patch.object(routing_service, "read_raw", wraps=routing_service.read_raw) as read:
+            first = build_routing_selection(
+                SKILL_ROOT, status="plan_confirmed", next_action="prepare_plan",
+                confirmation=False, source_session=session,
+            )
+            second = build_routing_selection(
+                SKILL_ROOT, status="plan_confirmed", next_action="prepare_plan",
+                confirmation=False, source_session=session,
+            )
+            self.assertEqual(read.call_count, len(first["required_instruction_sources"]))
+            session.recheck()
+            self.assertEqual(read.call_count, 2 * len(first["required_instruction_sources"]))
+        self.assertEqual(first, second)
+
+    def test_session_recheck_rejects_source_changed_during_build(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            shutil.copytree(SKILL_ROOT, root)
+            session = RoutingSourceSession(root)
+            build_routing_selection(
+                root, status="plan_confirmed", next_action="prepare_plan",
+                confirmation=False, source_session=session,
+            )
+            source = root / SOURCE_CATALOG["work.shared.invocation"][0]
+            source.write_bytes(source.read_bytes() + b"\nDrift.\n")
+            with self.assertRaises(WorkError) as caught:
+                session.recheck()
+        self.assertEqual(caught.exception.code, "routed_instruction_source_changed")
+
     def test_plan_operation_selects_only_bootstrap_and_plan_entry(self) -> None:
         result = build_routing_selection(
             SKILL_ROOT, status="plan_required", next_action="prepare_plan", confirmation=True,

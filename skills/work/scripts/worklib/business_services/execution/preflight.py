@@ -227,6 +227,8 @@ def execute_preflight(
     _allow_attempt_start_transaction: bool = False,
     _eligible_statuses: set[str] | None = None,
     _rule_status: str | None = None,
+    _context_out: dict[str, object] | None = None,
+    _prevalidated_context: dict[str, object] | None = None,
     operations=None,
 ) -> dict[str, object]:
     require_no_spec_update(project_root, raw_execution_dir)
@@ -261,13 +263,16 @@ def execute_preflight(
             {"files": transaction_files},
         )
 
-    task_context = operations.load_task_execution_context(
-        project_root,
-        user_config_root,
-        normalized_task,
-        task_id,
-        skill_roots=skill_roots,
-    )
+    if _prevalidated_context is None:
+        task_context = operations.load_task_execution_context(
+            project_root, user_config_root, normalized_task, task_id,
+            skill_roots=skill_roots,
+        )
+    else:
+        task_context = operations.recheck_task_execution_context(
+            project_root, user_config_root, normalized_task, _prevalidated_context,
+            skill_roots=skill_roots,
+        )
     task_contract = task_context["contract"]
     task_validation = task_context["validation"]
     assert isinstance(task_contract, dict) and isinstance(task_validation, dict)
@@ -293,8 +298,10 @@ def execute_preflight(
         message="The canonical execution index does not exist.",
     )
     index_raw = read_raw(index_path)
-    index_validation = validate_execution_index(index_raw, source=str(index_path))
     index_contract = parse_json_contract(index_raw, source=str(index_path))
+    index_validation = validate_execution_index(
+        index_raw, source=str(index_path), parsed_contract=index_contract,
+    )
     index_rows = require_index_identity(
         index_contract, task_contract, task_validation
     )
@@ -414,7 +421,7 @@ def execute_preflight(
         "task_index_sha256": task_validation["task_index_sha256"],
         "task_item_sha256": task_validation["task_item_sha256"][task_id],
     }
-    return ExecutePreflightContract.model_validate({
+    result = ExecutePreflightContract.model_validate({
         "schema": "work-execute-preflight/v1",
         "requirement_id": task_contract["requirement_id"],
         "task_spec_id": task_contract["spec_id"],
@@ -439,3 +446,6 @@ def execute_preflight(
         "index_sha256": index_validation["index_sha256"],
         "eligibility": "passed",
     }).to_canonical_dict()
+    if _context_out is not None:
+        _context_out["context"] = task_context
+    return result

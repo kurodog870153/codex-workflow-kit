@@ -105,6 +105,30 @@ class ExecutionServiceTests(unittest.TestCase):
         begin.assert_called_once()
         require_no_spec_update.assert_called_once()
 
+    @patch("worklib.business_services.execution.workflow.require_no_spec_update")
+    @patch("worklib.orchestration.execution.ExecutionCapabilities.start_attempt", return_value={"status": "started"})
+    @patch("worklib.orchestration.execution.ExecutionCapabilities.load_task_execution_context")
+    @patch("worklib.business_services.execution.workflow.state_writer")
+    def test_attempt_start_passes_prelock_context_into_writer(
+        self, writer, load_context, start, _require_no_spec_update
+    ) -> None:
+        writer.return_value.__enter__.return_value = None
+        snapshot = {"contract": {"tasks": [{"id": "TASK-001"}]}}
+        load_context.return_value = snapshot
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            task = root / "outputs/work/tasks/example/index.json"
+            task.parent.mkdir(parents=True)
+            task.write_text("{}")
+            (root / "outputs/work/executions/example").mkdir(parents=True)
+            result = ExecutionService(ExecutionCapabilities).execute(
+                "attempt-start", **self.options(root), raw_request=b"{}", source="test",
+            )
+        self.assertEqual(result, {"status": "started"})
+        load_context.assert_called_once()
+        writer.assert_called_once()
+        self.assertIs(start.call_args.kwargs["_prevalidated_context"], snapshot)
+
 
 if __name__ == "__main__":
     unittest.main()
