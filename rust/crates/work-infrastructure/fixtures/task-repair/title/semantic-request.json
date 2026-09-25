@@ -1,0 +1,18 @@
+{
+  "schema": "work-task-repair-prepare-request/v1",
+  "stage": "complete",
+  "requirement_id": "example",
+  "decisions": [
+    {
+      "location": "/",
+      "decision": "Use the reviewed candidate."
+    }
+  ],
+  "edits": [
+    {
+      "task_id": "TASK-001",
+      "field": "title",
+      "after": "Modify source"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "schema": "work-spec-migration-prepare-request/v1",
+  "mode": "revision",
+  "requirement_id": "example",
+  "reason": "Confirmed collection revision",
+  "edits": [
+    {
+      "target": {
+        "artifact": "task_index"
+      },
+      "field": "summary",
+      "after": "Task summary. revised"
+    }
+  ],
+  "semantic_decisions": []
+}

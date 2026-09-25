@@ -1,0 +1,101 @@
+{
+  "schema": "work-task-item/v1",
+  "id": "TASK-001",
+  "title": "Modify source",
+  "skill_id": null,
+  "instruction_selection": {
+    "selected_paths": [],
+    "resolved_paths": [
+      "general"
+    ],
+    "sources": [
+      {
+        "kind": "workflow",
+        "logical_name": "work.instruction-loading",
+        "canonical_sha256": "868209dba7dff984a33932c71906c134c916be0694234b04b0da0f27c9cc99a6",
+        "compatibility_revision": 2
+      },
+      {
+        "kind": "workflow",
+        "logical_name": "work.workflow.task",
+        "canonical_sha256": "e2bc9383d3eac24fcfb7a8972343850c22bc141aac73c0568d69e08216f68bda",
+        "compatibility_revision": 2
+      },
+      {
+        "kind": "instruction",
+        "logical_name": "task.general",
+        "canonical_sha256": "2b3eea1d9b82b1a14bcce44c9e30957873e5522a18e6eda8f232f394e66eaf00",
+        "compatibility_revision": 1
+      },
+      {
+        "kind": "reference",
+        "logical_name": "task.general.task-records",
+        "canonical_sha256": "195af88fa0ee0b1eaf88560bb0ff5c349b14c2b8a814d6cbc511c3d2b899f509",
+        "compatibility_revision": 1
+      }
+    ],
+    "references": [
+      "task.general.task-records"
+    ],
+    "instructions_sha256": "d96cb66bc96c394655df49bb557f0850344be70763b99e96bad7c70732ea372d"
+  },
+  "traceability": {
+    "goal_ids": [
+      "GOAL-001"
+    ],
+    "deliverable_ids": [
+      "DELIVERABLE-001"
+    ],
+    "acceptance_ids": [
+      "ACCEPTANCE-001"
+    ]
+  },
+  "goal": "Modify the source and validate it.",
+  "files": [
+    {
+      "id": "FILE-001",
+      "action": "modify",
+      "path": "wrong.txt"
+    }
+  ],
+  "steps": [
+    {
+      "id": "STEP-001",
+      "action": "Modify the source.",
+      "references": [
+        "FILE-001"
+      ]
+    },
+    {
+      "id": "STEP-002",
+      "action": "Run validation.",
+      "references": [
+        "CMD-001",
+        "VAL-001"
+      ]
+    }
+  ],
+  "commands": [
+    {
+      "id": "CMD-001",
+      "mode": "argv",
+      "argv": [
+        "python",
+        "--version"
+      ]
+    }
+  ],
+  "validations": [
+    {
+      "id": "VAL-001",
+      "kind": "automated",
+      "command_ids": [
+        "CMD-001"
+      ],
+      "pass_condition": "Exit code is zero.",
+      "acceptance_ids": [
+        "ACCEPTANCE-001"
+      ]
+    }
+  ]
+}

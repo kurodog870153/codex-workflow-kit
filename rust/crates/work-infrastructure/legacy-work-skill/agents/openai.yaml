@@ -1,0 +1,7 @@
+interface:
+  display_name: "Work"
+  short_description: "Run Plan, Task, or Execute workflows explicitly"
+  default_prompt: "Use $work plan -- describe the requirement and produce a confirmed Plan."
+
+policy:
+  allow_implicit_invocation: false

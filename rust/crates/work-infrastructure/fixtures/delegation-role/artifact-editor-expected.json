@@ -1,0 +1,44 @@
+{
+  "schema": "work-delegation-envelope/v1",
+  "marker": "WORK_ARTIFACT_EDIT_V1",
+  "skill": "$work",
+  "role": "artifact-editor",
+  "sender": "parent",
+  "mode": "execute",
+  "project_root": "<PROJECT_ROOT>",
+  "skill_root": "<SKILL_ROOT>",
+  "request": "Revise confirmed artifact.",
+  "context": {
+    "requirement_id": "example",
+    "artifacts": {
+      "plan": "outputs/work/plans/example.json",
+      "task": "outputs/work/tasks/example/task.json",
+      "execution": "outputs/work/executions/example"
+    },
+    "confirmed_request": {
+      "reason": "Reviewed"
+    },
+    "decisions": [
+      "Confirmed revision"
+    ],
+    "affected_task_ids": [
+      "TASK-001"
+    ],
+    "hierarchy_selection": {
+      "schema": "work-hierarchy-selection/v1",
+      "decision": "general_only",
+      "selected_paths": [],
+      "entries": [],
+      "catalog_sha256": "21bcff3a175d3081a458e9c2e81990c1294ed50fc3217f88be67aa3bef1eeabb",
+      "selection_sha256": "973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e"
+    },
+    "skill_selection": {
+      "schema": "work-skill-selection/v1",
+      "decision": "base_only",
+      "skills": [],
+      "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"
+    },
+    "repository_evidence": [],
+    "continuation_point": "Return to Execute"
+  }
+}

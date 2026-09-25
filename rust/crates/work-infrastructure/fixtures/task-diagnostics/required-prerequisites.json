@@ -1,0 +1,50 @@
+{
+  "valid": {
+    "execution_index_binding": ["collection_execution_index_contract"]
+  },
+  "index-malformed": {
+    "index:schema": ["index:json"],
+    "index:canonical": ["index:json"],
+    "index:contract": ["index:json"],
+    "items": ["index:json", "index:structure"],
+    "items:directory": ["index:path", "index:json"],
+    "plan:path": ["index:artifacts"],
+    "plan:file": ["plan:path"],
+    "plan:contract": ["plan:file"],
+    "plan:binding": ["plan:contract"],
+    "collection:contract": ["index:contract", "items:contracts", "items:directory", "plan:contract"],
+    "execution:file": ["collection:contract"],
+    "execution:contract": ["execution:file"],
+    "execution:binding": ["execution:contract"],
+    "execution_index_binding": ["collection_execution_index_contract"]
+  },
+  "item-invalid": {
+    "item:TASK-001:canonical": ["item:TASK-001:json"],
+    "item:TASK-001:contract": ["item:TASK-001:json"],
+    "item:TASK-001:fingerprint": ["item:TASK-001:contract"],
+    "collection:contract": ["index:contract", "items:contracts", "items:directory", "plan:contract"],
+    "execution:file": ["collection:contract"],
+    "execution:contract": ["execution:file"],
+    "execution:binding": ["execution:contract"],
+    "execution_index_binding": ["collection_execution_index_contract"]
+  },
+  "item-bom": {
+    "item:TASK-001:fingerprint": ["item:TASK-001:contract"],
+    "collection:contract": ["index:contract", "items:contracts", "items:directory", "plan:contract"],
+    "execution:file": ["collection:contract"],
+    "execution:contract": ["execution:file"],
+    "execution:binding": ["execution:contract"],
+    "execution_index_binding": ["collection_execution_index_contract"]
+  },
+  "item-utf16": {
+    "item:TASK-001:json": ["item:TASK-001:encoding"],
+    "item:TASK-001:normalization": ["item:TASK-001:encoding"],
+    "item:TASK-001:contract": ["item:TASK-001:json"],
+    "item:TASK-001:fingerprint": ["item:TASK-001:contract"],
+    "collection:contract": ["index:contract", "items:contracts", "items:directory", "plan:contract"],
+    "execution:file": ["collection:contract"],
+    "execution:contract": ["execution:file"],
+    "execution:binding": ["execution:contract"],
+    "execution_index_binding": ["collection_execution_index_contract"]
+  }
+}

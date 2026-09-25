@@ -23,31 +23,47 @@ include_astro=0
 include_css=0
 include_tailwind=0
 
-validate_python_runtime() {
-    local candidate
-    for candidate in python3 python; do
-        if ! command -v "$candidate" >/dev/null 2>&1; then
-            continue
-        fi
-        if ! "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 14) else 1)' </dev/null >/dev/null 2>&1; then
-            continue
-        fi
-        if ! "$candidate" -c 'import yaml' </dev/null >/dev/null 2>&1; then
-            printf 'Error: PyYAML is required. Install PyYAML for %s and run this installer again.\n' "$candidate" >&2
-            printf 'The installer does not install Python packages automatically.\n' >&2
+validate_rust_toolchain() {
+    local tool version major minor
+    for tool in rustc cargo; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            printf 'Error: %s is required. Install Rust 1.85 or newer with Cargo and try again.\n' "$tool" >&2
             return 1
         fi
-        if ! "$candidate" -c 'import pydantic' </dev/null >/dev/null 2>&1; then
-            printf 'Error: Pydantic is required. Install the latest Pydantic for %s and run this installer again.\n' "$candidate" >&2
-            printf 'The installer does not install Python packages automatically.\n' >&2
+        version="$($tool --version)" || return 1
+        if [[ ! "$version" =~ ^(rustc|cargo)[[:space:]]+([0-9]+)\.([0-9]+)\. ]]; then
+            printf 'Error: cannot read %s version: %s\n' "$tool" "$version" >&2
             return 1
         fi
-        return 0
+        major="${BASH_REMATCH[2]}"
+        minor="${BASH_REMATCH[3]}"
+        if (( major < 1 || (major == 1 && minor < 85) )); then
+            printf 'Error: %s 1.85 or newer is required; found %s.\n' "$tool" "$version" >&2
+            return 1
+        fi
     done
+    if ! command -v xcrun >/dev/null 2>&1 || ! xcrun --find clang >/dev/null 2>&1; then
+        printf 'Error: Xcode Command Line Tools with clang are required. Install them and try again.\n' >&2
+        return 1
+    fi
+    local sdk
+    sdk="$(xcrun --show-sdk-path)" || return 1
+    if [[ ! -d "$sdk" ]]; then
+        printf 'Error: the macOS SDK is unavailable: %s\n' "$sdk" >&2
+        return 1
+    fi
+}
 
-    printf 'Error: Python 3.14 or newer is required. Install Python and run this installer again.\n' >&2
-    printf 'The installer does not install Python packages automatically.\n' >&2
-    return 1
+build_work() {
+    if ! (cd -- "$project_directory/rust" && cargo build --release --locked -p work-cli); then
+        printf 'Error: Rust build failed. Check linker/SDK setup and crate downloads; the installed Work binary was not changed.\n' >&2
+        return 1
+    fi
+    built_work="$project_directory/rust/target/release/work"
+    if [[ ! -x "$built_work" ]] || ! "$built_work" --help >/dev/null 2>&1; then
+        printf 'Error: the built Work binary failed its startup check; the installed binary was not changed.\n' >&2
+        return 1
+    fi
 }
 
 require_file() {
@@ -77,8 +93,14 @@ validate_base_sources() {
         require_file "references/subagents/$mode.md" || return 1
     done
 
-    require_file "scripts/work.py" || return 1
-    require_file "scripts/worklib/cli.py" || return 1
+    if [[ ! -f "$project_directory/rust/Cargo.toml" ]]; then
+        missing_source="$project_directory/rust/Cargo.toml"
+        return 1
+    fi
+    if [[ ! -f "$project_directory/rust/Cargo.lock" ]]; then
+        missing_source="$project_directory/rust/Cargo.lock"
+        return 1
+    fi
 }
 
 include_hierarchy() {
@@ -232,17 +254,17 @@ install_base() {
     copy_tree "references/instruction-loading" || return 1
     copy_tree "references/workflows" || return 1
     copy_tree "references/subagents" || return 1
-    copy_file "scripts/work.py" || return 1
+}
 
-    local source_file
-    local relative
-    while IFS= read -r -d '' source_file; do
-        relative="${source_file#"$source_work/"}"
-        if [[ "$source_file" == */__pycache__/* || "$relative" == "scripts/worklib/rules.py" ]]; then
-            continue
-        fi
-        copy_file "$relative" || return 1
-    done < <(find "$source_work/scripts/worklib" -type f -name '*.py' -print0)
+install_binary() {
+    local target="$target_work/scripts/work"
+    local staged
+    mkdir -p -- "$(dirname -- "$target")" || return 1
+    staged="$(mktemp "$target.XXXXXX")" || return 1
+    if ! cp -- "$built_work" "$staged" || ! chmod 755 "$staged" || ! mv -f -- "$staged" "$target"; then
+        printf 'Error: failed to publish Work binary; previous binary remains in place.\n' >&2
+        return 1
+    fi
 }
 
 install_selected_instructions() {
@@ -303,7 +325,22 @@ install_selected_instructions() {
     fi
 }
 
-if ! validate_python_runtime; then
+refresh_existing_instructions() {
+    local source_file relative branch
+    while IFS= read -r -d '' source_file; do
+        relative="${source_file#"$source_work/"}"
+        if [[ ! -f "$target_work/$relative" ]]; then
+            continue
+        fi
+        copy_file "$relative" || return 1
+        branch="${relative%/instructions.md}"
+        if [[ -d "$source_work/$branch/references" ]]; then
+            copy_tree "$branch/references" || return 1
+        fi
+    done < <(find "$source_work/references/instructions" -name instructions.md -type f -print0)
+}
+
+if ! validate_rust_toolchain; then
     exit 1
 fi
 
@@ -399,11 +436,15 @@ if ! validate_selected_instructions; then
     exit 1
 fi
 
+if ! build_work; then
+    exit 1
+fi
+
 if ! mkdir -p -- "$target_work"; then
     printf 'Error: failed to create the Work skill directory: "%s".\n' "$target_work" >&2
     exit 1
 fi
-if ! install_base || ! install_selected_instructions; then
+if ! install_base || ! refresh_existing_instructions || ! install_selected_instructions || ! install_binary; then
     printf 'Error: failed to install the Work skill in "%s".\n' "$target_work" >&2
     exit 1
 fi

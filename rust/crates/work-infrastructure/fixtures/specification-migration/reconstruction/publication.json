@@ -1,0 +1,43 @@
+{
+  "schema": "work-spec-migration-publication/v1",
+  "status": "updated",
+  "fingerprint": "ac47531413bfed3621be0a3b76fc6dfbcddc1db9d98db2b321eb8bb287ded285",
+  "transaction_approval_sha256": "dbbd5312eda46b08ad44e723881f034683ce4af66dcc348ae49834193d4f3e11",
+  "journal": "outputs/work/executions/example/.work-spec-migration-AC47531413BF.json",
+  "completion_marker": "outputs/work/executions/example/.work-spec-migration-AC47531413BF.json.done",
+  "documents": [
+    "outputs/work/executions/example/index.json",
+    "outputs/work/plans/example.json",
+    "outputs/work/tasks/example/index.json",
+    "outputs/work/tasks/example/tasks/TASK-001.json"
+  ],
+  "publication_status": "published",
+  "validator_results": [
+    {
+      "name": "plan",
+      "status": "passed"
+    },
+    {
+      "name": "task_collection",
+      "status": "passed"
+    },
+    {
+      "name": "execution_index",
+      "status": "passed"
+    }
+  ],
+  "relationship_results": [
+    {
+      "name": "candidate_set",
+      "status": "passed"
+    },
+    {
+      "name": "artifact_paths",
+      "status": "passed"
+    },
+    {
+      "name": "execution_binding",
+      "status": "passed"
+    }
+  ]
+}

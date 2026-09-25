@@ -31,7 +31,7 @@ metadata:
 8. [強制] 一般前置檢查失敗只在對話回報，不建立 Attempt 或修改 index；只有第 3 項的指令已變更依 execution records 建立停止紀錄。
 9. [強制] 工作區實作差異檢查只排除目前 execution 目錄，不得排除整個 `outputs/work/`；已核准 CMD 正常產生且不屬交付成果的暫存輸出不視為實作差異。
 10. [強制] 續接中的 Attempt 所記 `EXECUTE-INSTRUCTIONS-SHA-256` 與目前適用值不同時，先唯讀列出來源差異、已執行內容及可能影響並取得授權；授權後依原鎖所存雜湊將舊 Attempt 結案為「已停止／指令已變更」、同步 index 並解除舊鎖，再確認影響。只有仍符合目前 TASK 與新 Execute instructions 的證據可在另行授權的新 Attempt 承接；不得在舊 Attempt 直接換用新指令或覆寫其雜湊。
-11. [強制] 新 Attempt 的 TASK／index 身分、狀態、直接相依、Task instruction fingerprints、既有 lock、Execute instruction fingerprints、input 來源就緒及目標 TASK 的 create／modify／move 即時狀態須先通過 Work Python CLI 的唯讀 `execute preflight`；`user_provided`／`external` input 只在已有使用者或適用外部證據確認時以 `--confirmed-input <TASK-ID>/<INPUT-ID>` 傳入，不得傳入機密值。非零退出碼立即停止。
+11. [強制] 新 Attempt 的 TASK／index 身分、狀態、直接相依、Task instruction fingerprints、既有 lock、Execute instruction fingerprints、input 來源就緒及目標 TASK 的 create／modify／move 即時狀態須先通過 Work CLI 的唯讀 `execute preflight`；`user_provided`／`external` input 只在已有使用者或適用外部證據確認時以 `--confirmed-input <TASK-ID>/<INPUT-ID>` 傳入，不得傳入機密值。非零退出碼立即停止。
 12. [強制] preflight 通過後須以相同參數執行唯讀 `execute worktree`；`target_task`、`completed_dependency`、`unrelated` 只表示路徑交集，不證明變更所有權。`review_status: required` 時須依第 4、9 項逐筆核對，任何無法解釋項目都停止。
 
 ## 3. 授權與開始

@@ -1,0 +1,9 @@
+{
+  "exit_code": 6,
+  "result": {
+    "schema": "work-error/v1",
+    "code": "draft_selection_required",
+    "message": "Confirm instruction paths and references for this legacy TASK before continuing.",
+    "details": {}
+  }
+}

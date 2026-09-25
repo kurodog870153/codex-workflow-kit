@@ -35,7 +35,7 @@
 2. [強制] `commands[]` 使用 `mode: argv` 加 `argv` 字串陣列，或 `mode: shell` 加 `script`；兩種專屬欄位互斥。
 3. [強制] `operations[]` 只描述非檔案副作用，使用 `kind: local_state` 或 `external_state`、`action`、`target`、`validation_id`，由命令執行時加入 `command_id`。
 4. [強制] `validations[]` 使用 `kind: automated` 加 `command_ids`、`pass_condition`，或 `kind: manual` 加 `confirmer`、`criteria`；直接驗收成果時加入 `acceptance_ids`。
-5. [強制] Python validator 不執行 CMD 或 OP；具副作用預檢仍須另行授權。
+5. [強制] Work CLI validator 不執行 CMD 或 OP；具副作用預檢仍須另行授權。
 
 ## 5. 升版與就緒
 
@@ -47,7 +47,7 @@
 ## 6. Index 與交易邊界
 
 1. [強制] execution index 使用 `work-execution-index/v1` canonical 純 JSON，保存 TASK spec、TASK SHA、Plan `hierarchy_selection_sha256` 與 `skill_selection_sha256`、文件與每 TASK instructions SHA、每 TASK `skill_id`、狀態及選用 lock／audit reference；不得複製 TASK 規格或技能全文。
-2. [強制] TASK 狀態只使用 `pending`、`in_progress`、`pending_retry`、`blocked`、`completed`、`cancelled`；`overall_status` 必須由 Python 推導。
+2. [強制] TASK 狀態只使用 `pending`、`in_progress`、`pending_retry`、`blocked`、`completed`、`cancelled`；`overall_status` 必須由 Work CLI 推導。
 3. [強制] 初版 TASK collection 與 execution index 由 `task create` 使用同一已核准邏輯契約建立；create 要求 formal index、item targets 與 requirement-specific execution 目錄都不存在，依交易程序建立 items、formal index，再建立 execution 目錄與 canonical `index.json`。
 4. [強制] 規格鎖與 execution lock 互斥；部分失敗時保留現況與 lock，不自動回復或覆寫。
 5. [強制] 初版 index 的所有 TASK 狀態與 `overall_status` 均為 `pending`，不建立 `latest_attempt`、`status_reason`、lock、audit 或其他 execution record。
@@ -123,6 +123,6 @@ and ordinary formal revisions. Single-file TASK artifacts are unsupported.
 3. [強制] Query
    `<work-cli> contract describe work-task-collection-fingerprint/v1` for the
    derived collection fingerprint structure and current valid example.
-4. [強制] Treat the registered Pydantic contracts as the structural source of
+4. [強制] Treat the registered Work CLI contracts as the structural source of
    truth. Do not duplicate or independently maintain complete JSON structures in
    instructions.

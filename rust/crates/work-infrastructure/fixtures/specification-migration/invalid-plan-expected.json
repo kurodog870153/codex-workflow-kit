@@ -1,0 +1,69 @@
+{
+  "schema": "work-spec-migration-preview/v1",
+  "status": "blocked",
+  "documents": [
+    "outputs/work/executions/example/index.json",
+    "outputs/work/plans/example.json",
+    "outputs/work/tasks/example/index.json",
+    "outputs/work/tasks/example/tasks/TASK-001.json"
+  ],
+  "diffs": [
+    {
+      "path": "outputs/work/executions/example/index.json",
+      "operation": "replace",
+      "unified_diff": ""
+    },
+    {
+      "path": "outputs/work/plans/example.json",
+      "operation": "replace",
+      "unified_diff": "--- outputs/work/plans/example.json:source\n+++ outputs/work/plans/example.json:candidate\n@@ -2,7 +2,7 @@\n   \"schema\": \"work-plan/v1\",\n   \"requirement_id\": \"example\",\n   \"status\": \"confirmed\",\n-  \"title\": \"Example Plan\",\n+  \"title\": \"\",\n   \"summary\": \"Plan summary.\",\n   \"artifacts\": {\n     \"plan\": \"outputs/work/plans/example.json\",\n"
+    },
+    {
+      "path": "outputs/work/tasks/example/index.json",
+      "operation": "replace",
+      "unified_diff": ""
+    },
+    {
+      "path": "outputs/work/tasks/example/tasks/TASK-001.json",
+      "operation": "replace",
+      "unified_diff": ""
+    }
+  ],
+  "validator_results": [
+    {
+      "name": "plan",
+      "status": "failed",
+      "code": "empty_text_value",
+      "message": "A non-empty string is required."
+    },
+    {
+      "name": "task_collection",
+      "status": "failed",
+      "code": "empty_text_value",
+      "message": "A non-empty string is required."
+    },
+    {
+      "name": "execution_index",
+      "status": "passed"
+    }
+  ],
+  "relationship_results": [
+    {
+      "name": "candidate_set",
+      "status": "passed"
+    },
+    {
+      "name": "artifact_paths",
+      "status": "passed"
+    },
+    {
+      "name": "execution_binding",
+      "status": "failed",
+      "code": "migration_execution_binding_not_checked",
+      "message": "Execution binding requires valid TASK and execution candidates."
+    }
+  ],
+  "unresolved_items": [],
+  "fingerprint": "9da866b65b18754951240b04558631bdf7586c3e468aef56adc003937c084f6a",
+  "writable_ready": false
+}

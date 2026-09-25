@@ -1,0 +1,13 @@
+[package]
+name = "work-operations"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+work-model = { path = "../work-model" }
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+unicode-normalization.workspace = true
+caseless.workspace = true

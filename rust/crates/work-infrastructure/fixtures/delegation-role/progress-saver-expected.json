@@ -1,0 +1,43 @@
+{
+  "schema": "work-delegation-envelope/v1",
+  "marker": "WORK_PROGRESS_SAVE_V1",
+  "skill": "$work",
+  "role": "progress-saver",
+  "sender": "parent",
+  "mode": "task",
+  "project_root": "<PROJECT_ROOT>",
+  "skill_root": "<SKILL_ROOT>",
+  "request": "Save discussion progress.",
+  "context": {
+    "requirement_id": "example",
+    "content": {
+      "title": "Discussion",
+      "request": "Retain unfinished decisions",
+      "current_task_id": "TASK-001",
+      "context": {
+        "missing_plan": true
+      },
+      "source_status": [
+        "Revision pending"
+      ],
+      "notes": [
+        "Reviewed evidence"
+      ],
+      "confirmed_decisions": [
+        {
+          "statement": "Keep scope",
+          "rationale": "User decision"
+        }
+      ],
+      "tentative": [
+        "Proposed approach"
+      ],
+      "open_questions": [
+        "Which validation?"
+      ],
+      "next_discussion_point": "Confirm validation"
+    },
+    "expected_revision": 1,
+    "continuation_point": "Continue discussion"
+  }
+}

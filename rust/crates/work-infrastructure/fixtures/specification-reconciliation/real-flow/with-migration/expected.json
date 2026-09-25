@@ -1,0 +1,97 @@
+{
+  "schema": "work-spec-reconciliation-preview/v1",
+  "status": "ready",
+  "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
+  "attempt_sha256": "76bba8b989624b1422c881f7db8b82759d301a408217ca285d0512c4003da150",
+  "choice": "all",
+  "pending_deviation_ids": [
+    "DEVIATION-001"
+  ],
+  "selected_deviation_ids": [
+    "DEVIATION-001"
+  ],
+  "retained_deviation_ids": [],
+  "deviation_classifications": {
+    "DEVIATION-001": "task_only"
+  },
+  "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
+  "ledger": {
+    "schema": "work-spec-reconciliation-ledger/v1",
+    "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
+    "entries": [
+      {
+        "deviation_id": "DEVIATION-001",
+        "outcome": "incorporated",
+        "target": "task_only",
+        "attempt_sha256": "76bba8b989624b1422c881f7db8b82759d301a408217ca285d0512c4003da150",
+        "reconciliation_fingerprint": "8f04eeb788da7018f59514032f59788ebf048ba32c1f5d23b78da70e14fc4b0f"
+      }
+    ]
+  },
+  "migration_preview": {
+    "schema": "work-spec-migration-preview/v1",
+    "status": "ready",
+    "documents": [
+      "outputs/work/executions/example/index.json",
+      "outputs/work/plans/example.json",
+      "outputs/work/tasks/example/index.json",
+      "outputs/work/tasks/example/tasks/TASK-001.json"
+    ],
+    "diffs": [
+      {
+        "path": "outputs/work/executions/example/index.json",
+        "operation": "replace",
+        "unified_diff": "--- outputs/work/executions/example/index.json:source\n+++ outputs/work/executions/example/index.json:candidate\n@@ -2,21 +2,25 @@\n   \"schema\": \"work-execution-index/v1\",\n   \"requirement_id\": \"example\",\n   \"title\": \"Execution\",\n-  \"task_spec_id\": \"TASK-SPEC-001\",\n-  \"task_collection_sha256\": \"fb5854024d838a5abfcbe9a3fd040acf26b92abd75cb5fe5697723952c53aa12\",\n-  \"task_index_sha256\": \"e4c9c1a311cb8db614c3303307e698024a06ddd7a14e31c3d5b2c84575658a82\",\n+  \"task_spec_id\": \"TASK-SPEC-002\",\n+  \"task_collection_sha256\": \"93642ac1ab61b40a8a60eed7037f68b120f720adfaa00b62ba0f0bd7208c8d03\",\n+  \"task_index_sha256\": \"a9db8ce70c34157606cb36e8c720516de8b6c70ed549df280339a151e2b102d9\",\n   \"task_instructions_sha256\": \"d96cb66bc96c394655df49bb557f0850344be70763b99e96bad7c70732ea372d\",\n   \"hierarchy_selection_sha256\": \"973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e\",\n   \"skill_selection_sha256\": \"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959\",\n-  \"overall_status\": \"completed\",\n+  \"overall_status\": \"pending\",\n   \"tasks\": [\n     {\n       \"id\": \"TASK-001\",\n-      \"status\": \"completed\",\n+      \"status\": \"pending_retry\",\n       \"skill_id\": null,\n-      \"task_item_sha256\": \"2ff6f684cdfd2d418d0573449a267434be7a5f1dc83691ae6f11fa00508f60e1\",\n+      \"task_item_sha256\": \"3cb9b4dabcee50376af0783cf99f3f973673c2cb8f6410072fda4c76c79a79e8\",\n       \"instructions_sha256\": \"d96cb66bc96c394655df49bb557f0850344be70763b99e96bad7c70732ea372d\",\n-      \"latest_attempt\": \"ATTEMPT-001\"\n+      \"latest_attempt\": \"ATTEMPT-001\",\n+      \"status_reason\": {\n+        \"kind\": \"task_change\",\n+        \"ref\": \"TASK-CHANGE-001\"\n+      }\n     }\n   ]\n }\n"
+      },
+      {
+        "path": "outputs/work/plans/example.json",
+        "operation": "replace",
+        "unified_diff": ""
+      },
+      {
+        "path": "outputs/work/tasks/example/index.json",
+        "operation": "replace",
+        "unified_diff": "--- outputs/work/tasks/example/index.json:source\n+++ outputs/work/tasks/example/index.json:candidate\n@@ -1,7 +1,7 @@\n {\n   \"schema\": \"work-task-index/v1\",\n   \"requirement_id\": \"example\",\n-  \"spec_id\": \"TASK-SPEC-001\",\n+  \"spec_id\": \"TASK-SPEC-002\",\n   \"status\": \"confirmed\",\n   \"title\": \"Example TASK\",\n   \"summary\": \"Task summary.\",\n@@ -55,11 +55,32 @@\n     {\n       \"id\": \"TASK-001\",\n       \"path\": \"tasks/TASK-001.json\",\n-      \"canonical_sha256\": \"2ff6f684cdfd2d418d0573449a267434be7a5f1dc83691ae6f11fa00508f60e1\"\n+      \"canonical_sha256\": \"3cb9b4dabcee50376af0783cf99f3f973673c2cb8f6410072fda4c76c79a79e8\"\n+    }\n+  ],\n+  \"changes\": [\n+    {\n+      \"id\": \"TASK-CHANGE-001\",\n+      \"spec_id\": \"TASK-SPEC-002\",\n+      \"date\": \"2026-09-26\",\n+      \"reason\": \"Incorporate the approved runtime deviation.\",\n+      \"affected_ids\": [\n+        \"TASK-001\"\n+      ],\n+      \"edits\": [\n+        {\n+          \"artifact\": \"task_item\",\n+          \"task_id\": \"TASK-001\",\n+          \"operation\": \"replace\",\n+          \"path\": \"/goal\",\n+          \"before\": \"Modify the source and validate it.\",\n+          \"after\": \"Review the approved runtime deviation.\"\n+        }\n+      ]\n     }\n   ],\n   \"readiness\": {\n     \"status\": \"passed\",\n-    \"spec_id\": \"TASK-SPEC-001\"\n+    \"spec_id\": \"TASK-SPEC-002\"\n   }\n }\n"
+      },
+      {
+        "path": "outputs/work/tasks/example/tasks/TASK-001.json",
+        "operation": "replace",
+        "unified_diff": "--- outputs/work/tasks/example/tasks/TASK-001.json:source\n+++ outputs/work/tasks/example/tasks/TASK-001.json:candidate\n@@ -50,7 +50,7 @@\n       \"ACCEPTANCE-001\"\n     ]\n   },\n-  \"goal\": \"Modify the source and validate it.\",\n+  \"goal\": \"Review the approved runtime deviation.\",\n   \"files\": [\n     {\n       \"id\": \"FILE-001\",\n"
+      }
+    ],
+    "validator_results": [
+      {
+        "name": "plan",
+        "status": "passed"
+      },
+      {
+        "name": "task_collection",
+        "status": "passed"
+      },
+      {
+        "name": "execution_index",
+        "status": "passed"
+      }
+    ],
+    "relationship_results": [
+      {
+        "name": "candidate_set",
+        "status": "passed"
+      },
+      {
+        "name": "artifact_paths",
+        "status": "passed"
+      },
+      {
+        "name": "execution_binding",
+        "status": "passed"
+      }
+    ],
+    "unresolved_items": [],
+    "fingerprint": "c55facff55d45e93a28cd851e55dfc82b8f6ccaf6b07491aecb78a6d39763de2",
+    "writable_ready": true
+  },
+  "fingerprint": "8f04eeb788da7018f59514032f59788ebf048ba32c1f5d23b78da70e14fc4b0f",
+  "publication_required": true,
+  "publication_ready": true
+}

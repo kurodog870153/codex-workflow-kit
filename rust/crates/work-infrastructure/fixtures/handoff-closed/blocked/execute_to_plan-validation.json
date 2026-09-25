@@ -1,0 +1,32 @@
+{
+  "schema": "work-handoff-source-validation/v1",
+  "marker": "WORK-HANDOFF",
+  "direction": "execute_to_plan",
+  "requirement_id": "example",
+  "source_stage": "execute",
+  "target_stage": "plan",
+  "status": "valid",
+  "plan_path": "outputs/work/plans/example.json",
+  "task_path": "outputs/work/tasks/example/index.json",
+  "source": {
+    "stage": "execute",
+    "task_spec_id": "TASK-SPEC-001",
+    "task_id": "TASK-001",
+    "task_collection_sha256": "8c6dd3f8956a3e0908efe8e16351766074681dbcd5b0d6e35a785ac26b23d042",
+    "task_index_sha256": "924c21cd35f87597f5bacdb21de1301db9ba39588bcdc223dc5e48e9980eea20",
+    "task_item_sha256": "70a7cec684fbcf4ce6f85ff25f13d5fb062b6df3c7e56c910f8a44e6f6badcc3",
+    "task_instructions_sha256": "d96cb66bc96c394655df49bb557f0850344be70763b99e96bad7c70732ea372d",
+    "skill_id": null,
+    "execute_skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
+    "execution_context": {
+      "attempt": {
+        "status": "blocked",
+        "id": "ATTEMPT-001"
+      },
+      "phase": "execution",
+      "issue_type": "specification_defect",
+      "reason": "Clarify specification"
+    },
+    "attempt_sha256": "8104e936ab12ca073de01bf1b14a38888226bcef981fb772e86ef9ccf4a8d740"
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "schema": "work-spec-migration-prepare-request/v1",
+  "mode": "reconstruction",
+  "plan": {
+    "requirement_id": "example",
+    "title": "Example Plan",
+    "summary": "Plan summary.",
+    "goals": [
+      "Complete the goal."
+    ],
+    "scope": [
+      "Handle the scope."
+    ],
+    "deliverables": [
+      "Produce the result."
+    ],
+    "acceptance_criteria": [
+      "The result is observable."
+    ],
+    "hierarchy_selection_request": {
+      "decision": "general_only",
+      "selections": []
+    },
+    "skill_selection_request": {
+      "decision": "base_only",
+      "skills": []
+    },
+    "references": []
+  },
+  "task_title": "Example TASK",
+  "task_summary": "Task summary.",
+  "execution_defaults": {
+    "working_directory": ".",
+    "os": "windows",
+    "shell": "powershell"
+  },
+  "tasks": [
+    {
+      "title": "Modify source",
+      "goal": "Modify the source and validate it.",
+      "skill_id": null,
+      "selected_paths": [],
+      "references": [
+        "task.general.task-records"
+      ],
+      "dependency_positions": [],
+      "candidate": {
+        "files": [
+          {
+            "key": "source",
+            "action": "modify",
+            "path": "src.txt"
+          }
+        ],
+        "commands": [
+          {
+            "key": "check",
+            "mode": "argv",
+            "argv": [
+              "python",
+              "--version"
+            ]
+          }
+        ],
+        "validations": [
+          {
+            "key": "pass",
+            "kind": "automated",
+            "command_keys": [
+              "check"
+            ],
+            "pass_condition": "Exit code is zero.",
+            "acceptance_positions": [
+              1
+            ]
+          }
+        ],
+        "steps": [
+          {
+            "key": "modify",
+            "action": "Modify the source.",
+            "references": [
+              {
+                "kind": "files",
+                "key": "source"
+              }
+            ]
+          },
+          {
+            "key": "verify",
+            "action": "Run validation.",
+            "references": [
+              {
+                "kind": "commands",
+                "key": "check"
+              },
+              {
+                "kind": "validations",
+                "key": "pass"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "semantic_decisions": []
+}

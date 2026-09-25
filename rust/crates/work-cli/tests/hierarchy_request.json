@@ -1,0 +1,9 @@
+{
+  "decision": "instruction_paths",
+  "selections": [
+    {
+      "path": "web/backend/java/jpa",
+      "recommendation_reason": "The work uses JPA persistence."
+    }
+  ]
+}

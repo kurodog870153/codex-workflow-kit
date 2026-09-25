@@ -1,0 +1,31 @@
+{
+  "schema": "work-spec-transaction/v1",
+  "transaction_id": "SPEC-RECONCILIATION-3466CE69B975",
+  "approval_sha256": "3466ce69b97554f9e7d28d7c55e8d3b5059744e459bf784c00f63a9003195988",
+  "state": "published",
+  "published_count": 1,
+  "metadata": {
+    "request": {
+      "reconciliation_fingerprint": "fdc6f0075f2635f6f347b5d52dec9e3300003edb6d6d8f30224b2c34d2bc9112",
+      "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json"
+    },
+    "artifacts": {},
+    "affected_task_ids": [],
+    "history_sha256": {},
+    "source_sha256": {},
+    "candidate_sha256": {
+      "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json": "a01468010229213a10222aa175d0630f8db501f2eb280a019f21a4a7fe50ae18"
+    }
+  },
+  "files": [
+    {
+      "phase": 10,
+      "path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
+      "operation": "add",
+      "after": {
+        "raw_sha256": "a01468010229213a10222aa175d0630f8db501f2eb280a019f21a4a7fe50ae18",
+        "base64": "ewogICJzY2hlbWEiOiAid29yay1zcGVjLXJlY29uY2lsaWF0aW9uLWxlZGdlci92MSIsCiAgImF0dGVtcHRfcGF0aCI6ICJvdXRwdXRzL3dvcmsvZXhlY3V0aW9ucy9leGFtcGxlL1RBU0stMDAxL0FUVEVNUFQtMDAxL2F0dGVtcHQuanNvbiIsCiAgImVudHJpZXMiOiBbCiAgICB7CiAgICAgICJkZXZpYXRpb25faWQiOiAiREVWSUFUSU9OLTAwMSIsCiAgICAgICJvdXRjb21lIjogInJldGFpbmVkIiwKICAgICAgInRhcmdldCI6ICJyZXRhaW5fb25seSIsCiAgICAgICJhdHRlbXB0X3NoYTI1NiI6ICJjMjcyYmRlODI0ZjYyNTc1OTEzMTNiNTNmYjQ1ZWI1YjIyYjc2NzU1MTMyZGVkOWU5NGMxODI2MGE3NzU1YTVhIiwKICAgICAgInJlY29uY2lsaWF0aW9uX2ZpbmdlcnByaW50IjogImZkYzZmMDA3NWYyNjM1ZjZmMzQ3YjVkNTJkZWM5ZTMzMDAwMDNlZGI2ZDZkOGYzMDIyNGIyYzM0ZDJiYzkxMTIiCiAgICB9CiAgXQp9Cg=="
+      }
+    }
+  ]
+}

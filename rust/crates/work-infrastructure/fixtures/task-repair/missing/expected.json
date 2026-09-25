@@ -1,0 +1,9 @@
+{
+  "approved_sha256": "b1769bdb9bf1d75d428c43d8577373c9fffb978d486506fcad1448d3af8149bf",
+  "changed_paths": [
+    "outputs/work/tasks/example/tasks/TASK-001.json"
+  ],
+  "affected_task_ids": [
+    "TASK-001"
+  ]
+}

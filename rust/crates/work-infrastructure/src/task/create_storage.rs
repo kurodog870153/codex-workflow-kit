@@ -1,0 +1,558 @@
+//! Exclusive formal TASK creation and exact-byte recovery.
+
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use serde_json::{Value, json};
+use work_feature::error::{ExitCode, WorkError};
+use work_feature::ports::ArtifactStore;
+use work_feature::skill::SkillRoot;
+use work_feature::task::create::{
+    PreparedTaskCreate, TaskCreateProjectInput, TaskCreationRepository, create_task_from_project,
+};
+
+use crate::files::{LocalFiles, resolve_project_path};
+use crate::hierarchy_catalog::LocalHierarchyCatalog;
+use crate::plan_storage::LocalPlanStorage;
+use crate::skill_catalog::{LocalSkillCatalog, SkillRootConfig};
+
+fn failure(reason: &str, message: &str, details: Value) -> WorkError {
+    WorkError::new(ExitCode::WorkflowState, reason, message, details)
+}
+
+fn create_target(
+    path: &Path,
+    bytes: &[u8],
+    recovery: bool,
+    reason: &str,
+) -> Result<bool, WorkError> {
+    if path.exists() {
+        if !recovery || !path.is_file() || LocalFiles.read_raw(path)? != bytes {
+            return Err(failure(
+                reason,
+                "An existing TASK create target conflicts with approved bytes.",
+                json!({"path":path}),
+            ));
+        }
+        return Ok(false);
+    }
+    LocalFiles.create_new(path, bytes)?;
+    Ok(true)
+}
+
+fn check_existing_target(path: &Path, bytes: &[u8]) -> Result<(), WorkError> {
+    if path.exists() && (!path.is_file() || LocalFiles.read_raw(path)? != bytes) {
+        return Err(failure(
+            "unrecoverable_task_create_state",
+            "An existing TASK create target conflicts with approved bytes.",
+            json!({"path":path}),
+        ));
+    }
+    Ok(())
+}
+
+fn checked_directory(path: &Path, allowed: &[&str], recovery: bool) -> Result<(), WorkError> {
+    if !path.exists() {
+        return Ok(());
+    }
+    if path.is_symlink() || !path.is_dir() {
+        return Err(failure(
+            "unrecoverable_task_create_state",
+            "The TASK create target is not a safe directory.",
+            json!({"path":path}),
+        ));
+    }
+    let mut unexpected = Vec::new();
+    for entry in fs::read_dir(path).map_err(|_| {
+        failure(
+            "unrecoverable_task_create_state",
+            "The TASK create directory cannot be inspected.",
+            json!({"path":path}),
+        )
+    })? {
+        let entry = entry.map_err(|_| {
+            failure(
+                "unrecoverable_task_create_state",
+                "The TASK create directory cannot be inspected.",
+                json!({"path":path}),
+            )
+        })?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !allowed.contains(&name.as_str())
+            || entry.path().is_symlink()
+            || (name == "drafts" && !entry.path().is_dir())
+        {
+            unexpected.push(name);
+        }
+    }
+    if !unexpected.is_empty() {
+        unexpected.sort();
+        return Err(failure(
+            if recovery {
+                "unrecoverable_task_create_state"
+            } else {
+                "task_create_target_exists"
+            },
+            "The TASK create directory contains unexpected content.",
+            json!({"unexpected_collection_entries":unexpected}),
+        ));
+    }
+    Ok(())
+}
+
+fn targets(
+    root: &Path,
+    index_relative: &str,
+    execution_relative: &str,
+    prepared: &PreparedTaskCreate,
+    recovery: bool,
+) -> Result<bool, WorkError> {
+    let (_, index_path) = resolve_project_path(root, index_relative)?;
+    let (_, execution_path) = resolve_project_path(root, execution_relative)?;
+    let collection = index_path.parent().expect("TASK index path has parent");
+    let items_dir = collection.join("tasks");
+    let execution_index = execution_path.join("index.json");
+    if !recovery {
+        checked_directory(collection, &["drafts"], false)?;
+        if index_path.exists() || items_dir.exists() || execution_path.exists() {
+            return Err(failure(
+                "task_create_target_exists",
+                "TASK create requires formal collection and execution targets to be absent.",
+                json!({"task_index_exists":index_path.exists(),
+                    "task_items_directory_exists":items_dir.exists(),
+                    "execution_exists":execution_path.exists()}),
+            ));
+        }
+    } else {
+        if !collection.exists() {
+            return Err(failure(
+                "unrecoverable_task_create_state",
+                "TASK recovery requires preserved create storage.",
+                json!({}),
+            ));
+        }
+        checked_directory(collection, &["drafts", "index.json", "tasks"], true)?;
+        if execution_path.exists() {
+            checked_directory(&execution_path, &["index.json"], true)?;
+        }
+    }
+    if items_dir.exists() {
+        if !items_dir.is_dir() || items_dir.is_symlink() {
+            return Err(failure(
+                "unrecoverable_task_create_state",
+                "The TASK item target is not a safe directory.",
+                json!({}),
+            ));
+        }
+        let expected = prepared
+            .items
+            .keys()
+            .map(|id| format!("{id}.json"))
+            .collect::<std::collections::BTreeSet<_>>();
+        for entry in fs::read_dir(&items_dir).map_err(|_| {
+            failure(
+                "unrecoverable_task_create_state",
+                "The TASK item directory cannot be inspected.",
+                json!({}),
+            )
+        })? {
+            let entry = entry.map_err(|_| {
+                failure(
+                    "unrecoverable_task_create_state",
+                    "The TASK item directory cannot be inspected.",
+                    json!({}),
+                )
+            })?;
+            if !expected.contains(&entry.file_name().to_string_lossy().to_string()) {
+                return Err(failure(
+                    "unrecoverable_task_create_state",
+                    "The TASK item directory contains unknown content.",
+                    json!({}),
+                ));
+            }
+        }
+    }
+    if recovery {
+        for (task_id, raw) in &prepared.items {
+            check_existing_target(&items_dir.join(format!("{task_id}.json")), raw)?;
+        }
+        check_existing_target(&index_path, &prepared.index_raw)?;
+        check_existing_target(&execution_index, &prepared.execution_raw)?;
+    }
+    fs::create_dir_all(&items_dir).map_err(|_| {
+        failure(
+            "file_write_failed",
+            "The TASK item directory cannot be created.",
+            json!({}),
+        )
+    })?;
+    let mut changed = false;
+    for (task_id, raw) in &prepared.items {
+        changed |= create_target(
+            &items_dir.join(format!("{task_id}.json")),
+            raw,
+            recovery,
+            "unrecoverable_task_create_state",
+        )?;
+    }
+    changed |= create_target(
+        &index_path,
+        &prepared.index_raw,
+        recovery,
+        "unrecoverable_task_create_state",
+    )?;
+    fs::create_dir_all(&execution_path).map_err(|_| {
+        failure(
+            "file_write_failed",
+            "The execution directory cannot be created.",
+            json!({}),
+        )
+    })?;
+    changed |= create_target(
+        &execution_index,
+        &prepared.execution_raw,
+        recovery,
+        "unrecoverable_task_create_state",
+    )?;
+    Ok(changed)
+}
+
+pub struct CreateTaskRequest<'a> {
+    pub raw: &'a [u8],
+    pub plan_path: &'a str,
+    pub task_path: &'a str,
+    pub execution_dir: &'a str,
+    pub recovery: bool,
+}
+
+pub struct LocalTaskCreation {
+    pub project_root: PathBuf,
+}
+
+impl TaskCreationRepository for LocalTaskCreation {
+    fn read_plan(&self, relative_path: &str) -> Result<Vec<u8>, WorkError> {
+        let (_, path) = resolve_project_path(&self.project_root, relative_path)?;
+        LocalFiles.read_raw(&path)
+    }
+
+    fn publish(
+        &self,
+        task_path: &str,
+        execution_dir: &str,
+        prepared: &PreparedTaskCreate,
+        recovery: bool,
+    ) -> Result<bool, WorkError> {
+        targets(
+            &self.project_root,
+            task_path,
+            execution_dir,
+            prepared,
+            recovery,
+        )
+    }
+
+    fn read_execution_index(&self, execution_dir: &str) -> Result<Vec<u8>, WorkError> {
+        let (_, path) = resolve_project_path(&self.project_root, execution_dir)?;
+        LocalFiles.read_raw(&path.join("index.json"))
+    }
+}
+
+pub fn create_task_artifacts(
+    project_root: &Path,
+    skill_root: &Path,
+    skill_configs: &[SkillRootConfig],
+    request: CreateTaskRequest<'_>,
+) -> Result<Value, WorkError> {
+    let work = LocalHierarchyCatalog {
+        skill_root: skill_root.to_path_buf(),
+    };
+    let skill_roots = skill_configs
+        .iter()
+        .map(|root| SkillRoot {
+            scope: root.scope.clone(),
+            locator: root.locator.clone(),
+        })
+        .collect::<Vec<_>>();
+    let skills = LocalSkillCatalog {
+        roots: skill_configs.to_vec(),
+    };
+    let paths = LocalPlanStorage {
+        project_root: project_root.to_path_buf(),
+    };
+    create_task_from_project(
+        &work,
+        &skills,
+        &paths,
+        &LocalTaskCreation {
+            project_root: project_root.to_path_buf(),
+        },
+        &skill_roots,
+        TaskCreateProjectInput {
+            raw: request.raw,
+            task_path: request.task_path,
+            plan_path: request.plan_path,
+            execution_dir: request.execution_dir,
+            recovery: request.recovery,
+        },
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+    use work_feature::task::assembly::{AssemblyInput, assemble_task_drafts};
+    use work_operations::canonical::sha256_hex;
+    use work_operations::task::ordering::{TaskDocumentKind, render_task};
+
+    #[test]
+    fn creates_and_recovers_python_formal_fixture() {
+        let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+        let source = repo.join("crates/work-infrastructure/fixtures/instruction-migration");
+        let root = std::env::temp_dir().join(format!(
+            "work-task-create-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let plan_relative = "outputs/work/plans/example.json";
+        let plan_target = root.join(plan_relative);
+        fs::create_dir_all(plan_target.parent().unwrap()).unwrap();
+        fs::copy(source.join(plan_relative), plan_target).unwrap();
+        let mut index: Value = serde_json::from_slice(
+            &fs::read(source.join("outputs/work/tasks/example/index.json")).unwrap(),
+        )
+        .unwrap();
+        let mut item: Value = serde_json::from_slice(
+            &fs::read(source.join("outputs/work/tasks/example/tasks/TASK-001.json")).unwrap(),
+        )
+        .unwrap();
+        item.as_object_mut().unwrap().remove("schema");
+        index["schema"] = json!("work-task-collection-projection/v1");
+        index["tasks"] = json!([item]);
+        let raw = render_task(&index, TaskDocumentKind::Collection).unwrap();
+        let skill = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let created = create_task_artifacts(
+            &root,
+            &skill,
+            &[],
+            CreateTaskRequest {
+                raw: &raw,
+                plan_path: plan_relative,
+                task_path: "outputs/work/tasks/example/index.json",
+                execution_dir: "outputs/work/executions/example",
+                recovery: false,
+            },
+        )
+        .unwrap();
+        assert_eq!(created["status"], "created");
+        assert_eq!(
+            fs::read(root.join("outputs/work/tasks/example/index.json")).unwrap(),
+            fs::read(source.join("outputs/work/tasks/example/index.json")).unwrap()
+        );
+        let duplicate = create_task_artifacts(
+            &root,
+            &skill,
+            &[],
+            CreateTaskRequest {
+                raw: &raw,
+                plan_path: plan_relative,
+                task_path: "outputs/work/tasks/example/index.json",
+                execution_dir: "outputs/work/executions/example",
+                recovery: false,
+            },
+        )
+        .unwrap_err();
+        assert_eq!(duplicate.reason_code, "task_create_target_exists");
+        assert_eq!(
+            create_task_artifacts(
+                &root,
+                &skill,
+                &[],
+                CreateTaskRequest {
+                    raw: &raw,
+                    plan_path: plan_relative,
+                    task_path: "outputs/work/tasks/example/index.json",
+                    execution_dir: "outputs/work/executions/example",
+                    recovery: true
+                }
+            )
+            .unwrap()["status"],
+            "already_completed"
+        );
+
+        let index_relative = "outputs/work/tasks/example/index.json";
+        let item_relative = "outputs/work/tasks/example/tasks/TASK-001.json";
+        let execution_relative = "outputs/work/executions/example/index.json";
+        for stage in 0..3 {
+            let interrupted = root.join(format!("interrupted-{stage}"));
+            let interrupted_plan = interrupted.join(plan_relative);
+            fs::create_dir_all(interrupted_plan.parent().unwrap()).unwrap();
+            fs::copy(source.join(plan_relative), interrupted_plan).unwrap();
+            fs::create_dir_all(interrupted.join(index_relative).parent().unwrap()).unwrap();
+            if stage >= 1 {
+                let target = interrupted.join(item_relative);
+                fs::create_dir_all(target.parent().unwrap()).unwrap();
+                fs::copy(root.join(item_relative), target).unwrap();
+            }
+            if stage >= 2 {
+                fs::copy(root.join(index_relative), interrupted.join(index_relative)).unwrap();
+            }
+            let result = create_task_artifacts(
+                &interrupted,
+                &skill,
+                &[],
+                CreateTaskRequest {
+                    raw: &raw,
+                    plan_path: plan_relative,
+                    task_path: index_relative,
+                    execution_dir: "outputs/work/executions/example",
+                    recovery: true,
+                },
+            )
+            .unwrap();
+            assert_eq!(result["status"], "recovered");
+            for relative in [index_relative, item_relative, execution_relative] {
+                assert_eq!(
+                    fs::read(interrupted.join(relative)).unwrap(),
+                    fs::read(root.join(relative)).unwrap()
+                );
+            }
+        }
+
+        let unexpected = root.join("unexpected-entry");
+        let unexpected_collection = unexpected
+            .join(index_relative)
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        fs::create_dir_all(&unexpected_collection).unwrap();
+        fs::create_dir_all(unexpected.join(plan_relative).parent().unwrap()).unwrap();
+        fs::copy(source.join(plan_relative), unexpected.join(plan_relative)).unwrap();
+        fs::write(unexpected_collection.join("unexpected.json"), b"{}\n").unwrap();
+        let create_error = create_task_artifacts(
+            &unexpected,
+            &skill,
+            &[],
+            CreateTaskRequest {
+                raw: &raw,
+                plan_path: plan_relative,
+                task_path: index_relative,
+                execution_dir: "outputs/work/executions/example",
+                recovery: false,
+            },
+        )
+        .unwrap_err();
+        assert_eq!(create_error.reason_code, "task_create_target_exists");
+        assert_eq!(
+            create_error.details["unexpected_collection_entries"],
+            json!(["unexpected.json"])
+        );
+        let error = create_task_artifacts(
+            &unexpected,
+            &skill,
+            &[],
+            CreateTaskRequest {
+                raw: &raw,
+                plan_path: plan_relative,
+                task_path: index_relative,
+                execution_dir: "outputs/work/executions/example",
+                recovery: true,
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error.reason_code, "unrecoverable_task_create_state");
+        assert!(!unexpected.join(item_relative).exists());
+
+        let conflict = root.join("conflicting-item");
+        fs::create_dir_all(conflict.join(item_relative).parent().unwrap()).unwrap();
+        fs::create_dir_all(conflict.join(plan_relative).parent().unwrap()).unwrap();
+        fs::copy(source.join(plan_relative), conflict.join(plan_relative)).unwrap();
+        fs::write(conflict.join(item_relative), b"conflict").unwrap();
+        let error = create_task_artifacts(
+            &conflict,
+            &skill,
+            &[],
+            CreateTaskRequest {
+                raw: &raw,
+                plan_path: plan_relative,
+                task_path: index_relative,
+                execution_dir: "outputs/work/executions/example",
+                recovery: true,
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error.reason_code, "unrecoverable_task_create_state");
+        assert_eq!(fs::read(conflict.join(item_relative)).unwrap(), b"conflict");
+        assert!(!conflict.join(index_relative).exists());
+    }
+
+    #[test]
+    fn draft_assembly_matches_python_review_fingerprint() {
+        let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+        let fixture = repo.join("crates/work-infrastructure/fixtures/task-assembly");
+        let root = std::env::temp_dir().join(format!(
+            "work-task-assembly-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let raw = fs::read(fixture.join("plan.json")).unwrap();
+        let index: Value =
+            serde_json::from_slice(&fs::read(fixture.join("index.json")).unwrap()).unwrap();
+        let draft: Value =
+            serde_json::from_slice(&fs::read(fixture.join("draft.json")).unwrap()).unwrap();
+        let metadata: Value =
+            serde_json::from_slice(&fs::read(fixture.join("metadata.json")).unwrap()).unwrap();
+        let expected: Value =
+            serde_json::from_slice(&fs::read(fixture.join("expected.json")).unwrap()).unwrap();
+        let hierarchy = LocalHierarchyCatalog {
+            skill_root: repo.join("crates/work-infrastructure/legacy-work-skill"),
+        };
+        let skills = LocalSkillCatalog { roots: vec![] };
+        let paths = LocalPlanStorage { project_root: root };
+        let drafts = BTreeMap::from([("TASK-001".into(), draft)]);
+        let actual = assemble_task_drafts(
+            &hierarchy,
+            &skills,
+            &paths,
+            &[],
+            AssemblyInput {
+                index: &index,
+                drafts: &drafts,
+                plan_raw: &raw,
+                metadata: &metadata,
+                expected_revision: 2,
+                plan_path: "outputs/work/plans/example.json",
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            sha256_hex(&work_operations::canonical::canonical_json(&index).unwrap()),
+            "a41d0d7b8a17f5c9f782dd5fab41a4dafed1f9e183c5e2598530827f41c8d3c3"
+        );
+        let prepared = work_operations::task::create::prepare_collection(
+            &actual["contract"],
+            "outputs/work/tasks/example/index.json",
+            "outputs/work/plans/example.json",
+        )
+        .unwrap();
+        assert_eq!(actual["contract"], expected["contract"]);
+        assert_eq!(actual["task_index_sha256"], expected["task_index_sha256"]);
+        assert_eq!(actual["task_item_sha256"], expected["task_item_sha256"]);
+        assert_eq!(
+            sha256_hex(&prepared.index_raw),
+            expected["task_index_sha256"]
+        );
+        assert_eq!(
+            sha256_hex(&prepared.approval_bytes),
+            "406d0c2e718d627731db314efa90391ce7c85336ed720fd2e710908debac0ced"
+        );
+        assert_eq!(actual, expected);
+    }
+}

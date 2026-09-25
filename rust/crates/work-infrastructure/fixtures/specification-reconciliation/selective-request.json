@@ -1,0 +1,25 @@
+{
+  "schema": "work-spec-reconciliation-preview-request/v1",
+  "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
+  "choice": "selective",
+  "deviation_ids": [
+    "DEVIATION-001"
+  ],
+  "migration": {
+    "schema": "work-spec-migration-preview-request/v1",
+    "sources": [
+      {
+        "path": "source.json",
+        "raw_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    ],
+    "candidates": [
+      {
+        "path": "candidate.json",
+        "kind": "plan",
+        "content": {}
+      }
+    ],
+    "semantic_decisions": []
+  }
+}

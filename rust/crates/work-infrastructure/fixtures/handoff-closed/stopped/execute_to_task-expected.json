@@ -1,0 +1,50 @@
+{
+  "schema": "work-handoff/v1",
+  "marker": "WORK-HANDOFF",
+  "direction": "execute_to_task",
+  "requirement_id": "example",
+  "artifacts": {
+    "plan": "outputs/work/plans/example.json",
+    "task": "outputs/work/tasks/example/index.json",
+    "execution": "outputs/work/executions/example"
+  },
+  "source": {
+    "stage": "execute",
+    "task_spec_id": "TASK-SPEC-001",
+    "task_id": "TASK-001",
+    "task_collection_sha256": "8c6dd3f8956a3e0908efe8e16351766074681dbcd5b0d6e35a785ac26b23d042",
+    "task_index_sha256": "924c21cd35f87597f5bacdb21de1301db9ba39588bcdc223dc5e48e9980eea20",
+    "task_item_sha256": "70a7cec684fbcf4ce6f85ff25f13d5fb062b6df3c7e56c910f8a44e6f6badcc3",
+    "task_instructions_sha256": "d96cb66bc96c394655df49bb557f0850344be70763b99e96bad7c70732ea372d",
+    "skill_id": null,
+    "execute_skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
+    "execution_context": {
+      "attempt": {
+        "status": "stopped",
+        "id": "ATTEMPT-001"
+      },
+      "phase": "execution",
+      "issue_type": "specification_defect",
+      "reason": "Clarify specification"
+    },
+    "attempt_sha256": "601f9ca988724b8b91b4ce0f737cf5102a4c465007a54c4b1830cc3a1e1faf76"
+  },
+  "target": {
+    "stage": "task"
+  },
+  "summary": "調整已確認範圍",
+  "confirmed_approach": "保留既有介面",
+  "requested_changes": [
+    "新增驗收條件"
+  ],
+  "preserve": [
+    "既有功能"
+  ],
+  "affected_ids": [
+    "GOAL-001",
+    "TASK-001"
+  ],
+  "validation_requirements": [
+    "重新確認驗收條件"
+  ]
+}

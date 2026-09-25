@@ -1,0 +1,44 @@
+{
+  "requirement_id": "example",
+  "artifacts": {
+    "plan": "outputs/work/plans/example.json",
+    "task": "outputs/work/tasks/example/index.json",
+    "execution": "outputs/work/executions/example"
+  },
+  "plan_validation": {
+    "plan_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "task_validation": {
+    "task_collection_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "execution_index": {
+    "overall_status": "completed",
+    "lock": null,
+    "tasks": [
+      {
+        "id": "TASK-001",
+        "status": "in_progress",
+        "latest_attempt": "ATTEMPT-001"
+      }
+    ]
+  },
+  "latest_attempts": {
+    "TASK-001": {
+      "status": "completed",
+      "task_id": "TASK-001",
+      "attempt_id": "ATTEMPT-001",
+      "_reconciliation_resolved_ids": [
+        "DEVIATION-001"
+      ],
+      "execution_deviations": [
+        {
+          "deviation_id": "DEVIATION-001",
+          "decision": {
+            "outcome": "approved"
+          },
+          "reconciliation_status": "pending"
+        }
+      ]
+    }
+  }
+}

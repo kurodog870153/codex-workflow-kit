@@ -1,0 +1,59 @@
+{
+  "schema": "work-spec-reconciliation-publication/v1",
+  "status": "updated",
+  "reconciliation_fingerprint": "8f04eeb788da7018f59514032f59788ebf048ba32c1f5d23b78da70e14fc4b0f",
+  "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
+  "attempt_sha256": "76bba8b989624b1422c881f7db8b82759d301a408217ca285d0512c4003da150",
+  "selected_deviation_ids": [
+    "DEVIATION-001"
+  ],
+  "retained_deviation_ids": [],
+  "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
+  "ledger_sha256": "e049f9f7c8e4060d3be945419fc2d0041a2ec78e7993e18a31cc343cd6d0a55f",
+  "publication": {
+    "schema": "work-spec-migration-publication/v1",
+    "status": "updated",
+    "fingerprint": "c55facff55d45e93a28cd851e55dfc82b8f6ccaf6b07491aecb78a6d39763de2",
+    "transaction_approval_sha256": "79f289f1fa0036a21fb097d4158195c49b8025bf061b90048f720452ac62b1ef",
+    "journal": "outputs/work/executions/example/.work-spec-migration-C55FACFF55D4.json",
+    "completion_marker": "outputs/work/executions/example/.work-spec-migration-C55FACFF55D4.json.done",
+    "documents": [
+      "outputs/work/executions/example/index.json",
+      "outputs/work/plans/example.json",
+      "outputs/work/tasks/example/index.json",
+      "outputs/work/tasks/example/tasks/TASK-001.json"
+    ],
+    "publication_status": "published",
+    "validator_results": [
+      {
+        "name": "plan",
+        "status": "passed"
+      },
+      {
+        "name": "task_collection",
+        "status": "passed"
+      },
+      {
+        "name": "execution_index",
+        "status": "passed"
+      }
+    ],
+    "relationship_results": [
+      {
+        "name": "candidate_set",
+        "status": "passed"
+      },
+      {
+        "name": "artifact_paths",
+        "status": "passed"
+      },
+      {
+        "name": "execution_binding",
+        "status": "passed"
+      }
+    ]
+  },
+  "deviation_classifications": {
+    "DEVIATION-001": "task_only"
+  }
+}

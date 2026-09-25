@@ -1,0 +1,124 @@
+{
+  "schema": "work-workflow-state/v1",
+  "requirement_id": "example",
+  "status": "execution_pending",
+  "next_action": "select_task_for_execution",
+  "target": "outputs/work/executions/example",
+  "requires_user_confirmation": true,
+  "required_checks": [
+    "task validate",
+    "execute preflight"
+  ],
+  "artifacts": {
+    "plan": "outputs/work/plans/example.json",
+    "task": "outputs/work/tasks/example/index.json",
+    "execution": "outputs/work/executions/example"
+  },
+  "routing_status": "VALID",
+  "router_compatibility_revision": 3,
+  "required_instruction_sources": [
+    "work.instruction-loading",
+    "work.shared.formal-task-validation",
+    "work.shared.source-loading",
+    "work.shared.artifact-paths",
+    "work.shared.fingerprints",
+    "work.workflow.execute",
+    "work.workflow.execute.identify-the-execution-target",
+    "work.workflow.execute.run-deterministic-read-only-eligibility-checks"
+  ],
+  "source_order": [
+    "work.instruction-loading",
+    "work.shared.formal-task-validation",
+    "work.shared.source-loading",
+    "work.shared.artifact-paths",
+    "work.shared.fingerprints",
+    "work.workflow.execute",
+    "work.workflow.execute.identify-the-execution-target",
+    "work.workflow.execute.run-deterministic-read-only-eligibility-checks"
+  ],
+  "selection_sha256": "9d23f674f50cd62c56cd736706fcbdf1d01f2c0830b441fad3a5253efec360f7",
+  "routing_reasons": [
+    "operation:select_task_for_execution",
+    "workflow_status:execution_pending",
+    "mode:execute"
+  ],
+  "selection_manifest": {
+    "schema": "work-instruction-selection-manifest/v1",
+    "router_compatibility_revision": 3,
+    "routing_input": {
+      "mode": "execute",
+      "status": "execution_pending",
+      "operation": "select_task_for_execution",
+      "artifact_lifecycle": "execution_pending",
+      "formal_events": [],
+      "role": "main",
+      "authorization_state": "confirmation_required",
+      "verified_state_sha256": "cc2bb328ae112eea708edbd95df8524136b4ec6c813f0d20bffcb741732f93aa"
+    },
+    "routing_status": "VALID",
+    "sources": [
+      {
+        "logical_name": "work.instruction-loading",
+        "path": "references/instruction-loading.md",
+        "compatibility_revision": 2,
+        "canonical_sha256": "868209dba7dff984a33932c71906c134c916be0694234b04b0da0f27c9cc99a6"
+      },
+      {
+        "logical_name": "work.shared.formal-task-validation",
+        "path": "references/instruction-loading/formal-task-validation.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "266f8aeca6f9c5091c2066e290b4c134707d7ba3aa0f39903a92b592dd7971af"
+      },
+      {
+        "logical_name": "work.shared.source-loading",
+        "path": "references/instruction-loading/source-loading.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "f0a86b7471ea45669b74cc74c9e3576c87f5eae278853e413e472d2d11575bd1"
+      },
+      {
+        "logical_name": "work.shared.artifact-paths",
+        "path": "references/instruction-loading/artifact-paths.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "b27d40bd8a066d8a09a78c6714eecc2314a0465fbceaa1cacf87af924d1bae32"
+      },
+      {
+        "logical_name": "work.shared.fingerprints",
+        "path": "references/instruction-loading/fingerprints.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "c30d78edbd16a51802160a2c8612f5476f2b9e93fdaa4630808488eb047623e8"
+      },
+      {
+        "logical_name": "work.workflow.execute",
+        "path": "references/workflows/execute.md",
+        "compatibility_revision": 2,
+        "canonical_sha256": "aae8f690856b61e54d84ab70908f3f3bc3462258807fa145b08ae742c00dc49d"
+      },
+      {
+        "logical_name": "work.workflow.execute.identify-the-execution-target",
+        "path": "references/workflows/execute/identify-the-execution-target.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "7aea262eb05eedef461182e34d56ad415213bc5a9db51497d698ffb8485410b8"
+      },
+      {
+        "logical_name": "work.workflow.execute.run-deterministic-read-only-eligibility-checks",
+        "path": "references/workflows/execute/run-deterministic-read-only-eligibility-checks.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "b16bd6382707095b5a059c638b47473a6996c722e3c51e9d49c78424ca36ca8a"
+      }
+    ],
+    "confirmation_required": true,
+    "selection_sha256": "9d23f674f50cd62c56cd736706fcbdf1d01f2c0830b441fad3a5253efec360f7"
+  },
+  "details": {
+    "overall_status": "pending"
+  },
+  "request_contract_id": null,
+  "command": "execute preflight",
+  "arguments": {
+    "task_path": "outputs/work/tasks/example/index.json",
+    "execution_dir": "outputs/work/executions/example",
+    "task_id": "<confirmed-task-id>",
+    "user_config_root": "<user-config-root>"
+  },
+  "semantic_input_contract": null
+}

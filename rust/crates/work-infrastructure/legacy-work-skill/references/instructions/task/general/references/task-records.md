@@ -1,0 +1,128 @@
+# 正式 TASK 與索引參考指令
+
+參考名稱：task.general.task-records
+適用層級：task.general
+指令分類狀態：已完成
+
+## 1. 正式 TASK
+
+1. [強制] 一份已確認 Plan 對應一份持續維護的 TASK 文件；初版使用 `TASK-SPEC-001`，canonical TASK JSON 實質改變時每次核准只遞增一次。
+2. [強制] 必要頂層欄位依序為 `schema`、`requirement_id`、`spec_id`、`status`、`title`、`summary`、`artifacts`、`source_plan`、`instruction_selection`、`tasks`、`readiness`；`execution_defaults`、`decisions`、`changes` 僅在有內容時加入其固定位置。
+3. [強制] `source_plan.canonical_sha256` 與 `source_plan.hierarchy_selection_sha256` 必須分別等於同一需求正式 Plan 的 canonical SHA 與 hierarchy selection SHA；三個 `artifacts` 必須與 Plan 完全一致。
+4. [強制] 文件層 `instruction_selection` 保存所有 TASK Work 指令來源與 routed reference 的第一出現聯集；每個 TASK 保存自己的 Work instruction selection 與 `instructions_sha256`。外部技能身分只由來源 Plan `skill_selection` 與 TASK `skill_id` 表達。
+5. [強制] 每個 TASK 必要欄位為 `id`、`title`、`skill_id`、`instruction_selection`、`traceability`、`goal`、`steps`、`validations`；選用 `dependencies`、`inputs`、`decisions`、`files`、`risks`、`commands`、`operations`。
+
+## 2. ID、相依與追溯
+
+1. [強制] `TASK-*` 在文件內唯一；每個 TASK 的 `INPUT-*`、`TASK-DECISION-*`、`FILE-*`、`RISK-*`、`STEP-*`、`CMD-*`、`OP-*`、`VAL-*` 各自由 `001` 開始。文件層共用決策使用 `DECISION-*`。
+2. [強制] TASK 內引用使用短 ID；跨 TASK 引用使用 `<TASK-ID>/<ITEM-ID>`。既有 ID 不得重編或重用。
+3. [強制] `dependencies` 只列直接相依 TASK，禁止自我相依、循環、未知 ID 與可由其他直接相依推導的冗餘相依。
+4. [強制] `traceability` 必須包含非空的 `goal_ids`、`deliverable_ids`、`acceptance_ids`；Plan 有 milestone 時以 `milestone_ids` 完整覆蓋。
+5. [強制] 影響至少兩個 TASK 的共用決策置於文件層並保存 `task_ids`；只影響單一 TASK 的已確認決策置於該 TASK。
+
+## 3. 輸入、檔案與步驟
+
+1. [強制] `inputs[]` 使用 `id`、`kind`、`source`、`precondition`；`kind` 只允許 `task_output`、`project_state`、`user_provided`、`external`。機密值不得寫入 TASK。
+2. [強制] `task_output.source` 使用 `<TASK-ID>/<FILE-ID>`，且來源 TASK 必須是直接相依。
+3. [強制] `project_state.source` 使用 normalized project-relative path；`user_provided` 與 `external` 的 source 只保存非機密識別或描述，不保存實際機密值。
+4. [強制] `files[]` 的 `action` 只允許 `create`、`modify`、`move`；前兩者使用 `path`，move 使用 `source` 與 `destination`，不支援 delete。
+5. [強制] `risks[]` 使用 `condition`、`impact`、`mitigation`。
+6. [強制] `steps[]` 使用 `id`、`action`、非空 `references`；陣列順序就是執行順序。所有 FILE、CMD、OP、VAL 必須至少被一個 STEP 引用。
+
+## 4. CMD、OP 與 VAL
+
+1. [強制] `execution_defaults` 與命令 `execution` 完整覆寫都使用 `working_directory`、`os`、`shell`；OS 只允許 `windows`、`macos`、`linux`，shell 只允許 `powershell`、`pwsh`、`cmd`、`bash`、`zsh`、`sh`。
+2. [強制] `commands[]` 使用 `mode: argv` 加 `argv` 字串陣列，或 `mode: shell` 加 `script`；兩種專屬欄位互斥。
+3. [強制] `operations[]` 只描述非檔案副作用，使用 `kind: local_state` 或 `external_state`、`action`、`target`、`validation_id`，由命令執行時加入 `command_id`。
+4. [強制] `validations[]` 使用 `kind: automated` 加 `command_ids`、`pass_condition`，或 `kind: manual` 加 `confirmer`、`criteria`；直接驗收成果時加入 `acceptance_ids`。
+5. [強制] Python validator 不執行 CMD 或 OP；具副作用預檢仍須另行授權。
+
+## 5. 升版與就緒
+
+1. [強制] 初版省略 `changes`；升版使用 `TASK-CHANGE-*`，保存 `spec_id`、ISO date、reason、affected IDs、選用 Plan change IDs 與結構化 edits。
+2. [強制] edit `operation` 為 `add` 時只保存 `after`，`replace` 保存 `before` 與 `after`，`remove` 只保存 `before`；`path` 使用 JSON Pointer。
+3. [強制] 純需求編號及三路徑重新命名不升版；其他 canonical TASK 實質變更皆升版。指令來源身分或順序改變屬 TASK 變更；只有相同來源內容改變且 TASK 仍完整有效時可走 instruction audit。
+4. [強制] 正式 `readiness` 固定為 `status: passed` 且 `spec_id` 等於頂層 spec；詳細探索證據只在核准前對話展示。
+
+## 6. Index 與交易邊界
+
+1. [強制] execution index 使用 `work-execution-index/v1` canonical 純 JSON，保存 TASK spec、TASK SHA、Plan `hierarchy_selection_sha256` 與 `skill_selection_sha256`、文件與每 TASK instructions SHA、每 TASK `skill_id`、狀態及選用 lock／audit reference；不得複製 TASK 規格或技能全文。
+2. [強制] TASK 狀態只使用 `pending`、`in_progress`、`pending_retry`、`blocked`、`completed`、`cancelled`；`overall_status` 必須由 Python 推導。
+3. [強制] 初版 TASK collection 與 execution index 由 `task create` 使用同一已核准邏輯契約建立；create 要求 formal index、item targets 與 requirement-specific execution 目錄都不存在，依交易程序建立 items、formal index，再建立 execution 目錄與 canonical `index.json`。
+4. [強制] 規格鎖與 execution lock 互斥；部分失敗時保留現況與 lock，不自動回復或覆寫。
+5. [強制] 初版 index 的所有 TASK 狀態與 `overall_status` 均為 `pending`，不建立 `latest_attempt`、`status_reason`、lock、audit 或其他 execution record。
+6. [強制] create 部分失敗時不刪除或覆寫已完成內容；`task recover-create` 只有在既有 bytes 與相同核准候選一致，且 execution 目錄不存在、為空或只含完全相同初始 index 時可使用，且須先取得使用者授權。
+7. [強制] Validator 只驗證 contract；create／recover-create 都不執行 CMD 或 OP，也不建立 Attempt、execution lock、instruction audit 或規格升版交易。
+
+8. [強制] 已確認的既有規格同步修改由父 agent 呼叫私人 artifact editor，使用 `task spec-validate`、`task spec-update` 與另行授權的 `task spec-recover`；三者不新增公開 Work mode，且不得手寫正式 JSON 或執行 TASK。
+9. [強制] 同步修改先驗證整組候選與來源指紋，核准綁定 `approved_sha256`；交易保存前後規格、使用 `spec_update` 鎖，完成標記發布前阻擋 Execute。中斷保留現況，只能依相同候選與授權復原，不宣稱多檔案具檔案系統層級原子性。
+10. [強制] TASK `changes` 保存本次升版的單一變更與完整頂層 edits；舊版規格保存於不可改寫的規格交易紀錄。受影響 TASK 與下游完成狀態由 CLI 重新推導，保留 latest Attempt／Correction 指標及全部既有歷史檔案。
+
+## 7. Formal TASK collection active contract
+
+The rules in this section define the active contract for new TASK collections
+and ordinary formal revisions. Single-file TASK artifacts are unsupported.
+
+1. [強制] The formal entry point is
+   `outputs/work/tasks/<requirement-id>/index.json`. Plan `artifacts.task` is the
+   only authoritative entry-point selection. A path/schema mismatch is invalid.
+2. [強制] A formal collection consists of one canonical
+   `work-task-index/v1` document and one canonical `work-task-item/v1` document
+   per referenced TASK at `tasks/<TASK-ID>.json`, relative to the directory that
+   contains the formal index.
+3. [強制] The index required fields remain in this order: `schema`,
+   `requirement_id`, `spec_id`, `status`, `title`, `summary`, `artifacts`,
+   `source_plan`, `instruction_selection`, `tasks`, `readiness`.
+   `execution_defaults`, `decisions`, and `changes` retain their v1 conditional
+   positions. Each `tasks` entry contains exactly `id`, `path`, and
+   `canonical_sha256`, in that order. The index does not duplicate TASK
+   dependencies or TASK content.
+4. [強制] A TASK item begins with `schema: work-task-item/v1`, followed by the
+   existing per-TASK fields in their canonical v1 order: required `id`, `title`,
+   `skill_id`, `instruction_selection`, `traceability`, `goal`, `steps`, and
+   `validations`, plus the existing optional fields in their established
+   positions. Document-level fields never appear in an item.
+5. [強制] The TASK reference ID, relative path filename, and item `id` must be
+   identical. The only accepted relative path is `tasks/TASK-NNN.json`, with the
+   same three-digit TASK number and forward slashes in canonical JSON.
+6. [強制] Item paths reject absolute paths, empty, current, or parent segments,
+   reserved device names, unsafe portable characters, links that resolve outside
+   the formal TASK directory, and duplicates after case-folded NFC portable-path
+   normalization. Different references must not resolve to one portable path.
+7. [強制] Every regular `.json` file directly inside the `tasks` directory must
+   be referenced exactly once by the formal index. A missing referenced item or
+   an unreferenced item is an integrity error. Transaction and immutable-history
+   files remain outside this directory and are not inferred as collection items.
+8. [強制] `task_item_sha256` is SHA-256 over the exact UTF-8 bytes of one
+   canonical `work-task-item/v1` document. Each index reference
+   `canonical_sha256` equals that value. Because canonical rendering is required,
+   the canonical and raw-byte SHA-256 values are identical for a valid item.
+9. [強制] `task_index_sha256` is SHA-256 over the exact UTF-8 bytes of the
+   canonical `work-task-index/v1` document. The index does not contain its own
+   index or collection fingerprint.
+10. [強制] `task_collection_sha256` is SHA-256 over the canonical JSON bytes of
+    an in-memory fingerprint object containing, in order, `schema` with value
+    `work-task-collection-fingerprint/v1`, `task_index_sha256`, and `items`.
+    Each `items` entry contains `id` and `task_item_sha256` in formal index order.
+    The fingerprint object is derived validation evidence and is not another
+    stored formal artifact.
+11. [強制] Full collection validation reconstructs the existing logical TASK
+    contract and enforces all v1 cross-TASK invariants, including uniqueness,
+    dependency order and acyclicity, direct task-output references, Plan
+    traceability coverage, shared decisions, instruction selections, file
+    conflicts, step references, and Acceptance validation coverage.
+12. [強制] New formal specifications and ordinary formal revisions use the collection contract.
+
+### Contract descriptions and examples
+
+1. [強制] Query `<work-cli> contract describe work-task-index/v1` for the
+   formal index required and optional fields, canonical key order, constraints,
+   nested contract references, and current valid example.
+2. [強制] Query `<work-cli> contract describe work-task-item/v1` for the TASK
+   item structure and current valid example.
+3. [強制] Query
+   `<work-cli> contract describe work-task-collection-fingerprint/v1` for the
+   derived collection fingerprint structure and current valid example.
+4. [強制] Treat the registered Pydantic contracts as the structural source of
+   truth. Do not duplicate or independently maintain complete JSON structures in
+   instructions.

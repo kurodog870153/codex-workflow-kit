@@ -1,0 +1,26 @@
+{
+  "catalog_sha256": "21bcff3a175d3081a458e9c2e81990c1294ed50fc3217f88be67aa3bef1eeabb",
+  "decision": "instruction_paths",
+  "entries": [
+    {
+      "mode_metadata": {
+        "execute": {
+          "description": "執行 TASK 已固定的 JPA 或 Hibernate 修改、資料驗證與證據紀錄時使用；非 JPA 資料存取不適用。",
+          "name": "Java Web 後端 JPA 任務執行",
+          "work_tags": ["jpa", "hibernate"]
+        },
+        "task": {
+          "description": "固定 JPA 或 Hibernate 流程的 Entity、Repository、查詢、映射與驗證契約時使用；非 JPA 資料存取不適用。",
+          "name": "Java Web 後端 JPA 任務規劃",
+          "work_tags": ["jpa", "hibernate"]
+        }
+      },
+      "mode_support": ["task", "execute"],
+      "path": "web/backend/java/jpa",
+      "recommendation_reason": "The work uses JPA persistence."
+    }
+  ],
+  "schema": "work-hierarchy-selection/v1",
+  "selected_paths": ["web/backend/java/jpa"],
+  "selection_sha256": "ef7e24e3ea5fe4dfac7cfccfcf4972bf2d502d57f69cd196549de8c35890209a"
+}

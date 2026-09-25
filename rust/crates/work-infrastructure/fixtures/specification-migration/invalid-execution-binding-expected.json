@@ -1,0 +1,65 @@
+{
+  "schema": "work-spec-migration-preview/v1",
+  "status": "blocked",
+  "documents": [
+    "outputs/work/executions/example/index.json",
+    "outputs/work/plans/example.json",
+    "outputs/work/tasks/example/index.json",
+    "outputs/work/tasks/example/tasks/TASK-001.json"
+  ],
+  "diffs": [
+    {
+      "path": "outputs/work/executions/example/index.json",
+      "operation": "replace",
+      "unified_diff": "--- outputs/work/executions/example/index.json:source\n+++ outputs/work/executions/example/index.json:candidate\n@@ -2,7 +2,7 @@\n   \"schema\": \"work-execution-index/v1\",\n   \"requirement_id\": \"example\",\n   \"title\": \"Execution\",\n-  \"task_spec_id\": \"TASK-SPEC-001\",\n+  \"task_spec_id\": \"TASK-SPEC-999\",\n   \"task_collection_sha256\": \"fb5854024d838a5abfcbe9a3fd040acf26b92abd75cb5fe5697723952c53aa12\",\n   \"task_index_sha256\": \"e4c9c1a311cb8db614c3303307e698024a06ddd7a14e31c3d5b2c84575658a82\",\n   \"task_instructions_sha256\": \"d96cb66bc96c394655df49bb557f0850344be70763b99e96bad7c70732ea372d\",\n"
+    },
+    {
+      "path": "outputs/work/plans/example.json",
+      "operation": "replace",
+      "unified_diff": ""
+    },
+    {
+      "path": "outputs/work/tasks/example/index.json",
+      "operation": "replace",
+      "unified_diff": ""
+    },
+    {
+      "path": "outputs/work/tasks/example/tasks/TASK-001.json",
+      "operation": "replace",
+      "unified_diff": ""
+    }
+  ],
+  "validator_results": [
+    {
+      "name": "plan",
+      "status": "passed"
+    },
+    {
+      "name": "task_collection",
+      "status": "passed"
+    },
+    {
+      "name": "execution_index",
+      "status": "passed"
+    }
+  ],
+  "relationship_results": [
+    {
+      "name": "candidate_set",
+      "status": "passed"
+    },
+    {
+      "name": "artifact_paths",
+      "status": "passed"
+    },
+    {
+      "name": "execution_binding",
+      "status": "failed",
+      "code": "migration_execution_binding_mismatch",
+      "message": "The execution index does not bind to the candidate TASK collection."
+    }
+  ],
+  "unresolved_items": [],
+  "fingerprint": "f840538af20b6ae5e3f1917b06f2471f2465ab17a8016888afc3829ec01c6847",
+  "writable_ready": false
+}
