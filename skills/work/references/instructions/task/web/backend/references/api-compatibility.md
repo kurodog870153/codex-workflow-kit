@@ -1,8 +1,13 @@
-# API 相容性參考指令
+---
+name: API 相容性參考指令
+description: 規劃 Web 後端 API 契約或消費者相容性時使用；不影響 API 的工作不適用。
+reference-name: task.web.backend.api-compatibility
+metadata:
+  work-tags:
+    - api-compatibility
+---
 
-參考名稱：task.web.backend.api-compatibility
-適用層級：task.web.backend
-指令分類狀態：已完成
+# API 相容性參考指令
 
 1. [強制] 相容性以受影響消費者能否維持已承諾結果為準，不以伺服器能編譯或單一路徑可回應作為相容證據。
 2. [強制] TASK 須列出可確認的直接與間接消費者鏈、契約來源、版本或部署關係；無法確認的外部消費者須採相容優先並列為風險，不得推定不存在。

@@ -4315,7 +4315,7 @@
         "children": [
           {
             "name": "status",
-            "help": "usage: work workflow status [-h] --requirement-id REQUIREMENT_ID\n                               [--plan-path PLAN_PATH]\n                               --user-config-root USER_CONFIG_ROOT\n                               [--skill-root SKILL_ROOT]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n  --plan-path PLAN_PATH\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n",
+            "help": "usage: work workflow status [-h] --requirement-id REQUIREMENT_ID\n                               [--plan-path PLAN_PATH]\n                               --user-config-root USER_CONFIG_ROOT\n                               [--skill-root SKILL_ROOT]\n                               [--instruction-maintenance]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n  --plan-path PLAN_PATH\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --instruction-maintenance\n",
             "arguments": [
               {
                 "name": "requirement_id",
@@ -4362,6 +4362,18 @@
                 "nargs": null,
                 "append": true,
                 "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "instruction_maintenance",
+                "flags": [
+                  "--instruction-maintenance"
+                ],
+                "required": false,
+                "nargs": 0,
+                "append": false,
+                "boolean": true,
                 "choices": null,
                 "help": null
               }
@@ -4371,7 +4383,7 @@
           },
           {
             "name": "next",
-            "help": "usage: work workflow next [-h] --requirement-id REQUIREMENT_ID\n                             [--plan-path PLAN_PATH]\n                             --user-config-root USER_CONFIG_ROOT\n                             [--skill-root SKILL_ROOT]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n  --plan-path PLAN_PATH\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n",
+            "help": "usage: work workflow next [-h] --requirement-id REQUIREMENT_ID\n                             [--plan-path PLAN_PATH]\n                             --user-config-root USER_CONFIG_ROOT\n                             [--skill-root SKILL_ROOT]\n                             [--instruction-maintenance]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n  --plan-path PLAN_PATH\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --instruction-maintenance\n",
             "arguments": [
               {
                 "name": "requirement_id",
@@ -4418,6 +4430,18 @@
                 "nargs": null,
                 "append": true,
                 "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "instruction_maintenance",
+                "flags": [
+                  "--instruction-maintenance"
+                ],
+                "required": false,
+                "nargs": 0,
+                "append": false,
+                "boolean": true,
                 "choices": null,
                 "help": null
               }

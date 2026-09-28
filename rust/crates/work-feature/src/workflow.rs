@@ -150,6 +150,34 @@ pub fn pre_execution_state(
     task_validation: Option<&Value>,
     execution_index_exists: bool,
 ) -> Result<Option<Value>, WorkError> {
+    pre_execution_state_with_events(
+        routing,
+        WorkflowRoutingContext {
+            requirement_id,
+            artifacts,
+            formal_events: &[],
+        },
+        plan_validation,
+        draft,
+        task_validation,
+        execution_index_exists,
+    )
+}
+
+pub struct WorkflowRoutingContext<'a> {
+    pub requirement_id: &'a str,
+    pub artifacts: &'a Value,
+    pub formal_events: &'a [&'a str],
+}
+
+pub fn pre_execution_state_with_events(
+    routing: &mut impl WorkflowRoutingRepository,
+    context: WorkflowRoutingContext<'_>,
+    plan_validation: Option<&Value>,
+    draft: Option<&Value>,
+    task_validation: Option<&Value>,
+    execution_index_exists: bool,
+) -> Result<Option<Value>, WorkError> {
     let decision = decide_pre_execution(
         plan_validation,
         draft,
@@ -167,7 +195,14 @@ pub fn pre_execution_state(
     let Some(decision) = decision else {
         return Ok(None);
     };
-    render_state(routing, requirement_id, artifacts, decision).map(Some)
+    render_state(
+        routing,
+        context.requirement_id,
+        context.artifacts,
+        decision,
+        context.formal_events,
+    )
+    .map(Some)
 }
 
 pub fn execution_state(
@@ -177,11 +212,30 @@ pub fn execution_state(
     index: &Value,
     latest_attempts: &Value,
 ) -> Result<Value, WorkError> {
+    execution_state_with_events(
+        routing,
+        WorkflowRoutingContext {
+            requirement_id,
+            artifacts,
+            formal_events: &[],
+        },
+        index,
+        latest_attempts,
+    )
+}
+
+pub fn execution_state_with_events(
+    routing: &mut impl WorkflowRoutingRepository,
+    context: WorkflowRoutingContext<'_>,
+    index: &Value,
+    latest_attempts: &Value,
+) -> Result<Value, WorkError> {
     render_state(
         routing,
-        requirement_id,
-        artifacts,
+        context.requirement_id,
+        context.artifacts,
         decide_execution(index, latest_attempts),
+        context.formal_events,
     )
 }
 
@@ -190,6 +244,7 @@ fn render_state(
     requirement_id: &str,
     artifacts: &Value,
     decision: WorkflowDecision,
+    formal_events: &[&str],
 ) -> Result<Value, WorkError> {
     let target = artifacts[decision.target_artifact]
         .as_str()
@@ -212,7 +267,7 @@ fn render_state(
         confirmation: decision.requires_user_confirmation,
         mode: Some(mode_for_action(&decision.status, &decision.next_action)),
         artifact_lifecycle: lifecycle_for_status(&decision.status),
-        formal_events: &[],
+        formal_events,
         role: "main",
         authorization_state: Some(if decision.requires_user_confirmation {
             "confirmation_required"

@@ -318,7 +318,7 @@ mod tests {
                 write(mode, path, path);
             }
         }
-        write("plan", "web/frontend/typescript", "typescript");
+        write("plan", "web/frontend/component", "component");
         write("task", "web/frontend/css", "css");
         write("execute", "web/frontend/css", "css");
         for path in [
@@ -373,12 +373,12 @@ mod tests {
                 "web/backend/java/jpa",
                 "web/backend/java/mybatis",
                 "web/frontend",
-                "web/frontend/css",
-                "web/frontend/typescript"
+                "web/frontend/component",
+                "web/frontend/css"
             ])
         );
         assert_eq!(
-            all["metadata"]["web/frontend/typescript"]["mode_support"],
+            all["metadata"]["web/frontend/component"]["mode_support"],
             json!(["plan"])
         );
         assert_eq!(
@@ -517,7 +517,7 @@ mod tests {
             fs::write(path, "---\nname: Test\ndescription: Test instructions.\nmetadata:\n  work-tags:\n    - test-tag\n---\n\nBody.\n").unwrap();
         };
         for mode in ["plan", "task", "execute"] {
-            for path in ["general", "web", "web/frontend", "web/frontend/typescript"] {
+            for path in ["general", "web", "web/frontend", "web/frontend/component"] {
                 write(mode, path);
             }
         }
@@ -527,7 +527,7 @@ mod tests {
                 "web/backend/java",
                 "web/backend/java/jpa",
                 "web/backend/java/mybatis",
-                "web/frontend/typescript/astro",
+                "web/frontend/component/astro",
             ] {
                 write(mode, path);
             }
@@ -565,13 +565,13 @@ mod tests {
         let projected = resolve_hierarchy(
             &repository,
             "plan",
-            &["web/frontend/typescript/astro".into()],
+            &["web/frontend/component/astro".into()],
         )
         .unwrap();
-        assert_eq!(projected.selected_paths, ["web/frontend/typescript/astro"]);
+        assert_eq!(projected.selected_paths, ["web/frontend/component/astro"]);
         assert_eq!(
             projected.resolved_paths,
-            ["general", "web", "web/frontend", "web/frontend/typescript"]
+            ["general", "web", "web/frontend", "web/frontend/component"]
         );
         assert_eq!(
             resolve_hierarchy(&repository, "plan", &["general".into()])
@@ -606,7 +606,7 @@ mod tests {
         let catalog = repository.cross_mode_catalog().unwrap();
         assert_eq!(
             repository.catalog("task").unwrap()["catalog_sha256"],
-            "b53f28ea422329c5109a8da78a61406758e1f67383e817a8a654c429407b570e"
+            "9df795761e11eed921e2845ef44ff533308086ef598a6dfddfb081920ad7adb5"
         );
         assert_eq!(
             repository.catalog("all").unwrap()["catalog_sha256"],
@@ -614,7 +614,7 @@ mod tests {
         );
         assert_eq!(
             catalog.catalog_sha256,
-            "21bcff3a175d3081a458e9c2e81990c1294ed50fc3217f88be67aa3bef1eeabb"
+            "c39e2ade6cf58b16dd4e76a0606c7693792d3b57f5d5319392346a5ed9c456aa"
         );
         let general = build_selection(
             &repository,
@@ -623,12 +623,12 @@ mod tests {
         .unwrap();
         assert_eq!(
             general["selection_sha256"],
-            "973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e"
+            "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404"
         );
-        let selected = build_selection(&repository, &json!({"decision": "instruction_paths", "selections": [{"path": "web/backend/java", "recommendation_reason": "Uses Java."}]})).unwrap();
+        let selected = build_selection(&repository, &json!({"decision": "instruction_paths", "selections": [{"path": "programming-language/java/persistence", "recommendation_reason": "Uses Java."}]})).unwrap();
         assert_eq!(
             selected["selection_sha256"],
-            "999122379153a67a816857ac21b8f7e0a7acc134417d2085a81db5f950f01b54"
+            "d3ab58296f2b95482c22888e816d6d263a11bf019277b483962f81e21f4934d8"
         );
         assert_eq!(
             validate_selection(&repository, &selected).unwrap()["status"],
@@ -636,7 +636,7 @@ mod tests {
         );
         validate_task_paths(
             &repository,
-            &["web/backend/java/jpa".into()],
+            &["programming-language/java/persistence/jpa".into()],
             &selected,
             "TASK-001",
         )
@@ -644,13 +644,13 @@ mod tests {
         let frontend = build_selection(
             &repository,
             &json!({"decision":"instruction_paths","selections":[
-                {"path":"web/frontend/typescript/astro","recommendation_reason":"Uses Astro."},
+                {"path":"web/frontend/astro","recommendation_reason":"Uses Astro."},
                 {"path":"web/frontend/css/tailwind","recommendation_reason":"Uses Tailwind."}]}),
         )
         .unwrap();
         assert_eq!(
             frontend["selected_paths"],
-            json!(["web/frontend/typescript/astro", "web/frontend/css/tailwind"])
+            json!(["web/frontend/astro", "web/frontend/css/tailwind"])
         );
         for entry in frontend["entries"].as_array().unwrap() {
             assert_eq!(entry["mode_support"], json!(["task", "execute"]));

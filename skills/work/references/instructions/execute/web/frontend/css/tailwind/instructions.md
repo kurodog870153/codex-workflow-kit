@@ -9,7 +9,6 @@ metadata:
 
 # Web 前端 Tailwind 任務執行指令
 
-指令分類狀態：已完成
 指令邊界：本層只執行正式 Tailwind 契約，不升級版本、重設主題、產生品牌內容或新增 class 工具依賴。
 
 1. [強制] 修改前核對實際版本、CSS entry、integration、config、content scanning、theme、plugins、prefix 與 preflight 均符合 TASK；不得套用其他版本語法。

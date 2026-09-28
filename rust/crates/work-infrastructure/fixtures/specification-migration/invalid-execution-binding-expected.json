@@ -11,7 +11,7 @@
     {
       "path": "outputs/work/executions/example/index.json",
       "operation": "replace",
-      "unified_diff": "--- outputs/work/executions/example/index.json:source\n+++ outputs/work/executions/example/index.json:candidate\n@@ -2,7 +2,7 @@\n   \"schema\": \"work-execution-index/v1\",\n   \"requirement_id\": \"example\",\n   \"title\": \"Execution\",\n-  \"task_spec_id\": \"TASK-SPEC-001\",\n+  \"task_spec_id\": \"TASK-SPEC-999\",\n   \"task_collection_sha256\": \"e6a91e156bfa91f022fe0e4caea2a2e6a5f5680dd05a5bd0f29ca07514d0dc3e\",\n   \"task_index_sha256\": \"c702e63ab5c9fd94e66a0ae2036286b05aa7535677b0963d2ca6b6a65890ff19\",\n   \"task_instructions_sha256\": \"df8fac8b103d0139e30419503d6237e2edcd219b45bb9cca32d9e84dcfef532b\",\n"
+      "unified_diff": "--- outputs/work/executions/example/index.json:source\n+++ outputs/work/executions/example/index.json:candidate\n@@ -2,7 +2,7 @@\n   \"schema\": \"work-execution-index/v1\",\n   \"requirement_id\": \"example\",\n   \"title\": \"Execution\",\n-  \"task_spec_id\": \"TASK-SPEC-001\",\n+  \"task_spec_id\": \"TASK-SPEC-999\",\n   \"task_collection_sha256\": \"d6613eed97b770b10523a201090296d6e11a6f8b12ab57745d88163146865c2d\",\n   \"task_index_sha256\": \"32ec5309d2215f9546a734c8799b6ed8bd85e9cf66bbdce78a879a1927c2f408\",\n   \"task_instructions_sha256\": \"bc408c5a41fbacf9c4cbc323e1da231d39cc5764fe52c293afaa4a47aee64df3\",\n"
     },
     {
       "path": "outputs/work/plans/example.json",
@@ -60,6 +60,6 @@
     }
   ],
   "unresolved_items": [],
-  "fingerprint": "624173e33a84455c1bb2b68e0c81026213964d2e5162d6aa3520668155360a03",
+  "fingerprint": "cf455409132788f5332be6b1ba42bd21c76c1306ae25c525745da648609c470a",
   "writable_ready": false
 }

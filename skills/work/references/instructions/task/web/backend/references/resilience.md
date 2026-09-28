@@ -1,8 +1,13 @@
-# Web 後端韌性參考指令
+---
+name: Web 後端韌性參考指令
+description: 規劃遠端呼叫、並行或共享資源的失敗與容量邊界時使用；無此類流程的工作不適用。
+reference-name: task.web.backend.resilience
+metadata:
+  work-tags:
+    - resilience
+---
 
-參考名稱：task.web.backend.resilience
-適用層級：task.web.backend
-指令分類狀態：已完成
+# Web 後端韌性參考指令
 
 1. [強制] 遠端呼叫、背景工作、批次、並行或共享資源流程須固定失敗邊界、最大等待時間、取消／中斷結果、資源上限及部分成功語意；不得使用無限逾時或無界佇列／集合／執行緒成長。
 2. [強制] 逾時須依端到端預算分配至連線、讀寫、取得資源與整體操作；例外值須有環境與負載證據，不得複製任意常數。

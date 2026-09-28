@@ -367,6 +367,51 @@ mod tests {
     }
 
     #[test]
+    fn independent_application_framework_and_persistence_paths_share_java_once() {
+        let paths = [
+            "web/backend".into(),
+            "java/spring-boot".into(),
+            "java/persistence/jpa".into(),
+        ];
+        let selected = build_hierarchy("task", &paths).unwrap();
+        assert_eq!(
+            selected.resolved_paths,
+            [
+                "general",
+                "web",
+                "web/backend",
+                "java",
+                "java/spring-boot",
+                "java/persistence",
+                "java/persistence/jpa"
+            ]
+        );
+        assert_eq!(
+            selected
+                .resolved_paths
+                .iter()
+                .filter(|path| *path == "java")
+                .count(),
+            1
+        );
+        assert_eq!(
+            selected.required_paths,
+            [
+                "general",
+                "web/backend",
+                "java/spring-boot",
+                "java/persistence/jpa"
+            ]
+        );
+        assert_eq!(
+            build_hierarchy("task", &["java".into(), "java/spring-boot".into()])
+                .unwrap_err()
+                .reason_code,
+            "redundant_hierarchy_path"
+        );
+    }
+
+    #[test]
     fn selection_order_matches_python_contract() {
         let value = json!({
             "selection_sha256": "a",

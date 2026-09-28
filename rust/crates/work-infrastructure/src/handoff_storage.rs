@@ -1036,7 +1036,7 @@ mod tests {
             "direction":"plan_to_task","requirement_id":"example",
             "artifacts":{"plan":plan_path,"task":"outputs/work/tasks/example/index.json",
                 "execution":"outputs/work/executions/example"},
-            "source":{"stage":"plan","plan_sha256":"fbe1d757987f30984e4ec769c13175da71bdc0b630a16d9adc88bbdd851b1217",
+            "source":{"stage":"plan","plan_sha256":"32060424c0c7084b6301982b90f71472ee5abe5cec3f2e9712bfa4e6134e3e5c",
                 "skill_selection_sha256":"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"},
             "target":{"stage":"task"},"summary":"Build the tasks.","affected_ids":["GOAL-001"]});
         assert_eq!(
@@ -1066,10 +1066,10 @@ mod tests {
         let task_path = "outputs/work/tasks/example/index.json";
         let request = json!({"summary":"Start execution."});
         let source = json!({"stage":"task","task_spec_id":"TASK-SPEC-001","task_id":"TASK-001",
-            "task_collection_sha256":"e6a91e156bfa91f022fe0e4caea2a2e6a5f5680dd05a5bd0f29ca07514d0dc3e",
-            "task_index_sha256":"c702e63ab5c9fd94e66a0ae2036286b05aa7535677b0963d2ca6b6a65890ff19",
-            "task_item_sha256":"77b657de77811217b23514ae570473331da07c204b7553c51da60ba505c0a523",
-            "task_instructions_sha256":"df8fac8b103d0139e30419503d6237e2edcd219b45bb9cca32d9e84dcfef532b",
+            "task_collection_sha256":"d6613eed97b770b10523a201090296d6e11a6f8b12ab57745d88163146865c2d",
+            "task_index_sha256":"32ec5309d2215f9546a734c8799b6ed8bd85e9cf66bbdce78a879a1927c2f408",
+            "task_item_sha256":"02d617c7c5fe29ce83ba0edbfc9f7531ab7cb08a4055ad15283e621446ea8541",
+            "task_instructions_sha256":"bc408c5a41fbacf9c4cbc323e1da231d39cc5764fe52c293afaa4a47aee64df3",
             "skill_id":null,"skill_selection_sha256":"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"});
         let expected = json!({"schema":"work-handoff/v1","marker":"WORK-HANDOFF",
             "direction":"task_to_execute","requirement_id":"example",
@@ -1204,17 +1204,17 @@ mod tests {
             "confirmed_approach":"Retain the interface.",
             "requested_changes":["Clarify scope."],"preserve":["Current behavior."],
             "affected_ids":["TASK-001"],"validation_requirements":["Review criteria."]});
-        let base_source = json!({"stage":"task","plan_sha256":"fbe1d757987f30984e4ec769c13175da71bdc0b630a16d9adc88bbdd851b1217",
+        let base_source = json!({"stage":"task","plan_sha256":"32060424c0c7084b6301982b90f71472ee5abe5cec3f2e9712bfa4e6134e3e5c",
             "task_spec_id":"TASK-SPEC-001",
-            "task_collection_sha256":"e6a91e156bfa91f022fe0e4caea2a2e6a5f5680dd05a5bd0f29ca07514d0dc3e",
-            "task_index_sha256":"c702e63ab5c9fd94e66a0ae2036286b05aa7535677b0963d2ca6b6a65890ff19",
+            "task_collection_sha256":"d6613eed97b770b10523a201090296d6e11a6f8b12ab57745d88163146865c2d",
+            "task_index_sha256":"32ec5309d2215f9546a734c8799b6ed8bd85e9cf66bbdce78a879a1927c2f408",
             "skill_selection_sha256":"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"});
         for task_id in [None, Some("TASK-001")] {
             let mut source = base_source.clone();
             if let Some(id) = task_id {
                 source["task_id"] = json!(id);
                 source["task_item_sha256"] =
-                    json!("77b657de77811217b23514ae570473331da07c204b7553c51da60ba505c0a523");
+                    json!("02d617c7c5fe29ce83ba0edbfc9f7531ab7cb08a4055ad15283e621446ea8541");
                 source["skill_id"] = Value::Null;
             }
             let expected = json!({"schema":"work-handoff/v1","marker":"WORK-HANDOFF",
@@ -1334,10 +1334,10 @@ mod tests {
             "requested_changes":["Clarify scope."],"preserve":["Current behavior."],
             "affected_ids":["TASK-001"],"validation_requirements":["Review criteria."]});
         let source = json!({"stage":"execute","task_spec_id":"TASK-SPEC-001","task_id":"TASK-001",
-            "task_collection_sha256":"e6a91e156bfa91f022fe0e4caea2a2e6a5f5680dd05a5bd0f29ca07514d0dc3e",
-            "task_index_sha256":"c702e63ab5c9fd94e66a0ae2036286b05aa7535677b0963d2ca6b6a65890ff19",
-            "task_item_sha256":"77b657de77811217b23514ae570473331da07c204b7553c51da60ba505c0a523",
-            "task_instructions_sha256":"df8fac8b103d0139e30419503d6237e2edcd219b45bb9cca32d9e84dcfef532b",
+            "task_collection_sha256":"d6613eed97b770b10523a201090296d6e11a6f8b12ab57745d88163146865c2d",
+            "task_index_sha256":"32ec5309d2215f9546a734c8799b6ed8bd85e9cf66bbdce78a879a1927c2f408",
+            "task_item_sha256":"02d617c7c5fe29ce83ba0edbfc9f7531ab7cb08a4055ad15283e621446ea8541",
+            "task_instructions_sha256":"bc408c5a41fbacf9c4cbc323e1da231d39cc5764fe52c293afaa4a47aee64df3",
             "skill_id":null,"execute_skill_selection_sha256":"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
             "execution_context":{"attempt":{"status":"not_created"},"phase":"preflight",
                 "issue_type":"specification_defect","reason":"Specification defect."}});

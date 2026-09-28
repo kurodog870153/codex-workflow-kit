@@ -189,10 +189,10 @@ mod tests {
         let root = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         let bundle = snapshot_skill_bundle(root).unwrap();
         assert_eq!(bundle["schema"], "work-skill-bundle/v1");
-        assert_eq!(bundle["files"].as_array().unwrap().len(), 120);
+        assert_eq!(bundle["files"].as_array().unwrap().len(), 127);
         assert_eq!(
             bundle["bundle_sha256"],
-            "d085b57ec21386ccdcb3ab480422551de44de8989df4d4b1a59f797fd2df3c06"
+            "31bee80db5eeaa46753f5811c01e6b3ac698e16927eb1fd54c264a80d12b4cc7"
         );
     }
 }

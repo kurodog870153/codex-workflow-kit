@@ -12,10 +12,10 @@
     "stage": "execute",
     "task_spec_id": "TASK-SPEC-001",
     "task_id": "TASK-001",
-    "task_collection_sha256": "3c776c7be0c75896af04d849e3be3488292664f32537ce8acbb1348b62143606",
-    "task_index_sha256": "a6d59ceadd6a53d70ada715e0537ffb89da6ddce9dc7d59c92ff9fac27260bf0",
-    "task_item_sha256": "df0e25a75447fdd9e59ffac7c96bb1d40b34b2705e2bca72b0727da8b011517c",
-    "task_instructions_sha256": "df8fac8b103d0139e30419503d6237e2edcd219b45bb9cca32d9e84dcfef532b",
+    "task_collection_sha256": "208ec698fd5777f3a3781dc736713a9049541281beaf53a117d3a7f00ab6460d",
+    "task_index_sha256": "1e6c07cd82b09639d4a3b606bf0c4fbcc37a0541a307321cba6269c339c9b7ef",
+    "task_item_sha256": "8eb021d7fff61bddd623e87c9e38903edee1ad15eb9e15e35d8ed9a762f2d0f3",
+    "task_instructions_sha256": "bc408c5a41fbacf9c4cbc323e1da231d39cc5764fe52c293afaa4a47aee64df3",
     "skill_id": null,
     "execute_skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
     "execution_context": {
@@ -27,7 +27,7 @@
       "issue_type": "specification_defect",
       "reason": "Clarify specification"
     },
-    "attempt_sha256": "34dc534563111a7cb8da6183ec875412ea86825ae911f7a2eea9f325efb96075"
+    "attempt_sha256": "21eff2e6e00377d2e226efbf3b768f6f6fe58673b9c2301d3592e967dce14b22"
   },
   "target": {
     "stage": "task"

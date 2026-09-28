@@ -88,6 +88,7 @@ where
         "attempt_close",
         "delegation",
         "invalid_artifact",
+        "instruction_maintenance",
         "skill_load",
         "safety_rejection",
         "file_failure",
@@ -216,14 +217,14 @@ mod tests {
                 "prepare_plan",
                 true,
                 "missing",
-                "d178b420bc164815d048d246625817662ef11c2145f3775e56b0ed2b98278962",
+                "5508e636076b9bbbac126d4ad46106d89cc1ecccf944daf2ddedcc6ea3115c79",
             ),
             (
                 "task_list_pending",
                 "confirm_task_list",
                 true,
                 "current",
-                "8cf3da748b6c47c4ac3e0d051547ff526b9d365437647f93997e8a1df47f9a96",
+                "f62fb2fb557141ab9e27e829a4ca3d27a95fe7ab982f431cac99f010cf880688",
             ),
         ] {
             let request = RoutingRequest {
@@ -268,9 +269,51 @@ mod tests {
         .unwrap();
         assert_eq!(
             result["selection_sha256"],
-            "d2c148606f2ae4080c077bff96e2b53af33f05a5fc9842aa0f72fee89f85d52e"
+            "4e96e350aba7d548de97f827e5f82e32a542e59378eefd12cc769ea45d95f8af"
         );
         assert_eq!(result["source_order"], json!([BOOTSTRAP]));
+    }
+
+    #[test]
+    fn instruction_maintenance_routes_shared_reference_in_each_mode() {
+        let root = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
+        for (mode, operation) in [
+            ("plan", "prepare_plan"),
+            ("task", "confirm_task_list"),
+            ("execute", "continue_execution"),
+        ] {
+            let request = RoutingRequest {
+                status: "verified",
+                operation,
+                confirmation: false,
+                mode: Some(mode),
+                artifact_lifecycle: "current",
+                formal_events: &["instruction_maintenance"],
+                role: "main",
+                authorization_state: None,
+                verified_state_sha256: "",
+            };
+            let result = select(&request, |_, path| {
+                canonical_sha256(&fs::read(root.join(path)).map_err(|e| e.to_string())?)
+                    .map_err(|e| e.to_string())
+            })
+            .unwrap();
+            assert_eq!(result["routing_status"], "VALID");
+            assert!(
+                result["required_instruction_sources"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&json!("work.shared.instruction-maintenance"))
+            );
+            assert!(
+                result["selection_manifest"]["sources"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|source| source["path"]
+                        == "references/instruction-loading/instruction-maintenance.md")
+            );
+        }
     }
 
     fn route_fixture(

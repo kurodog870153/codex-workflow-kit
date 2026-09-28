@@ -1,8 +1,13 @@
-# 正式 TASK 與索引參考指令
+---
+name: 正式 TASK 與索引參考指令
+description: 規劃正式 TASK 文件與索引契約時使用；非正式 TASK 紀錄不適用。
+reference-name: task.general.task-records
+metadata:
+  work-tags:
+    - task-records
+---
 
-參考名稱：task.general.task-records
-適用層級：task.general
-指令分類狀態：已完成
+# 正式 TASK 與索引參考指令
 
 ## 1. 正式 TASK
 

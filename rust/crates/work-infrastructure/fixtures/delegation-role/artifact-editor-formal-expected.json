@@ -29,8 +29,8 @@
       "decision": "general_only",
       "selected_paths": [],
       "entries": [],
-      "catalog_sha256": "21bcff3a175d3081a458e9c2e81990c1294ed50fc3217f88be67aa3bef1eeabb",
-      "selection_sha256": "973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e"
+      "catalog_sha256": "c39e2ade6cf58b16dd4e76a0606c7693792d3b57f5d5319392346a5ed9c456aa",
+      "selection_sha256": "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404"
     },
     "skill_selection": {
       "schema": "work-skill-selection/v1",

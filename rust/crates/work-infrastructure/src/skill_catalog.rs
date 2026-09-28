@@ -386,7 +386,7 @@ mod tests {
         );
         assert_eq!(
             snapshot["bundle"]["bundle_sha256"],
-            "d085b57ec21386ccdcb3ab480422551de44de8989df4d4b1a59f797fd2df3c06"
+            "31bee80db5eeaa46753f5811c01e6b3ac698e16927eb1fd54c264a80d12b4cc7"
         );
         assert!(
             repository

@@ -14,8 +14,8 @@
     "decision": "general_only",
     "selected_paths": [],
     "entries": [],
-    "catalog_sha256": "21bcff3a175d3081a458e9c2e81990c1294ed50fc3217f88be67aa3bef1eeabb",
-    "selection_sha256": "973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e"
+    "catalog_sha256": "c39e2ade6cf58b16dd4e76a0606c7693792d3b57f5d5319392346a5ed9c456aa",
+    "selection_sha256": "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404"
   },
   "work_instruction_selection": {
     "selected_paths": [],
@@ -26,7 +26,7 @@
       {
         "kind": "workflow",
         "logical_name": "work.instruction-loading",
-        "canonical_sha256": "868209dba7dff984a33932c71906c134c916be0694234b04b0da0f27c9cc99a6",
+        "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
         "compatibility_revision": 2
       },
       {
@@ -38,12 +38,12 @@
       {
         "kind": "instruction",
         "logical_name": "plan.general",
-        "canonical_sha256": "9c107f7f59aaae2242d129fa70e18eac0e58988700d07d2e64581e1e727a878e",
+        "canonical_sha256": "20ad4e9e8df00205c8e416219a943b5e12c658b516bcdb8e0960d98d252c80d4",
         "compatibility_revision": 1
       }
     ],
     "references": [],
-    "instructions_sha256": "2a78d921a10a1b1652d29bdb458ba2b88d1bb80f5ebd2c1213648e422b0863f9"
+    "instructions_sha256": "6a8353ee6896bb9971c205cbb03584580cde12321971f3e1df35e6630541be36"
   },
   "skill_selection": {
     "schema": "work-skill-selection/v1",

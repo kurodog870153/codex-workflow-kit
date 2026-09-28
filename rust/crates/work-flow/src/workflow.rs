@@ -3,7 +3,8 @@
 use serde_json::Value;
 use work_feature::error::WorkError;
 use work_feature::workflow::{
-    WorkflowRoutingRepository, WorkflowSnapshot, execution_state, pre_execution_state,
+    WorkflowRoutingContext, WorkflowRoutingRepository, WorkflowSnapshot,
+    execution_state_with_events, pre_execution_state_with_events,
 };
 
 pub use work_feature::workflow::OperationContextRequest;
@@ -28,6 +29,15 @@ pub fn status(
     requirement_id: &str,
     snapshot: WorkflowSnapshot,
 ) -> Result<Value, WorkError> {
+    status_with_events(routing, requirement_id, snapshot, &[])
+}
+
+pub fn status_with_events(
+    routing: &mut impl WorkflowRoutingRepository,
+    requirement_id: &str,
+    snapshot: WorkflowSnapshot,
+    formal_events: &[&str],
+) -> Result<Value, WorkError> {
     let WorkflowSnapshot {
         artifacts,
         plan,
@@ -36,10 +46,13 @@ pub fn status(
         index,
         latest_attempts,
     } = snapshot;
-    if let Some(state) = pre_execution_state(
+    if let Some(state) = pre_execution_state_with_events(
         routing,
-        requirement_id,
-        &artifacts,
+        WorkflowRoutingContext {
+            requirement_id,
+            artifacts: &artifacts,
+            formal_events,
+        },
         plan.as_ref(),
         draft.as_ref(),
         task.as_ref(),
@@ -47,10 +60,13 @@ pub fn status(
     )? {
         return Ok(state);
     }
-    execution_state(
+    execution_state_with_events(
         routing,
-        requirement_id,
-        &artifacts,
+        WorkflowRoutingContext {
+            requirement_id,
+            artifacts: &artifacts,
+            formal_events,
+        },
         index
             .as_ref()
             .expect("pre-execution state handled missing index"),
@@ -64,4 +80,13 @@ pub fn next(
     snapshot: WorkflowSnapshot,
 ) -> Result<Value, WorkError> {
     status(routing, requirement_id, snapshot)
+}
+
+pub fn next_with_events(
+    routing: &mut impl WorkflowRoutingRepository,
+    requirement_id: &str,
+    snapshot: WorkflowSnapshot,
+    formal_events: &[&str],
+) -> Result<Value, WorkError> {
+    status_with_events(routing, requirement_id, snapshot, formal_events)
 }
