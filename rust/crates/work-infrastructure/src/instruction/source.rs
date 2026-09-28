@@ -72,6 +72,9 @@ fn load_file(
             json!({"source": path, "byte_offset": invalid.valid_up_to()}),
         )
     })?;
+    if kind == "reference" && canonical_content.starts_with(b"---\n") {
+        validate_reference_metadata(&canonical_content, logical_name, &path)?;
+    }
     let summary = source_summary(kind, logical_name, &canonical_content).map_err(|reason| {
         error(
             ExitCode::InputFormat,
@@ -84,6 +87,80 @@ fn load_file(
         summary,
         canonical_content,
     })
+}
+
+fn validate_reference_metadata(
+    content: &[u8],
+    logical_name: &str,
+    path: &Path,
+) -> Result<(), WorkError> {
+    let text = std::str::from_utf8(content).expect("canonical content is UTF-8");
+    let lines: Vec<_> = text.lines().collect();
+    let end = lines
+        .iter()
+        .enumerate()
+        .skip(1)
+        .find(|(_, line)| **line == "---")
+        .map(|(index, _)| index)
+        .ok_or_else(|| {
+            error(
+                ExitCode::InputFormat,
+                "invalid_instruction_reference_metadata",
+                "Reference YAML frontmatter is not terminated.",
+                json!({"source": path}),
+            )
+        })?;
+    let value: serde_json::Value =
+        serde_yaml_ng::from_str(&lines[1..end].join("\n")).map_err(|_| {
+            error(
+                ExitCode::InputFormat,
+                "invalid_instruction_reference_metadata",
+                "Reference YAML frontmatter is invalid.",
+                json!({"source": path}),
+            )
+        })?;
+    let fields = value.as_object().ok_or_else(|| {
+        error(
+            ExitCode::InputFormat,
+            "invalid_instruction_reference_metadata",
+            "Reference YAML frontmatter must be an object.",
+            json!({"source": path}),
+        )
+    })?;
+    let valid_fields = fields.len() == 4
+        && ["name", "description", "reference-name", "metadata"]
+            .iter()
+            .all(|field| fields.contains_key(*field));
+    let valid_strings = ["name", "description"].iter().all(|field| {
+        fields[*field]
+            .as_str()
+            .is_some_and(|value| !value.trim().is_empty())
+    });
+    let valid_name = fields["reference-name"].as_str() == Some(logical_name);
+    let valid_tags = fields["metadata"].as_object().is_some_and(|metadata| {
+        metadata.len() == 1
+            && metadata["work-tags"].as_array().is_some_and(|tags| {
+                !tags.is_empty()
+                    && tags
+                        .iter()
+                        .all(|tag| tag.as_str().is_some_and(valid_reference_name))
+                    && tags
+                        .iter()
+                        .map(|tag| tag.as_str().unwrap())
+                        .collect::<HashSet<_>>()
+                        .len()
+                        == tags.len()
+            })
+    });
+    if !(valid_fields && valid_strings && valid_name && valid_tags) {
+        return Err(error(
+            ExitCode::InputFormat,
+            "invalid_instruction_reference_metadata",
+            "Reference YAML metadata must contain the expected name, description, reference-name and work-tags.",
+            json!({"source": path, "logical_name": logical_name}),
+        ));
+    }
+    Ok(())
 }
 
 fn valid_reference_name(name: &str) -> bool {
@@ -234,6 +311,29 @@ mod tests {
     use work_operations::instruction::selection;
 
     #[test]
+    fn reference_yaml_name_matches_selected_logical_name() {
+        let path = Path::new("task/general/references/task-records.md");
+        let valid = b"---\nname: Records\ndescription: Task records.\nreference-name: task.general.task-records\nmetadata:\n  work-tags:\n    - task-records\n---\n\nBody.\n";
+        validate_reference_metadata(valid, "task.general.task-records", path).unwrap();
+        assert_eq!(
+            validate_reference_metadata(valid, "task.general.other", path)
+                .unwrap_err()
+                .reason_code,
+            "invalid_instruction_reference_metadata"
+        );
+        assert_eq!(
+            validate_reference_metadata(
+                b"---\nname: Records\ndescription: Task records.\nreference-name: task.other.task-records\nmetadata:\n  work-tags:\n    - task-records\n---\n\nBody.\n",
+                "task.general.task-records",
+                path,
+            )
+            .unwrap_err()
+            .reason_code,
+            "invalid_instruction_reference_metadata"
+        );
+    }
+
+    #[test]
     fn work_instruction_selection_validates_topology_and_fingerprint() {
         let repository = LocalHierarchyCatalog {
             skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
@@ -289,10 +389,16 @@ mod tests {
         let repository = LocalHierarchyCatalog {
             skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
         };
-        let loaded = load(&repository, "task", &["web/backend/java".into()], &[]).unwrap();
+        let loaded = load(
+            &repository,
+            "task",
+            &["programming-language/java/spring-boot".into()],
+            &[],
+        )
+        .unwrap();
         assert_eq!(
             loaded.instructions_sha256,
-            "479ed501c01988c95d582dc8f64b06ff93e7e93b0391b27f674b9fdc6b52952c"
+            "542f95cbed6b0637944560b132d395434d8e25e55ec394f3e46b50da74183f85"
         );
         assert_eq!(
             loaded
@@ -304,9 +410,9 @@ mod tests {
                 "work.instruction-loading",
                 "work.workflow.task",
                 "task.general",
-                "task.web",
-                "task.web.backend",
-                "task.web.backend.java"
+                "task.programming-language",
+                "task.programming-language.java",
+                "task.programming-language.java.spring-boot"
             ]
         );
         assert_eq!(loaded.sources[0].summary.compatibility_revision, 2);
@@ -335,18 +441,194 @@ mod tests {
             load(
                 &repository,
                 "task",
-                &["web/backend/java".into()],
-                &["task.web.backend.java.swagger".into()]
+                &["programming-language/java/spring-boot".into()],
+                &["task.programming-language.java.swagger".into()]
             )
             .unwrap()
             .references,
-            ["task.web.backend.java.swagger"]
+            ["task.programming-language.java.swagger"]
         );
         assert_eq!(
             load(&repository, "task", &[], &["task.unknown.reference".into()])
                 .unwrap_err()
                 .reason_code,
             "unroutable_instruction_reference"
+        );
+    }
+
+    #[test]
+    fn typescript_language_and_frontend_paths_load_independently() {
+        let repository = LocalHierarchyCatalog {
+            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
+        };
+        let language = load(
+            &repository,
+            "task",
+            &["programming-language/typescript".into()],
+            &[],
+        )
+        .unwrap();
+        assert_eq!(
+            language
+                .sources
+                .iter()
+                .map(|source| source.summary.logical_name.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "work.instruction-loading",
+                "work.workflow.task",
+                "task.general",
+                "task.programming-language",
+                "task.programming-language.typescript"
+            ]
+        );
+
+        let combined = load(
+            &repository,
+            "task",
+            &[
+                "web/frontend".into(),
+                "programming-language/typescript".into(),
+            ],
+            &[],
+        )
+        .unwrap();
+        assert_eq!(
+            combined
+                .sources
+                .iter()
+                .map(|source| source.summary.logical_name.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "work.instruction-loading",
+                "work.workflow.task",
+                "task.general",
+                "task.web",
+                "task.web.frontend",
+                "task.programming-language",
+                "task.programming-language.typescript"
+            ]
+        );
+    }
+
+    #[test]
+    fn independent_paths_load_in_order_and_project_plan_to_available_ancestors() {
+        let root = std::env::temp_dir().join(format!(
+            "work-independent-paths-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let write = |relative: &str, content: &str| {
+            let path = root.join(relative);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, content).unwrap();
+        };
+        let metadata = "---\nname: Test\ndescription: Test instructions.\nmetadata:\n  work-tags:\n    - test-tag\n---\n\nBody.\n";
+        write("references/instruction-loading.md", "loading\n");
+        for mode in ["plan", "task", "execute"] {
+            write(&format!("references/workflows/{mode}.md"), "workflow\n");
+            for path in [
+                "general",
+                "web",
+                "web/backend",
+                "programming-language",
+                "programming-language/java",
+            ] {
+                write(
+                    &format!("references/instructions/{mode}/{path}/instructions.md"),
+                    metadata,
+                );
+            }
+        }
+        for mode in ["task", "execute"] {
+            for path in [
+                "programming-language/java/spring-boot",
+                "programming-language/java/persistence",
+                "programming-language/java/persistence/jpa",
+            ] {
+                write(
+                    &format!("references/instructions/{mode}/{path}/instructions.md"),
+                    metadata,
+                );
+            }
+        }
+        write(
+            "references/instructions/task/programming-language/java/persistence/references/relational-data.md",
+            "relational data\n",
+        );
+        let repository = LocalHierarchyCatalog { skill_root: root };
+        let paths = [
+            "web/backend".into(),
+            "programming-language/java/spring-boot".into(),
+            "programming-language/java/persistence/jpa".into(),
+        ];
+        let task = load(
+            &repository,
+            "task",
+            &paths,
+            &["task.programming-language.java.persistence.relational-data".into()],
+        )
+        .unwrap();
+        assert_eq!(task.hierarchy.selected_paths, paths);
+        assert_eq!(
+            task.sources
+                .iter()
+                .map(|source| source.summary.logical_name.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "work.instruction-loading",
+                "work.workflow.task",
+                "task.general",
+                "task.web",
+                "task.web.backend",
+                "task.programming-language",
+                "task.programming-language.java",
+                "task.programming-language.java.spring-boot",
+                "task.programming-language.java.persistence",
+                "task.programming-language.java.persistence.relational-data",
+                "task.programming-language.java.persistence.jpa"
+            ]
+        );
+        assert_eq!(
+            task.sources
+                .iter()
+                .filter(|source| source.summary.logical_name == "task.programming-language.java")
+                .count(),
+            1
+        );
+        let plan = load(&repository, "plan", &paths, &[]).unwrap();
+        assert_eq!(
+            plan.hierarchy.resolved_paths,
+            [
+                "general",
+                "web",
+                "web/backend",
+                "programming-language",
+                "programming-language/java"
+            ]
+        );
+        assert_eq!(plan.hierarchy.selected_paths, paths);
+        let execute = load(&repository, "execute", &paths, &[]).unwrap();
+        assert_eq!(
+            execute.hierarchy.resolved_paths,
+            task.hierarchy.resolved_paths
+        );
+        assert_eq!(
+            load(
+                &repository,
+                "task",
+                &[
+                    "programming-language/java".into(),
+                    "programming-language/java/spring-boot".into()
+                ],
+                &[]
+            )
+            .unwrap_err()
+            .reason_code,
+            "redundant_hierarchy_path"
         );
     }
 
@@ -358,21 +640,32 @@ mod tests {
         let selected = select(
             &repository,
             "task",
-            &["web/backend/java".into()],
+            &["programming-language/java/spring-boot".into()],
             &[
-                "task.web.backend.java.swagger".into(),
+                "task.programming-language.java.swagger".into(),
                 "task.general.task-records".into(),
             ],
         )
         .unwrap();
         assert_eq!(
             selected.references,
-            ["task.general.task-records", "task.web.backend.java.swagger"]
+            [
+                "task.general.task-records",
+                "task.programming-language.java.swagger"
+            ]
         );
-        assert_eq!(selected.selected_paths, ["web/backend/java"]);
+        assert_eq!(
+            selected.selected_paths,
+            ["programming-language/java/spring-boot"]
+        );
         assert_eq!(
             selected.resolved_paths,
-            ["general", "web", "web/backend", "web/backend/java"]
+            [
+                "general",
+                "programming-language",
+                "programming-language/java",
+                "programming-language/java/spring-boot"
+            ]
         );
         assert_eq!(
             validate_selection(&repository, "task", &selected)
@@ -413,25 +706,28 @@ mod tests {
             &repository,
             "task",
             &[
-                "web/backend/java/jpa".into(),
-                "web/backend/java/mybatis".into(),
+                "programming-language/java/persistence/jpa".into(),
+                "programming-language/java/persistence/mybatis".into(),
             ],
             &[],
         )
         .unwrap();
         assert_eq!(
             leaves.selected_paths,
-            ["web/backend/java/jpa", "web/backend/java/mybatis"]
+            [
+                "programming-language/java/persistence/jpa",
+                "programming-language/java/persistence/mybatis"
+            ]
         );
         assert_eq!(
             leaves.resolved_paths,
             [
                 "general",
-                "web",
-                "web/backend",
-                "web/backend/java",
-                "web/backend/java/jpa",
-                "web/backend/java/mybatis"
+                "programming-language",
+                "programming-language/java",
+                "programming-language/java/persistence",
+                "programming-language/java/persistence/jpa",
+                "programming-language/java/persistence/mybatis"
             ]
         );
         validate_selection(&repository, "task", &leaves).unwrap();
@@ -703,20 +999,20 @@ mod tests {
         let jpa = load(
             &repository,
             "task",
-            &["web/backend/java/jpa".into()],
+            &["programming-language/java/persistence/jpa".into()],
             &[
                 "task.general.task-records".into(),
-                "task.web.backend.java.relational-data".into(),
+                "task.programming-language.java.persistence.relational-data".into(),
             ],
         )
         .unwrap();
         let mybatis = load(
             &repository,
             "task",
-            &["web/backend/java/mybatis".into()],
+            &["programming-language/java/persistence/mybatis".into()],
             &[
                 "task.general.task-records".into(),
-                "task.web.backend.security".into(),
+                "task.programming-language.java.swagger".into(),
             ],
         )
         .unwrap();
@@ -733,21 +1029,21 @@ mod tests {
                 "work.workflow.task",
                 "task.general",
                 "task.general.task-records",
-                "task.web",
-                "task.web.backend",
-                "task.web.backend.java",
-                "task.web.backend.java.relational-data",
-                "task.web.backend.java.jpa",
-                "task.web.backend.security",
-                "task.web.backend.java.mybatis"
+                "task.programming-language",
+                "task.programming-language.java",
+                "task.programming-language.java.persistence",
+                "task.programming-language.java.persistence.relational-data",
+                "task.programming-language.java.persistence.jpa",
+                "task.programming-language.java.swagger",
+                "task.programming-language.java.persistence.mybatis"
             ]
         );
         assert_eq!(
             expected["references"],
             json!([
                 "task.general.task-records",
-                "task.web.backend.java.relational-data",
-                "task.web.backend.security"
+                "task.programming-language.java.persistence.relational-data",
+                "task.programming-language.java.swagger"
             ])
         );
         assert_eq!(expected["instructions_sha256"].as_str().unwrap().len(), 64);
@@ -814,7 +1110,7 @@ mod tests {
             })
         };
         let common = markdown_files(&references.join("instruction-loading"));
-        assert_eq!(common.len(), 18);
+        assert_eq!(common.len(), 19);
         for path in common {
             let content = fs::read_to_string(&path).unwrap();
             assert_eq!(

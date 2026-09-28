@@ -126,7 +126,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             manifest["selection_sha256"],
-            "45659bd5c25922cd5bcb1b80e8c5f7a7d5d567846714ceb7f59230ec8eb02896"
+            "773a632a0498b1f062d31b6bdf6e9cebd92087af44ccf26392d48a4edcc63bae"
         );
     }
 
@@ -150,7 +150,7 @@ mod tests {
         assert_eq!(first, second);
         assert_eq!(
             first["selection_sha256"],
-            "d178b420bc164815d048d246625817662ef11c2145f3775e56b0ed2b98278962"
+            "5508e636076b9bbbac126d4ad46106d89cc1ecccf944daf2ddedcc6ea3115c79"
         );
 
         let temp = std::env::temp_dir().join(format!("work-routing-{}", std::process::id()));
@@ -186,7 +186,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             state["selection_sha256"],
-            "492fb1e19887b3784550a2493127060aa342ec49c917136076ebbb4e99735065"
+            "0f2047bad1bac4989f150d603e81f19dacb546c42bc5e36beffc1ef92c4a2007"
         );
         assert_eq!(
             state["selection_manifest"]["routing_input"]["verified_state_sha256"],
@@ -223,11 +223,11 @@ mod tests {
         );
         assert_eq!(
             envelope["selection_sha256"],
-            "62b22a683778a530c33f5cf2e4454f89aa198d42699ec4145812156d20945d53"
+            "c25076515480d4a225d4f3109fd6f4854f147659766e8fc48b7e158b0becd965"
         );
         assert_eq!(
             envelope["context_sha256"],
-            "30a3c228109d3673343688938b803a8c1ef03ab647916d4cf95b724c84f214ae"
+            "d84573b287cb98784097e75984a28daf116a55768ef3c2f56e98b7610d4e0aa0"
         );
         validate_operation_context(&envelope, &selection, &artifacts).unwrap();
         let mut drifted = envelope.clone();

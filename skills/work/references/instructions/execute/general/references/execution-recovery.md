@@ -1,8 +1,13 @@
-# Execution 恢復參考指令
+---
+name: Execution 恢復參考指令
+description: 處理執行鎖、部分寫入與恢復授權時使用；正常執行流程不適用。
+reference-name: execute.general.execution-recovery
+metadata:
+  work-tags:
+    - execution-recovery
+---
 
-參考名稱：execute.general.execution-recovery
-適用層級：execute.general
-指令分類狀態：已完成
+# Execution 恢復參考指令
 
 ## 1. 鎖與寫入防護
 

@@ -1,8 +1,13 @@
-# 外部操作參考指令
+---
+name: 外部操作參考指令
+description: 規劃會影響工作區外狀態的操作時使用；純本機修改不適用。
+reference-name: task.general.external-operations
+metadata:
+  work-tags:
+    - external-operations
+---
 
-參考名稱：task.general.external-operations
-適用層級：task.general
-指令分類狀態：已完成
+# 外部操作參考指令
 
 1. [強制] 外部操作適用於會改變遠端服務、資料、部署、訊息、帳號、權限或其他本機工作區外狀態的行為；純唯讀查詢仍須記錄來源與可能的時效性。
 2. [強制] TASK 須以既有 `輸入`、`決策`、`風險`、`步驟`、`OP-*` 與 `VAL-*` 欄位完整固定目標、前置條件、副作用、授權邊界、成功證據及失敗結果，不新增平行格式。

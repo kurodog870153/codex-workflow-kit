@@ -9,7 +9,6 @@ metadata:
 
 # Web 前端 CSS 任務執行指令
 
-指令分類狀態：已完成
 指令邊界：本層只執行正式 CSS 契約，不重新設計、改變品牌內容或引入另一套樣式架構。
 
 1. [強制] 修改前核對 global、scoped、module、preprocessor、cascade layer、tokens、import 與 selector 現況符合 TASK；未記錄的全域影響須停止。

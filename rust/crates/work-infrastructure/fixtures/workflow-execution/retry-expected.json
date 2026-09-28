@@ -38,7 +38,7 @@
     "work.workflow.execute.apply-one-attempt-authorization-boundary",
     "work.workflow.execute.start-an-attempt-transaction"
   ],
-  "selection_sha256": "10ced5df1f94a864f896c91532a604902925503fbc04562b2593802a266ed4b7",
+  "selection_sha256": "e7bab411d9934069ff6fee3f3aaa32f166506ab7e85ca2ea32d26526cba8e9e4",
   "routing_reasons": [
     "operation:confirm_retry",
     "workflow_status:execution_pending_retry",
@@ -63,7 +63,7 @@
         "logical_name": "work.instruction-loading",
         "path": "references/instruction-loading.md",
         "compatibility_revision": 2,
-        "canonical_sha256": "868209dba7dff984a33932c71906c134c916be0694234b04b0da0f27c9cc99a6"
+        "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f"
       },
       {
         "logical_name": "work.shared.transaction-workspace",
@@ -93,7 +93,7 @@
         "logical_name": "work.shared.fingerprints",
         "path": "references/instruction-loading/fingerprints.md",
         "compatibility_revision": 1,
-        "canonical_sha256": "c30d78edbd16a51802160a2c8612f5476f2b9e93fdaa4630808488eb047623e8"
+        "canonical_sha256": "56b44b90cd595a3095ff1f0601560ad1661465fa9239b0b838b86c1fa0456e35"
       },
       {
         "logical_name": "work.workflow.execute",
@@ -115,7 +115,7 @@
       }
     ],
     "confirmation_required": true,
-    "selection_sha256": "10ced5df1f94a864f896c91532a604902925503fbc04562b2593802a266ed4b7"
+    "selection_sha256": "e7bab411d9934069ff6fee3f3aaa32f166506ab7e85ca2ea32d26526cba8e9e4"
   },
   "details": {
     "overall_status": "pending_retry"

@@ -76,8 +76,9 @@ Work skill 預設安裝到使用者目錄下的 `.agents/skills/work`。選擇�
 9. `astro`。
 10. `css`。
 11. `tailwind`。
+12. `spring-boot`。
 
-可輸入空白分隔的多個編號，或輸入 `all`。選擇較深層項目時會自動包含父層。
+可輸入空白分隔的多個編號，或輸入 `all`。選擇較深層項目時會自動包含父層。程式語言、Web 後端與 Spring Boot 可獨立選取；需要 Web Java 後端時請同時選擇適用的路徑。TypeScript 前端工作須同時選取 `typescript` 與 `frontend`；`astro` 只代表前端框架。
 
 ### macOS
 

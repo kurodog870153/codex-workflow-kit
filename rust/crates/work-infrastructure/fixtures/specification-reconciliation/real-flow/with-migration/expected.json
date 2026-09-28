@@ -1,78 +1,55 @@
 {
-  "schema": "work-spec-reconciliation-preview/v1",
-  "status": "ready",
   "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
-  "attempt_sha256": "5f536d26aab1defeb9e814cf5b76bae8a3234146e70e45a8d8cf6fbf94a78804",
+  "attempt_sha256": "d9b345a6c359a35b09cd37b94a59708718e9164f9f102c6e8d9db6404604c076",
   "choice": "all",
-  "pending_deviation_ids": [
-    "DEVIATION-001"
-  ],
-  "selected_deviation_ids": [
-    "DEVIATION-001"
-  ],
-  "retained_deviation_ids": [],
   "deviation_classifications": {
     "DEVIATION-001": "task_only"
   },
-  "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
+  "fingerprint": "accc38699d5d476c27523610e25b5a1bad86474b44dacaec9e9a19cc2624cbdd",
   "ledger": {
-    "schema": "work-spec-reconciliation-ledger/v1",
     "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
     "entries": [
       {
+        "attempt_sha256": "d9b345a6c359a35b09cd37b94a59708718e9164f9f102c6e8d9db6404604c076",
         "deviation_id": "DEVIATION-001",
         "outcome": "incorporated",
-        "target": "task_only",
-        "attempt_sha256": "5f536d26aab1defeb9e814cf5b76bae8a3234146e70e45a8d8cf6fbf94a78804",
-        "reconciliation_fingerprint": "7c089c2d18a33d286ef35549750e23ac2eb850ae666723e76123742fdd308b53"
+        "reconciliation_fingerprint": "accc38699d5d476c27523610e25b5a1bad86474b44dacaec9e9a19cc2624cbdd",
+        "target": "task_only"
       }
-    ]
+    ],
+    "schema": "work-spec-reconciliation-ledger/v1"
   },
+  "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
   "migration_preview": {
-    "schema": "work-spec-migration-preview/v1",
-    "status": "ready",
+    "diffs": [
+      {
+        "operation": "replace",
+        "path": "outputs/work/executions/example/index.json",
+        "unified_diff": "--- outputs/work/executions/example/index.json:source\n+++ outputs/work/executions/example/index.json:candidate\n@@ -2,21 +2,25 @@\n   \"schema\": \"work-execution-index/v1\",\n   \"requirement_id\": \"example\",\n   \"title\": \"Execution\",\n-  \"task_spec_id\": \"TASK-SPEC-001\",\n-  \"task_collection_sha256\": \"d6613eed97b770b10523a201090296d6e11a6f8b12ab57745d88163146865c2d\",\n-  \"task_index_sha256\": \"32ec5309d2215f9546a734c8799b6ed8bd85e9cf66bbdce78a879a1927c2f408\",\n+  \"task_spec_id\": \"TASK-SPEC-002\",\n+  \"task_collection_sha256\": \"f6ee00b3664c7705beab99df1c6b9e67848f731bce076926d2dcbd239f61338b\",\n+  \"task_index_sha256\": \"50134d39d2b518999f8c8cbc1f20db286dca76d2cc02e6d3bb5cd6e2232fd39b\",\n   \"task_instructions_sha256\": \"bc408c5a41fbacf9c4cbc323e1da231d39cc5764fe52c293afaa4a47aee64df3\",\n   \"hierarchy_selection_sha256\": \"1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404\",\n   \"skill_selection_sha256\": \"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959\",\n-  \"overall_status\": \"completed\",\n+  \"overall_status\": \"pending\",\n   \"tasks\": [\n     {\n       \"id\": \"TASK-001\",\n-      \"status\": \"completed\",\n+      \"status\": \"pending_retry\",\n       \"skill_id\": null,\n-      \"task_item_sha256\": \"02d617c7c5fe29ce83ba0edbfc9f7531ab7cb08a4055ad15283e621446ea8541\",\n+      \"task_item_sha256\": \"e7d2704d67a25fa6b78c9f608798b683df25d8882c209aa8c4c7f2473f7d1f19\",\n       \"instructions_sha256\": \"bc408c5a41fbacf9c4cbc323e1da231d39cc5764fe52c293afaa4a47aee64df3\",\n-      \"latest_attempt\": \"ATTEMPT-001\"\n+      \"latest_attempt\": \"ATTEMPT-001\",\n+      \"status_reason\": {\n+        \"kind\": \"task_change\",\n+        \"ref\": \"TASK-CHANGE-001\"\n+      }\n     }\n   ]\n }\n"
+      },
+      {
+        "operation": "replace",
+        "path": "outputs/work/plans/example.json",
+        "unified_diff": ""
+      },
+      {
+        "operation": "replace",
+        "path": "outputs/work/tasks/example/index.json",
+        "unified_diff": "--- outputs/work/tasks/example/index.json:source\n+++ outputs/work/tasks/example/index.json:candidate\n@@ -1,7 +1,7 @@\n {\n   \"schema\": \"work-task-index/v1\",\n   \"requirement_id\": \"example\",\n-  \"spec_id\": \"TASK-SPEC-001\",\n+  \"spec_id\": \"TASK-SPEC-002\",\n   \"status\": \"confirmed\",\n   \"title\": \"Example TASK\",\n   \"summary\": \"Task summary.\",\n@@ -55,11 +55,32 @@\n     {\n       \"id\": \"TASK-001\",\n       \"path\": \"tasks/TASK-001.json\",\n-      \"canonical_sha256\": \"02d617c7c5fe29ce83ba0edbfc9f7531ab7cb08a4055ad15283e621446ea8541\"\n+      \"canonical_sha256\": \"e7d2704d67a25fa6b78c9f608798b683df25d8882c209aa8c4c7f2473f7d1f19\"\n+    }\n+  ],\n+  \"changes\": [\n+    {\n+      \"id\": \"TASK-CHANGE-001\",\n+      \"spec_id\": \"TASK-SPEC-002\",\n+      \"date\": \"2026-09-26\",\n+      \"reason\": \"Incorporate the approved runtime deviation.\",\n+      \"affected_ids\": [\n+        \"TASK-001\"\n+      ],\n+      \"edits\": [\n+        {\n+          \"artifact\": \"task_item\",\n+          \"task_id\": \"TASK-001\",\n+          \"operation\": \"replace\",\n+          \"path\": \"/goal\",\n+          \"before\": \"Modify the source and validate it.\",\n+          \"after\": \"Review the approved runtime deviation.\"\n+        }\n+      ]\n     }\n   ],\n   \"readiness\": {\n     \"status\": \"passed\",\n-    \"spec_id\": \"TASK-SPEC-001\"\n+    \"spec_id\": \"TASK-SPEC-002\"\n   }\n }\n"
+      },
+      {
+        "operation": "replace",
+        "path": "outputs/work/tasks/example/tasks/TASK-001.json",
+        "unified_diff": "--- outputs/work/tasks/example/tasks/TASK-001.json:source\n+++ outputs/work/tasks/example/tasks/TASK-001.json:candidate\n@@ -50,7 +50,7 @@\n       \"ACCEPTANCE-001\"\n     ]\n   },\n-  \"goal\": \"Modify the source and validate it.\",\n+  \"goal\": \"Review the approved runtime deviation.\",\n   \"files\": [\n     {\n       \"id\": \"FILE-001\",\n"
+      }
+    ],
     "documents": [
       "outputs/work/executions/example/index.json",
       "outputs/work/plans/example.json",
       "outputs/work/tasks/example/index.json",
       "outputs/work/tasks/example/tasks/TASK-001.json"
     ],
-    "diffs": [
-      {
-        "path": "outputs/work/executions/example/index.json",
-        "operation": "replace",
-        "unified_diff": "--- outputs/work/executions/example/index.json:source\n+++ outputs/work/executions/example/index.json:candidate\n@@ -2,21 +2,25 @@\n   \"schema\": \"work-execution-index/v1\",\n   \"requirement_id\": \"example\",\n   \"title\": \"Execution\",\n-  \"task_spec_id\": \"TASK-SPEC-001\",\n-  \"task_collection_sha256\": \"e6a91e156bfa91f022fe0e4caea2a2e6a5f5680dd05a5bd0f29ca07514d0dc3e\",\n-  \"task_index_sha256\": \"c702e63ab5c9fd94e66a0ae2036286b05aa7535677b0963d2ca6b6a65890ff19\",\n+  \"task_spec_id\": \"TASK-SPEC-002\",\n+  \"task_collection_sha256\": \"09722f61acf1923e0cf8258a0144612104edbe6ec2f7714aefe5bdcc4924367c\",\n+  \"task_index_sha256\": \"1ef7ed7a9380b8be9f06810b757978089e3db9d712b03de431ea7cb34cc7ccee\",\n   \"task_instructions_sha256\": \"df8fac8b103d0139e30419503d6237e2edcd219b45bb9cca32d9e84dcfef532b\",\n   \"hierarchy_selection_sha256\": \"973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e\",\n   \"skill_selection_sha256\": \"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959\",\n-  \"overall_status\": \"completed\",\n+  \"overall_status\": \"pending\",\n   \"tasks\": [\n     {\n       \"id\": \"TASK-001\",\n-      \"status\": \"completed\",\n+      \"status\": \"pending_retry\",\n       \"skill_id\": null,\n-      \"task_item_sha256\": \"77b657de77811217b23514ae570473331da07c204b7553c51da60ba505c0a523\",\n+      \"task_item_sha256\": \"6d5aaf8e4f9356845dd9af0e9859d83ac9a0b0bbf54056507725cead8d8e10ee\",\n       \"instructions_sha256\": \"df8fac8b103d0139e30419503d6237e2edcd219b45bb9cca32d9e84dcfef532b\",\n-      \"latest_attempt\": \"ATTEMPT-001\"\n+      \"latest_attempt\": \"ATTEMPT-001\",\n+      \"status_reason\": {\n+        \"kind\": \"task_change\",\n+        \"ref\": \"TASK-CHANGE-001\"\n+      }\n     }\n   ]\n }\n"
-      },
-      {
-        "path": "outputs/work/plans/example.json",
-        "operation": "replace",
-        "unified_diff": ""
-      },
-      {
-        "path": "outputs/work/tasks/example/index.json",
-        "operation": "replace",
-        "unified_diff": "--- outputs/work/tasks/example/index.json:source\n+++ outputs/work/tasks/example/index.json:candidate\n@@ -1,7 +1,7 @@\n {\n   \"schema\": \"work-task-index/v1\",\n   \"requirement_id\": \"example\",\n-  \"spec_id\": \"TASK-SPEC-001\",\n+  \"spec_id\": \"TASK-SPEC-002\",\n   \"status\": \"confirmed\",\n   \"title\": \"Example TASK\",\n   \"summary\": \"Task summary.\",\n@@ -55,11 +55,32 @@\n     {\n       \"id\": \"TASK-001\",\n       \"path\": \"tasks/TASK-001.json\",\n-      \"canonical_sha256\": \"77b657de77811217b23514ae570473331da07c204b7553c51da60ba505c0a523\"\n+      \"canonical_sha256\": \"6d5aaf8e4f9356845dd9af0e9859d83ac9a0b0bbf54056507725cead8d8e10ee\"\n+    }\n+  ],\n+  \"changes\": [\n+    {\n+      \"id\": \"TASK-CHANGE-001\",\n+      \"spec_id\": \"TASK-SPEC-002\",\n+      \"date\": \"2026-09-26\",\n+      \"reason\": \"Incorporate the approved runtime deviation.\",\n+      \"affected_ids\": [\n+        \"TASK-001\"\n+      ],\n+      \"edits\": [\n+        {\n+          \"artifact\": \"task_item\",\n+          \"task_id\": \"TASK-001\",\n+          \"operation\": \"replace\",\n+          \"path\": \"/goal\",\n+          \"before\": \"Modify the source and validate it.\",\n+          \"after\": \"Review the approved runtime deviation.\"\n+        }\n+      ]\n     }\n   ],\n   \"readiness\": {\n     \"status\": \"passed\",\n-    \"spec_id\": \"TASK-SPEC-001\"\n+    \"spec_id\": \"TASK-SPEC-002\"\n   }\n }\n"
-      },
-      {
-        "path": "outputs/work/tasks/example/tasks/TASK-001.json",
-        "operation": "replace",
-        "unified_diff": "--- outputs/work/tasks/example/tasks/TASK-001.json:source\n+++ outputs/work/tasks/example/tasks/TASK-001.json:candidate\n@@ -50,7 +50,7 @@\n       \"ACCEPTANCE-001\"\n     ]\n   },\n-  \"goal\": \"Modify the source and validate it.\",\n+  \"goal\": \"Review the approved runtime deviation.\",\n   \"files\": [\n     {\n       \"id\": \"FILE-001\",\n"
-      }
-    ],
-    "validator_results": [
-      {
-        "name": "plan",
-        "status": "passed"
-      },
-      {
-        "name": "task_collection",
-        "status": "passed"
-      },
-      {
-        "name": "execution_index",
-        "status": "passed"
-      }
-    ],
+    "fingerprint": "31d94dcac446a3a6069e101f81ec2f3fa038bd6326a3cf079dae1bc2fa4fbc62",
     "relationship_results": [
       {
         "name": "candidate_set",
@@ -87,11 +64,34 @@
         "status": "passed"
       }
     ],
+    "schema": "work-spec-migration-preview/v1",
+    "status": "ready",
     "unresolved_items": [],
-    "fingerprint": "47c19c5e32a5ecca4af43eefdccb1cd64f9917c94f75b40a1e013ad8c298651e",
+    "validator_results": [
+      {
+        "name": "plan",
+        "status": "passed"
+      },
+      {
+        "name": "task_collection",
+        "status": "passed"
+      },
+      {
+        "name": "execution_index",
+        "status": "passed"
+      }
+    ],
     "writable_ready": true
   },
-  "fingerprint": "7c089c2d18a33d286ef35549750e23ac2eb850ae666723e76123742fdd308b53",
+  "pending_deviation_ids": [
+    "DEVIATION-001"
+  ],
+  "publication_ready": true,
   "publication_required": true,
-  "publication_ready": true
+  "retained_deviation_ids": [],
+  "schema": "work-spec-reconciliation-preview/v1",
+  "selected_deviation_ids": [
+    "DEVIATION-001"
+  ],
+  "status": "ready"
 }

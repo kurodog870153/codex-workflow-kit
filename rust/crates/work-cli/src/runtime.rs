@@ -781,10 +781,26 @@ fn dispatch(
             })?;
             let mut routing = RoutingSourceSession::new(skill_root.to_path_buf());
             let requirement_id = argument(parsed, "requirement_id")?;
-            let state = if parsed.path[1] == "status" {
-                work_flow::workflow::status(&mut routing, requirement_id, snapshot)
+            let maintenance = parsed.arguments["instruction_maintenance"] == true;
+            let formal_events: &[&str] = if maintenance {
+                &["instruction_maintenance"]
             } else {
-                work_flow::workflow::next(&mut routing, requirement_id, snapshot)
+                &[]
+            };
+            let state = if parsed.path[1] == "status" {
+                work_flow::workflow::status_with_events(
+                    &mut routing,
+                    requirement_id,
+                    snapshot,
+                    formal_events,
+                )
+            } else {
+                work_flow::workflow::next_with_events(
+                    &mut routing,
+                    requirement_id,
+                    snapshot,
+                    formal_events,
+                )
             }?;
             let _: work_model::workflow::WorkflowState = serde_json::from_value(state.clone())
                 .expect("routed workflow state matches its model");
@@ -2875,7 +2891,7 @@ mod tests {
         assert_eq!(response.data["schema"], "work-hierarchy-selection/v1");
         assert_eq!(
             response.data["selection_sha256"],
-            "973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e"
+            "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404"
         );
     }
 
@@ -2900,7 +2916,7 @@ mod tests {
         assert_eq!(exit, 0);
         assert_eq!(
             catalog.data["catalog_sha256"],
-            "b53f28ea422329c5109a8da78a61406758e1f67383e817a8a654c429407b570e"
+            "9df795761e11eed921e2845ef44ff533308086ef598a6dfddfb081920ad7adb5"
         );
         let (exit, selected) = run_with_skill_root(
             &[
@@ -2935,25 +2951,29 @@ mod tests {
         };
         let plan_paths = [
             "general",
+            "programming-language",
+            "programming-language/java",
+            "programming-language/typescript",
             "web",
             "web/backend",
-            "web/backend/java",
             "web/frontend",
             "web/frontend/css",
-            "web/frontend/typescript",
         ];
         let task_paths = [
             "general",
+            "programming-language",
+            "programming-language/java",
+            "programming-language/java/persistence",
+            "programming-language/java/persistence/jpa",
+            "programming-language/java/persistence/mybatis",
+            "programming-language/java/spring-boot",
+            "programming-language/typescript",
             "web",
             "web/backend",
-            "web/backend/java",
-            "web/backend/java/jpa",
-            "web/backend/java/mybatis",
             "web/frontend",
+            "web/frontend/astro",
             "web/frontend/css",
             "web/frontend/css/tailwind",
-            "web/frontend/typescript",
-            "web/frontend/typescript/astro",
         ];
         for (mode, paths) in [
             ("plan", plan_paths.as_slice()),
@@ -2965,7 +2985,10 @@ mod tests {
             assert_eq!(response.data["schema"], "work-instruction-catalog/v1");
             assert_eq!(response.data["mode"], mode);
             assert_eq!(response.data["paths"], json!(paths));
-            assert_eq!(response.data["children"]["general"], json!(["web"]));
+            assert_eq!(
+                response.data["children"]["general"],
+                json!(["programming-language", "web"])
+            );
             assert_eq!(
                 response.data["metadata"]["general"]
                     .as_object()
@@ -2984,14 +3007,17 @@ mod tests {
         assert_eq!(exit, 0);
         assert_eq!(all.data["mode"], "all");
         assert_eq!(
-            all.data["metadata"]["web/backend/java/jpa"]["mode_support"],
+            all.data["metadata"]["programming-language/java/persistence/jpa"]["mode_support"],
             json!(["task", "execute"])
         );
         assert!(work_infrastructure::fixture_support::valid_sha256(
             all.data["catalog_sha256"].as_str().unwrap()
         ));
 
-        let leaves = ["web/backend/java/jpa", "web/backend/java/mybatis"];
+        let leaves = [
+            "programming-language/java/persistence/jpa",
+            "programming-language/java/persistence/mybatis",
+        ];
         let (exit, resolved) = call(&["resolve", "--mode", "task", leaves[0], leaves[1]]);
         assert_eq!(exit, 0);
         assert_eq!(resolved.data["schema"], "work-hierarchy/v1");
@@ -3000,29 +3026,82 @@ mod tests {
             resolved.data["resolved_paths"],
             json!([
                 "general",
-                "web",
-                "web/backend",
-                "web/backend/java",
-                "web/backend/java/jpa",
-                "web/backend/java/mybatis"
+                "programming-language",
+                "programming-language/java",
+                "programming-language/java/persistence",
+                "programming-language/java/persistence/jpa",
+                "programming-language/java/persistence/mybatis"
             ])
         );
-        let (exit, missing) = call(&["resolve", "--mode", "task", "web/backend/java/hibernate"]);
+        let (exit, missing) = call(&[
+            "resolve",
+            "--mode",
+            "task",
+            "programming-language/java/persistence/hibernate",
+        ]);
         assert_eq!(exit, 4);
         assert_eq!(missing.reason_code, "instruction_hierarchy_path_missing");
         assert_eq!(
             missing.data,
-            json!({"mode":"task","parent":"web/backend/java","path":"web/backend/java/hibernate","valid_choices":["jpa","mybatis"]})
+            json!({"mode":"task","parent":"programming-language/java/persistence","path":"programming-language/java/persistence/hibernate","valid_choices":["jpa","mybatis"]})
         );
-        let (exit, projected) = call(&["resolve", "--mode", "plan", "web/backend/java/jpa"]);
+        let (exit, projected) = call(&[
+            "resolve",
+            "--mode",
+            "plan",
+            "programming-language/java/persistence/jpa",
+        ]);
         assert_eq!(exit, 0);
         assert_eq!(
             projected.data["selected_paths"],
-            json!(["web/backend/java/jpa"])
+            json!(["programming-language/java/persistence/jpa"])
         );
         assert_eq!(
             projected.data["resolved_paths"],
-            json!(["general", "web", "web/backend", "web/backend/java"])
+            json!([
+                "general",
+                "programming-language",
+                "programming-language/java"
+            ])
+        );
+
+        let (exit, combined) = call(&[
+            "load",
+            "--mode",
+            "task",
+            "--reference",
+            "task.web.backend.security",
+            "--reference",
+            "task.programming-language.java.swagger",
+            "--reference",
+            "task.programming-language.java.persistence.relational-data",
+            "web/backend",
+            "programming-language/java/spring-boot",
+            "programming-language/java/persistence/jpa",
+        ]);
+        assert_eq!(exit, 0);
+        assert_eq!(
+            combined.data["sources"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|source| source["logical_name"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            [
+                "work.instruction-loading",
+                "work.workflow.task",
+                "task.general",
+                "task.web",
+                "task.web.backend",
+                "task.web.backend.security",
+                "task.programming-language",
+                "task.programming-language.java",
+                "task.programming-language.java.swagger",
+                "task.programming-language.java.spring-boot",
+                "task.programming-language.java.persistence",
+                "task.programming-language.java.persistence.relational-data",
+                "task.programming-language.java.persistence.jpa"
+            ]
         );
 
         let source_args = [
@@ -3306,7 +3385,7 @@ mod tests {
         assert_eq!(workflow.data["next_action"], "prepare_plan");
         assert_eq!(
             workflow.data["selection_sha256"],
-            "5b101e16c799507bcb16d30567925bf996a6c4d429047f2bda7bb5ced4355853"
+            "02b99f32370127a4e1508329123f25174c6c4a0df7ded24d5f1a84878489e73c"
         );
         let (next_exit, next) = run_with_skill_root(
             &[
@@ -3325,6 +3404,33 @@ mod tests {
         );
         assert_eq!(next_exit, 0);
         assert_eq!(next.data, workflow.data);
+        let (maintenance_exit, maintenance) = run_with_skill_root(
+            &[
+                prefix.as_slice(),
+                &[
+                    "workflow".into(),
+                    "status".into(),
+                    "--requirement-id".into(),
+                    "issue55test".into(),
+                    "--user-config-root".into(),
+                    ".".into(),
+                    "--instruction-maintenance".into(),
+                ],
+            ]
+            .concat(),
+            &skill_root,
+        );
+        assert_eq!(maintenance_exit, 0);
+        assert!(
+            maintenance.data["required_instruction_sources"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("work.shared.instruction-maintenance"))
+        );
+        assert_ne!(
+            maintenance.data["selection_sha256"],
+            workflow.data["selection_sha256"]
+        );
     }
 
     #[test]
@@ -3372,7 +3478,7 @@ mod tests {
         assert_eq!(result.data["schema"], "work-plan-validation/v1");
         assert_eq!(
             result.data["plan_sha256"],
-            "971eee6942455c80c56b02d6e820294b02d1c8e927a593f6685b797e7009be6f"
+            "c1580aa54f48e015ee2efb9b0a5de74122f60839689cc8fd65bbfb16447f20bf"
         );
     }
 
@@ -3430,7 +3536,7 @@ mod tests {
         assert_eq!(result.data["counts"]["planned"], 1);
         assert_eq!(
             result.data["tasks"][0]["instructions_sha256"],
-            "bb9674da97509e0ead4634b142a223f3d71831706325eecc4825fc480438760d"
+            "3b5a624904e992dd2a20d0bc4d91103f8f416a6d1b5100c74c439aa3c46b756c"
         );
         let (exit, selected) = run_with_skill_root(
             &[
@@ -3480,11 +3586,11 @@ mod tests {
         assert_eq!(result.data["status"], "valid");
         assert_eq!(
             result.data["source"]["plan_sha256"],
-            "971eee6942455c80c56b02d6e820294b02d1c8e927a593f6685b797e7009be6f"
+            "c1580aa54f48e015ee2efb9b0a5de74122f60839689cc8fd65bbfb16447f20bf"
         );
         assert_eq!(
             result.data["instructions_sha256"],
-            "bb9674da97509e0ead4634b142a223f3d71831706325eecc4825fc480438760d"
+            "3b5a624904e992dd2a20d0bc4d91103f8f416a6d1b5100c74c439aa3c46b756c"
         );
     }
 
@@ -3510,7 +3616,7 @@ mod tests {
         assert_eq!(result.data["task_count"], 2);
         assert_eq!(
             result.data["task_collection_sha256"],
-            "3c776c7be0c75896af04d849e3be3488292664f32537ce8acbb1348b62143606"
+            "208ec698fd5777f3a3781dc736713a9049541281beaf53a117d3a7f00ab6460d"
         );
     }
 }

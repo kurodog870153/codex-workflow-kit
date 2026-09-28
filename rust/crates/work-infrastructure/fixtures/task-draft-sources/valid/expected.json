@@ -7,12 +7,12 @@
     "task_id": "TASK-001",
     "revision": 1,
     "source": {
-      "plan_sha256": "971eee6942455c80c56b02d6e820294b02d1c8e927a593f6685b797e7009be6f",
-      "hierarchy_selection_sha256": "973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e",
+      "plan_sha256": "c1580aa54f48e015ee2efb9b0a5de74122f60839689cc8fd65bbfb16447f20bf",
+      "hierarchy_selection_sha256": "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404",
       "skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"
     },
     "skill_id": null,
-    "instructions_sha256": "bb9674da97509e0ead4634b142a223f3d71831706325eecc4825fc480438760d",
+    "instructions_sha256": "3b5a624904e992dd2a20d0bc4d91103f8f416a6d1b5100c74c439aa3c46b756c",
     "instruction_selection": {
       "selected_paths": [],
       "references": []

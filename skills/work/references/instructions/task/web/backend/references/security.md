@@ -1,8 +1,13 @@
-# Web 後端安全參考指令
+---
+name: Web 後端安全參考指令
+description: 規劃 Web 後端信任邊界、授權與敏感資料處理時使用；不涉及後端安全契約的工作不適用。
+reference-name: task.web.backend.security
+metadata:
+  work-tags:
+    - backend-security
+---
 
-參考名稱：task.web.backend.security
-適用層級：task.web.backend
-指令分類狀態：已完成
+# Web 後端安全參考指令
 
 1. [強制] 以信任邊界而非檔案類型觸發安全規劃；TASK 須列出不可信來源、受保護資源、身分來源、允許主體、拒絕結果及稽核需求。
 2. [預設] 新增的非公開端點、操作或資料預設拒絕存取，只有 TASK 明列的主體與條件可放行；公開能力須由使用者明確確認。

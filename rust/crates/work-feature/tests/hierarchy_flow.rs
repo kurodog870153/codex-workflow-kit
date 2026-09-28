@@ -139,7 +139,7 @@ impl HierarchyCatalogRepository for BranchCatalog {
     fn mode_paths(&self, mode: &str) -> Result<Vec<String>, WorkError> {
         let mut paths = branch_paths();
         if self.missing_mode == Some(mode) {
-            paths.retain(|path| path != "web/frontend/typescript/astro");
+            paths.retain(|path| path != "web/frontend/component/astro");
         }
         Ok(paths)
     }
@@ -150,9 +150,9 @@ fn branch_paths() -> Vec<String> {
         "general",
         "web",
         "web/frontend",
-        "web/frontend/typescript",
-        "web/frontend/typescript/astro",
-        "web/frontend/typescript-extra",
+        "web/frontend/component",
+        "web/frontend/component/astro",
+        "web/frontend/component-extra",
         "web/frontend/css",
         "web/backend",
         "web/backend/java",
@@ -176,10 +176,10 @@ fn choose(repository: &BranchCatalog, path: &str) -> serde_json::Value {
 #[test]
 fn cross_mode_leaf_and_intermediate_selection_match_python() {
     let repository = BranchCatalog { missing_mode: None };
-    let leaf = choose(&repository, "web/frontend/typescript/astro");
+    let leaf = choose(&repository, "web/frontend/component/astro");
     assert_eq!(
         leaf["selected_paths"],
-        json!(["web/frontend/typescript/astro"])
+        json!(["web/frontend/component/astro"])
     );
     assert_eq!(
         leaf["entries"][0]["mode_support"],
@@ -200,8 +200,8 @@ fn cross_mode_leaf_and_intermediate_selection_match_python() {
     assert!(work_operations::protocol::valid_sha256(
         leaf["selection_sha256"].as_str().unwrap()
     ));
-    let middle = choose(&repository, "web/frontend/typescript");
-    assert_eq!(middle["selected_paths"], json!(["web/frontend/typescript"]));
+    let middle = choose(&repository, "web/frontend/component");
+    assert_eq!(middle["selected_paths"], json!(["web/frontend/component"]));
     assert_eq!(
         validate_selection(&repository, &middle).unwrap()["status"],
         "valid"
@@ -211,10 +211,10 @@ fn cross_mode_leaf_and_intermediate_selection_match_python() {
 #[test]
 fn task_path_authorization_checks_ancestors_siblings_and_both_modes() {
     let repository = BranchCatalog { missing_mode: None };
-    let leaf = choose(&repository, "web/frontend/typescript/astro");
+    let leaf = choose(&repository, "web/frontend/component/astro");
     validate_task_paths(
         &repository,
-        &["web/frontend/typescript".into()],
+        &["web/frontend/component".into()],
         &leaf,
         "TASK-001",
     )
@@ -225,11 +225,11 @@ fn task_path_authorization_checks_ancestors_siblings_and_both_modes() {
             .reason_code,
         "task_hierarchy_path_not_authorized"
     );
-    let middle = choose(&repository, "web/frontend/typescript");
+    let middle = choose(&repository, "web/frontend/component");
     assert_eq!(
         validate_task_paths(
             &repository,
-            &["web/frontend/typescript-extra".into()],
+            &["web/frontend/component-extra".into()],
             &middle,
             "TASK-001"
         )
@@ -257,7 +257,7 @@ fn task_path_authorization_checks_ancestors_siblings_and_both_modes() {
         assert_eq!(
             validate_task_paths(
                 &missing,
-                &["web/frontend/typescript/astro".into()],
+                &["web/frontend/component/astro".into()],
                 &middle,
                 "TASK-001"
             )

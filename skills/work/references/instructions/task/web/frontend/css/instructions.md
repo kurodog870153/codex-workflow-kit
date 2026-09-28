@@ -9,7 +9,6 @@ metadata:
 
 # Web 前端 CSS 任務規劃指令
 
-指令分類狀態：已完成
 指令邊界：本層固定框架中立的 CSS 契約；具體 utility framework 規則由子層補足。
 
 1. [強制] TASK 須確認現有 global、scoped、module、CSS-in-JS、preprocessor、reset、cascade layer、selector 與 import 順序，不得無證據引入另一套架構。

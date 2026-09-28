@@ -316,7 +316,8 @@ mod macos {
             for branch in ["general", "web", "web/backend"] {
                 assert_branch(&installed, mode, branch, true);
             }
-            assert_branch(&installed, mode, "web/backend/java", false);
+            assert_branch(&installed, mode, "programming-language", false);
+            assert_branch(&installed, mode, "programming-language/java", false);
         }
     }
 
@@ -331,10 +332,26 @@ mod macos {
         ));
         let installed = work_at(&home);
         assert!(!home.join(".agents").exists());
-        assert_branch(&installed, "plan", "web/backend/java", true);
-        for branch in ["web/backend/java/jpa", "web/backend/java/mybatis"] {
+        assert_branch(&installed, "plan", "programming-language", true);
+        assert_branch(&installed, "plan", "programming-language/java", true);
+        assert_branch(
+            &installed,
+            "plan",
+            "programming-language/java/persistence",
+            false,
+        );
+        for branch in [
+            "programming-language/java/persistence/jpa",
+            "programming-language/java/persistence/mybatis",
+        ] {
             assert_branch(&installed, "plan", branch, false);
             for mode in ["task", "execute"] {
+                assert_branch(
+                    &installed,
+                    mode,
+                    "programming-language/java/persistence",
+                    true,
+                );
                 assert_branch(&installed, mode, branch, true);
             }
         }
@@ -351,14 +368,38 @@ mod macos {
         ));
         let installed = work_at(&home);
         assert!(!home.join(".agents").exists());
-        for branch in ["web/frontend/typescript", "web/frontend/css"] {
+        for branch in ["web/frontend", "web/frontend/css"] {
             assert_branch(&installed, "plan", branch, true);
         }
-        for branch in ["web/frontend/typescript/astro", "web/frontend/css/tailwind"] {
+        for branch in ["web/frontend/astro", "web/frontend/css/tailwind"] {
             assert_branch(&installed, "plan", branch, false);
             for mode in ["task", "execute"] {
                 assert_branch(&installed, mode, branch, true);
             }
+        }
+    }
+
+    #[test]
+    fn typescript_option_installs_language_without_web_frontend() {
+        let home = workspace("typescript");
+        success(&run(&installer(), "1\n8\n", &home, None));
+        let installed = work(&home);
+        for mode in ["plan", "task", "execute"] {
+            assert_branch(&installed, mode, "programming-language", true);
+            assert_branch(&installed, mode, "programming-language/typescript", true);
+            assert_branch(&installed, mode, "web", false);
+        }
+    }
+
+    #[test]
+    fn frontend_and_typescript_options_install_independent_paths() {
+        let home = workspace("frontend-typescript");
+        success(&run(&installer(), "1\n7 8\n", &home, None));
+        let installed = work(&home);
+        for mode in ["plan", "task", "execute"] {
+            assert_branch(&installed, mode, "web/frontend", true);
+            assert_branch(&installed, mode, "programming-language/typescript", true);
+            assert_branch(&installed, mode, "web/frontend/typescript", false);
         }
     }
 
@@ -372,11 +413,11 @@ mod macos {
                 "5 6",
                 Some(&[
                     "general",
-                    "web",
-                    "web/backend",
-                    "web/backend/java",
-                    "web/backend/java/jpa",
-                    "web/backend/java/mybatis",
+                    "programming-language",
+                    "programming-language/java",
+                    "programming-language/java/persistence",
+                    "programming-language/java/persistence/jpa",
+                    "programming-language/java/persistence/mybatis",
                 ]),
             ),
             (
@@ -385,8 +426,7 @@ mod macos {
                     "general",
                     "web",
                     "web/frontend",
-                    "web/frontend/typescript",
-                    "web/frontend/typescript/astro",
+                    "web/frontend/astro",
                     "web/frontend/css",
                     "web/frontend/css/tailwind",
                 ]),

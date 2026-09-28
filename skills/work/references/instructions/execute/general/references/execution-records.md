@@ -1,8 +1,13 @@
-# Execution 紀錄參考指令
+---
+name: Execution 紀錄參考指令
+description: 記錄正式 TASK 執行與指紋時使用；不涉及執行紀錄的工作不適用。
+reference-name: execute.general.execution-records
+metadata:
+  work-tags:
+    - execution-records
+---
 
-參考名稱：execute.general.execution-records
-適用層級：execute.general
-指令分類狀態：已完成
+# Execution 紀錄參考指令
 
 ## 1. 路徑、TASK 與指紋
 

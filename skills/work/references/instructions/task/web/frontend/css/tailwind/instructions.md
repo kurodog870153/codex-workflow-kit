@@ -9,7 +9,6 @@ metadata:
 
 # Web 前端 Tailwind 任務規劃指令
 
-指令分類狀態：已完成
 指令邊界：本層只固定 Tailwind 專屬契約，不產生品牌、內容、區塊或介面文案。
 
 1. [強制] TASK 須從 manifest、lockfile、CSS entry、PostCSS 或 bundler integration、config 與既有程式確認實際版本能力及設定方式；不得套用其他版本的慣例或自行升級。

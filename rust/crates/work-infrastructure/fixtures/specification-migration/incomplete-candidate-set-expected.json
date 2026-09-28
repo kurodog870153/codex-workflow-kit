@@ -11,7 +11,7 @@
     {
       "path": "outputs/work/executions/example/index.json",
       "operation": "remove",
-      "unified_diff": "--- outputs/work/executions/example/index.json:source\n+++ outputs/work/executions/example/index.json:candidate\n@@ -1,21 +0,0 @@\n-{\n-  \"schema\": \"work-execution-index/v1\",\n-  \"requirement_id\": \"example\",\n-  \"title\": \"Execution\",\n-  \"task_spec_id\": \"TASK-SPEC-001\",\n-  \"task_collection_sha256\": \"e6a91e156bfa91f022fe0e4caea2a2e6a5f5680dd05a5bd0f29ca07514d0dc3e\",\n-  \"task_index_sha256\": \"c702e63ab5c9fd94e66a0ae2036286b05aa7535677b0963d2ca6b6a65890ff19\",\n-  \"task_instructions_sha256\": \"df8fac8b103d0139e30419503d6237e2edcd219b45bb9cca32d9e84dcfef532b\",\n-  \"hierarchy_selection_sha256\": \"973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e\",\n-  \"skill_selection_sha256\": \"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959\",\n-  \"overall_status\": \"pending\",\n-  \"tasks\": [\n-    {\n-      \"id\": \"TASK-001\",\n-      \"status\": \"pending\",\n-      \"skill_id\": null,\n-      \"task_item_sha256\": \"77b657de77811217b23514ae570473331da07c204b7553c51da60ba505c0a523\",\n-      \"instructions_sha256\": \"df8fac8b103d0139e30419503d6237e2edcd219b45bb9cca32d9e84dcfef532b\"\n-    }\n-  ]\n-}\n"
+      "unified_diff": "--- outputs/work/executions/example/index.json:source\n+++ outputs/work/executions/example/index.json:candidate\n@@ -1,21 +0,0 @@\n-{\n-  \"schema\": \"work-execution-index/v1\",\n-  \"requirement_id\": \"example\",\n-  \"title\": \"Execution\",\n-  \"task_spec_id\": \"TASK-SPEC-001\",\n-  \"task_collection_sha256\": \"d6613eed97b770b10523a201090296d6e11a6f8b12ab57745d88163146865c2d\",\n-  \"task_index_sha256\": \"32ec5309d2215f9546a734c8799b6ed8bd85e9cf66bbdce78a879a1927c2f408\",\n-  \"task_instructions_sha256\": \"bc408c5a41fbacf9c4cbc323e1da231d39cc5764fe52c293afaa4a47aee64df3\",\n-  \"hierarchy_selection_sha256\": \"1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404\",\n-  \"skill_selection_sha256\": \"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959\",\n-  \"overall_status\": \"pending\",\n-  \"tasks\": [\n-    {\n-      \"id\": \"TASK-001\",\n-      \"status\": \"pending\",\n-      \"skill_id\": null,\n-      \"task_item_sha256\": \"02d617c7c5fe29ce83ba0edbfc9f7531ab7cb08a4055ad15283e621446ea8541\",\n-      \"instructions_sha256\": \"bc408c5a41fbacf9c4cbc323e1da231d39cc5764fe52c293afaa4a47aee64df3\"\n-    }\n-  ]\n-}\n"
     },
     {
       "path": "outputs/work/plans/example.json",
@@ -39,6 +39,6 @@
     }
   ],
   "unresolved_items": [],
-  "fingerprint": "990bab5b27f8bbc218624398796922a31618145b6c950d2dd7f88f4af2a8624d",
+  "fingerprint": "d6468658f1694986c72e3c165710e07c38a11ddf8779663bcdcc3f8966b1d839",
   "writable_ready": false
 }

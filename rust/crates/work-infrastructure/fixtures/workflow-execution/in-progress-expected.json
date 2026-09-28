@@ -44,7 +44,7 @@
     "work.workflow.execute.record-one-execution-result",
     "work.workflow.execute.close-one-attempt"
   ],
-  "selection_sha256": "ed7ad557d593e96b167867b6a1146c3fa607f116d47354553a54c3b13838f8bc",
+  "selection_sha256": "09c792c11e55a861449aed30fa90b6a7d1765a0cae1e47e016cc129aea515f10",
   "routing_reasons": [
     "operation:continue_execution",
     "workflow_status:execution_in_progress",
@@ -69,7 +69,7 @@
         "logical_name": "work.instruction-loading",
         "path": "references/instruction-loading.md",
         "compatibility_revision": 2,
-        "canonical_sha256": "868209dba7dff984a33932c71906c134c916be0694234b04b0da0f27c9cc99a6"
+        "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f"
       },
       {
         "logical_name": "work.shared.transaction-workspace",
@@ -105,7 +105,7 @@
         "logical_name": "work.shared.fingerprints",
         "path": "references/instruction-loading/fingerprints.md",
         "compatibility_revision": 1,
-        "canonical_sha256": "c30d78edbd16a51802160a2c8612f5476f2b9e93fdaa4630808488eb047623e8"
+        "canonical_sha256": "56b44b90cd595a3095ff1f0601560ad1661465fa9239b0b838b86c1fa0456e35"
       },
       {
         "logical_name": "work.workflow.execute",
@@ -139,7 +139,7 @@
       }
     ],
     "confirmation_required": false,
-    "selection_sha256": "ed7ad557d593e96b167867b6a1146c3fa607f116d47354553a54c3b13838f8bc"
+    "selection_sha256": "09c792c11e55a861449aed30fa90b6a7d1765a0cae1e47e016cc129aea515f10"
   },
   "details": {
     "overall_status": "in_progress"

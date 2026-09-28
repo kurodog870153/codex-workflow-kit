@@ -3,10 +3,10 @@
   "requirement_id": "example",
   "title": "Execution",
   "task_spec_id": "TASK-SPEC-001",
-  "task_collection_sha256": "3c776c7be0c75896af04d849e3be3488292664f32537ce8acbb1348b62143606",
-  "task_index_sha256": "a6d59ceadd6a53d70ada715e0537ffb89da6ddce9dc7d59c92ff9fac27260bf0",
-  "task_instructions_sha256": "ea0014b813238441e0baf668f0dc46c86a4393328abd42d8f7ed5df48436d969",
-  "hierarchy_selection_sha256": "973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e",
+  "task_collection_sha256": "208ec698fd5777f3a3781dc736713a9049541281beaf53a117d3a7f00ab6460d",
+  "task_index_sha256": "1e6c07cd82b09639d4a3b606bf0c4fbcc37a0541a307321cba6269c339c9b7ef",
+  "task_instructions_sha256": "bc408c5a41fbacf9c4cbc323e1da231d39cc5764fe52c293afaa4a47aee64df3",
+  "hierarchy_selection_sha256": "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404",
   "skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
   "overall_status": "pending",
   "tasks": [
@@ -14,8 +14,8 @@
       "id": "TASK-001",
       "status": "blocked",
       "skill_id": null,
-      "task_item_sha256": "df0e25a75447fdd9e59ffac7c96bb1d40b34b2705e2bca72b0727da8b011517c",
-      "instructions_sha256": "df8fac8b103d0139e30419503d6237e2edcd219b45bb9cca32d9e84dcfef532b",
+      "task_item_sha256": "8eb021d7fff61bddd623e87c9e38903edee1ad15eb9e15e35d8ed9a762f2d0f3",
+      "instructions_sha256": "bc408c5a41fbacf9c4cbc323e1da231d39cc5764fe52c293afaa4a47aee64df3",
       "latest_attempt": "ATTEMPT-001",
       "status_reason": {
         "kind": "attempt",
@@ -26,8 +26,8 @@
       "id": "TASK-002",
       "status": "pending",
       "skill_id": null,
-      "task_item_sha256": "ef912a9f0ec18c0167fec67ca806dee1b8fbaf429160c6a113698cf0b3ecf8e9",
-      "instructions_sha256": "ea0014b813238441e0baf668f0dc46c86a4393328abd42d8f7ed5df48436d969"
+      "task_item_sha256": "f0ed3338322ee2a81fa713ff7486d45b32833b975caee4c180d3bd7015e2f45d",
+      "instructions_sha256": "bc408c5a41fbacf9c4cbc323e1da231d39cc5764fe52c293afaa4a47aee64df3"
     }
   ]
 }

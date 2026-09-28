@@ -323,7 +323,7 @@ mod tests {
         );
         assert_eq!(
             prepared["validation"]["plan_sha256"],
-            "d43c84b6b59aa0cdd34f0b0ce21fd9d7b14d013f4c794871f41ba03309617062"
+            "41c5cd3bc842ea4a8e1cd1accc33bbeed97a50e4bc46effe9e9482622006499a"
         );
         assert_eq!(prepared["validation"]["item_count"], 4);
         assert_eq!(prepared["validation"]["schema"], "work-plan-validation/v1");

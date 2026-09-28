@@ -239,20 +239,6 @@ pub fn validate_task_plan_semantics(contract: &Value, plan: &Value) -> Result<Va
                 ));
             }
         }
-        for file in task["files"].as_array().into_iter().flatten() {
-            if ["path", "source", "destination"].iter().any(|field| {
-                file[*field]
-                    .as_str()
-                    .is_some_and(|path| path.starts_with("skills/work/references/instructions/"))
-            }) && !references.contains("task.general.instruction-maintenance")
-            {
-                return Err(issue(
-                    "instruction_maintenance_reference_required",
-                    "Instruction changes require the instruction-maintenance reference.",
-                    json!({}),
-                ));
-            }
-        }
     }
     let order = resolve_dependencies(&ids, &dependencies)?;
     if contract["spec_id"] == "TASK-SPEC-001" {

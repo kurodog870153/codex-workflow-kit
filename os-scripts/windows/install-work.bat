@@ -67,6 +67,7 @@ echo   8. typescript
 echo   9. astro
 echo   10. css
 echo   11. tailwind
+echo   12. spring-boot
 echo Select multiple branches with spaces. Parent branches are included automatically.
 echo Previously installed branches and stale files will be kept, even with general only.
 set "hierarchy_selection="
@@ -76,6 +77,8 @@ if not defined hierarchy_selection set "hierarchy_selection=1"
 set "include_web="
 set "include_backend="
 set "include_java="
+set "include_spring="
+set "include_persistence="
 set "include_jpa="
 set "include_mybatis="
 set "include_frontend="
@@ -85,17 +88,20 @@ set "include_css="
 set "include_tailwind="
 
 if /i "!hierarchy_selection!"=="all" (
+    call :include_hierarchy 3
     call :include_hierarchy 5
     call :include_hierarchy 6
+    call :include_hierarchy 8
     call :include_hierarchy 9
     call :include_hierarchy 11
+    call :include_hierarchy 12
     goto hierarchy_selected
 )
 
 for /f "delims=0123456789 " %%A in ("!hierarchy_selection!") do goto invalid_hierarchy
 for %%N in (!hierarchy_selection!) do (
     if %%N lss 1 goto invalid_hierarchy
-    if %%N gtr 11 goto invalid_hierarchy
+    if %%N gtr 12 goto invalid_hierarchy
 )
 for %%N in (!hierarchy_selection!) do call :include_hierarchy %%N
 
@@ -248,15 +254,31 @@ if defined include_backend for %%M in (plan task execute) do (
     if errorlevel 1 exit /b 1
 )
 if defined include_java for %%M in (plan task execute) do (
-    call :require_instruction "%%M" "web\backend\java"
+    call :require_instruction "%%M" "programming-language"
+    if errorlevel 1 exit /b 1
+)
+if defined include_typescript for %%M in (plan task execute) do (
+    call :require_instruction "%%M" "programming-language"
+    if errorlevel 1 exit /b 1
+)
+if defined include_java for %%M in (plan task execute) do (
+    call :require_instruction "%%M" "programming-language\java"
+    if errorlevel 1 exit /b 1
+)
+if defined include_spring for %%M in (task execute) do (
+    call :require_instruction "%%M" "programming-language\java\spring-boot"
+    if errorlevel 1 exit /b 1
+)
+if defined include_persistence for %%M in (task execute) do (
+    call :require_instruction "%%M" "programming-language\java\persistence"
     if errorlevel 1 exit /b 1
 )
 if defined include_jpa for %%M in (task execute) do (
-    call :require_instruction "%%M" "web\backend\java\jpa"
+    call :require_instruction "%%M" "programming-language\java\persistence\jpa"
     if errorlevel 1 exit /b 1
 )
 if defined include_mybatis for %%M in (task execute) do (
-    call :require_instruction "%%M" "web\backend\java\mybatis"
+    call :require_instruction "%%M" "programming-language\java\persistence\mybatis"
     if errorlevel 1 exit /b 1
 )
 if defined include_frontend for %%M in (plan task execute) do (
@@ -264,11 +286,11 @@ if defined include_frontend for %%M in (plan task execute) do (
     if errorlevel 1 exit /b 1
 )
 if defined include_typescript for %%M in (plan task execute) do (
-    call :require_instruction "%%M" "web\frontend\typescript"
+    call :require_instruction "%%M" "programming-language\typescript"
     if errorlevel 1 exit /b 1
 )
 if defined include_astro for %%M in (task execute) do (
-    call :require_instruction "%%M" "web\frontend\typescript\astro"
+    call :require_instruction "%%M" "web\frontend\astro"
     if errorlevel 1 exit /b 1
 )
 if defined include_css for %%M in (plan task execute) do (
@@ -297,35 +319,32 @@ if "%~1"=="3" (
     set "include_backend=1"
 )
 if "%~1"=="4" (
-    set "include_web=1"
-    set "include_backend=1"
     set "include_java=1"
 )
 if "%~1"=="5" (
-    set "include_web=1"
-    set "include_backend=1"
     set "include_java=1"
+    set "include_persistence=1"
     set "include_jpa=1"
 )
 if "%~1"=="6" (
-    set "include_web=1"
-    set "include_backend=1"
     set "include_java=1"
+    set "include_persistence=1"
     set "include_mybatis=1"
+)
+if "%~1"=="12" (
+    set "include_java=1"
+    set "include_spring=1"
 )
 if "%~1"=="7" (
     set "include_web=1"
     set "include_frontend=1"
 )
 if "%~1"=="8" (
-    set "include_web=1"
-    set "include_frontend=1"
     set "include_typescript=1"
 )
 if "%~1"=="9" (
     set "include_web=1"
     set "include_frontend=1"
-    set "include_typescript=1"
     set "include_astro=1"
 )
 if "%~1"=="10" (
@@ -380,15 +399,31 @@ if defined include_backend for %%M in (plan task execute) do (
     if errorlevel 1 exit /b 1
 )
 if defined include_java for %%M in (plan task execute) do (
-    call :copy_instruction "%%M" "web\backend\java"
+    call :copy_instruction "%%M" "programming-language"
+    if errorlevel 1 exit /b 1
+)
+if defined include_typescript for %%M in (plan task execute) do (
+    call :copy_instruction "%%M" "programming-language"
+    if errorlevel 1 exit /b 1
+)
+if defined include_java for %%M in (plan task execute) do (
+    call :copy_instruction "%%M" "programming-language\java"
+    if errorlevel 1 exit /b 1
+)
+if defined include_spring for %%M in (task execute) do (
+    call :copy_instruction "%%M" "programming-language\java\spring-boot"
+    if errorlevel 1 exit /b 1
+)
+if defined include_persistence for %%M in (task execute) do (
+    call :copy_instruction "%%M" "programming-language\java\persistence"
     if errorlevel 1 exit /b 1
 )
 if defined include_jpa for %%M in (task execute) do (
-    call :copy_instruction "%%M" "web\backend\java\jpa"
+    call :copy_instruction "%%M" "programming-language\java\persistence\jpa"
     if errorlevel 1 exit /b 1
 )
 if defined include_mybatis for %%M in (task execute) do (
-    call :copy_instruction "%%M" "web\backend\java\mybatis"
+    call :copy_instruction "%%M" "programming-language\java\persistence\mybatis"
     if errorlevel 1 exit /b 1
 )
 if defined include_frontend for %%M in (plan task execute) do (
@@ -396,11 +431,11 @@ if defined include_frontend for %%M in (plan task execute) do (
     if errorlevel 1 exit /b 1
 )
 if defined include_typescript for %%M in (plan task execute) do (
-    call :copy_instruction "%%M" "web\frontend\typescript"
+    call :copy_instruction "%%M" "programming-language\typescript"
     if errorlevel 1 exit /b 1
 )
 if defined include_astro for %%M in (task execute) do (
-    call :copy_instruction "%%M" "web\frontend\typescript\astro"
+    call :copy_instruction "%%M" "web\frontend\astro"
     if errorlevel 1 exit /b 1
 )
 if defined include_css for %%M in (plan task execute) do (

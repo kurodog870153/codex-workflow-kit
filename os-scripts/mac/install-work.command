@@ -15,6 +15,8 @@ missing_source=""
 include_web=0
 include_backend=0
 include_java=0
+include_spring=0
+include_persistence=0
 include_jpa=0
 include_mybatis=0
 include_frontend=0
@@ -124,35 +126,32 @@ include_hierarchy() {
             include_backend=1
             ;;
         4)
-            include_web=1
-            include_backend=1
             include_java=1
             ;;
         5)
-            include_web=1
-            include_backend=1
             include_java=1
+            include_persistence=1
             include_jpa=1
             ;;
         6)
-            include_web=1
-            include_backend=1
             include_java=1
+            include_persistence=1
             include_mybatis=1
+            ;;
+        12)
+            include_java=1
+            include_spring=1
             ;;
         7)
             include_web=1
             include_frontend=1
             ;;
         8)
-            include_web=1
-            include_frontend=1
             include_typescript=1
             ;;
         9)
             include_web=1
             include_frontend=1
-            include_typescript=1
             include_astro=1
             ;;
         10)
@@ -185,19 +184,34 @@ validate_selected_instructions() {
             require_instruction "$mode" web/backend || return 1
         done
     fi
+    if (( include_java || include_typescript )); then
+        for mode in plan task execute; do
+            require_instruction "$mode" programming-language || return 1
+        done
+    fi
     if (( include_java )); then
         for mode in plan task execute; do
-            require_instruction "$mode" web/backend/java || return 1
+            require_instruction "$mode" programming-language/java || return 1
+        done
+    fi
+    if (( include_spring )); then
+        for mode in task execute; do
+            require_instruction "$mode" programming-language/java/spring-boot || return 1
+        done
+    fi
+    if (( include_persistence )); then
+        for mode in task execute; do
+            require_instruction "$mode" programming-language/java/persistence || return 1
         done
     fi
     if (( include_jpa )); then
         for mode in task execute; do
-            require_instruction "$mode" web/backend/java/jpa || return 1
+            require_instruction "$mode" programming-language/java/persistence/jpa || return 1
         done
     fi
     if (( include_mybatis )); then
         for mode in task execute; do
-            require_instruction "$mode" web/backend/java/mybatis || return 1
+            require_instruction "$mode" programming-language/java/persistence/mybatis || return 1
         done
     fi
     if (( include_frontend )); then
@@ -207,12 +221,12 @@ validate_selected_instructions() {
     fi
     if (( include_typescript )); then
         for mode in plan task execute; do
-            require_instruction "$mode" web/frontend/typescript || return 1
+            require_instruction "$mode" programming-language/typescript || return 1
         done
     fi
     if (( include_astro )); then
         for mode in task execute; do
-            require_instruction "$mode" web/frontend/typescript/astro || return 1
+            require_instruction "$mode" web/frontend/astro || return 1
         done
     fi
     if (( include_css )); then
@@ -292,19 +306,34 @@ install_selected_instructions() {
             copy_instruction "$mode" web/backend || return 1
         done
     fi
+    if (( include_java || include_typescript )); then
+        for mode in plan task execute; do
+            copy_instruction "$mode" programming-language || return 1
+        done
+    fi
     if (( include_java )); then
         for mode in plan task execute; do
-            copy_instruction "$mode" web/backend/java || return 1
+            copy_instruction "$mode" programming-language/java || return 1
+        done
+    fi
+    if (( include_spring )); then
+        for mode in task execute; do
+            copy_instruction "$mode" programming-language/java/spring-boot || return 1
+        done
+    fi
+    if (( include_persistence )); then
+        for mode in task execute; do
+            copy_instruction "$mode" programming-language/java/persistence || return 1
         done
     fi
     if (( include_jpa )); then
         for mode in task execute; do
-            copy_instruction "$mode" web/backend/java/jpa || return 1
+            copy_instruction "$mode" programming-language/java/persistence/jpa || return 1
         done
     fi
     if (( include_mybatis )); then
         for mode in task execute; do
-            copy_instruction "$mode" web/backend/java/mybatis || return 1
+            copy_instruction "$mode" programming-language/java/persistence/mybatis || return 1
         done
     fi
     if (( include_frontend )); then
@@ -314,12 +343,12 @@ install_selected_instructions() {
     fi
     if (( include_typescript )); then
         for mode in plan task execute; do
-            copy_instruction "$mode" web/frontend/typescript || return 1
+            copy_instruction "$mode" programming-language/typescript || return 1
         done
     fi
     if (( include_astro )); then
         for mode in task execute; do
-            copy_instruction "$mode" web/frontend/typescript/astro || return 1
+            copy_instruction "$mode" web/frontend/astro || return 1
         done
     fi
     if (( include_css )); then
@@ -412,23 +441,27 @@ while true; do
     printf '  9. astro\n'
     printf '  10. css\n'
     printf '  11. tailwind\n'
+    printf '  12. spring-boot\n'
     printf 'Select multiple branches with spaces. Parent branches are included automatically.\n'
     printf 'Previously installed branches and stale files will be kept, even with general only.\n'
     read -r -p 'Select hierarchy numbers, enter "all", or press Enter for general only: ' hierarchy_selection
     hierarchy_selection="${hierarchy_selection:-1}"
 
     if [[ "$hierarchy_selection" == "all" ]]; then
+        include_hierarchy 3
         include_hierarchy 5
         include_hierarchy 6
+        include_hierarchy 8
         include_hierarchy 9
         include_hierarchy 11
+        include_hierarchy 12
         break
     fi
 
     read -r -a hierarchy_tokens <<< "$hierarchy_selection"
     valid_selection=1
     for token in "${hierarchy_tokens[@]}"; do
-        if [[ ! "$token" =~ ^([1-9]|1[01])$ ]]; then
+        if [[ ! "$token" =~ ^([1-9]|1[0-2])$ ]]; then
             valid_selection=0
             break
         fi

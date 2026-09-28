@@ -349,7 +349,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             sha256_hex(&work_operations::canonical::canonical_json(&index).unwrap()),
-            "9d32eb12bf9a0ce0fd97f0c7a3829a2f4c54571f12f482f3c89a14534d9900e6"
+            "267eb5e1f85645fe0d5f93eccbf855322c6edebde39b7a05322ad60662260cac"
         );
         let prepared = work_operations::task::create::prepare_collection(
             &actual["contract"],
@@ -366,11 +366,11 @@ mod tests {
         );
         assert_eq!(
             sha256_hex(&prepared.approval_bytes),
-            "6f2e765c5c76ef6db9cbe43285064dcb12839c421c233e09c860b95cd5e9389b"
+            "8dc1752706516c2d30771335cd149388d67e6a7282f8255e63f56c9e431363fd"
         );
         assert_eq!(
             actual["approval_sha256"],
-            "b83b08efdd567578ed0ed6743e6ae419c2ff12b2d9fe80b1701c6df9beaa02c3"
+            "146b1443dc160c0432b692a84610b9d7e323944c201e122fcdaf1f15be55a967"
         );
         let mut expected_for_synthetic_draft = expected;
         expected_for_synthetic_draft["approval_sha256"] = actual["approval_sha256"].clone();

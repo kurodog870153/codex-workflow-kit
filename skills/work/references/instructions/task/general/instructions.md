@@ -8,7 +8,6 @@ metadata:
 
 # 任務規劃指令
 
-指令分類狀態：已完成
 指令邊界：Task 是正式 TASK collection 可表達之技術決策、檔案、步驟、命令、操作與驗證的唯一權威來源；Execute 不得補充或推論缺漏。
 
 ## 1. 載入與所有權
@@ -16,10 +15,9 @@ metadata:
 1. [強制] 建立、修改、審查或維護正式 TASK 時，只使用來源 Plan 已確認且未漂移的技能；不得在 Task 階段探索、推薦、新增、替換或移除技能。
 2. [強制] 正式 TASK、index、狀態、欄位或指令來源一律載入 `task.general.task-records`（`references/task-records.md`）。
 3. [強制] 出現 `external_state` OP 時載入 `task.general.external-operations`（`references/external-operations.md`）。
-4. [強制] 新增、移動、拆分、合併或分類 Work instruction／reference 時載入 `task.general.instruction-maintenance`（`references/instruction-maintenance.md`）。
-5. [強制] Reference 只在觸發條件成立時載入；正式 TASK 只保存 globally unique logical name，不保存絕對路徑。
-6. [強制] 每個 TASK 綁定一個 `skill_id`；不需要外部技能時使用 `null`。同一 TASK 不得組合多個外部技能。
-7. [強制] 每次只為目前 TASK 的可執行技能使用一個隔離短暫 subagent；保存檢查點後，使用者選擇繼續才處理下一項。Plan-only 技能不得建立執行型 TASK，skill subagent 不得再委派。
+4. [強制] Reference 只在觸發條件成立時載入；正式 TASK 只保存 globally unique logical name，不保存絕對路徑。
+5. [強制] 每個 TASK 綁定一個 `skill_id`；不需要外部技能時使用 `null`。同一 TASK 不得組合多個外部技能。
+6. [強制] 每次只為目前 TASK 的可執行技能使用一個隔離短暫 subagent；保存檢查點後，使用者選擇繼續才處理下一項。Plan-only 技能不得建立執行型 TASK，skill subagent 不得再委派。
 
 ## 2. 需求確認與最小 TASK
 

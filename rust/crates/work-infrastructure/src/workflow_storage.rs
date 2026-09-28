@@ -363,7 +363,7 @@ mod tests {
         );
         assert_eq!(
             missing["selection_sha256"],
-            "11eb0fb42e7b6afa8ce3cde74b408677154791faa172ad40bd08d0decf40459c"
+            "3509cb2eac17b1286558bdbab8e0e44f7775a2d0c2ea9b671eff2b716236eaf1"
         );
         assert_eq!(fs::read_dir(&root).unwrap().count(), 0);
 
@@ -379,11 +379,11 @@ mod tests {
         assert_eq!(plan_only["next_action"], "confirm_task_list");
         assert_eq!(
             plan_only["details"]["plan_sha256"],
-            "2efa0cacb11a570576e71e656453428dd5d24c29938995ff3cc0139236368cfd"
+            "ff2063a3da86ffda334b109b7e6afecd4a1ea5dfd172e977ff0742154f5c1c2d"
         );
         assert_eq!(
             plan_only["selection_sha256"],
-            "3bc79b3e99f1f1fd646faf529a3c4c78651544ffd1de33f2eaafdc365c3194a2"
+            "553ec62d303a63a1956ea7f6d0cd30b128d2a892c85d65684863cfb480d17620"
         );
         assert_eq!(fs::read_dir(path.parent().unwrap()).unwrap().count(), 1);
     }
@@ -502,7 +502,7 @@ mod tests {
         assert_eq!(state["details"], json!({"overall_status":"completed"}));
         assert_eq!(
             state["selection_sha256"],
-            "0b39a2d6341d962723b6e134d213df51a8079e23be31dd5276c76f91f36bff66"
+            "727816a5b49c2757e2ab602bb94ee484ada530c4bc72e54432005cf9c036d7f3"
         );
     }
 
@@ -536,7 +536,7 @@ mod tests {
         assert_eq!(state["details"], json!({"overall_status":"pending"}));
         assert_eq!(
             state["selection_sha256"],
-            "afc9623dc284ecde9844ae239f397b2b0748c41f8682bd35defb1e15bdd6d00f"
+            "38297cc5bd30a4f2d137b1ea1725c423385bad8d30f9ee9b4d361447e01f5413"
         );
         let wrong_plan = root.join("other/example.json");
         fs::create_dir_all(wrong_plan.parent().unwrap()).unwrap();
