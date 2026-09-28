@@ -125,7 +125,23 @@ echo Existing matching files were overwritten. Stale files were not removed.
 pause
 exit /b 0
 
+:find_rust_toolchain
+if defined CARGO_HOME (
+    if exist "!CARGO_HOME!\bin\rustc.exe" if exist "!CARGO_HOME!\bin\cargo.exe" (
+        set "PATH=!CARGO_HOME!\bin;!PATH!"
+        exit /b 0
+    )
+)
+if exist "%USERPROFILE%\.cargo\bin\rustc.exe" if exist "%USERPROFILE%\.cargo\bin\cargo.exe" (
+    set "PATH=%USERPROFILE%\.cargo\bin;!PATH!"
+)
+exit /b 0
+
 :validate_rust_toolchain
+where rustc >nul 2>nul
+if errorlevel 1 call :find_rust_toolchain
+where cargo >nul 2>nul
+if errorlevel 1 call :find_rust_toolchain
 for %%T in (rustc cargo) do (
     where %%T >nul 2>nul
     if errorlevel 1 (
