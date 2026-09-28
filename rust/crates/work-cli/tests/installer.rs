@@ -39,6 +39,10 @@ fn windows_installer_requires_local_rust_build_and_startup_check() {
         "-windows-gnu",
         "where link.exe",
         "where gcc.exe",
+        "if exist \"!CARGO_HOME!\\bin\\rustc.exe\" if exist \"!CARGO_HOME!\\bin\\cargo.exe\"",
+        "if exist \"%USERPROFILE%\\.cargo\\bin\\rustc.exe\" if exist \"%USERPROFILE%\\.cargo\\bin\\cargo.exe\"",
+        "set \"PATH=!CARGO_HOME!\\bin;!PATH!\"",
+        "set \"PATH=%USERPROFILE%\\.cargo\\bin;!PATH!\"",
         "pushd \"%project_directory%\\rust\"",
         "if errorlevel 1 goto runtime_error",
         "if errorlevel 1 goto source_error",
@@ -265,6 +269,42 @@ mod macos {
             fs::metadata(installer()).unwrap().permissions().mode() & 0o111,
             0
         );
+    }
+
+    #[test]
+    fn installer_finds_rust_outside_click_launch_path() {
+        let home = workspace("rust-path");
+        let rust_bin = home.join(".cargo/bin");
+        fs::create_dir_all(&rust_bin).unwrap();
+        for (tool, content) in [
+            ("rustc", "#!/bin/sh\necho 'rustc 1.85.0'\n"),
+            (
+                "cargo",
+                "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo 'cargo 1.85.0'; else echo 'fallback cargo invoked' >&2; exit 1; fi\n",
+            ),
+        ] {
+            let path = rust_bin.join(tool);
+            fs::write(&path, content).unwrap();
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+
+        let mut child = Command::new("bash")
+            .arg(installer())
+            .current_dir(repository())
+            .env("HOME", &home)
+            .env("PATH", "/usr/bin:/bin")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child.stdin.take().unwrap().write_all(b"1\n1\n").unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert_eq!(output.status.code(), Some(1));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("fallback cargo invoked"), "{stderr}");
+        assert!(stderr.contains("Rust build failed"), "{stderr}");
+        assert!(!home.join(".agents").exists());
     }
 
     #[test]

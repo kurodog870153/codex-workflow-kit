@@ -24,7 +24,16 @@ include_css=0
 include_tailwind=0
 
 validate_rust_toolchain() {
-    local tool version major minor
+    local tool version major minor toolchain_bin
+    if ! command -v rustc >/dev/null 2>&1 || ! command -v cargo >/dev/null 2>&1; then
+        for toolchain_bin in "$HOME/.cargo/bin" /opt/homebrew/opt/rustup/bin /usr/local/opt/rustup/bin; do
+            if [[ -x "$toolchain_bin/rustc" && -x "$toolchain_bin/cargo" ]]; then
+                PATH="$toolchain_bin:$PATH"
+                export PATH
+                break
+            fi
+        done
+    fi
     for tool in rustc cargo; do
         if ! command -v "$tool" >/dev/null 2>&1; then
             printf 'Error: %s is required. Install Rust 1.85 or newer with Cargo and try again.\n' "$tool" >&2

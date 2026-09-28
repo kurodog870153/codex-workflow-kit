@@ -57,7 +57,7 @@ $work task -- resume example
 2. 已安裝 Rust 與 Cargo 1.85 或更新版本，以及本機可用的 linker 與 SDK。macOS 需要 Xcode Command Line Tools；Windows 需要對應 MSVC 或 GNU Rust 目標的建置工具。
 3. 首次編譯需要可取得 `rust/Cargo.lock` 指定的 crate；Cargo 可下載未快取的 crate。
 
-安裝器會在 `rust/` 目錄從原始碼執行 `cargo build --release --locked -p work-cli`，不安裝工具鏈或修改 PATH。
+安裝器會在 `rust/` 目錄從原始碼執行 `cargo build --release --locked -p work-cli`，不安裝工具鏈或永久修改 PATH。macOS 安裝器在目前 PATH 找不到 Rust 時，會尋找使用者目錄與常見 Homebrew 位置的 Rust 工具鏈；Windows 安裝器則會尋找 `CARGO_HOME` 與使用者目錄中的 Cargo 工具鏈。因此可直接點擊 `.command` 或 `.bat` 執行。
 
 ## 安裝
 
