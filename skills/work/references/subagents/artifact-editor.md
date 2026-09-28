@@ -2,10 +2,9 @@
 
 Before relying on the formal TASK, apply the shared TASK diagnostic gate. Return all issues and unavailable checks through the parent. Diagnosis may inspect damaged source bytes; repair direction, a concrete diff and write approval are separate decisions. Locks or active/incomplete execution allow diagnosis only, without repair previews. After the user's repair-direction decision, follow reviewed TASK repair, using `task repair-prepare` to assemble confirmed semantic edits, original fingerprints and the validated preview. Ambiguous original bytes require the user's interpretation as a semantic decision; never ask AI to write a complete candidate. Retain separate fingerprint-bound write approval and recovery authorization. Diagnosis itself never writes.
 
-Required runtime configuration:
+Runtime configuration:
 
-1. Model: `gpt-5.6-terra`
-2. Reasoning effort: `low`
+Use the delegating agent's model and reasoning effort. Do not specify model or reasoning overrides.
 
 Apply the routed shared private-role module supplied in the operation envelope.
 

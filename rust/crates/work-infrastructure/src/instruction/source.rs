@@ -236,10 +236,7 @@ mod tests {
     #[test]
     fn work_instruction_selection_validates_topology_and_fingerprint() {
         let repository = LocalHierarchyCatalog {
-            skill_root: PathBuf::from(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../crates/work-infrastructure/legacy-work-skill"
-            )),
+            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
         };
         let selected = select(&repository, "plan", &[], &[]).unwrap();
         let value = serde_json::to_value(&selected).unwrap();
@@ -290,15 +287,12 @@ mod tests {
     #[test]
     fn installed_sources_match_python_fingerprint_and_order() {
         let repository = LocalHierarchyCatalog {
-            skill_root: PathBuf::from(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../crates/work-infrastructure/legacy-work-skill"
-            )),
+            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
         };
         let loaded = load(&repository, "task", &["web/backend/java".into()], &[]).unwrap();
         assert_eq!(
             loaded.instructions_sha256,
-            "a66622611b7f7083dd34ff7ee963df377f5bb7e1352780790d7c4fa3c6e3bfe6"
+            "479ed501c01988c95d582dc8f64b06ff93e7e93b0391b27f674b9fdc6b52952c"
         );
         assert_eq!(
             loaded
@@ -359,10 +353,7 @@ mod tests {
     #[test]
     fn instruction_selection_round_trips_and_rejects_legacy_or_stale_values() {
         let repository = LocalHierarchyCatalog {
-            skill_root: PathBuf::from(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../crates/work-infrastructure/legacy-work-skill"
-            )),
+            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
         };
         let selected = select(
             &repository,
@@ -707,10 +698,7 @@ mod tests {
     #[test]
     fn task_document_union_and_validation_match_python_selection_cases() {
         let repository = LocalHierarchyCatalog {
-            skill_root: PathBuf::from(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../crates/work-infrastructure/legacy-work-skill"
-            )),
+            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
         };
         let jpa = load(
             &repository,
@@ -802,7 +790,7 @@ mod tests {
     fn routed_reference_documents_keep_small_unlinked_modules() {
         let references = PathBuf::from(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/legacy-work-skill/references"
+            "/../../../skills/work/references"
         ));
         let bootstrap = fs::read_to_string(references.join("instruction-loading.md")).unwrap();
         assert!(bootstrap.lines().count() <= 15);

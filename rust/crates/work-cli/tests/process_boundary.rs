@@ -52,8 +52,7 @@ fn installed_executable() -> &'static PathBuf {
         fs::create_dir_all(binary.parent().unwrap()).unwrap();
         fs::copy(executable(), &binary).unwrap();
         copy_tree(
-            &PathBuf::from(project_root())
-                .join("rust/crates/work-infrastructure/legacy-work-skill/references"),
+            &PathBuf::from(project_root()).join("skills/work/references"),
             &skill.join("references"),
         );
         binary
@@ -173,7 +172,7 @@ fn task_semantic_prepare_reads_file_and_leaves_plan_unchanged() {
     fs::create_dir_all(installed.parent().unwrap()).unwrap();
     fs::copy(executable(), &installed).unwrap();
     copy_tree(
-        &repo.join("rust/crates/work-infrastructure/legacy-work-skill/references"),
+        &repo.join("skills/work/references"),
         &skill.join("references"),
     );
     let plan_path = "outputs/work/plans/example.json";
@@ -520,7 +519,7 @@ fn draft_request_cli_saves_small_payload_and_reuses_selection() {
     fs::create_dir_all(installed.parent().unwrap()).unwrap();
     fs::copy(executable(), &installed).unwrap();
     copy_tree(
-        &repo.join("rust/crates/work-infrastructure/legacy-work-skill/references"),
+        &repo.join("skills/work/references"),
         &skill.join("references"),
     );
     for relative in [
@@ -608,7 +607,7 @@ fn task_diagnostics_cli_is_read_only_and_invalid_item_precedes_writer_lock() {
     fs::create_dir_all(installed.parent().unwrap()).unwrap();
     fs::copy(executable(), &installed).unwrap();
     copy_tree(
-        &repo.join("rust/crates/work-infrastructure/legacy-work-skill/references"),
+        &repo.join("skills/work/references"),
         &skill.join("references"),
     );
     let paths = [
@@ -656,7 +655,7 @@ fn task_diagnostics_cli_is_read_only_and_invalid_item_precedes_writer_lock() {
     let response: Value = serde_json::from_slice(&diagnose.stdout).unwrap();
     let direct = work_infrastructure::task::diagnostics::diagnose_task_collection(
         &root,
-        &repo.join("rust/crates/work-infrastructure/legacy-work-skill"),
+        &repo.join("skills/work"),
         &[],
         task_path,
     );
@@ -891,7 +890,7 @@ fn handoff_build_output_validates_across_installed_processes() {
     fs::create_dir_all(installed.parent().unwrap()).unwrap();
     fs::copy(executable(), &installed).unwrap();
     copy_tree(
-        &repo.join("rust/crates/work-infrastructure/legacy-work-skill/references"),
+        &repo.join("skills/work/references"),
         &skill.join("references"),
     );
     let project = base.join("project");
@@ -1367,7 +1366,7 @@ fn specification_constraint_continuation_across_installed_processes() {
         let mut index: Value = serde_json::from_slice(&fs::read(&index_path).unwrap()).unwrap();
         index["source_plan"]["canonical_sha256"] = json!(sha256_hex(&plan_raw));
         fs::write(&index_path, render_task_index(&index).unwrap()).unwrap();
-        let skill = repo.join("rust/crates/work-infrastructure/legacy-work-skill");
+        let skill = repo.join("skills/work");
         let collection = validate_collection(
             &LocalHierarchyCatalog {
                 skill_root: skill.clone(),

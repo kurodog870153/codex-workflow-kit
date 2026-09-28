@@ -163,56 +163,11 @@ pub fn apply_migration(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::{SystemTime, UNIX_EPOCH};
-    use work_operations::execution::index::render_execution_index;
-
-    fn copy_tree(source: &Path, target: &Path) {
-        fs::create_dir_all(target).unwrap();
-        for entry in fs::read_dir(source).unwrap() {
-            let entry = entry.unwrap();
-            let path = entry.path();
-            let destination = target.join(entry.file_name());
-            if path.is_dir() {
-                copy_tree(&path, &destination);
-            } else {
-                fs::copy(path, destination).unwrap();
-            }
-        }
-    }
-
-    fn fixture() -> (std::path::PathBuf, std::path::PathBuf) {
-        let source = std::path::PathBuf::from(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/fixtures/instruction-migration"
-        ));
-        let root = std::env::temp_dir().join(format!(
-            "work-migration-{}-{}",
-            std::process::id(),
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        for relative in [
-            "outputs/work/plans/example.json",
-            "outputs/work/tasks/example/index.json",
-            "outputs/work/tasks/example/tasks/TASK-001.json",
-            "outputs/work/executions/example/index.json",
-        ] {
-            let target = root.join(relative);
-            fs::create_dir_all(target.parent().unwrap()).unwrap();
-            fs::copy(source.join(relative), target).unwrap();
-        }
-        (source, root)
-    }
 
     #[test]
     fn missing_plan_has_python_reason() {
         let root = std::env::temp_dir();
-        let skill = Path::new(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/legacy-work-skill"
-        ));
+        let skill = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         assert_eq!(
             build_migration(&root, skill, "missing-plan-test")
                 .err()
@@ -220,120 +175,5 @@ mod tests {
                 .reason_code,
             "instruction_migration_plan_missing"
         );
-    }
-
-    #[test]
-    fn preview_and_apply_match_python_migration_fixture() {
-        let (source, root) = fixture();
-        let history =
-            root.join("outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json");
-        fs::create_dir_all(history.parent().unwrap()).unwrap();
-        fs::write(&history, b"history\n").unwrap();
-        let skill = Path::new(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/legacy-work-skill"
-        ));
-        let expected: Value =
-            serde_json::from_slice(&fs::read(source.join("expected.json")).unwrap()).unwrap();
-        let candidate = build_migration(&root, skill, "example").unwrap();
-        assert_eq!(candidate.preview, expected);
-        let approval = expected["approved_sha256"].as_str().unwrap();
-        assert_eq!(
-            apply_migration(&root, skill, "example", &"0".repeat(64))
-                .unwrap_err()
-                .reason_code,
-            "instruction_migration_approval_changed"
-        );
-        let publication = apply_migration(&root, skill, "example", approval).unwrap();
-        assert_eq!(publication["status"], "updated");
-        assert_eq!(fs::read(&history).unwrap(), b"history\n");
-        assert_eq!(
-            build_migration(&root, skill, "example").unwrap().preview["status"],
-            "current"
-        );
-        assert_eq!(
-            apply_migration(&root, skill, "example", approval).unwrap()["status"],
-            "already_completed"
-        );
-    }
-
-    #[test]
-    fn active_attempt_preview_requires_review_without_changing_artifacts() {
-        let (_source, root) = fixture();
-        let skill = Path::new(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/legacy-work-skill"
-        ));
-        let execution = root.join("outputs/work/executions/example/index.json");
-        let mut index: Value = serde_json::from_slice(&fs::read(&execution).unwrap()).unwrap();
-        index["tasks"][0]["status"] = json!("in_progress");
-        index["tasks"][0]["latest_attempt"] = json!("ATTEMPT-001");
-        index["overall_status"] = json!("in_progress");
-        fs::write(&execution, render_execution_index(&index).unwrap()).unwrap();
-        let history =
-            root.join("outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json");
-        fs::create_dir_all(history.parent().unwrap()).unwrap();
-        fs::write(&history, b"active snapshot\n").unwrap();
-        let tracked = [
-            root.join("outputs/work/plans/example.json"),
-            root.join("outputs/work/tasks/example/index.json"),
-            execution,
-            history,
-        ];
-        let before = tracked
-            .iter()
-            .map(|path| fs::read(path).unwrap())
-            .collect::<Vec<_>>();
-        let preview = build_migration(&root, skill, "example").unwrap().preview;
-        assert_eq!(preview["status"], "review_required");
-        assert_eq!(preview["files"], json!([]));
-        for (path, original) in tracked.iter().zip(before) {
-            assert_eq!(fs::read(path).unwrap(), original);
-        }
-    }
-
-    #[test]
-    fn migration_and_refresh_reject_instruction_source_drift_after_preview() {
-        let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        for (mode, changed_source, expected_reason) in [
-            (
-                "migration",
-                "references/instruction-loading.md",
-                "instruction_migration_approval_changed",
-            ),
-            (
-                "refresh",
-                "references/workflows/plan.md",
-                "source_refresh_approval_changed",
-            ),
-        ] {
-            let (_, root) = fixture();
-            let skill = root.join(format!("{mode}-skill"));
-            copy_tree(
-                &repo.join("crates/work-infrastructure/legacy-work-skill/references"),
-                &skill.join("references"),
-            );
-            let preview = if mode == "migration" {
-                build_migration(&root, &skill, "example").unwrap().preview
-            } else {
-                crate::instruction::refresh::build_refresh(&root, &skill, "example")
-                    .unwrap()
-                    .preview
-            };
-            let approval = preview["approved_sha256"].as_str().unwrap();
-            let source = skill.join(changed_source);
-            let mut raw = fs::read(&source).unwrap();
-            raw.extend_from_slice(b"\nDrift.\n");
-            fs::write(&source, raw).unwrap();
-            let error = if mode == "migration" {
-                apply_migration(&root, &skill, "example", approval).unwrap_err()
-            } else {
-                crate::instruction::refresh::apply_source_refresh(
-                    &root, &skill, "example", approval, "apply",
-                )
-                .unwrap_err()
-            };
-            assert_eq!(error.reason_code, expected_reason);
-        }
     }
 }

@@ -351,8 +351,8 @@ fi
 
 while true; do
     printf 'Installation location:\n'
-    printf '  1. Default user directory: "%s"\n' "$HOME"
-    printf '  2. Custom user directory\n'
+    printf '  1. Default installation directory: "%s/.agents"\n' "$HOME"
+    printf '  2. Custom installation directory\n'
     read -r -p 'Select an installation location [1]: ' home_choice
     home_choice="${home_choice:-1}"
 
@@ -366,7 +366,7 @@ while true; do
     fi
 
     while true; do
-        read -r -p 'Enter the user directory: ' install_home
+        read -r -p 'Enter the installation directory: ' install_home
         if [[ "$install_home" == "~" ]]; then
             install_home="$HOME"
         elif [[ "$install_home" == "~/"* ]]; then
@@ -375,17 +375,20 @@ while true; do
         if [[ -d "$install_home" ]]; then
             break
         fi
-        printf 'The user directory does not exist: "%s". Please try again.\n' "$install_home"
+        printf 'The installation directory does not exist: "%s". Please try again.\n' "$install_home"
     done
     break
 done
 
 if [[ ! -d "$install_home" ]]; then
-    printf 'Error: the selected user directory does not exist: "%s".\n' "$install_home" >&2
+    printf 'Error: the selected installation directory does not exist: "%s".\n' "$install_home" >&2
     exit 1
 fi
 install_home="$(cd -- "$install_home" && pwd -P)"
-target_work="$install_home/.agents/skills/work"
+if [[ "$home_choice" == "1" ]]; then
+    install_home="$install_home/.agents"
+fi
+target_work="$install_home/skills/work"
 
 while true; do
     printf 'Instruction hierarchy:\n'

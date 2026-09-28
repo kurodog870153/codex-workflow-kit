@@ -2,7 +2,7 @@
   "schema": "work-spec-reconciliation-preview/v1",
   "status": "ready",
   "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
-  "attempt_sha256": "76bba8b989624b1422c881f7db8b82759d301a408217ca285d0512c4003da150",
+  "attempt_sha256": "5f536d26aab1defeb9e814cf5b76bae8a3234146e70e45a8d8cf6fbf94a78804",
   "choice": "retain_only",
   "pending_deviation_ids": [
     "DEVIATION-001"
@@ -23,13 +23,13 @@
         "deviation_id": "DEVIATION-001",
         "outcome": "retained",
         "target": "retain_only",
-        "attempt_sha256": "76bba8b989624b1422c881f7db8b82759d301a408217ca285d0512c4003da150",
-        "reconciliation_fingerprint": "718c53d93f15ecdd4b3b3f807d86e0316f3ea78bebb81c8dc4d88cc570efe0d1"
+        "attempt_sha256": "5f536d26aab1defeb9e814cf5b76bae8a3234146e70e45a8d8cf6fbf94a78804",
+        "reconciliation_fingerprint": "60f0a4a53ed2aa3765d9b58a61d2bce3915769664a9d6440f488b09f380a5017"
       }
     ]
   },
   "migration_preview": null,
-  "fingerprint": "718c53d93f15ecdd4b3b3f807d86e0316f3ea78bebb81c8dc4d88cc570efe0d1",
+  "fingerprint": "60f0a4a53ed2aa3765d9b58a61d2bce3915769664a9d6440f488b09f380a5017",
   "publication_required": true,
   "publication_ready": true
 }

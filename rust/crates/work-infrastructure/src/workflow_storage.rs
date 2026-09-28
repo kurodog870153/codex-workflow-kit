@@ -330,7 +330,7 @@ mod tests {
     fn workflow_state_reads_missing_and_plan_only_project_without_writes() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let root = temporary_root("state");
-        let skill_root = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill_root = repo.join("../skills/work");
         let request = WorkflowStateRequest {
             project_root: &root,
             skill_root: &skill_root,
@@ -363,7 +363,7 @@ mod tests {
         );
         assert_eq!(
             missing["selection_sha256"],
-            "3fbc3136536aee1dc762eed3da0e5c88c6dc5f6c4c484154d298f399eb819df1"
+            "11eb0fb42e7b6afa8ce3cde74b408677154791faa172ad40bd08d0decf40459c"
         );
         assert_eq!(fs::read_dir(&root).unwrap().count(), 0);
 
@@ -379,11 +379,11 @@ mod tests {
         assert_eq!(plan_only["next_action"], "confirm_task_list");
         assert_eq!(
             plan_only["details"]["plan_sha256"],
-            "6c7c723b2ab7c26b94fd7ee7c1ad31610d7c31ef1d3a13cfc7db6841bf79adad"
+            "2efa0cacb11a570576e71e656453428dd5d24c29938995ff3cc0139236368cfd"
         );
         assert_eq!(
             plan_only["selection_sha256"],
-            "f015d7a758b5d183e0f1bebf3dbc69c2a83cfac3b14df0232e6ce305fc24d272"
+            "3bc79b3e99f1f1fd646faf529a3c4c78651544ffd1de33f2eaafdc365c3194a2"
         );
         assert_eq!(fs::read_dir(path.parent().unwrap()).unwrap().count(), 1);
     }
@@ -411,7 +411,7 @@ mod tests {
         .unwrap();
         let result = workflow_state(&WorkflowStateRequest {
             project_root: &root,
-            skill_root: &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            skill_root: &repo.join("../skills/work"),
             skill_configs: &[],
             requirement_id: "example",
             plan_path: Some(relative),
@@ -452,7 +452,7 @@ mod tests {
         }
         let request = WorkflowStateRequest {
             project_root: &root,
-            skill_root: &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            skill_root: &repo.join("../skills/work"),
             skill_configs: &[],
             requirement_id: "example",
             plan_path: Some(relative),
@@ -488,7 +488,7 @@ mod tests {
             fs::copy(fixture.join(relative), destination).unwrap();
         }
         fs::write(root.join("src.txt"), b"original\n").unwrap();
-        let skill_root = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill_root = repo.join("../skills/work");
         let request = WorkflowStateRequest {
             project_root: &root,
             skill_root: &skill_root,
@@ -502,7 +502,7 @@ mod tests {
         assert_eq!(state["details"], json!({"overall_status":"completed"}));
         assert_eq!(
             state["selection_sha256"],
-            "8c3b658412789a161af64f5abdf482adbcbf8069e299f862cd4715104b818464"
+            "0b39a2d6341d962723b6e134d213df51a8079e23be31dd5276c76f91f36bff66"
         );
     }
 
@@ -522,7 +522,7 @@ mod tests {
             fs::copy(fixture.join(relative), destination).unwrap();
         }
         fs::write(root.join("src.txt"), b"original\n").unwrap();
-        let skill_root = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill_root = repo.join("../skills/work");
         let request = WorkflowStateRequest {
             project_root: &root,
             skill_root: &skill_root,
@@ -536,7 +536,7 @@ mod tests {
         assert_eq!(state["details"], json!({"overall_status":"pending"}));
         assert_eq!(
             state["selection_sha256"],
-            "9d23f674f50cd62c56cd736706fcbdf1d01f2c0830b441fad3a5253efec360f7"
+            "afc9623dc284ecde9844ae239f397b2b0748c41f8682bd35defb1e15bdd6d00f"
         );
         let wrong_plan = root.join("other/example.json");
         fs::create_dir_all(wrong_plan.parent().unwrap()).unwrap();

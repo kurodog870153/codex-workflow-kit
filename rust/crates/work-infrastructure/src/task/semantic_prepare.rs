@@ -112,7 +112,7 @@ mod tests {
             "skill_id":null,"instruction_selection":{"selected_paths":[],"references":[]},
             "dependencies":[]}],"remove_task_ids":[],
             "current_task":{"upsert_position":1},"reason":null});
-        let skill = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill = repo.join("../skills/work");
         let prepared =
             prepare_semantic_task_request(&root, &skill, &[], "example", plan_path, 0, &request)
                 .unwrap();
@@ -282,7 +282,7 @@ mod tests {
             fs::create_dir_all(destination.parent().unwrap()).unwrap();
             fs::copy(fixture.join(relative), destination).unwrap();
         }
-        let skill = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill = repo.join("../skills/work");
         let original_index =
             fs::read(root.join("outputs/work/tasks/example/drafts/index.json")).unwrap();
         let boundary = json!({"title":"Split","goal":"Result","scope":["Source"],
@@ -432,7 +432,7 @@ mod tests {
             "title":"Task","goal":"Merged outcome","scope":["Source"],"skill_id":null,
             "dependencies":[]}],"remove_task_ids":["TASK-001"],
             "current_task":{"existing_task_id":"TASK-002"},"reason":"Confirmed merge"});
-        let skill = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill = repo.join("../skills/work");
         let prepared =
             prepare_semantic_task_request(&root, &skill, &[], "example", plan_path, 2, &semantic)
                 .unwrap();

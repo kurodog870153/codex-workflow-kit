@@ -11,6 +11,22 @@ if not exist "%source_file%" (
     exit /b 1
 )
 
+:prompt_location
+echo Installation location:
+echo   1. Default Codex directory: "%USERPROFILE%\.codex"
+echo   2. Custom directory
+set "location_choice="
+set /p "location_choice=Select an installation location [1]: "
+if not defined location_choice set "location_choice=1"
+if "%location_choice%"=="1" goto use_default_directory
+if "%location_choice%"=="2" goto prompt_directory
+echo Invalid selection. Please try again.
+goto prompt_location
+
+:use_default_directory
+set "target_directory=%USERPROFILE%\.codex"
+goto directory_selected
+
 :prompt_directory
 set "target_directory="
 set /p "target_directory=Enter the target directory: "
@@ -21,6 +37,7 @@ if not defined target_directory (
     goto prompt_directory
 )
 
+:directory_selected
 if not exist "%target_directory%\" goto confirm_create
 goto check_target_file
 

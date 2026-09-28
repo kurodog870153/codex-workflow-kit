@@ -11,6 +11,21 @@ if [[ ! -f "$source_file" ]]; then
 fi
 
 while true; do
+    printf 'Installation location:\n'
+    printf '  1. Default Codex directory: "%s"\n' "$HOME/.codex"
+    printf '  2. Custom directory\n'
+    read -r -p 'Select an installation location [1]: ' location_choice
+    location_choice="${location_choice:-1}"
+
+    if [[ "$location_choice" == "1" ]]; then
+        target_directory="$HOME/.codex"
+        break
+    fi
+    if [[ "$location_choice" != "2" ]]; then
+        printf 'Invalid selection. Please try again.\n'
+        continue
+    fi
+
     read -r -p 'Enter the target directory: ' target_directory
 
     if [[ -z "$target_directory" ]]; then

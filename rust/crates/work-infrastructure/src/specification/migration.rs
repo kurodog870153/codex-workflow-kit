@@ -481,13 +481,7 @@ mod tests {
             serde_json::from_slice(&fs::read(fixture.join("request.json")).unwrap()).unwrap();
         let expected: Value =
             serde_json::from_slice(&fs::read(fixture.join("expected.json")).unwrap()).unwrap();
-        let actual = preview_migration(
-            &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
-            &[],
-            &request,
-        )
-        .unwrap();
+        let actual = preview_migration(&root, &repo.join("../skills/work"), &[], &request).unwrap();
         assert_eq!(actual, expected);
         let unresolved: Value =
             serde_json::from_slice(&fs::read(fixture.join("unresolved-request.json")).unwrap())
@@ -496,24 +490,13 @@ mod tests {
             serde_json::from_slice(&fs::read(fixture.join("unresolved-expected.json")).unwrap())
                 .unwrap();
         assert_eq!(
-            preview_migration(
-                &root,
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
-                &[],
-                &unresolved
-            )
-            .unwrap(),
+            preview_migration(&root, &repo.join("../skills/work"), &[], &unresolved).unwrap(),
             blocked
         );
         let mut resolved = unresolved.clone();
         resolved["semantic_decisions"][0]["resolution"] = json!("Use the confirmed v1 meaning.");
-        let resolved_preview = preview_migration(
-            &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
-            &[],
-            &resolved,
-        )
-        .unwrap();
+        let resolved_preview =
+            preview_migration(&root, &repo.join("../skills/work"), &[], &resolved).unwrap();
         assert_eq!(resolved_preview["status"], "ready");
         assert_ne!(resolved_preview["fingerprint"], blocked["fingerprint"]);
         let mut mismatched = request.clone();
@@ -524,13 +507,8 @@ mod tests {
             .find(|row| row["kind"] == "plan")
             .unwrap();
         plan_candidate["content"]["artifacts"]["task"] = json!("wrong/index.json");
-        let mismatch = preview_migration(
-            &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
-            &[],
-            &mismatched,
-        )
-        .unwrap();
+        let mismatch =
+            preview_migration(&root, &repo.join("../skills/work"), &[], &mismatched).unwrap();
         assert_eq!(mismatch["status"], "blocked");
         assert_eq!(mismatch["writable_ready"], false);
         assert!(
@@ -553,13 +531,8 @@ mod tests {
                 &fs::read(fixture.join(format!("{variant}-expected.json"))).unwrap(),
             )
             .unwrap();
-            let actual = preview_migration(
-                &root,
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
-                &[],
-                &request,
-            )
-            .unwrap();
+            let actual =
+                preview_migration(&root, &repo.join("../skills/work"), &[], &request).unwrap();
             assert_eq!(actual, expected, "variant {variant}");
         }
         let mut legacy = request.clone();
@@ -578,13 +551,8 @@ mod tests {
                 (relative.clone(), fs::read(root.join(relative)).unwrap())
             })
             .collect::<BTreeMap<_, _>>();
-        let legacy_preview = preview_migration(
-            &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
-            &[],
-            &legacy,
-        )
-        .unwrap();
+        let legacy_preview =
+            preview_migration(&root, &repo.join("../skills/work"), &[], &legacy).unwrap();
         assert_eq!(legacy_preview["status"], "ready");
         assert_eq!(legacy_preview["writable_ready"], true);
         for (relative, bytes) in before {
@@ -627,7 +595,7 @@ mod tests {
             .unwrap();
         let actual = prepare_revision_request(
             &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
             &[],
             &fs::read(fixture.join("semantic-request.json")).unwrap(),
             date,
@@ -642,7 +610,7 @@ mod tests {
         assert_eq!(
             prepare_revision_request(
                 &root,
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
+                &repo.join("../skills/work"),
                 &[],
                 &serde_json::to_vec(&redirected).unwrap(),
                 date,
@@ -659,21 +627,16 @@ mod tests {
             .find(|row| row["kind"] == "plan")
             .unwrap()["task_id"] = json!("TASK-001");
         assert_eq!(
-            preview_migration(
-                &root,
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
-                &[],
-                &forged_identity
-            )
-            .unwrap_err()
-            .reason_code,
+            preview_migration(&root, &repo.join("../skills/work"), &[], &forged_identity)
+                .unwrap_err()
+                .reason_code,
             "invalid_contract_value"
         );
         let revision = json!({"schema":"work-spec-prepare-request/v1",
             "requirement_id":semantic["requirement_id"],"reason":semantic["reason"],"edits":semantic["edits"]});
         let prepared = prepare_simple_update(
             &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
             &[],
             SpecificationPrepareInput {
                 raw: &serde_json::to_vec(&revision).unwrap(),
@@ -687,13 +650,7 @@ mod tests {
         let preview = preview_revision_from_prepared(&root, &actual, &prepared).unwrap();
         assert_eq!(preview, expected_preview);
         assert_eq!(
-            preview_migration(
-                &root,
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
-                &[],
-                &actual
-            )
-            .unwrap(),
+            preview_migration(&root, &repo.join("../skills/work"), &[], &actual).unwrap(),
             expected_preview
         );
         let plan_source = root.join("outputs/work/plans/example.json");
@@ -702,7 +659,7 @@ mod tests {
         assert_eq!(
             publish_migration(
                 &root,
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
+                &repo.join("../skills/work"),
                 &[],
                 &actual,
                 "apply",
@@ -722,7 +679,7 @@ mod tests {
         assert_eq!(journal, published);
         let result = publish_migration(
             &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
             &[],
             &actual,
             "apply",
@@ -747,7 +704,7 @@ mod tests {
         );
         let recovered = publish_migration(
             &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
             &[],
             &actual,
             "recover",
@@ -806,7 +763,7 @@ mod tests {
         assert_eq!(
             publish_migration(
                 &root,
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
+                &repo.join("../skills/work"),
                 &[],
                 &changed,
                 "recover",
@@ -818,7 +775,7 @@ mod tests {
         );
         let result = publish_migration(
             &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
             &[],
             &request,
             "recover",

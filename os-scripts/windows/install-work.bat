@@ -16,8 +16,8 @@ if errorlevel 1 goto source_error
 
 :prompt_home_choice
 echo Installation location:
-echo   1. Default user directory: "%USERPROFILE%"
-echo   2. Custom user directory
+echo   1. Default installation directory: "%USERPROFILE%\.agents"
+echo   2. Custom installation directory
 set "home_choice="
 set /p "home_choice=Select an installation location [1]: "
 if not defined home_choice set "home_choice=1"
@@ -31,7 +31,7 @@ goto prompt_home_choice
 
 :prompt_custom_home
 set "install_home="
-set /p "install_home=Enter the user directory: "
+set /p "install_home=Enter the installation directory: "
 set "install_home=!install_home:"=!"
 if not defined install_home (
     echo The directory cannot be empty. Please try again.
@@ -40,18 +40,19 @@ if not defined install_home (
 
 :home_selected
 if not defined install_home (
-    echo Error: the selected user directory is unavailable.
+    echo Error: the selected installation directory is unavailable.
     pause
     exit /b 1
 )
 for %%I in ("!install_home!") do set "install_home=%%~fI"
 if not exist "!install_home!\." (
-    echo The user directory does not exist: "!install_home!".
+    echo The installation directory does not exist: "!install_home!".
     if "!home_choice!"=="2" goto prompt_custom_home
     pause
     exit /b 1
 )
-set "target_work=!install_home!\.agents\skills\work"
+if "!home_choice!"=="1" set "install_home=!install_home!\.agents"
+set "target_work=!install_home!\skills\work"
 
 :prompt_hierarchy
 echo Instruction hierarchy:

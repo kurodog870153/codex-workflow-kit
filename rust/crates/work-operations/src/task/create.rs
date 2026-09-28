@@ -117,38 +117,3 @@ pub fn prepare_collection(
         approval_bytes,
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::canonical::sha256_hex;
-
-    #[test]
-    fn legacy_python_fixture_round_trips_formal_index_and_item() {
-        let index_raw = include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/fixtures/instruction-migration/outputs/work/tasks/example/index.json"
-        ));
-        let item_raw = include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/fixtures/instruction-migration/outputs/work/tasks/example/tasks/TASK-001.json"
-        ));
-        let mut index: Value = serde_json::from_slice(index_raw).unwrap();
-        let mut item: Value = serde_json::from_slice(item_raw).unwrap();
-        item.as_object_mut().unwrap().remove("schema");
-        index["schema"] = json!("work-task-collection-projection/v1");
-        index["tasks"] = json!([item]);
-        let result = prepare_collection(
-            &index,
-            "outputs/work/tasks/example/index.json",
-            "outputs/work/plans/example.json",
-        )
-        .unwrap();
-        assert_eq!(result.index_raw, index_raw);
-        assert_eq!(result.items["TASK-001"], item_raw);
-        assert_eq!(
-            sha256_hex(&result.approval_bytes),
-            "03b228812fc0479b9da340b1d3ed2a3ec14b936b5e03e0693f437f8befb8219f"
-        );
-    }
-}

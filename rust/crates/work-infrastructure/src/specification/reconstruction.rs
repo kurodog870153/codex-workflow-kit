@@ -408,24 +408,14 @@ mod tests {
         let request = fs::read(fixture.join("semantic-request.json")).unwrap();
         let expected: Value =
             serde_json::from_slice(&fs::read(fixture.join("request.json")).unwrap()).unwrap();
-        let actual = prepare_reconstruction_request(
-            &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
-            &[],
-            &request,
-        )
-        .unwrap();
+        let actual =
+            prepare_reconstruction_request(&root, &repo.join("../skills/work"), &[], &request)
+                .unwrap();
         assert_eq!(actual, expected);
         let expected_preview: Value =
             serde_json::from_slice(&fs::read(fixture.join("expected.json")).unwrap()).unwrap();
         assert_eq!(
-            preview_migration(
-                &root,
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
-                &[],
-                &actual
-            )
-            .unwrap(),
+            preview_migration(&root, &repo.join("../skills/work"), &[], &actual).unwrap(),
             expected_preview
         );
     }

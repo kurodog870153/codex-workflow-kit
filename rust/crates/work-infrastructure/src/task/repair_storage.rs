@@ -1494,7 +1494,7 @@ mod tests {
         invalid["expected"]["outputs/work/executions/example/index.json"] = json!("invalid");
         let rejected = repair_from_project(
             &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
             &[],
             RepairProjectRequest {
                 raw: &serde_json::to_vec(&invalid).unwrap(),
@@ -1510,7 +1510,7 @@ mod tests {
             resolve_repair_artifacts(&root, "example").unwrap(),
             serde_json::from_slice::<Value>(&raw).unwrap()["artifacts"]
         );
-        let skill = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill = repo.join("../skills/work");
         let semantic = fs::read(fixture.join("semantic-request.json")).unwrap();
         let prepared = prepare_repair_from_project(
             &root,
@@ -1658,7 +1658,7 @@ mod tests {
     #[test]
     fn semantic_missing_and_title_repairs_match_python_requests() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let skill = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill = repo.join("../skills/work");
         for variant in ["missing", "title", "nested_file"] {
             let fixture = repo
                 .join("crates/work-infrastructure/fixtures/task-repair")
@@ -1727,7 +1727,7 @@ mod tests {
     fn semantic_repair_rejects_missing_index_and_unreviewed_orphan() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo.join("crates/work-infrastructure/fixtures/task-repair");
-        let skill = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill = repo.join("../skills/work");
         let semantic = fs::read(fixture.join("semantic-request.json")).unwrap();
         for (variant, expected_reason) in [
             ("missing_index", "task_repair_ambiguous_source"),
@@ -1825,7 +1825,7 @@ mod tests {
         let before = fs::read(root.join("outputs/work/tasks/example/tasks/TASK-001.json")).unwrap();
         let report = diagnose_task_collection(
             &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
             &[],
             "outputs/work/tasks/example/index.json",
         );
@@ -1884,12 +1884,7 @@ mod tests {
             render_task(&invalid_item, TaskDocumentKind::Item).unwrap(),
         )
         .unwrap();
-        let report = diagnose_task_collection(
-            &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
-            &[],
-            index,
-        );
+        let report = diagnose_task_collection(&root, &repo.join("../skills/work"), &[], index);
         assert_eq!(report["contract_status"], "not_checked");
         assert_eq!(report["normal_use_allowed"], false);
         fs::write(root.join(item), &original_item).unwrap();
@@ -1901,12 +1896,7 @@ mod tests {
             render_task(&invalid_index, TaskDocumentKind::Index).unwrap(),
         )
         .unwrap();
-        let report = diagnose_task_collection(
-            &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
-            &[],
-            index,
-        );
+        let report = diagnose_task_collection(&root, &repo.join("../skills/work"), &[], index);
         assert!(
             report["issues"]
                 .as_array()
@@ -1988,7 +1978,7 @@ mod tests {
             }
             let result = diagnose_task_collection(
                 &root,
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
+                &repo.join("../skills/work"),
                 &[],
                 "outputs/work/tasks/example/index.json",
             );
@@ -2182,12 +2172,7 @@ mod tests {
                 .iter()
                 .map(|relative| (relative.to_string(), fs::read(root.join(relative)).ok()))
                 .collect::<BTreeMap<_, _>>();
-            let report = diagnose_task_collection(
-                &root,
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
-                &[],
-                index,
-            );
+            let report = diagnose_task_collection(&root, &repo.join("../skills/work"), &[], index);
             for (relative, bytes) in before {
                 assert_eq!(fs::read(root.join(relative)).ok(), bytes, "{case}");
             }

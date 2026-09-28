@@ -61,7 +61,7 @@ $work task -- resume example
 
 ## 安裝
 
-Work skill 會安裝到使用者目錄下的 `.agents/skills/work`。安裝時可以選擇預設或自訂使用者目錄。
+Work skill 預設安裝到使用者目錄下的 `.agents/skills/work`。選擇自訂安裝目錄時，會安裝到該目錄下的 `skills/work`，不會再加上 `.agents`。自訂安裝目錄須已存在。
 
 安裝時可依專案選擇適用的工作類型：
 

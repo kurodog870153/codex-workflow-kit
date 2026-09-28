@@ -114,10 +114,7 @@ mod tests {
 
     #[test]
     fn instruction_migration_manifest_matches_python_example() {
-        let root = PathBuf::from(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/legacy-work-skill"
-        ));
+        let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         let mut session = RoutingSourceSession::new(root);
         let manifest = work_feature::instruction::migration_manifest(
             &mut session,
@@ -129,16 +126,13 @@ mod tests {
         .unwrap();
         assert_eq!(
             manifest["selection_sha256"],
-            "19595a4ae1c315f092b7bbd9910d529c339796066e596d5944488f3f3864a53a"
+            "45659bd5c25922cd5bcb1b80e8c5f7a7d5d567846714ceb7f59230ec8eb02896"
         );
     }
 
     #[test]
     fn source_session_matches_python_identity_and_rejects_drift() {
-        let root = PathBuf::from(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/legacy-work-skill"
-        ));
+        let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         let mut session = RoutingSourceSession::new(root.clone());
         let request = RoutingRequest {
             status: "plan_required",
@@ -156,7 +150,7 @@ mod tests {
         assert_eq!(first, second);
         assert_eq!(
             first["selection_sha256"],
-            "11313e0d95824bb9a6778696474f2816ee1afb15158c42d6d28536e4b9d65348"
+            "d178b420bc164815d048d246625817662ef11c2145f3775e56b0ed2b98278962"
         );
 
         let temp = std::env::temp_dir().join(format!("work-routing-{}", std::process::id()));
@@ -184,10 +178,7 @@ mod tests {
 
     #[test]
     fn plan_required_workflow_state_matches_python_selection() {
-        let root = PathBuf::from(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/legacy-work-skill"
-        ));
+        let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         let mut session = RoutingSourceSession::new(root);
         let artifacts = json!({"plan":"outputs/work/plans/demo.json","task":"outputs/work/tasks/demo/index.json","execution":"outputs/work/executions/demo"});
         let state = pre_execution_state(&mut session, "demo", &artifacts, None, None, None, false)
@@ -195,7 +186,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             state["selection_sha256"],
-            "d5dc0ee520fdc735c005be4dcbc0eac5ba101da219d6f38120905718feee1c36"
+            "492fb1e19887b3784550a2493127060aa342ec49c917136076ebbb4e99735065"
         );
         assert_eq!(
             state["selection_manifest"]["routing_input"]["verified_state_sha256"],
@@ -210,10 +201,7 @@ mod tests {
 
     #[test]
     fn progress_read_operation_context_matches_python_hashes() {
-        let root = PathBuf::from(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/legacy-work-skill"
-        ));
+        let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         let mut session = RoutingSourceSession::new(root);
         let artifacts = json!({});
         let (envelope, selection) = build_operation_context(
@@ -235,11 +223,11 @@ mod tests {
         );
         assert_eq!(
             envelope["selection_sha256"],
-            "8b2e94515bb28eafa2351baed145fa26be0f810e3700e170552d0d636d6b6a04"
+            "62b22a683778a530c33f5cf2e4454f89aa198d42699ec4145812156d20945d53"
         );
         assert_eq!(
             envelope["context_sha256"],
-            "1537f93501b4c81a4fd8f9052909266bb5d09b55c45542f4a0c77579aaf988ea"
+            "30a3c228109d3673343688938b803a8c1ef03ab647916d4cf95b724c84f214ae"
         );
         validate_operation_context(&envelope, &selection, &artifacts).unwrap();
         let mut drifted = envelope.clone();
@@ -273,9 +261,7 @@ mod tests {
                 &fs::read(fixture.join(format!("{name}-expected.json"))).unwrap(),
             )
             .unwrap();
-            let mut session = RoutingSourceSession::new(
-                repo.join("crates/work-infrastructure/legacy-work-skill"),
-            );
+            let mut session = RoutingSourceSession::new(repo.join("../skills/work"));
             let actual = execution_state(
                 &mut session,
                 input["requirement_id"].as_str().unwrap(),

@@ -601,10 +601,7 @@ mod tests {
     #[test]
     fn installed_catalog_matches_python_baseline() {
         let repository = LocalHierarchyCatalog {
-            skill_root: PathBuf::from(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../crates/work-infrastructure/legacy-work-skill"
-            )),
+            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
         };
         let catalog = repository.cross_mode_catalog().unwrap();
         assert_eq!(

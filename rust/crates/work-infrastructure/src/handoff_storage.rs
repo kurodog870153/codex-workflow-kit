@@ -724,7 +724,7 @@ mod tests {
         }
         let storage = LocalHandoffStorage {
             project_root: root.clone(),
-            skill_root: repo.join("crates/work-infrastructure/legacy-work-skill"),
+            skill_root: repo.join("../skills/work"),
             skill_configs: vec![],
         };
         let request = json!({"summary":"Start execution."});
@@ -906,7 +906,7 @@ mod tests {
                 .join(status);
             let storage = LocalHandoffStorage {
                 project_root: fixture.clone(),
-                skill_root: repo.join("crates/work-infrastructure/legacy-work-skill"),
+                skill_root: repo.join("../skills/work"),
                 skill_configs: vec![],
             };
             if status == "stopped" {
@@ -1027,10 +1027,7 @@ mod tests {
         ));
         let storage = LocalHandoffStorage {
             project_root: root,
-            skill_root: PathBuf::from(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../crates/work-infrastructure/legacy-work-skill"
-            )),
+            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
             skill_configs: vec![],
         };
         let plan_path = "outputs/work/plans/example.json";
@@ -1039,7 +1036,7 @@ mod tests {
             "direction":"plan_to_task","requirement_id":"example",
             "artifacts":{"plan":plan_path,"task":"outputs/work/tasks/example/index.json",
                 "execution":"outputs/work/executions/example"},
-            "source":{"stage":"plan","plan_sha256":"4655dcf7fb19701538f21dced75e0512e5f03c1a3e445f842b61c21ae83ff2e3",
+            "source":{"stage":"plan","plan_sha256":"fbe1d757987f30984e4ec769c13175da71bdc0b630a16d9adc88bbdd851b1217",
                 "skill_selection_sha256":"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"},
             "target":{"stage":"task"},"summary":"Build the tasks.","affected_ids":["GOAL-001"]});
         assert_eq!(
@@ -1063,19 +1060,16 @@ mod tests {
                 env!("CARGO_MANIFEST_DIR"),
                 "/../../crates/work-infrastructure/fixtures/task-diagnostics"
             )),
-            skill_root: PathBuf::from(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../crates/work-infrastructure/legacy-work-skill"
-            )),
+            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
             skill_configs: vec![],
         };
         let task_path = "outputs/work/tasks/example/index.json";
         let request = json!({"summary":"Start execution."});
         let source = json!({"stage":"task","task_spec_id":"TASK-SPEC-001","task_id":"TASK-001",
-            "task_collection_sha256":"fb5854024d838a5abfcbe9a3fd040acf26b92abd75cb5fe5697723952c53aa12",
-            "task_index_sha256":"e4c9c1a311cb8db614c3303307e698024a06ddd7a14e31c3d5b2c84575658a82",
-            "task_item_sha256":"2ff6f684cdfd2d418d0573449a267434be7a5f1dc83691ae6f11fa00508f60e1",
-            "task_instructions_sha256":"d96cb66bc96c394655df49bb557f0850344be70763b99e96bad7c70732ea372d",
+            "task_collection_sha256":"e6a91e156bfa91f022fe0e4caea2a2e6a5f5680dd05a5bd0f29ca07514d0dc3e",
+            "task_index_sha256":"c702e63ab5c9fd94e66a0ae2036286b05aa7535677b0963d2ca6b6a65890ff19",
+            "task_item_sha256":"77b657de77811217b23514ae570473331da07c204b7553c51da60ba505c0a523",
+            "task_instructions_sha256":"df8fac8b103d0139e30419503d6237e2edcd219b45bb9cca32d9e84dcfef532b",
             "skill_id":null,"skill_selection_sha256":"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"});
         let expected = json!({"schema":"work-handoff/v1","marker":"WORK-HANDOFF",
             "direction":"task_to_execute","requirement_id":"example",
@@ -1201,10 +1195,7 @@ mod tests {
                 env!("CARGO_MANIFEST_DIR"),
                 "/../../crates/work-infrastructure/fixtures/task-diagnostics"
             )),
-            skill_root: PathBuf::from(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../crates/work-infrastructure/legacy-work-skill"
-            )),
+            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
             skill_configs: vec![],
         };
         let plan_path = "outputs/work/plans/example.json";
@@ -1213,17 +1204,17 @@ mod tests {
             "confirmed_approach":"Retain the interface.",
             "requested_changes":["Clarify scope."],"preserve":["Current behavior."],
             "affected_ids":["TASK-001"],"validation_requirements":["Review criteria."]});
-        let base_source = json!({"stage":"task","plan_sha256":"4655dcf7fb19701538f21dced75e0512e5f03c1a3e445f842b61c21ae83ff2e3",
+        let base_source = json!({"stage":"task","plan_sha256":"fbe1d757987f30984e4ec769c13175da71bdc0b630a16d9adc88bbdd851b1217",
             "task_spec_id":"TASK-SPEC-001",
-            "task_collection_sha256":"fb5854024d838a5abfcbe9a3fd040acf26b92abd75cb5fe5697723952c53aa12",
-            "task_index_sha256":"e4c9c1a311cb8db614c3303307e698024a06ddd7a14e31c3d5b2c84575658a82",
+            "task_collection_sha256":"e6a91e156bfa91f022fe0e4caea2a2e6a5f5680dd05a5bd0f29ca07514d0dc3e",
+            "task_index_sha256":"c702e63ab5c9fd94e66a0ae2036286b05aa7535677b0963d2ca6b6a65890ff19",
             "skill_selection_sha256":"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"});
         for task_id in [None, Some("TASK-001")] {
             let mut source = base_source.clone();
             if let Some(id) = task_id {
                 source["task_id"] = json!(id);
                 source["task_item_sha256"] =
-                    json!("2ff6f684cdfd2d418d0573449a267434be7a5f1dc83691ae6f11fa00508f60e1");
+                    json!("77b657de77811217b23514ae570473331da07c204b7553c51da60ba505c0a523");
                 source["skill_id"] = Value::Null;
             }
             let expected = json!({"schema":"work-handoff/v1","marker":"WORK-HANDOFF",
@@ -1334,10 +1325,7 @@ mod tests {
                 env!("CARGO_MANIFEST_DIR"),
                 "/../../crates/work-infrastructure/fixtures/task-diagnostics"
             )),
-            skill_root: PathBuf::from(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../crates/work-infrastructure/legacy-work-skill"
-            )),
+            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
             skill_configs: vec![],
         };
         let task_path = "outputs/work/tasks/example/index.json";
@@ -1346,10 +1334,10 @@ mod tests {
             "requested_changes":["Clarify scope."],"preserve":["Current behavior."],
             "affected_ids":["TASK-001"],"validation_requirements":["Review criteria."]});
         let source = json!({"stage":"execute","task_spec_id":"TASK-SPEC-001","task_id":"TASK-001",
-            "task_collection_sha256":"fb5854024d838a5abfcbe9a3fd040acf26b92abd75cb5fe5697723952c53aa12",
-            "task_index_sha256":"e4c9c1a311cb8db614c3303307e698024a06ddd7a14e31c3d5b2c84575658a82",
-            "task_item_sha256":"2ff6f684cdfd2d418d0573449a267434be7a5f1dc83691ae6f11fa00508f60e1",
-            "task_instructions_sha256":"d96cb66bc96c394655df49bb557f0850344be70763b99e96bad7c70732ea372d",
+            "task_collection_sha256":"e6a91e156bfa91f022fe0e4caea2a2e6a5f5680dd05a5bd0f29ca07514d0dc3e",
+            "task_index_sha256":"c702e63ab5c9fd94e66a0ae2036286b05aa7535677b0963d2ca6b6a65890ff19",
+            "task_item_sha256":"77b657de77811217b23514ae570473331da07c204b7553c51da60ba505c0a523",
+            "task_instructions_sha256":"df8fac8b103d0139e30419503d6237e2edcd219b45bb9cca32d9e84dcfef532b",
             "skill_id":null,"execute_skill_selection_sha256":"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
             "execution_context":{"attempt":{"status":"not_created"},"phase":"preflight",
                 "issue_type":"specification_defect","reason":"Specification defect."}});
@@ -1539,7 +1527,7 @@ mod tests {
             }
             let storage = LocalHandoffStorage {
                 project_root: root,
-                skill_root: repo.join("crates/work-infrastructure/legacy-work-skill"),
+                skill_root: repo.join("../skills/work"),
                 skill_configs: vec![],
             };
             let result =
@@ -1599,7 +1587,7 @@ mod tests {
         }
         let storage = LocalHandoffStorage {
             project_root: root.clone(),
-            skill_root: repo.join("crates/work-infrastructure/legacy-work-skill"),
+            skill_root: repo.join("../skills/work"),
             skill_configs: vec![],
         };
         let plan_request = json!({"summary":"Build tasks.","affected_ids":["GOAL-001"]});
@@ -1730,7 +1718,7 @@ mod tests {
         }
         let storage = LocalHandoffStorage {
             project_root: root.clone(),
-            skill_root: repo.join("crates/work-infrastructure/legacy-work-skill"),
+            skill_root: repo.join("../skills/work"),
             skill_configs: vec![],
         };
         let request = json!({"summary":"調整已確認範圍",
@@ -1972,10 +1960,7 @@ mod tests {
         fs::create_dir(&root).unwrap();
         let storage = LocalHandoffStorage {
             project_root: root.clone(),
-            skill_root: PathBuf::from(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../crates/work-infrastructure/legacy-work-skill"
-            )),
+            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
             skill_configs: vec![],
         };
         let instructions = LocalHierarchyCatalog {

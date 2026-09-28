@@ -11,7 +11,7 @@
     "execution": "outputs/work/executions/example"
   },
   "source_plan": {
-    "canonical_sha256": "268e3d2552290eead45e7da9012f52aaf6ed676de335dd087e5a98e0d9a18810",
+    "canonical_sha256": "41b0cfc17d460c1015f5b7a3b38e049b49ff04a35d98d989b2ed612cb047ebd0",
     "hierarchy_selection_sha256": "973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e"
   },
   "instruction_selection": {
@@ -25,19 +25,19 @@
       {
         "kind": "workflow",
         "logical_name": "work.workflow.task",
-        "canonical_sha256": "e2bc9383d3eac24fcfb7a8972343850c22bc141aac73c0568d69e08216f68bda",
+        "canonical_sha256": "32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db",
         "compatibility_revision": 2
       },
       {
         "kind": "instruction",
         "logical_name": "task.general",
-        "canonical_sha256": "2b3eea1d9b82b1a14bcce44c9e30957873e5522a18e6eda8f232f394e66eaf00",
+        "canonical_sha256": "8b43b2adb87a02fa07a60edc99af7efeccfadb3f330982e41d5fdcf6858aad9a",
         "compatibility_revision": 1
       },
       {
         "kind": "reference",
         "logical_name": "task.general.task-records",
-        "canonical_sha256": "195af88fa0ee0b1eaf88560bb0ff5c349b14c2b8a814d6cbc511c3d2b899f509",
+        "canonical_sha256": "2fc4c2372c5661d75e659bd63b6159baff6139ad795555b604a0b07a3fa17d6d",
         "compatibility_revision": 1
       },
       {
@@ -51,18 +51,18 @@
       "task.general.task-records",
       "task.general.instruction-maintenance"
     ],
-    "instructions_sha256": "094259fb9c1adb59b47d01115a1d5bb7c34958d362177c998293f9b13a994c5a"
+    "instructions_sha256": "ea0014b813238441e0baf668f0dc46c86a4393328abd42d8f7ed5df48436d969"
   },
   "tasks": [
     {
       "id": "TASK-001",
       "path": "tasks/TASK-001.json",
-      "canonical_sha256": "70a7cec684fbcf4ce6f85ff25f13d5fb062b6df3c7e56c910f8a44e6f6badcc3"
+      "canonical_sha256": "df0e25a75447fdd9e59ffac7c96bb1d40b34b2705e2bca72b0727da8b011517c"
     },
     {
       "id": "TASK-002",
       "path": "tasks/TASK-002.json",
-      "canonical_sha256": "2454f75afcd5eaf332e4557939d680e69f513a5c9ddbde8155d3ca63f26c3c9a"
+      "canonical_sha256": "ef912a9f0ec18c0167fec67ca806dee1b8fbaf429160c6a113698cf0b3ecf8e9"
     }
   ],
   "readiness": {
