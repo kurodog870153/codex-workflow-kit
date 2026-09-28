@@ -32,18 +32,18 @@
         {
           "kind": "workflow",
           "logical_name": "work.workflow.plan",
-          "canonical_sha256": "0810a39c71c6bd011f97e02baf60f29091c278210bbe085688fa4e84a102bfe9",
+          "canonical_sha256": "0f90310486ef23d30095f7b7149b10ef3ba6fe51736fc21930ca9fd78007ba31",
           "compatibility_revision": 2
         },
         {
           "kind": "instruction",
           "logical_name": "plan.general",
-          "canonical_sha256": "08e63078de9f3a3545de9a4ec8d8e6cfba74b26623ccb93d7e3c046c324cfc80",
+          "canonical_sha256": "9c107f7f59aaae2242d129fa70e18eac0e58988700d07d2e64581e1e727a878e",
           "compatibility_revision": 1
         }
       ],
       "references": [],
-      "instructions_sha256": "a33405cd5b536fd17b970a1bab1ffbdd6b508ae019573870984a7fe71d66ba0a"
+      "instructions_sha256": "2a78d921a10a1b1652d29bdb458ba2b88d1bb80f5ebd2c1213648e422b0863f9"
     },
     "skill_selection": {
       "schema": "work-skill-selection/v1",

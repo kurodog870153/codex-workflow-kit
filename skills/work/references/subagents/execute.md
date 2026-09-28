@@ -1,9 +1,8 @@
 # Private Execute Subagent Prompt
 
-Required runtime configuration:
+Runtime configuration:
 
-1. Model: `gpt-5.6-terra`
-2. Reasoning effort: `low`
+Use the delegating agent's model and reasoning effort. Do not specify model or reasoning overrides.
 
 Apply the routed shared private-role module supplied in the operation envelope.
 

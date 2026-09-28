@@ -1792,7 +1792,7 @@ mod tests {
         );
         let mut routing = RoutingSourceSession::new(PathBuf::from(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/legacy-work-skill"
+            "/../../../skills/work"
         )));
         let (envelope, selection) = build_operation_context(
             &mut routing,
@@ -1852,10 +1852,7 @@ mod tests {
             "--record-id".into(),
             "CMD-1".into(),
         ];
-        let (exit, result) = run_with_skill_root(
-            &args,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
-        );
+        let (exit, result) = run_with_skill_root(&args, &repo.join("../skills/work"));
         assert_eq!(exit, ExitCode::Contract as i32);
         assert_eq!(result.reason_code, "record_begin_invalid_base_record_id");
         assert_eq!(result.data["record_id"], "CMD-1");
@@ -1881,10 +1878,7 @@ mod tests {
             "--input-file".into(),
             "missing-request.json".into(),
         ];
-        let (exit, response) = run_with_skill_root(
-            &arguments,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
-        );
+        let (exit, response) = run_with_skill_root(&arguments, &repo.join("../skills/work"));
         assert_eq!(exit, ExitCode::CliUsage as i32);
         assert_eq!(response.reason_code, "cli_usage_error");
         assert!(
@@ -1922,10 +1916,7 @@ mod tests {
             "--task-id".into(),
             "TASK-001".into(),
         ];
-        let (exit, result) = run_with_skill_root(
-            &args,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
-        );
+        let (exit, result) = run_with_skill_root(&args, &repo.join("../skills/work"));
         assert_eq!(exit, ExitCode::IoFailure as i32);
         assert_eq!(result.schema, "work-cli-result/v1");
         assert_eq!(result.reason_code, "execute_preflight_task_missing");
@@ -1935,7 +1926,7 @@ mod tests {
     fn delegation_cli_build_and_validate_keep_formal_context_read_only() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let project = repo.join("crates/work-infrastructure/fixtures/task-diagnostics");
-        let skill_root = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill_root = repo.join("../skills/work");
         let plan = project.join("outputs/work/plans/example.json");
         let before = fs::read(&plan).unwrap();
         let input = std::env::temp_dir().join(format!(
@@ -2068,10 +2059,8 @@ mod tests {
                 path.clone(),
             ])
             .collect::<Vec<_>>();
-        let skill_root = PathBuf::from(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/legacy-work-skill"
-        ));
+        let skill_root =
+            PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         fs::write(&input, selection).unwrap();
         let (plain_exit, plain) = run_with_skill_root(&selection_args, &skill_root);
         fs::write(&input, [b"\xef\xbb\xbf".as_slice(), selection].concat()).unwrap();
@@ -2107,7 +2096,7 @@ mod tests {
                 .cloned()
                 .chain(command.map(str::to_owned))
                 .collect::<Vec<_>>(),
-            &root.join("crates/work-infrastructure/legacy-work-skill"),
+            &root.join("../skills/work"),
         );
         let (verbose_exit, verbose) = run_with_skill_root(
             &prefix
@@ -2116,7 +2105,7 @@ mod tests {
                 .chain(["--verbose".to_owned()])
                 .chain(command.map(str::to_owned))
                 .collect::<Vec<_>>(),
-            &root.join("crates/work-infrastructure/legacy-work-skill"),
+            &root.join("../skills/work"),
         );
         assert_eq!((brief_exit, verbose_exit), (0, 0));
         assert_eq!(
@@ -2195,7 +2184,7 @@ mod tests {
         let invoke = |suffix: Vec<String>| {
             run_with_skill_root(
                 &[prefix.as_slice(), suffix.as_slice()].concat(),
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
+                &repo.join("../skills/work"),
             )
         };
         let (exit, required) = invoke(vec![
@@ -2252,10 +2241,7 @@ mod tests {
             if command != "draft-check" {
                 args.extend(["--input-file".into(), input.to_string_lossy().into_owned()]);
             }
-            let (exit, result) = run_with_skill_root(
-                &args,
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
-            );
+            let (exit, result) = run_with_skill_root(&args, &repo.join("../skills/work"));
             assert_eq!(exit, ExitCode::CliUsage as i32, "{command}");
             assert_eq!(
                 result.reason_code, "draft_selection_incomplete",
@@ -2294,7 +2280,7 @@ mod tests {
         let invoke = |suffix: Vec<String>| {
             run_with_skill_root(
                 &[prefix.as_slice(), suffix.as_slice()].concat(),
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
+                &repo.join("../skills/work"),
             )
         };
         let (exit, catalog) = invoke(vec!["catalog".into(), "--root".into(), root.clone()]);
@@ -2357,7 +2343,7 @@ mod tests {
                     ],
                 ]
                 .concat(),
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
+                &repo.join("../skills/work"),
             )
         };
         fs::write(&request, r#"{"decision":"base_only","skills":[]}"#).unwrap();
@@ -2404,7 +2390,7 @@ mod tests {
                 "--input-file".into(),
                 input.into(),
             ],
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
         );
         assert_eq!(exit, ExitCode::InputFormat as i32);
         assert_eq!(response.schema, "work-cli-result/v1");
@@ -2424,7 +2410,7 @@ mod tests {
                 "--input-file".into(),
                 input.into(),
             ],
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
         );
         assert_eq!(exit, ExitCode::InputFormat as i32);
         assert_eq!(response.schema, "work-cli-result/v1");
@@ -2434,7 +2420,7 @@ mod tests {
     #[test]
     fn contract_commands_dispatch_all_public_catalog_cases() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let skill_root = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill_root = repo.join("../skills/work");
         let prefix = [
             "--project-root".to_owned(),
             repo.to_string_lossy().into_owned(),
@@ -2555,18 +2541,12 @@ mod tests {
             "--input-file".into(),
             input.to_string_lossy().into_owned(),
         ];
-        let (exit, result) = run_with_skill_root(
-            &arguments,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
-        );
+        let (exit, result) = run_with_skill_root(&arguments, &repo.join("../skills/work"));
         assert_eq!(exit, 0);
         assert_eq!(result.data["request"], raw.split_once("--").unwrap().1);
         assert_eq!(fs::read_dir(&root).unwrap().count(), 0);
         fs::write(&input, "$work -- request").unwrap();
-        let (exit, result) = run_with_skill_root(
-            &arguments,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
-        );
+        let (exit, result) = run_with_skill_root(&arguments, &repo.join("../skills/work"));
         assert_ne!(exit, 0);
         assert_eq!(result.reason_code, "work_invocation_mode_missing");
     }
@@ -2595,17 +2575,11 @@ mod tests {
             input.to_string_lossy().into_owned(),
         ];
         fs::write(&input, "\u{feff} \t$work\tplan\n--\n需求").unwrap();
-        let (exit, result) = run_with_skill_root(
-            &arguments,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
-        );
+        let (exit, result) = run_with_skill_root(&arguments, &repo.join("../skills/work"));
         assert_eq!(exit, 0);
         assert_eq!(result.data["request"], "\n需求");
         fs::write(&input, b"$work plan -- \xff").unwrap();
-        let (exit, result) = run_with_skill_root(
-            &arguments,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
-        );
+        let (exit, result) = run_with_skill_root(&arguments, &repo.join("../skills/work"));
         assert_eq!(exit, 3);
         assert_eq!(result.reason_code, "invalid_utf8");
     }
@@ -2613,7 +2587,7 @@ mod tests {
     #[test]
     fn progress_invalid_json_is_reported_before_validation() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let skill_root = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill_root = repo.join("../skills/work");
         let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/invalid_json.txt");
         let (exit, response) = run_with_skill_root(
             &[
@@ -2649,7 +2623,7 @@ mod tests {
                 "--expected-revision".into(),
                 "-1".into(),
             ],
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
         );
         assert_eq!(exit, ExitCode::CliUsage as i32);
         assert_eq!(response.reason_code, "cli_usage_error");
@@ -2689,7 +2663,7 @@ mod tests {
                     "0".into(),
                 ])
                 .collect::<Vec<_>>(),
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
         );
         assert_eq!(exit, ExitCode::InputFormat as i32);
         assert_eq!(response.reason_code, "duplicate_json_key");
@@ -2711,10 +2685,7 @@ mod tests {
                 .chain(["progress".to_owned()])
                 .chain(arguments.into_iter().map(str::to_owned))
                 .collect::<Vec<_>>();
-            let (exit, response) = run_with_skill_root(
-                &tokens,
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
-            );
+            let (exit, response) = run_with_skill_root(&tokens, &repo.join("../skills/work"));
             assert_eq!(exit, ExitCode::CliUsage as i32, "{tokens:?}");
             assert_eq!(response.reason_code, "cli_usage_error", "{tokens:?}");
         }
@@ -2724,7 +2695,7 @@ mod tests {
     #[test]
     fn hierarchy_selection_build_and_validate_round_trip() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let skill_root = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill_root = repo.join("../skills/work");
         let prefix = [
             "--project-root".to_owned(),
             repo.to_string_lossy().into_owned(),
@@ -2792,7 +2763,7 @@ mod tests {
                 "--workflow-id".into(),
                 "specification".into(),
             ],
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
         );
         assert_eq!(exit, 0);
         assert_eq!(response.data["schema"], "work-transaction-workspace/v1");
@@ -2874,7 +2845,7 @@ mod tests {
     #[test]
     fn hierarchy_selection_uses_installed_skill_catalog() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let skill_root = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill_root = repo.join("../skills/work");
         let request = std::env::temp_dir().join(format!(
             "work-hierarchy-request-{}-{}.json",
             std::process::id(),
@@ -2911,7 +2882,7 @@ mod tests {
     #[test]
     fn instruction_catalog_and_source_selection_match_installed_reference() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let skill_root = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill_root = repo.join("../skills/work");
         let prefix = [
             "--project-root".to_owned(),
             repo.to_string_lossy().into_owned(),
@@ -2950,7 +2921,7 @@ mod tests {
     #[test]
     fn instruction_cli_catalog_resolve_load_select_match_python_cases() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let skill_root = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill_root = repo.join("../skills/work");
         let prefix = vec![
             "--project-root".to_owned(),
             repo.to_string_lossy().into_owned(),
@@ -3162,10 +3133,8 @@ mod tests {
         ));
         std::fs::create_dir_all(&root).unwrap();
         std::fs::write(root.join("request.json"), b"{}").unwrap();
-        let skill_root = PathBuf::from(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/legacy-work-skill"
-        ));
+        let skill_root =
+            PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         let prefix = vec![
             "--project-root".to_owned(),
             root.to_string_lossy().into_owned(),
@@ -3214,10 +3183,8 @@ mod tests {
             "skill_selection_request":{"decision":"base_only","skills":[]},"references":[]
         });
         std::fs::write(&input, serde_json::to_vec(&request).unwrap()).unwrap();
-        let skill_root = PathBuf::from(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/legacy-work-skill"
-        ));
+        let skill_root =
+            PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         let prefix = vec![
             "--project-root".to_owned(),
             root.to_string_lossy().into_owned(),
@@ -3288,7 +3255,7 @@ mod tests {
     #[test]
     fn skill_catalog_and_workflow_entrypoints_match_python_reference() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let skill_root = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill_root = repo.join("../skills/work");
         let prefix = [
             "--project-root".to_owned(),
             repo.to_string_lossy().into_owned(),
@@ -3339,7 +3306,7 @@ mod tests {
         assert_eq!(workflow.data["next_action"], "prepare_plan");
         assert_eq!(
             workflow.data["selection_sha256"],
-            "0ea2e9af9edecc5673acbaacacd5ea65364707879c47eeee43ba6973007bc822"
+            "5b101e16c799507bcb16d30567925bf996a6c4d429047f2bda7bb5ced4355853"
         );
         let (next_exit, next) = run_with_skill_root(
             &[
@@ -3399,13 +3366,13 @@ mod tests {
                 "--user-config-root".into(),
                 ".".into(),
             ],
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
         );
         assert_eq!(exit, 0);
         assert_eq!(result.data["schema"], "work-plan-validation/v1");
         assert_eq!(
             result.data["plan_sha256"],
-            "88962bf48a37b66d11ca3c0b120f96c96a9399b66a698941f4cdf582261865c7"
+            "971eee6942455c80c56b02d6e820294b02d1c8e927a593f6685b797e7009be6f"
         );
     }
 
@@ -3426,7 +3393,7 @@ mod tests {
                     .to_string_lossy()
                     .into_owned(),
             ],
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
         );
         assert_eq!(exit, 0);
         assert_eq!(
@@ -3455,7 +3422,7 @@ mod tests {
                 "--requirement-id".into(),
                 "example".into(),
             ],
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
         );
         assert_eq!(exit, 0);
         assert_eq!(result.data["status"], "saved");
@@ -3463,7 +3430,7 @@ mod tests {
         assert_eq!(result.data["counts"]["planned"], 1);
         assert_eq!(
             result.data["tasks"][0]["instructions_sha256"],
-            "e0b559801bab85f6c8571013a6de32ec6a65977a946307a0f1e68c5e36b606fa"
+            "bb9674da97509e0ead4634b142a223f3d71831706325eecc4825fc480438760d"
         );
         let (exit, selected) = run_with_skill_root(
             &[
@@ -3476,7 +3443,7 @@ mod tests {
                 "--task-id".into(),
                 "TASK-001".into(),
             ],
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
         );
         assert_eq!(exit, 0);
         assert_eq!(selected.data["status"], "saved");
@@ -3507,17 +3474,17 @@ mod tests {
                 "--user-config-root".into(),
                 ".".into(),
             ],
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
         );
-        assert_eq!(exit, 0);
+        assert_eq!(exit, 0, "{result:?}");
         assert_eq!(result.data["status"], "valid");
         assert_eq!(
             result.data["source"]["plan_sha256"],
-            "88962bf48a37b66d11ca3c0b120f96c96a9399b66a698941f4cdf582261865c7"
+            "971eee6942455c80c56b02d6e820294b02d1c8e927a593f6685b797e7009be6f"
         );
         assert_eq!(
             result.data["instructions_sha256"],
-            "e0b559801bab85f6c8571013a6de32ec6a65977a946307a0f1e68c5e36b606fa"
+            "bb9674da97509e0ead4634b142a223f3d71831706325eecc4825fc480438760d"
         );
     }
 
@@ -3537,13 +3504,13 @@ mod tests {
                 "--user-config-root".into(),
                 ".".into(),
             ],
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
         );
         assert_eq!(exit, 0);
         assert_eq!(result.data["task_count"], 2);
         assert_eq!(
             result.data["task_collection_sha256"],
-            "8c6dd3f8956a3e0908efe8e16351766074681dbcd5b0d6e35a785ac26b23d042"
+            "3c776c7be0c75896af04d849e3be3488292664f32537ce8acbb1348b62143606"
         );
     }
 }

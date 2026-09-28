@@ -280,10 +280,7 @@ mod tests {
             .mutate(&root, &["init".into(), "-q".into()])
             .unwrap();
         let work = LocalHierarchyCatalog {
-            skill_root: PathBuf::from(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../crates/work-infrastructure/legacy-work-skill"
-            )),
+            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
         };
         let skills = LocalSkillCatalog { roots: vec![] };
         let paths = LocalPlanStorage {
@@ -393,11 +390,11 @@ mod tests {
         assert_eq!(context.contract["tasks"][0]["id"], "TASK-001");
         assert_eq!(
             canonical_json_sha256(&context.contract).unwrap(),
-            "0c88d881acc9c0b597e078be3589cfe2888ba74ff57a3d842a1a7c6dd0b453a6"
+            "3ef1465496e66db318490fc5481dd5e437d061fc584bef9a0c19a4b4eaeee14e"
         );
         assert_eq!(
             canonical_json_sha256(&context.validation).unwrap(),
-            "657f7ef3b29bbbb911b84692d7a0270ce4e03b6843ca09e0acb07eecdb31e6f2"
+            "1d92f98568ae878dcaef845198e617e98c94120f464fb1664a92e69fe53a408e"
         );
         assert_eq!(
             context.validation["task_collection_sha256"],

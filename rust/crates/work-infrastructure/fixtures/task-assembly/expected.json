@@ -1,5 +1,5 @@
 {
-  "approval_sha256": "d19c7b54f1a3c7e77e4d648f3f223e589758f0a0836953814c0faa0e90d9a61a",
+  "approval_sha256": "7e4698f8a3051b17dab4674f04ec8c54112b766c77081b4fa78fcdb50b9e821d",
   "contract": {
     "artifacts": {
       "execution": "outputs/work/executions/example",
@@ -7,7 +7,7 @@
       "task": "outputs/work/tasks/example/index.json"
     },
     "instruction_selection": {
-      "instructions_sha256": "d96cb66bc96c394655df49bb557f0850344be70763b99e96bad7c70732ea372d",
+      "instructions_sha256": "df8fac8b103d0139e30419503d6237e2edcd219b45bb9cca32d9e84dcfef532b",
       "references": [
         "task.general.task-records"
       ],
@@ -19,19 +19,19 @@
           "logical_name": "work.instruction-loading"
         },
         {
-          "canonical_sha256": "e2bc9383d3eac24fcfb7a8972343850c22bc141aac73c0568d69e08216f68bda",
+          "canonical_sha256": "32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db",
           "compatibility_revision": 2,
           "kind": "workflow",
           "logical_name": "work.workflow.task"
         },
         {
-          "canonical_sha256": "2b3eea1d9b82b1a14bcce44c9e30957873e5522a18e6eda8f232f394e66eaf00",
+          "canonical_sha256": "8b43b2adb87a02fa07a60edc99af7efeccfadb3f330982e41d5fdcf6858aad9a",
           "compatibility_revision": 1,
           "kind": "instruction",
           "logical_name": "task.general"
         },
         {
-          "canonical_sha256": "195af88fa0ee0b1eaf88560bb0ff5c349b14c2b8a814d6cbc511c3d2b899f509",
+          "canonical_sha256": "2fc4c2372c5661d75e659bd63b6159baff6139ad795555b604a0b07a3fa17d6d",
           "compatibility_revision": 1,
           "kind": "reference",
           "logical_name": "task.general.task-records"
@@ -45,7 +45,7 @@
     "requirement_id": "example",
     "schema": "work-task-collection-projection/v1",
     "source_plan": {
-      "canonical_sha256": "6c7c723b2ab7c26b94fd7ee7c1ad31610d7c31ef1d3a13cfc7db6841bf79adad",
+      "canonical_sha256": "2efa0cacb11a570576e71e656453428dd5d24c29938995ff3cc0139236368cfd",
       "hierarchy_selection_sha256": "973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e"
     },
     "spec_id": "TASK-SPEC-001",
@@ -57,7 +57,7 @@
         "goal": "Result",
         "id": "TASK-001",
         "instruction_selection": {
-          "instructions_sha256": "d96cb66bc96c394655df49bb557f0850344be70763b99e96bad7c70732ea372d",
+          "instructions_sha256": "df8fac8b103d0139e30419503d6237e2edcd219b45bb9cca32d9e84dcfef532b",
           "references": [
             "task.general.task-records"
           ],
@@ -73,19 +73,19 @@
               "logical_name": "work.instruction-loading"
             },
             {
-              "canonical_sha256": "e2bc9383d3eac24fcfb7a8972343850c22bc141aac73c0568d69e08216f68bda",
+              "canonical_sha256": "32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db",
               "compatibility_revision": 2,
               "kind": "workflow",
               "logical_name": "work.workflow.task"
             },
             {
-              "canonical_sha256": "2b3eea1d9b82b1a14bcce44c9e30957873e5522a18e6eda8f232f394e66eaf00",
+              "canonical_sha256": "8b43b2adb87a02fa07a60edc99af7efeccfadb3f330982e41d5fdcf6858aad9a",
               "compatibility_revision": 1,
               "kind": "instruction",
               "logical_name": "task.general"
             },
             {
-              "canonical_sha256": "195af88fa0ee0b1eaf88560bb0ff5c349b14c2b8a814d6cbc511c3d2b899f509",
+              "canonical_sha256": "2fc4c2372c5661d75e659bd63b6159baff6139ad795555b604a0b07a3fa17d6d",
               "compatibility_revision": 1,
               "kind": "reference",
               "logical_name": "task.general.task-records"
@@ -133,9 +133,9 @@
   "revision": 2,
   "schema": "work-task-draft-assembly/v1",
   "status": "valid",
-  "task_collection_sha256": "8c3ae71f30293d35e54a7bb18c993d386f01f2cf4bb5813af09bcb24c038c252",
-  "task_index_sha256": "9c284a870df38b3bca36637930c0f391d3d262243702c76d9c855aba3f174c74",
+  "task_collection_sha256": "8f86f6b21352b9a01883b1d3eaa374e2e1081fe4cfd1fbdc12fdb314a5590a4f",
+  "task_index_sha256": "56a5eab5507cdb4d0fa1623608f76d0639e35b00ea8cf571363c150d3f26a2f6",
   "task_item_sha256": {
-    "TASK-001": "65006416995b95cae4b7fca16fabcabe16b600f2e826a9959cdec7100fcec0f2"
+    "TASK-001": "1e10f6b77507d1f0feda982695a89b9615ca9d764ee766f0b5dd535056409ec8"
   }
 }

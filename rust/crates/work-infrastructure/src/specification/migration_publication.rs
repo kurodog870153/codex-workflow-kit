@@ -259,7 +259,7 @@ mod tests {
         );
         let result = publish_migration(
             &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
             &[],
             &request,
             "apply",
@@ -284,7 +284,7 @@ mod tests {
         );
         let recovered = publish_migration(
             &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
             &[],
             &request,
             "recover",

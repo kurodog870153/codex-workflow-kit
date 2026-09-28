@@ -1287,7 +1287,7 @@ mod tests {
             render_task(&index, TaskDocumentKind::Index).unwrap(),
         )
         .unwrap();
-        let skill = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill = repo.join("../skills/work");
         let collection = load_collection_with_file_state(
             &LocalHierarchyCatalog {
                 skill_root: skill.clone(),
@@ -1383,10 +1383,7 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let skill = Path::new(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/legacy-work-skill"
-        ));
+        let skill = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         for operation in [
             SpecOperation::Validate,
             SpecOperation::Apply,
@@ -1442,10 +1439,7 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let skill = Path::new(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/legacy-work-skill"
-        ));
+        let skill = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         for edits in [json!([]), json!({})] {
             let raw = serde_json::to_vec(&json!({"schema":"work-spec-prepare-request/v1",
                 "requirement_id":"example","reason":"Review","edits":edits}))
@@ -1476,10 +1470,7 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let skill = Path::new(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/legacy-work-skill"
-        ));
+        let skill = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         let raw = serde_json::to_vec(&json!({"schema":"work-spec-verification-request/v1",
             "requirement_id":"example","artifacts":{"plan":"p"},
             "record_id":"SPEC-UPDATE-ABCDEF012345"}))
@@ -1584,7 +1575,7 @@ mod tests {
         let request = fs::read(fixture.join("request.json")).unwrap();
         let expected: Value =
             serde_json::from_slice(&fs::read(fixture.join("expected.json")).unwrap()).unwrap();
-        let skill = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill = repo.join("../skills/work");
         let semantic = fs::read(fixture.join("semantic-request.json")).unwrap();
         let expected_request: Value = serde_json::from_slice(&request).unwrap();
         let date = expected_request["task_index"]["changes"]
@@ -1741,7 +1732,7 @@ mod tests {
                 .unwrap()["date"]
                 .as_str()
                 .unwrap();
-            let skill = repo.join("crates/work-infrastructure/legacy-work-skill");
+            let skill = repo.join("../skills/work");
             let prepared = prepare_simple_update(
                 &root,
                 &skill,
@@ -1836,7 +1827,7 @@ mod tests {
             repo.join("crates/work-infrastructure/fixtures/specification-update/item-goal/semantic-request.json"),
         )
         .unwrap();
-        let skill = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill = repo.join("../skills/work");
         let prepared = prepare_simple_update(
             &root,
             &skill,

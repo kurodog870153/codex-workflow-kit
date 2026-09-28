@@ -210,7 +210,7 @@ mod tests {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let storage = LocalDelegationStorage {
             project_root: repo.join("crates/work-infrastructure/fixtures/task-diagnostics"),
-            skill_root: repo.join("crates/work-infrastructure/legacy-work-skill"),
+            skill_root: repo.join("../skills/work"),
             skill_configs: vec![],
         };
         let plan_path = "outputs/work/plans/example.json";
@@ -276,7 +276,7 @@ mod tests {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let storage = LocalDelegationStorage {
             project_root: repo.join("crates/work-infrastructure/fixtures/task-diagnostics"),
-            skill_root: repo.join("crates/work-infrastructure/legacy-work-skill"),
+            skill_root: repo.join("../skills/work"),
             skill_configs: vec![],
         };
         let envelope = storage
@@ -326,7 +326,7 @@ mod tests {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let storage = LocalDelegationStorage {
             project_root: repo.join("crates/work-infrastructure/fixtures/delegation-role"),
-            skill_root: repo.join("crates/work-infrastructure/legacy-work-skill"),
+            skill_root: repo.join("../skills/work"),
             skill_configs: vec![],
         };
         let progress: Value = serde_json::from_slice(
@@ -383,7 +383,7 @@ mod tests {
         let storage = LocalDelegationStorage {
             project_root: repo
                 .join("crates/work-infrastructure/fixtures/delegation-role/legacy-plan"),
-            skill_root: repo.join("crates/work-infrastructure/legacy-work-skill"),
+            skill_root: repo.join("../skills/work"),
             skill_configs: vec![],
         };
         let envelope = storage
@@ -409,7 +409,7 @@ mod tests {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let storage = LocalDelegationStorage {
             project_root: repo.join("crates/work-infrastructure/fixtures/task-diagnostics"),
-            skill_root: repo.join("crates/work-infrastructure/legacy-work-skill"),
+            skill_root: repo.join("../skills/work"),
             skill_configs: vec![],
         };
         let envelope = storage
@@ -443,7 +443,7 @@ mod tests {
         let storage = LocalDelegationStorage {
             project_root: repo
                 .join("crates/work-infrastructure/fixtures/delegation-role/task-skill"),
-            skill_root: repo.join("crates/work-infrastructure/legacy-work-skill"),
+            skill_root: repo.join("../skills/work"),
             skill_configs: vec![],
         };
         let envelope = storage
@@ -476,7 +476,7 @@ mod tests {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let storage = LocalDelegationStorage {
             project_root: repo.join("crates/work-infrastructure/fixtures/delegation-role"),
-            skill_root: repo.join("crates/work-infrastructure/legacy-work-skill"),
+            skill_root: repo.join("../skills/work"),
             skill_configs: vec![],
         };
         let raw = std::fs::read(
@@ -566,7 +566,7 @@ mod tests {
         ] {
             let storage = LocalDelegationStorage {
                 project_root: repo.join(relative),
-                skill_root: repo.join("crates/work-infrastructure/legacy-work-skill"),
+                skill_root: repo.join("../skills/work"),
                 skill_configs: vec![],
             };
             let mut envelope = python_expected(role, &storage);
@@ -622,7 +622,7 @@ mod tests {
         ] {
             let storage = LocalDelegationStorage {
                 project_root: repo.join(relative),
-                skill_root: repo.join("crates/work-infrastructure/legacy-work-skill"),
+                skill_root: repo.join("../skills/work"),
                 skill_configs: vec![],
             };
             let envelope = python_expected(role, &storage);
@@ -664,7 +664,7 @@ mod tests {
         ] {
             let storage = LocalDelegationStorage {
                 project_root: repo.join(relative),
-                skill_root: repo.join("crates/work-infrastructure/legacy-work-skill"),
+                skill_root: repo.join("../skills/work"),
                 skill_configs: vec![],
             };
             let mut envelope = python_expected(role, &storage);

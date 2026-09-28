@@ -43,7 +43,7 @@
     "work.workflow.repair.review-approve-and-publish",
     "work.workflow.repair.authorized-recovery"
   ],
-  "selection_sha256": "3939e65c9478417a18de2d927b2d67fa4f11cf19bb1cd4975e4c90a4875010b2",
+  "selection_sha256": "fb8df51bb36718945846ccc7158b673ad5c8025162fb0e52ce7b9907eea90030",
   "routing_reasons": [
     "operation:inspect_recovery",
     "workflow_status:execution_locked",
@@ -74,19 +74,19 @@
         "logical_name": "work.shared.transaction-workspace",
         "path": "references/instruction-loading/transaction-workspace.md",
         "compatibility_revision": 1,
-        "canonical_sha256": "3fb6223c7cbe1f704f0719e7bfdbfd31ac8fb3a06d5b5634acb2e2fe74d0f5b1"
+        "canonical_sha256": "f6a825d3dc3e02be09e8d483861760c28bd845ffa041c709cecb422b69fd474d"
       },
       {
         "logical_name": "work.shared.artifact-migration",
         "path": "references/instruction-loading/artifact-migration.md",
         "compatibility_revision": 1,
-        "canonical_sha256": "9e536028834ba02cd9bfd41ceebe8cef8db6988295f8a816e0d463d49f02e82a"
+        "canonical_sha256": "ac7f3d9f16a25f67a128ddebe1927b8147566910e950f67e1443f64db514f92a"
       },
       {
         "logical_name": "work.shared.runtime",
         "path": "references/instruction-loading/runtime.md",
         "compatibility_revision": 1,
-        "canonical_sha256": "3f1635a9110ca1054f2fc29659f545edc57604d95a4e193363e2925bff52ff4a"
+        "canonical_sha256": "ea7b2fe8047298dcccab6cdbde250bb7abfc10d600efd90f707bca435db0dace"
       },
       {
         "logical_name": "work.shared.artifact-paths",
@@ -104,31 +104,31 @@
         "logical_name": "work.workflow.repair",
         "path": "references/workflows/repair.md",
         "compatibility_revision": 2,
-        "canonical_sha256": "cbe06bf34dd7ab1f26a99dd07b2ea8dcb30d405159c38ded1a690a8dc2c2adce"
+        "canonical_sha256": "569f3c949bb55615004221c2c44ba9972e6f610d1fd62a168e91caa827847e2e"
       },
       {
         "logical_name": "work.workflow.repair.rebuild-a-related-artifact-set-with-ai",
         "path": "references/workflows/repair/rebuild-a-related-artifact-set-with-ai.md",
         "compatibility_revision": 1,
-        "canonical_sha256": "f0e51b1c07434058389d11013a79bb2a941043c31758cb59609cc004dcc9297a"
+        "canonical_sha256": "afdbf15dfbfd0f93d0264784392d031a4eb5374d4acf7c886c53a5790db9f26f"
       },
       {
         "logical_name": "work.workflow.repair.prepare-the-request",
         "path": "references/workflows/repair/prepare-the-request.md",
         "compatibility_revision": 1,
-        "canonical_sha256": "5c9340358a2e18861263279a486c054fc7e2f49e89cd39b862e03951c1b5e94b"
+        "canonical_sha256": "6aa52255bdb4145211c22ca9b685e25c7d783dbf79bb1a000cb326dd1e1bc5c9"
       },
       {
         "logical_name": "work.workflow.repair.programmatic-preparation",
         "path": "references/workflows/repair/programmatic-preparation.md",
         "compatibility_revision": 1,
-        "canonical_sha256": "28072146040351413ccfadd3e403ee7ab3794d9c3bbca5aa56fab6f1fdeffd70"
+        "canonical_sha256": "d6423a24974e4261c86776fde04dae3b981fa74625e21e27fa9e01b7982db2f2"
       },
       {
         "logical_name": "work.workflow.repair.review-approve-and-publish",
         "path": "references/workflows/repair/review-approve-and-publish.md",
         "compatibility_revision": 1,
-        "canonical_sha256": "61babb280d6eee6c243887b13a7a0621fc873a19fa0380993d489a969237cbd7"
+        "canonical_sha256": "a01cda71218a557b9ced39519d0e949098bc4be1b381b9f55e767da5c9864754"
       },
       {
         "logical_name": "work.workflow.repair.authorized-recovery",
@@ -138,7 +138,7 @@
       }
     ],
     "confirmation_required": true,
-    "selection_sha256": "3939e65c9478417a18de2d927b2d67fa4f11cf19bb1cd4975e4c90a4875010b2"
+    "selection_sha256": "fb8df51bb36718945846ccc7158b673ad5c8025162fb0e52ce7b9907eea90030"
   },
   "details": {
     "lock": {

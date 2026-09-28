@@ -182,7 +182,7 @@ mod tests {
             expected_revision: 2,
             plan_path: "outputs/work/plans/example.json",
         };
-        let skill = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill = repo.join("../skills/work");
         let mut before_assembly = BTreeMap::new();
         snapshot(&root, &mut before_assembly);
         let assembled = assemble_from_project(&root, &skill, &[], &request).unwrap();

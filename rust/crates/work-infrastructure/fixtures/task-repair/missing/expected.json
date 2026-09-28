@@ -1,5 +1,5 @@
 {
-  "approved_sha256": "b1769bdb9bf1d75d428c43d8577373c9fffb978d486506fcad1448d3af8149bf",
+  "approved_sha256": "f59458c849b2155e3ec0e2a37a28f061347bb4d4a23726dcdd9be25c48513bce",
   "changed_paths": [
     "outputs/work/tasks/example/tasks/TASK-001.json"
   ],

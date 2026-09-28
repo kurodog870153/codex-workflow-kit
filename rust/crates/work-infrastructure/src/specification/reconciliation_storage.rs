@@ -353,7 +353,7 @@ mod tests {
                 .unwrap();
         let prepared = prepare_from_semantic(
             &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
             &[],
             &semantic,
             "2026-09-26",
@@ -364,13 +364,8 @@ mod tests {
                 .unwrap();
         assert_eq!(prepared["request"], prepared_request);
         assert_eq!(prepared["preview"], expected);
-        let preview = preview_from_project(
-            &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
-            &[],
-            &request,
-        )
-        .unwrap();
+        let preview =
+            preview_from_project(&root, &repo.join("../skills/work"), &[], &request).unwrap();
         assert_eq!(preview, expected);
         let index_path = root.join("outputs/work/executions/example/index.json");
         let index_raw = fs::read(&index_path).unwrap();
@@ -380,7 +375,7 @@ mod tests {
         assert_eq!(
             prepare_from_semantic(
                 &root,
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
+                &repo.join("../skills/work"),
                 &[],
                 &semantic,
                 "2026-09-26",
@@ -390,14 +385,9 @@ mod tests {
             "reconciliation_attempt_position"
         );
         assert_eq!(
-            preview_from_project(
-                &root,
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
-                &[],
-                &request
-            )
-            .unwrap_err()
-            .reason_code,
+            preview_from_project(&root, &repo.join("../skills/work"), &[], &request)
+                .unwrap_err()
+                .reason_code,
             "reconciliation_attempt_not_latest"
         );
         fs::write(&index_path, index_raw).unwrap();
@@ -407,7 +397,7 @@ mod tests {
         assert_eq!(
             prepare_from_semantic(
                 &root,
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
+                &repo.join("../skills/work"),
                 &[],
                 &semantic,
                 "2026-09-26",
@@ -419,19 +409,14 @@ mod tests {
         fs::remove_file(duplicate).unwrap();
         let mut invalid = request.clone();
         invalid["deviation_ids"] = json!(["DEVIATION-001"]);
-        let error = preview_from_project(
-            &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
-            &[],
-            &invalid,
-        )
-        .unwrap_err();
+        let error =
+            preview_from_project(&root, &repo.join("../skills/work"), &[], &invalid).unwrap_err();
         assert_eq!(error.exit_code, ExitCode::Contract);
         assert_eq!(error.reason_code, "invalid_contract_value");
         assert_eq!(error.details["location"], "contract");
         let published = publish_ledger_only(
             &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
             &[],
             &request,
             expected["fingerprint"].as_str().unwrap(),
@@ -462,27 +447,17 @@ mod tests {
         }
         let ledger_path = root.join(published["ledger_path"].as_str().unwrap());
         assert_eq!(
-            preview_from_project(
-                &root,
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
-                &[],
-                &request
-            )
-            .unwrap_err()
-            .reason_code,
+            preview_from_project(&root, &repo.join("../skills/work"), &[], &request)
+                .unwrap_err()
+                .reason_code,
             "reconciliation_nothing_pending"
         );
         let mut corrupted: Value =
             serde_json::from_slice(&fs::read(&ledger_path).unwrap()).unwrap();
         corrupted["entries"][0]["attempt_sha256"] = json!("invalid");
         fs::write(&ledger_path, serde_json::to_vec(&corrupted).unwrap()).unwrap();
-        let error = preview_from_project(
-            &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
-            &[],
-            &request,
-        )
-        .unwrap_err();
+        let error =
+            preview_from_project(&root, &repo.join("../skills/work"), &[], &request).unwrap_err();
         assert_eq!(error.exit_code, ExitCode::Contract);
         assert_eq!(error.reason_code, "invalid_contract_value");
         assert_eq!(error.details["location"], "entries[0].attempt_sha256");
@@ -516,7 +491,7 @@ mod tests {
         }
         let prepared = prepare_from_semantic(
             &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
             &[],
             &semantic,
             "2026-09-26",
@@ -536,7 +511,7 @@ mod tests {
         assert_eq!(
             prepare_from_semantic(
                 &root,
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
+                &repo.join("../skills/work"),
                 &[],
                 &omitted_defaults,
                 "2026-09-26"
@@ -548,7 +523,7 @@ mod tests {
         invalid["deviation_positions"] = json!([2, 1]);
         let error = prepare_from_semantic(
             &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
             &[],
             &invalid,
             "2026-09-26",
@@ -563,7 +538,7 @@ mod tests {
         assert_eq!(
             prepare_from_semantic(
                 &root,
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
+                &repo.join("../skills/work"),
                 &[],
                 &invalid,
                 "2026-09-26"
@@ -584,7 +559,7 @@ mod tests {
             invalid[field] = value;
             let error = prepare_from_semantic(
                 &root,
-                &repo.join("crates/work-infrastructure/legacy-work-skill"),
+                &repo.join("../skills/work"),
                 &[],
                 &invalid,
                 "2026-09-26",
@@ -597,7 +572,7 @@ mod tests {
         invalid.as_object_mut().unwrap().remove("task_position");
         let error = prepare_from_semantic(
             &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
             &[],
             &invalid,
             "2026-09-26",
@@ -612,7 +587,7 @@ mod tests {
         fs::copy(fixture.join(index_relative), missing_index).unwrap();
         let error = prepare_from_semantic(
             &missing_root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
             &[],
             &semantic,
             "2026-09-26",
@@ -650,19 +625,14 @@ mod tests {
         fs::create_dir_all(destination.parent().unwrap()).unwrap();
         fs::copy(fixture.join(attempt), destination).unwrap();
         fs::write(root.join("src.txt"), b"source\n").unwrap();
-        let actual = preview_from_project(
-            &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
-            &[],
-            &request,
-        )
-        .unwrap();
+        let actual =
+            preview_from_project(&root, &repo.join("../skills/work"), &[], &request).unwrap();
         let semantic: Value =
             serde_json::from_slice(&fs::read(fixture.join("semantic-request.json")).unwrap())
                 .unwrap();
         let prepared = prepare_from_semantic(
             &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
             &[],
             &semantic,
             "2026-09-26",
@@ -717,7 +687,7 @@ mod tests {
         );
         let published = publish_with_migration(
             &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
             &[],
             &request,
             expected["fingerprint"].as_str().unwrap(),
@@ -785,7 +755,7 @@ mod tests {
         fs::write(root.join(ledger_path), &ledger_raw).unwrap();
         let recovered = publish_migration_with_additional(
             &root,
-            &repo.join("crates/work-infrastructure/legacy-work-skill"),
+            &repo.join("../skills/work"),
             &[],
             &request["migration"],
             "recover",

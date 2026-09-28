@@ -4,7 +4,7 @@
   "contract_status": "not_checked",
   "normal_use_allowed": false,
   "execution_binding_status": "not_checked",
-  "raw_sha256": "e4c9c1a311cb8db614c3303307e698024a06ddd7a14e31c3d5b2c84575658a82",
+  "raw_sha256": "c702e63ab5c9fd94e66a0ae2036286b05aa7535677b0963d2ca6b6a65890ff19",
   "checks": [
     {
       "name": "index:path",

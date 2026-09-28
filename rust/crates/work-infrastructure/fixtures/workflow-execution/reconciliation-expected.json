@@ -40,7 +40,7 @@
     "work.workflow.specification.publish-and-recover",
     "work.workflow.specification.specification-verification"
   ],
-  "selection_sha256": "9dfd56481222462494d66c0a5f36fe374ddd504e02a4a1b17b8627407b80c213",
+  "selection_sha256": "cb516192a3a159d18264753812faa92f3ee7718e537561b754cb8231ad19f095",
   "routing_reasons": [
     "operation:review_reconciliation",
     "workflow_status:execution_reconciliation_pending",
@@ -71,13 +71,13 @@
         "logical_name": "work.shared.transaction-workspace",
         "path": "references/instruction-loading/transaction-workspace.md",
         "compatibility_revision": 1,
-        "canonical_sha256": "3fb6223c7cbe1f704f0719e7bfdbfd31ac8fb3a06d5b5634acb2e2fe74d0f5b1"
+        "canonical_sha256": "f6a825d3dc3e02be09e8d483861760c28bd845ffa041c709cecb422b69fd474d"
       },
       {
         "logical_name": "work.shared.artifact-revision",
         "path": "references/instruction-loading/artifact-revision.md",
         "compatibility_revision": 1,
-        "canonical_sha256": "918c8d0b19b92b219c4a1702e34f00da14723896d52cb96d13d75071aebbf41a"
+        "canonical_sha256": "baf03bbd2b95e5f17d3160f882eef6b5a456af5cc09c7f328846481183743700"
       },
       {
         "logical_name": "work.shared.artifact-paths",
@@ -95,7 +95,7 @@
         "logical_name": "work.workflow.specification",
         "path": "references/workflows/specification.md",
         "compatibility_revision": 2,
-        "canonical_sha256": "431089cdaee98d7b74c2297a12285abc03a28cff8441fed8313723ab480faef1"
+        "canonical_sha256": "cd102d7cfe4c64253ded42b30f76e9bfdf94fa64a2d864da1db30c7db235ab76"
       },
       {
         "logical_name": "work.workflow.specification.active-task-collection-revision-boundary",
@@ -107,7 +107,7 @@
         "logical_name": "work.workflow.specification.prepare-and-review",
         "path": "references/workflows/specification/prepare-and-review.md",
         "compatibility_revision": 2,
-        "canonical_sha256": "d4a226eefe4fca5cca97b9241b0895820f9fe091a7f07c554737af201842412f"
+        "canonical_sha256": "7bc43a8b73ecfafa73c8baa2917c226afa2dde9186a65818d0768bebe2f70643"
       },
       {
         "logical_name": "work.workflow.specification.publish-and-recover",
@@ -123,7 +123,7 @@
       }
     ],
     "confirmation_required": true,
-    "selection_sha256": "9dfd56481222462494d66c0a5f36fe374ddd504e02a4a1b17b8627407b80c213"
+    "selection_sha256": "cb516192a3a159d18264753812faa92f3ee7718e537561b754cb8231ad19f095"
   },
   "details": {
     "overall_status": "completed",

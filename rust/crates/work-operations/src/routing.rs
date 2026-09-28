@@ -209,24 +209,21 @@ mod tests {
 
     #[test]
     fn installed_routing_matches_python_manifest_hashes() {
-        let root = Path::new(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/legacy-work-skill"
-        ));
+        let root = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         for (status, operation, confirmation, lifecycle, expected) in [
             (
                 "plan_required",
                 "prepare_plan",
                 true,
                 "missing",
-                "11313e0d95824bb9a6778696474f2816ee1afb15158c42d6d28536e4b9d65348",
+                "d178b420bc164815d048d246625817662ef11c2145f3775e56b0ed2b98278962",
             ),
             (
                 "task_list_pending",
                 "confirm_task_list",
                 true,
                 "current",
-                "bf9caa2fe07912180b1163a1daf67837c9247fb68ae26919892081e82283412b",
+                "8cf3da748b6c47c4ac3e0d051547ff526b9d365437647f93997e8a1df47f9a96",
             ),
         ] {
             let request = RoutingRequest {
@@ -263,10 +260,7 @@ mod tests {
             authorization_state: None,
             verified_state_sha256: "",
         };
-        let root = Path::new(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/legacy-work-skill"
-        ));
+        let root = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         let result = select(&request, |_, path| {
             canonical_sha256(&fs::read(root.join(path)).map_err(|e| e.to_string())?)
                 .map_err(|e| e.to_string())
@@ -420,10 +414,7 @@ mod tests {
     fn routing_catalog_operations_events_and_source_reachability_match_python() {
         use std::collections::BTreeSet;
         let catalog: Value = serde_json::from_str(CATALOG).unwrap();
-        let root = Path::new(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/legacy-work-skill"
-        ));
+        let root = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         let workflow_entries: BTreeSet<_> = catalog["sources"]
             .as_object()
             .unwrap()

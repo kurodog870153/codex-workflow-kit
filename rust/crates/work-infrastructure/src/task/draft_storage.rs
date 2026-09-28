@@ -1215,10 +1215,7 @@ mod tests {
         );
         let current = storage.read_planning_index("example").unwrap();
         let instruction_catalog = crate::hierarchy_catalog::LocalHierarchyCatalog {
-            skill_root: PathBuf::from(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../crates/work-infrastructure/legacy-work-skill"
-            )),
+            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
         };
         let plan =
             json!({"skill_selection":{"skills":[]},"hierarchy_selection":{"selected_paths":[]}});
@@ -1913,7 +1910,7 @@ mod tests {
         ] {
             fs::write(root.join(relative), &initial_raw).unwrap();
         }
-        let skill = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill = repo.join("../skills/work");
         let first = json!({"status":"in_progress","notes":["Initial discussion"],
             "confirmed_decisions":[],"tentative":[],"open_questions":["Which test?"],
             "next_discussion_point":"Confirm test.","task_candidate":{"steps":[]}});
@@ -2175,7 +2172,7 @@ mod tests {
             prepared.draft_raw.as_ref().unwrap(),
         )
         .unwrap();
-        let skill = repo.join("crates/work-infrastructure/legacy-work-skill");
+        let skill = repo.join("../skills/work");
         let context = TaskSourceCheckRequest {
             requirement_id: "example",
             task_id: "TASK-001",
@@ -2242,10 +2239,7 @@ mod tests {
                 .as_nanos()
         ));
         fs::create_dir(&root).unwrap();
-        let work_root = PathBuf::from(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/legacy-work-skill"
-        ));
+        let work_root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         let instructions = LocalHierarchyCatalog {
             skill_root: work_root.clone(),
         };
@@ -2336,10 +2330,8 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../crates/work-infrastructure/fixtures/task-draft-sources"
         ));
-        let skill_root = PathBuf::from(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/legacy-work-skill"
-        ));
+        let skill_root =
+            PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         for name in ["valid", "plan-drift", "missing-selection"] {
             let fixture = fixtures.join(name);
             let root = std::env::temp_dir().join(format!(

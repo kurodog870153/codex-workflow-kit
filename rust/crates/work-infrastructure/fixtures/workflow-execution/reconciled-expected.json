@@ -30,7 +30,7 @@
     "work.workflow.execute",
     "work.workflow.execute.close-one-attempt"
   ],
-  "selection_sha256": "8c3b658412789a161af64f5abdf482adbcbf8069e299f862cd4715104b818464",
+  "selection_sha256": "0b39a2d6341d962723b6e134d213df51a8079e23be31dd5276c76f91f36bff66",
   "routing_reasons": [
     "operation:review_completion",
     "workflow_status:execution_completed",
@@ -61,7 +61,7 @@
         "logical_name": "work.shared.formal-task-validation",
         "path": "references/instruction-loading/formal-task-validation.md",
         "compatibility_revision": 1,
-        "canonical_sha256": "266f8aeca6f9c5091c2066e290b4c134707d7ba3aa0f39903a92b592dd7971af"
+        "canonical_sha256": "aaa152b11f9bd2be7256c179d809bd78e7a69e5edc3e7f445ff6ee0f99a1b1d6"
       },
       {
         "logical_name": "work.shared.fingerprints",
@@ -73,7 +73,7 @@
         "logical_name": "work.workflow.execute",
         "path": "references/workflows/execute.md",
         "compatibility_revision": 2,
-        "canonical_sha256": "aae8f690856b61e54d84ab70908f3f3bc3462258807fa145b08ae742c00dc49d"
+        "canonical_sha256": "7b4182014913d07b4203213a7ccf07269388d98861e66f5ebf37598b650a26eb"
       },
       {
         "logical_name": "work.workflow.execute.close-one-attempt",
@@ -83,7 +83,7 @@
       }
     ],
     "confirmation_required": true,
-    "selection_sha256": "8c3b658412789a161af64f5abdf482adbcbf8069e299f862cd4715104b818464"
+    "selection_sha256": "0b39a2d6341d962723b6e134d213df51a8079e23be31dd5276c76f91f36bff66"
   },
   "details": {
     "overall_status": "completed"

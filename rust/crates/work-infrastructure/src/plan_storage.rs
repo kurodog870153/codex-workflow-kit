@@ -301,10 +301,7 @@ mod tests {
     #[test]
     fn semantic_prepare_matches_python_plan_sha() {
         let work = LocalHierarchyCatalog {
-            skill_root: PathBuf::from(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../crates/work-infrastructure/legacy-work-skill"
-            )),
+            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
         };
         let skills = LocalSkillCatalog { roots: vec![] };
         let storage = LocalPlanStorage {
@@ -326,7 +323,7 @@ mod tests {
         );
         assert_eq!(
             prepared["validation"]["plan_sha256"],
-            "7f8ece42452c9fb371ebb8099c5983c70b708c0b1b1fc7ed23cfdf9e69dd5603"
+            "d43c84b6b59aa0cdd34f0b0ce21fd9d7b14d013f4c794871f41ba03309617062"
         );
         assert_eq!(prepared["validation"]["item_count"], 4);
         assert_eq!(prepared["validation"]["schema"], "work-plan-validation/v1");
@@ -443,10 +440,7 @@ mod tests {
         let project_root =
             std::env::temp_dir().join(format!("work-plan-invalid-{}-{nonce}", std::process::id()));
         let work = LocalHierarchyCatalog {
-            skill_root: PathBuf::from(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../crates/work-infrastructure/legacy-work-skill"
-            )),
+            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
         };
         let skills = LocalSkillCatalog { roots: vec![] };
         let storage = LocalPlanStorage { project_root };
@@ -493,10 +487,7 @@ mod tests {
             std::env::temp_dir().join(format!("work-plan-create-{}-{nonce}", std::process::id()));
         fs::create_dir_all(&project_root).unwrap();
         let work = LocalHierarchyCatalog {
-            skill_root: PathBuf::from(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../crates/work-infrastructure/legacy-work-skill"
-            )),
+            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
         };
         let skills = LocalSkillCatalog { roots: vec![] };
         let storage = LocalPlanStorage { project_root };

@@ -2,7 +2,7 @@
   "schema": "work-spec-reconciliation-preview/v1",
   "status": "ready",
   "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
-  "attempt_sha256": "76bba8b989624b1422c881f7db8b82759d301a408217ca285d0512c4003da150",
+  "attempt_sha256": "5f536d26aab1defeb9e814cf5b76bae8a3234146e70e45a8d8cf6fbf94a78804",
   "choice": "all",
   "pending_deviation_ids": [
     "DEVIATION-001"
@@ -23,8 +23,8 @@
         "deviation_id": "DEVIATION-001",
         "outcome": "incorporated",
         "target": "task_only",
-        "attempt_sha256": "76bba8b989624b1422c881f7db8b82759d301a408217ca285d0512c4003da150",
-        "reconciliation_fingerprint": "8f04eeb788da7018f59514032f59788ebf048ba32c1f5d23b78da70e14fc4b0f"
+        "attempt_sha256": "5f536d26aab1defeb9e814cf5b76bae8a3234146e70e45a8d8cf6fbf94a78804",
+        "reconciliation_fingerprint": "7c089c2d18a33d286ef35549750e23ac2eb850ae666723e76123742fdd308b53"
       }
     ]
   },
@@ -41,7 +41,7 @@
       {
         "path": "outputs/work/executions/example/index.json",
         "operation": "replace",
-        "unified_diff": "--- outputs/work/executions/example/index.json:source\n+++ outputs/work/executions/example/index.json:candidate\n@@ -2,21 +2,25 @@\n   \"schema\": \"work-execution-index/v1\",\n   \"requirement_id\": \"example\",\n   \"title\": \"Execution\",\n-  \"task_spec_id\": \"TASK-SPEC-001\",\n-  \"task_collection_sha256\": \"fb5854024d838a5abfcbe9a3fd040acf26b92abd75cb5fe5697723952c53aa12\",\n-  \"task_index_sha256\": \"e4c9c1a311cb8db614c3303307e698024a06ddd7a14e31c3d5b2c84575658a82\",\n+  \"task_spec_id\": \"TASK-SPEC-002\",\n+  \"task_collection_sha256\": \"93642ac1ab61b40a8a60eed7037f68b120f720adfaa00b62ba0f0bd7208c8d03\",\n+  \"task_index_sha256\": \"a9db8ce70c34157606cb36e8c720516de8b6c70ed549df280339a151e2b102d9\",\n   \"task_instructions_sha256\": \"d96cb66bc96c394655df49bb557f0850344be70763b99e96bad7c70732ea372d\",\n   \"hierarchy_selection_sha256\": \"973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e\",\n   \"skill_selection_sha256\": \"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959\",\n-  \"overall_status\": \"completed\",\n+  \"overall_status\": \"pending\",\n   \"tasks\": [\n     {\n       \"id\": \"TASK-001\",\n-      \"status\": \"completed\",\n+      \"status\": \"pending_retry\",\n       \"skill_id\": null,\n-      \"task_item_sha256\": \"2ff6f684cdfd2d418d0573449a267434be7a5f1dc83691ae6f11fa00508f60e1\",\n+      \"task_item_sha256\": \"3cb9b4dabcee50376af0783cf99f3f973673c2cb8f6410072fda4c76c79a79e8\",\n       \"instructions_sha256\": \"d96cb66bc96c394655df49bb557f0850344be70763b99e96bad7c70732ea372d\",\n-      \"latest_attempt\": \"ATTEMPT-001\"\n+      \"latest_attempt\": \"ATTEMPT-001\",\n+      \"status_reason\": {\n+        \"kind\": \"task_change\",\n+        \"ref\": \"TASK-CHANGE-001\"\n+      }\n     }\n   ]\n }\n"
+        "unified_diff": "--- outputs/work/executions/example/index.json:source\n+++ outputs/work/executions/example/index.json:candidate\n@@ -2,21 +2,25 @@\n   \"schema\": \"work-execution-index/v1\",\n   \"requirement_id\": \"example\",\n   \"title\": \"Execution\",\n-  \"task_spec_id\": \"TASK-SPEC-001\",\n-  \"task_collection_sha256\": \"e6a91e156bfa91f022fe0e4caea2a2e6a5f5680dd05a5bd0f29ca07514d0dc3e\",\n-  \"task_index_sha256\": \"c702e63ab5c9fd94e66a0ae2036286b05aa7535677b0963d2ca6b6a65890ff19\",\n+  \"task_spec_id\": \"TASK-SPEC-002\",\n+  \"task_collection_sha256\": \"09722f61acf1923e0cf8258a0144612104edbe6ec2f7714aefe5bdcc4924367c\",\n+  \"task_index_sha256\": \"1ef7ed7a9380b8be9f06810b757978089e3db9d712b03de431ea7cb34cc7ccee\",\n   \"task_instructions_sha256\": \"df8fac8b103d0139e30419503d6237e2edcd219b45bb9cca32d9e84dcfef532b\",\n   \"hierarchy_selection_sha256\": \"973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e\",\n   \"skill_selection_sha256\": \"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959\",\n-  \"overall_status\": \"completed\",\n+  \"overall_status\": \"pending\",\n   \"tasks\": [\n     {\n       \"id\": \"TASK-001\",\n-      \"status\": \"completed\",\n+      \"status\": \"pending_retry\",\n       \"skill_id\": null,\n-      \"task_item_sha256\": \"77b657de77811217b23514ae570473331da07c204b7553c51da60ba505c0a523\",\n+      \"task_item_sha256\": \"6d5aaf8e4f9356845dd9af0e9859d83ac9a0b0bbf54056507725cead8d8e10ee\",\n       \"instructions_sha256\": \"df8fac8b103d0139e30419503d6237e2edcd219b45bb9cca32d9e84dcfef532b\",\n-      \"latest_attempt\": \"ATTEMPT-001\"\n+      \"latest_attempt\": \"ATTEMPT-001\",\n+      \"status_reason\": {\n+        \"kind\": \"task_change\",\n+        \"ref\": \"TASK-CHANGE-001\"\n+      }\n     }\n   ]\n }\n"
       },
       {
         "path": "outputs/work/plans/example.json",
@@ -51,7 +51,7 @@
       {
         "path": "outputs/work/tasks/example/index.json",
         "operation": "replace",
-        "unified_diff": "--- outputs/work/tasks/example/index.json:source\n+++ outputs/work/tasks/example/index.json:candidate\n@@ -1,7 +1,7 @@\n {\n   \"schema\": \"work-task-index/v1\",\n   \"requirement_id\": \"example\",\n-  \"spec_id\": \"TASK-SPEC-001\",\n+  \"spec_id\": \"TASK-SPEC-002\",\n   \"status\": \"confirmed\",\n   \"title\": \"Example TASK\",\n   \"summary\": \"Task summary.\",\n@@ -55,11 +55,32 @@\n     {\n       \"id\": \"TASK-001\",\n       \"path\": \"tasks/TASK-001.json\",\n-      \"canonical_sha256\": \"2ff6f684cdfd2d418d0573449a267434be7a5f1dc83691ae6f11fa00508f60e1\"\n+      \"canonical_sha256\": \"3cb9b4dabcee50376af0783cf99f3f973673c2cb8f6410072fda4c76c79a79e8\"\n+    }\n+  ],\n+  \"changes\": [\n+    {\n+      \"id\": \"TASK-CHANGE-001\",\n+      \"spec_id\": \"TASK-SPEC-002\",\n+      \"date\": \"2026-09-26\",\n+      \"reason\": \"Incorporate the approved runtime deviation.\",\n+      \"affected_ids\": [\n+        \"TASK-001\"\n+      ],\n+      \"edits\": [\n+        {\n+          \"artifact\": \"task_item\",\n+          \"task_id\": \"TASK-001\",\n+          \"operation\": \"replace\",\n+          \"path\": \"/goal\",\n+          \"before\": \"Modify the source and validate it.\",\n+          \"after\": \"Review the approved runtime deviation.\"\n+        }\n+      ]\n     }\n   ],\n   \"readiness\": {\n     \"status\": \"passed\",\n-    \"spec_id\": \"TASK-SPEC-001\"\n+    \"spec_id\": \"TASK-SPEC-002\"\n   }\n }\n"
+        "unified_diff": "--- outputs/work/tasks/example/index.json:source\n+++ outputs/work/tasks/example/index.json:candidate\n@@ -1,7 +1,7 @@\n {\n   \"schema\": \"work-task-index/v1\",\n   \"requirement_id\": \"example\",\n-  \"spec_id\": \"TASK-SPEC-001\",\n+  \"spec_id\": \"TASK-SPEC-002\",\n   \"status\": \"confirmed\",\n   \"title\": \"Example TASK\",\n   \"summary\": \"Task summary.\",\n@@ -55,11 +55,32 @@\n     {\n       \"id\": \"TASK-001\",\n       \"path\": \"tasks/TASK-001.json\",\n-      \"canonical_sha256\": \"77b657de77811217b23514ae570473331da07c204b7553c51da60ba505c0a523\"\n+      \"canonical_sha256\": \"6d5aaf8e4f9356845dd9af0e9859d83ac9a0b0bbf54056507725cead8d8e10ee\"\n+    }\n+  ],\n+  \"changes\": [\n+    {\n+      \"id\": \"TASK-CHANGE-001\",\n+      \"spec_id\": \"TASK-SPEC-002\",\n+      \"date\": \"2026-09-26\",\n+      \"reason\": \"Incorporate the approved runtime deviation.\",\n+      \"affected_ids\": [\n+        \"TASK-001\"\n+      ],\n+      \"edits\": [\n+        {\n+          \"artifact\": \"task_item\",\n+          \"task_id\": \"TASK-001\",\n+          \"operation\": \"replace\",\n+          \"path\": \"/goal\",\n+          \"before\": \"Modify the source and validate it.\",\n+          \"after\": \"Review the approved runtime deviation.\"\n+        }\n+      ]\n     }\n   ],\n   \"readiness\": {\n     \"status\": \"passed\",\n-    \"spec_id\": \"TASK-SPEC-001\"\n+    \"spec_id\": \"TASK-SPEC-002\"\n   }\n }\n"
       },
       {
         "path": "outputs/work/tasks/example/tasks/TASK-001.json",
@@ -88,10 +88,10 @@
       }
     ],
     "unresolved_items": [],
-    "fingerprint": "c55facff55d45e93a28cd851e55dfc82b8f6ccaf6b07491aecb78a6d39763de2",
+    "fingerprint": "47c19c5e32a5ecca4af43eefdccb1cd64f9917c94f75b40a1e013ad8c298651e",
     "writable_ready": true
   },
-  "fingerprint": "8f04eeb788da7018f59514032f59788ebf048ba32c1f5d23b78da70e14fc4b0f",
+  "fingerprint": "7c089c2d18a33d286ef35549750e23ac2eb850ae666723e76123742fdd308b53",
   "publication_required": true,
   "publication_ready": true
 }

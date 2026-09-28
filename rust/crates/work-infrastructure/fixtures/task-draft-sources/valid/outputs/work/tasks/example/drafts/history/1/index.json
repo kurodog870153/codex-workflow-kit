@@ -5,7 +5,7 @@
   "schema": "work-task-planning-index/v1",
   "source": {
     "hierarchy_selection_sha256": "973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e",
-    "plan_sha256": "88962bf48a37b66d11ca3c0b120f96c96a9399b66a698941f4cdf582261865c7",
+    "plan_sha256": "971eee6942455c80c56b02d6e820294b02d1c8e927a593f6685b797e7009be6f",
     "skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"
   },
   "tasks": [
@@ -18,7 +18,7 @@
         "references": [],
         "selected_paths": []
       },
-      "instructions_sha256": "e0b559801bab85f6c8571013a6de32ec6a65977a946307a0f1e68c5e36b606fa",
+      "instructions_sha256": "bb9674da97509e0ead4634b142a223f3d71831706325eecc4825fc480438760d",
       "scope": [
         "Source"
       ],

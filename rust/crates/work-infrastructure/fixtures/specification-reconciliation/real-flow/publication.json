@@ -1,22 +1,22 @@
 {
   "schema": "work-spec-reconciliation-publication/v1",
   "status": "updated",
-  "reconciliation_fingerprint": "718c53d93f15ecdd4b3b3f807d86e0316f3ea78bebb81c8dc4d88cc570efe0d1",
+  "reconciliation_fingerprint": "60f0a4a53ed2aa3765d9b58a61d2bce3915769664a9d6440f488b09f380a5017",
   "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
-  "attempt_sha256": "76bba8b989624b1422c881f7db8b82759d301a408217ca285d0512c4003da150",
+  "attempt_sha256": "5f536d26aab1defeb9e814cf5b76bae8a3234146e70e45a8d8cf6fbf94a78804",
   "selected_deviation_ids": [],
   "retained_deviation_ids": [
     "DEVIATION-001"
   ],
   "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
-  "ledger_sha256": "953b57182144651c00273c12714918144c1555cb9a5b18ac9ed81702c15e8723",
+  "ledger_sha256": "680c3e517271325d950e1f39e7b4c0226d1745f4fdd3372abf5118b81e29083f",
   "publication": {
     "schema": "work-spec-migration-publication/v1",
     "status": "updated",
-    "fingerprint": "718c53d93f15ecdd4b3b3f807d86e0316f3ea78bebb81c8dc4d88cc570efe0d1",
-    "transaction_approval_sha256": "01bee6e32a3396f23911eb94fcd09a4da43038010b87ded73c2996ff3fe260db",
-    "journal": "outputs/work/executions/example/.work-spec-migration-718C53D93F15.json",
-    "completion_marker": "outputs/work/executions/example/.work-spec-migration-718C53D93F15.json.done",
+    "fingerprint": "60f0a4a53ed2aa3765d9b58a61d2bce3915769664a9d6440f488b09f380a5017",
+    "transaction_approval_sha256": "0f483fcbff86910fc74e8eaf566342653162c0d9120c624af25c8e5df8bb8be5",
+    "journal": "outputs/work/executions/example/.work-spec-migration-60F0A4A53ED2.json",
+    "completion_marker": "outputs/work/executions/example/.work-spec-migration-60F0A4A53ED2.json.done",
     "documents": [
       "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json"
     ],

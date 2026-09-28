@@ -51,6 +51,12 @@ fn windows_installer_requires_local_rust_build_and_startup_check() {
     assert!(!script.contains("work.py"));
     assert!(!script.contains("worklib"));
     assert!(!script.contains("pip install"));
+    assert!(script.contains("set \"install_home=%USERPROFILE%\""));
+    assert!(
+        script.contains("if \"!home_choice!\"==\"1\" set \"install_home=!install_home!\\.agents\"")
+    );
+    assert!(script.contains("set \"target_work=!install_home!\\skills\\work\""));
+    assert!(!script.contains("!install_home!\\.agents\\skills\\work"));
 }
 
 #[cfg(target_os = "macos")]
@@ -131,7 +137,11 @@ mod macos {
     }
 
     fn work(home: &Path) -> PathBuf {
-        let root = home.join(".agents/skills/work");
+        work_at(&home.join(".agents"))
+    }
+
+    fn work_at(install_root: &Path) -> PathBuf {
+        let root = install_root.join("skills/work");
         for relative in [
             "SKILL.md",
             "agents/openai.yaml",
@@ -160,7 +170,7 @@ mod macos {
             assert!(!root.join(relative).exists(), "{relative}");
         }
         for relative in ["agents", "rules"] {
-            assert!(!home.join(".agents").join(relative).exists());
+            assert!(!install_root.join(relative).exists());
         }
         root
     }
@@ -279,7 +289,8 @@ mod macos {
             &repository(),
             None,
         ));
-        let installed = work(&home);
+        let installed = work_at(&home);
+        assert!(!home.join(".agents").exists());
         assert_branch(&installed, "plan", "web/backend/java", true);
         for branch in ["web/backend/java/jpa", "web/backend/java/mybatis"] {
             assert_branch(&installed, "plan", branch, false);
@@ -298,7 +309,8 @@ mod macos {
             &repository(),
             None,
         ));
-        let installed = work(&home);
+        let installed = work_at(&home);
+        assert!(!home.join(".agents").exists());
         for branch in ["web/frontend/typescript", "web/frontend/css"] {
             assert_branch(&installed, "plan", branch, true);
         }
