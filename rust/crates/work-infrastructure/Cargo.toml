@@ -1,0 +1,16 @@
+[package]
+name = "work-infrastructure"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+work-feature = { path = "../work-feature" }
+work-model = { path = "../work-model" }
+work-operations = { path = "../work-operations" }
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml_ng.workspace = true
+fs4.workspace = true
+chrono.workspace = true
+getrandom.workspace = true

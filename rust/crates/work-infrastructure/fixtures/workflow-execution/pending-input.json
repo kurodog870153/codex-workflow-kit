@@ -1,0 +1,26 @@
+{
+  "requirement_id": "example",
+  "artifacts": {
+    "plan": "outputs/work/plans/example.json",
+    "task": "outputs/work/tasks/example/index.json",
+    "execution": "outputs/work/executions/example"
+  },
+  "plan_validation": {
+    "plan_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "task_validation": {
+    "task_collection_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "execution_index": {
+    "overall_status": "pending",
+    "lock": null,
+    "tasks": [
+      {
+        "id": "TASK-001",
+        "status": "in_progress",
+        "latest_attempt": "ATTEMPT-001"
+      }
+    ]
+  },
+  "latest_attempts": {}
+}

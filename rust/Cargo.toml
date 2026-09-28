@@ -1,0 +1,27 @@
+[workspace]
+members = [
+    "crates/work-model",
+    "crates/work-operations",
+    "crates/work-feature",
+    "crates/work-flow",
+    "crates/work-infrastructure",
+    "crates/work-cli",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.11"
+unicode-normalization = "=0.1.24"
+caseless = "=0.2.2"
+serde_yaml_ng = "0.10"
+fs4 = { version = "1.1", default-features = false, features = ["sync"] }
+clap = { version = "=4.6.7", default-features = false, features = ["std", "help", "usage", "error-context", "string"] }
+chrono = { version = "=0.4.45", default-features = false, features = ["clock", "std"] }
+getrandom = "=0.4.3"

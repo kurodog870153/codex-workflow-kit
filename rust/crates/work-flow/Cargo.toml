@@ -1,0 +1,10 @@
+[package]
+name = "work-flow"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+work-feature = { path = "../work-feature" }
+work-model = { path = "../work-model" }
+serde_json.workspace = true

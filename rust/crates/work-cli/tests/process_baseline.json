@@ -1,0 +1,61 @@
+{
+  "cli_cases": [
+    {
+      "name": "missing_arguments",
+      "argv": [],
+      "exit_code": 2,
+      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"rejected\",\n  \"reason_code\": \"cli_usage_error\",\n  \"message\": \"The CLI arguments are invalid.\",\n  \"data\": {\n    \"reason\": \"the following arguments are required: --project-root, command\"\n  }\n}\n",
+      "stderr": ""
+    },
+    {
+      "name": "removed_stdin",
+      "argv": [
+        "--stdin"
+      ],
+      "exit_code": 2,
+      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"rejected\",\n  \"reason_code\": \"stdin_removed\",\n  \"message\": \"Write the JSON request to a UTF-8 file and use --input-file <path>.\",\n  \"data\": {\n    \"replacement\": \"--input-file\"\n  }\n}\n",
+      "stderr": ""
+    },
+    {
+      "name": "paths_success",
+      "argv": [
+        "--project-root",
+        "<PROJECT_ROOT>",
+        "paths",
+        "resolve",
+        "--requirement-id",
+        "example"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"paths\": {\n      \"execution\": \"outputs/work/executions/example\",\n      \"plan\": \"outputs/work/plans/example.json\",\n      \"task\": \"outputs/work/tasks/example/index.json\"\n    },\n    \"requirement_id\": \"example\",\n    \"schema\": \"work-paths/v1\"\n  }\n}\n",
+      "stderr": ""
+    },
+    {
+      "name": "paths_verbose_success",
+      "argv": [
+        "--project-root",
+        "<PROJECT_ROOT>",
+        "--verbose",
+        "paths",
+        "resolve",
+        "--requirement-id",
+        "example"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"paths\": {\n      \"execution\": \"outputs/work/executions/example\",\n      \"plan\": \"outputs/work/plans/example.json\",\n      \"task\": \"outputs/work/tasks/example/index.json\"\n    },\n    \"project_root\": \"<PROJECT_ROOT>\",\n    \"requirement_id\": \"example\",\n    \"schema\": \"work-paths/v1\"\n  }\n}\n",
+      "stderr": ""
+    },
+    {
+      "name": "contract_list",
+      "argv": [
+        "--project-root",
+        "<PROJECT_ROOT>",
+        "contract",
+        "list"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"schema\": \"work-contract-catalog/v1\"\n  }\n}\n",
+      "stderr": ""
+    }
+  ]
+}

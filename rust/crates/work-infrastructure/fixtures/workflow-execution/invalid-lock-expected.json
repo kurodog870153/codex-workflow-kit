@@ -1,0 +1,155 @@
+{
+  "schema": "work-workflow-state/v1",
+  "requirement_id": "example",
+  "status": "execution_locked",
+  "next_action": "inspect_recovery",
+  "target": "outputs/work/executions/example",
+  "requires_user_confirmation": true,
+  "required_checks": [
+    "execute preflight"
+  ],
+  "artifacts": {
+    "plan": "outputs/work/plans/example.json",
+    "task": "outputs/work/tasks/example/index.json",
+    "execution": "outputs/work/executions/example"
+  },
+  "routing_status": "VALID",
+  "router_compatibility_revision": 3,
+  "required_instruction_sources": [
+    "work.instruction-loading",
+    "work.shared.transaction-workspace",
+    "work.shared.artifact-migration",
+    "work.shared.runtime",
+    "work.shared.artifact-paths",
+    "work.shared.fingerprints",
+    "work.workflow.repair",
+    "work.workflow.repair.rebuild-a-related-artifact-set-with-ai",
+    "work.workflow.repair.prepare-the-request",
+    "work.workflow.repair.programmatic-preparation",
+    "work.workflow.repair.review-approve-and-publish",
+    "work.workflow.repair.authorized-recovery"
+  ],
+  "source_order": [
+    "work.instruction-loading",
+    "work.shared.transaction-workspace",
+    "work.shared.artifact-migration",
+    "work.shared.runtime",
+    "work.shared.artifact-paths",
+    "work.shared.fingerprints",
+    "work.workflow.repair",
+    "work.workflow.repair.rebuild-a-related-artifact-set-with-ai",
+    "work.workflow.repair.prepare-the-request",
+    "work.workflow.repair.programmatic-preparation",
+    "work.workflow.repair.review-approve-and-publish",
+    "work.workflow.repair.authorized-recovery"
+  ],
+  "selection_sha256": "3939e65c9478417a18de2d927b2d67fa4f11cf19bb1cd4975e4c90a4875010b2",
+  "routing_reasons": [
+    "operation:inspect_recovery",
+    "workflow_status:execution_locked",
+    "mode:repair"
+  ],
+  "selection_manifest": {
+    "schema": "work-instruction-selection-manifest/v1",
+    "router_compatibility_revision": 3,
+    "routing_input": {
+      "mode": "repair",
+      "status": "execution_locked",
+      "operation": "inspect_recovery",
+      "artifact_lifecycle": "execution_locked",
+      "formal_events": [],
+      "role": "main",
+      "authorization_state": "confirmation_required",
+      "verified_state_sha256": "f69f3d6073a100786aa2c74acb634719ea23ab36c0d7343326ca1b8d57eb2c94"
+    },
+    "routing_status": "VALID",
+    "sources": [
+      {
+        "logical_name": "work.instruction-loading",
+        "path": "references/instruction-loading.md",
+        "compatibility_revision": 2,
+        "canonical_sha256": "868209dba7dff984a33932c71906c134c916be0694234b04b0da0f27c9cc99a6"
+      },
+      {
+        "logical_name": "work.shared.transaction-workspace",
+        "path": "references/instruction-loading/transaction-workspace.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "3fb6223c7cbe1f704f0719e7bfdbfd31ac8fb3a06d5b5634acb2e2fe74d0f5b1"
+      },
+      {
+        "logical_name": "work.shared.artifact-migration",
+        "path": "references/instruction-loading/artifact-migration.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "9e536028834ba02cd9bfd41ceebe8cef8db6988295f8a816e0d463d49f02e82a"
+      },
+      {
+        "logical_name": "work.shared.runtime",
+        "path": "references/instruction-loading/runtime.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "3f1635a9110ca1054f2fc29659f545edc57604d95a4e193363e2925bff52ff4a"
+      },
+      {
+        "logical_name": "work.shared.artifact-paths",
+        "path": "references/instruction-loading/artifact-paths.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "b27d40bd8a066d8a09a78c6714eecc2314a0465fbceaa1cacf87af924d1bae32"
+      },
+      {
+        "logical_name": "work.shared.fingerprints",
+        "path": "references/instruction-loading/fingerprints.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "c30d78edbd16a51802160a2c8612f5476f2b9e93fdaa4630808488eb047623e8"
+      },
+      {
+        "logical_name": "work.workflow.repair",
+        "path": "references/workflows/repair.md",
+        "compatibility_revision": 2,
+        "canonical_sha256": "cbe06bf34dd7ab1f26a99dd07b2ea8dcb30d405159c38ded1a690a8dc2c2adce"
+      },
+      {
+        "logical_name": "work.workflow.repair.rebuild-a-related-artifact-set-with-ai",
+        "path": "references/workflows/repair/rebuild-a-related-artifact-set-with-ai.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "f0e51b1c07434058389d11013a79bb2a941043c31758cb59609cc004dcc9297a"
+      },
+      {
+        "logical_name": "work.workflow.repair.prepare-the-request",
+        "path": "references/workflows/repair/prepare-the-request.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "5c9340358a2e18861263279a486c054fc7e2f49e89cd39b862e03951c1b5e94b"
+      },
+      {
+        "logical_name": "work.workflow.repair.programmatic-preparation",
+        "path": "references/workflows/repair/programmatic-preparation.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "28072146040351413ccfadd3e403ee7ab3794d9c3bbca5aa56fab6f1fdeffd70"
+      },
+      {
+        "logical_name": "work.workflow.repair.review-approve-and-publish",
+        "path": "references/workflows/repair/review-approve-and-publish.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "61babb280d6eee6c243887b13a7a0621fc873a19fa0380993d489a969237cbd7"
+      },
+      {
+        "logical_name": "work.workflow.repair.authorized-recovery",
+        "path": "references/workflows/repair/authorized-recovery.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "6c6f67f02370623fdfc1ab243e989a43c6c86091134acba7f36b082cad7e9477"
+      }
+    ],
+    "confirmation_required": true,
+    "selection_sha256": "3939e65c9478417a18de2d927b2d67fa4f11cf19bb1cd4975e4c90a4875010b2"
+  },
+  "details": {
+    "lock": {
+      "kind": "execution",
+      "task_id": "TASK-001",
+      "attempt_id": "ATTEMPT-001",
+      "execute_instructions_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  },
+  "request_contract_id": null,
+  "command": null,
+  "arguments": {},
+  "semantic_input_contract": null
+}

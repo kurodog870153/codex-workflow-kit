@@ -1,0 +1,20 @@
+{
+  "schema": "work-spec-reconciliation-prepare-request/v1",
+  "requirement_id": "example",
+  "task_position": 1,
+  "attempt_position": 1,
+  "choice": "all",
+  "deviation_positions": [],
+  "reason": "Incorporate the approved runtime deviation.",
+  "edits": [
+    {
+      "target": {
+        "artifact": "task_item",
+        "task_id": "TASK-001"
+      },
+      "field": "goal",
+      "after": "Review the approved runtime deviation."
+    }
+  ],
+  "semantic_decisions": []
+}

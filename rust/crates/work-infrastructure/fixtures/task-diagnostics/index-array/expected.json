@@ -1,0 +1,90 @@
+{
+  "status": "blocked",
+  "format_status": "failed",
+  "contract_status": "not_checked",
+  "normal_use_allowed": false,
+  "execution_binding_status": "not_checked",
+  "raw_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "checks": [
+    {
+      "name": "index:path",
+      "status": "passed"
+    },
+    {
+      "name": "index:file",
+      "status": "passed"
+    },
+    {
+      "name": "index:encoding",
+      "status": "passed"
+    },
+    {
+      "name": "index:json",
+      "status": "failed"
+    },
+    {
+      "name": "index:normalization",
+      "status": "failed"
+    },
+    {
+      "name": "index:schema",
+      "status": "not_checked"
+    },
+    {
+      "name": "index:canonical",
+      "status": "not_checked"
+    },
+    {
+      "name": "index:contract",
+      "status": "not_checked"
+    },
+    {
+      "name": "items",
+      "status": "not_checked"
+    },
+    {
+      "name": "items:directory",
+      "status": "not_checked"
+    },
+    {
+      "name": "plan:path",
+      "status": "not_checked"
+    },
+    {
+      "name": "plan:file",
+      "status": "not_checked"
+    },
+    {
+      "name": "plan:contract",
+      "status": "not_checked"
+    },
+    {
+      "name": "plan:binding",
+      "status": "not_checked"
+    },
+    {
+      "name": "collection:contract",
+      "status": "not_checked"
+    },
+    {
+      "name": "execution:file",
+      "status": "not_checked"
+    },
+    {
+      "name": "execution:contract",
+      "status": "not_checked"
+    },
+    {
+      "name": "execution:binding",
+      "status": "not_checked"
+    },
+    {
+      "name": "execution_index_binding",
+      "status": "not_checked"
+    }
+  ],
+  "issue_codes": [
+    "json_contract_not_object",
+    "noncanonical_task_text"
+  ]
+}

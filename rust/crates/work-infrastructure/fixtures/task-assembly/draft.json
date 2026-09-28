@@ -1,0 +1,44 @@
+{
+  "boundary_revision": 1,
+  "confirmed_decisions": [],
+  "instructions_sha256": "d96cb66bc96c394655df49bb557f0850344be70763b99e96bad7c70732ea372d",
+  "next_discussion_point": null,
+  "notes": [],
+  "open_questions": [],
+  "requirement_id": "example",
+  "revision": 1,
+  "schema": "work-task-draft/v1",
+  "source": {
+    "hierarchy_selection_sha256": "973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e",
+    "plan_sha256": "6c7c723b2ab7c26b94fd7ee7c1ad31610d7c31ef1d3a13cfc7db6841bf79adad",
+    "skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"
+  },
+  "status": "refined",
+  "task_candidate": {
+    "steps": [
+      {
+        "action": "Review result.",
+        "key": "review",
+        "references": [
+          {
+            "key": "result",
+            "kind": "validations"
+          }
+        ]
+      }
+    ],
+    "validations": [
+      {
+        "acceptance_positions": [
+          1
+        ],
+        "confirmer": "User",
+        "criteria": "Result is observable.",
+        "key": "result",
+        "kind": "manual"
+      }
+    ]
+  },
+  "task_id": "TASK-001",
+  "tentative": []
+}

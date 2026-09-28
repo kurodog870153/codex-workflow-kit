@@ -1,0 +1,65 @@
+{
+  "schema": "work-spec-migration-preview/v1",
+  "status": "blocked",
+  "documents": [
+    "outputs/work/executions/example/index.json",
+    "outputs/work/plans/example.json",
+    "outputs/work/tasks/example/index.json",
+    "outputs/work/tasks/example/tasks/TASK-001.json"
+  ],
+  "diffs": [
+    {
+      "path": "outputs/work/executions/example/index.json",
+      "operation": "replace",
+      "unified_diff": ""
+    },
+    {
+      "path": "outputs/work/plans/example.json",
+      "operation": "replace",
+      "unified_diff": ""
+    },
+    {
+      "path": "outputs/work/tasks/example/index.json",
+      "operation": "replace",
+      "unified_diff": ""
+    },
+    {
+      "path": "outputs/work/tasks/example/tasks/TASK-001.json",
+      "operation": "replace",
+      "unified_diff": ""
+    }
+  ],
+  "validator_results": [
+    {
+      "name": "plan",
+      "status": "passed"
+    },
+    {
+      "name": "task_collection",
+      "status": "passed"
+    },
+    {
+      "name": "execution_index",
+      "status": "passed"
+    }
+  ],
+  "relationship_results": [
+    {
+      "name": "candidate_set",
+      "status": "passed"
+    },
+    {
+      "name": "artifact_paths",
+      "status": "passed"
+    },
+    {
+      "name": "execution_binding",
+      "status": "passed"
+    }
+  ],
+  "unresolved_items": [
+    "DECISION-001"
+  ],
+  "fingerprint": "fccfa1ea49d1fabe294901e270c24c6dd5431251483a58b801f06f2ce9fe461f",
+  "writable_ready": false
+}

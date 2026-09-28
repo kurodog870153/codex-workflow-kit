@@ -1,0 +1,63 @@
+{
+  "schema": "work-spec-migration-preview/v1",
+  "status": "ready",
+  "documents": [
+    "outputs/work/executions/example/index.json",
+    "outputs/work/plans/example.json",
+    "outputs/work/tasks/example/index.json",
+    "outputs/work/tasks/example/tasks/TASK-001.json"
+  ],
+  "diffs": [
+    {
+      "path": "outputs/work/executions/example/index.json",
+      "operation": "replace",
+      "unified_diff": "--- outputs/work/executions/example/index.json:source\n+++ outputs/work/executions/example/index.json:candidate\n@@ -2,9 +2,9 @@\n   \"schema\": \"work-execution-index/v1\",\n   \"requirement_id\": \"example\",\n   \"title\": \"Execution\",\n-  \"task_spec_id\": \"TASK-SPEC-001\",\n-  \"task_collection_sha256\": \"fb5854024d838a5abfcbe9a3fd040acf26b92abd75cb5fe5697723952c53aa12\",\n-  \"task_index_sha256\": \"e4c9c1a311cb8db614c3303307e698024a06ddd7a14e31c3d5b2c84575658a82\",\n+  \"task_spec_id\": \"TASK-SPEC-002\",\n+  \"task_collection_sha256\": \"8a641d471ccf47cd7a3c343d9dc4393540daa54a01bd525b7bec988a2090666b\",\n+  \"task_index_sha256\": \"fc209af98db866ea20629e0767315bedff698e045e472449f396860f4f7ba6fc\",\n   \"task_instructions_sha256\": \"d96cb66bc96c394655df49bb557f0850344be70763b99e96bad7c70732ea372d\",\n   \"hierarchy_selection_sha256\": \"973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e\",\n   \"skill_selection_sha256\": \"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959\",\n"
+    },
+    {
+      "path": "outputs/work/plans/example.json",
+      "operation": "replace",
+      "unified_diff": ""
+    },
+    {
+      "path": "outputs/work/tasks/example/index.json",
+      "operation": "replace",
+      "unified_diff": "--- outputs/work/tasks/example/index.json:source\n+++ outputs/work/tasks/example/index.json:candidate\n@@ -1,10 +1,10 @@\n {\n   \"schema\": \"work-task-index/v1\",\n   \"requirement_id\": \"example\",\n-  \"spec_id\": \"TASK-SPEC-001\",\n+  \"spec_id\": \"TASK-SPEC-002\",\n   \"status\": \"confirmed\",\n   \"title\": \"Example TASK\",\n-  \"summary\": \"Task summary.\",\n+  \"summary\": \"Task summary. revised\",\n   \"artifacts\": {\n     \"plan\": \"outputs/work/plans/example.json\",\n     \"task\": \"outputs/work/tasks/example/index.json\",\n@@ -58,8 +58,28 @@\n       \"canonical_sha256\": \"2ff6f684cdfd2d418d0573449a267434be7a5f1dc83691ae6f11fa00508f60e1\"\n     }\n   ],\n+  \"changes\": [\n+    {\n+      \"id\": \"TASK-CHANGE-001\",\n+      \"spec_id\": \"TASK-SPEC-002\",\n+      \"date\": \"2026-09-26\",\n+      \"reason\": \"Confirmed collection revision\",\n+      \"affected_ids\": [\n+        \"TASK-001\"\n+      ],\n+      \"edits\": [\n+        {\n+          \"artifact\": \"task_index\",\n+          \"operation\": \"replace\",\n+          \"path\": \"/summary\",\n+          \"before\": \"Task summary.\",\n+          \"after\": \"Task summary. revised\"\n+        }\n+      ]\n+    }\n+  ],\n   \"readiness\": {\n     \"status\": \"passed\",\n-    \"spec_id\": \"TASK-SPEC-001\"\n+    \"spec_id\": \"TASK-SPEC-002\"\n   }\n }\n"
+    },
+    {
+      "path": "outputs/work/tasks/example/tasks/TASK-001.json",
+      "operation": "replace",
+      "unified_diff": ""
+    }
+  ],
+  "validator_results": [
+    {
+      "name": "plan",
+      "status": "passed"
+    },
+    {
+      "name": "task_collection",
+      "status": "passed"
+    },
+    {
+      "name": "execution_index",
+      "status": "passed"
+    }
+  ],
+  "relationship_results": [
+    {
+      "name": "candidate_set",
+      "status": "passed"
+    },
+    {
+      "name": "artifact_paths",
+      "status": "passed"
+    },
+    {
+      "name": "execution_binding",
+      "status": "passed"
+    }
+  ],
+  "unresolved_items": [],
+  "fingerprint": "d0c194d570a2f6c56fa8e8cc2b008482bdcdd9565b2e28485ac7d67e676ffe38",
+  "writable_ready": true
+}

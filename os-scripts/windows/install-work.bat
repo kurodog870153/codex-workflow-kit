@@ -8,7 +8,7 @@ for %%I in ("%~dp0..\..") do set "project_directory=%%~fI"
 set "source_work=%project_directory%\skills\work"
 set "missing_source="
 
-call :validate_python_runtime
+call :validate_rust_toolchain
 if errorlevel 1 goto runtime_error
 
 call :validate_base_sources
@@ -102,6 +102,9 @@ for %%N in (!hierarchy_selection!) do call :include_hierarchy %%N
 call :validate_selected_instructions
 if errorlevel 1 goto source_error
 
+call :build_work
+if errorlevel 1 goto runtime_error
+
 if not exist "!target_work!\" (
     mkdir "!target_work!"
     if errorlevel 1 goto install_error
@@ -109,7 +112,11 @@ if not exist "!target_work!\" (
 
 call :install_base
 if errorlevel 1 goto install_error
+call :refresh_existing_instructions
+if errorlevel 1 goto install_error
 call :install_selected_instructions
+if errorlevel 1 goto install_error
+call :install_binary
 if errorlevel 1 goto install_error
 
 echo Work skill installed in "!target_work!".
@@ -117,38 +124,68 @@ echo Existing matching files were overwritten. Stale files were not removed.
 pause
 exit /b 0
 
-:validate_python_runtime
-set "python_command="
-py -3 -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 14) else 1)" <nul >nul 2>nul
-if not errorlevel 1 set "python_command=py -3"
-if defined python_command (
-    call :validate_python_dependencies
-    exit /b !errorlevel!
+:validate_rust_toolchain
+for %%T in (rustc cargo) do (
+    where %%T >nul 2>nul
+    if errorlevel 1 (
+        set "runtime_error_message=%%T is required. Install Rust 1.85 or newer with Cargo and try again."
+        exit /b 1
+    )
+    for /f "tokens=2" %%V in ('%%T --version') do set "tool_version=%%V"
+    for /f "tokens=1,2 delims=." %%A in ("!tool_version!") do (
+        set "tool_major=%%A"
+        set "tool_minor=%%B"
+    )
+    if !tool_major! LSS 1 (
+        set "runtime_error_message=%%T 1.85 or newer is required."
+        exit /b 1
+    )
+    if !tool_major! EQU 1 if !tool_minor! LSS 85 (
+        set "runtime_error_message=%%T 1.85 or newer is required."
+        exit /b 1
+    )
 )
-python -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 14) else 1)" <nul >nul 2>nul
-if not errorlevel 1 set "python_command=python"
-if defined python_command (
-    call :validate_python_dependencies
-    exit /b !errorlevel!
-)
-python3 -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 14) else 1)" <nul >nul 2>nul
-if not errorlevel 1 set "python_command=python3"
-if defined python_command (
-    call :validate_python_dependencies
-    exit /b !errorlevel!
-)
-set "runtime_error_message=Python 3.14 or newer is required. Install Python and run this installer again."
-exit /b 1
-
-:validate_python_dependencies
-!python_command! -c "import yaml" <nul >nul 2>nul
-if errorlevel 1 (
-    set "runtime_error_message=PyYAML is required. Install PyYAML for !python_command! and run this installer again."
+for /f "tokens=2" %%T in ('rustc -vV ^| findstr /b "host:"') do set "rust_host=%%T"
+if not defined rust_host (
+    set "runtime_error_message=Cannot read the Rust host target."
     exit /b 1
 )
-!python_command! -c "import pydantic" <nul >nul 2>nul
+echo !rust_host! | findstr /c:"-windows-msvc" >nul
+if not errorlevel 1 (
+    where link.exe >nul 2>nul
+    if errorlevel 1 echo Warning: MSVC linker is not on PATH; Cargo will check Visual Studio Build Tools during build.
+) else (
+    echo !rust_host! | findstr /c:"-windows-gnu" >nul
+    if errorlevel 1 (
+        set "runtime_error_message=Unsupported Windows Rust host target: !rust_host!."
+        exit /b 1
+    )
+    where gcc.exe >nul 2>nul
+    if errorlevel 1 echo Warning: GNU linker is not on PATH; Cargo will check the configured linker during build.
+)
+exit /b 0
+
+:build_work
+pushd "%project_directory%\rust"
 if errorlevel 1 (
-    set "runtime_error_message=Pydantic is required. Install the latest Pydantic for !python_command! and run this installer again."
+    set "runtime_error_message=Cannot enter the Rust source directory."
+    exit /b 1
+)
+cargo build --release --locked -p work-cli
+set "build_result=!errorlevel!"
+popd
+if not "!build_result!"=="0" (
+    set "runtime_error_message=Rust build failed. Check linker/SDK setup and crate downloads; installed Work binary was not changed."
+    exit /b 1
+)
+set "built_work=%project_directory%\rust\target\release\work.exe"
+if not exist "!built_work!" (
+    set "runtime_error_message=Rust build did not produce work.exe; installed Work binary was not changed."
+    exit /b 1
+)
+"!built_work!" --help >nul 2>nul
+if errorlevel 1 (
+    set "runtime_error_message=Built Work binary failed its startup check; installed Work binary was not changed."
     exit /b 1
 )
 exit /b 0
@@ -170,10 +207,14 @@ for %%M in (plan task-coordinator task-skill execute artifact-editor progress-sa
     call :require_file "references\subagents\%%M.md"
     if errorlevel 1 exit /b 1
 )
-call :require_file "scripts\work.py"
-if errorlevel 1 exit /b 1
-call :require_file "scripts\worklib\cli.py"
-if errorlevel 1 exit /b 1
+if not exist "%project_directory%\rust\Cargo.toml" (
+    set "missing_source=%project_directory%\rust\Cargo.toml"
+    exit /b 1
+)
+if not exist "%project_directory%\rust\Cargo.lock" (
+    set "missing_source=%project_directory%\rust\Cargo.lock"
+    exit /b 1
+)
 exit /b 0
 
 :validate_selected_instructions
@@ -296,16 +337,16 @@ call :copy_tree "references\workflows"
 if errorlevel 1 exit /b 1
 call :copy_tree "references\subagents"
 if errorlevel 1 exit /b 1
-call :copy_file "scripts\work.py"
+exit /b 0
+
+:install_binary
+if not exist "!target_work!\scripts\" mkdir "!target_work!\scripts"
 if errorlevel 1 exit /b 1
-for /r "%source_work%\scripts\worklib" %%F in (*.py) do (
-    set "python_relative=%%~fF"
-    set "python_relative=!python_relative:%source_work%\=!"
-    if /i not "!python_relative!"=="scripts\worklib\rules.py" (
-        call :copy_file "!python_relative!"
-        if errorlevel 1 exit /b 1
-    )
-)
+set "staged_work=!target_work!\scripts\work.new.exe"
+copy /Y "!built_work!" "!staged_work!" >nul
+if errorlevel 1 exit /b 1
+move /Y "!staged_work!" "!target_work!\scripts\work.exe" >nul
+if errorlevel 1 exit /b 1
 exit /b 0
 
 :install_selected_instructions
@@ -355,6 +396,22 @@ if defined include_tailwind for %%M in (task execute) do (
 )
 exit /b 0
 
+:refresh_existing_instructions
+for /r "%source_work%\references\instructions" %%F in (instructions.md) do (
+    set "instruction_relative=%%~fF"
+    set "instruction_relative=!instruction_relative:%source_work%\=!"
+    if exist "!target_work!\!instruction_relative!" (
+        call :copy_file "!instruction_relative!"
+        if errorlevel 1 exit /b 1
+        set "branch_relative=!instruction_relative:\instructions.md=!"
+        if exist "!source_work!\!branch_relative!\references\" (
+            call :copy_tree "!branch_relative!\references"
+            if errorlevel 1 exit /b 1
+        )
+    )
+)
+exit /b 0
+
 :copy_instruction
 set "instruction_relative=references\instructions\%~1\%~2"
 call :copy_file "!instruction_relative!\instructions.md"
@@ -400,7 +457,6 @@ exit /b 2
 
 :runtime_error
 echo Error: !runtime_error_message!
-echo The installer does not install Python packages automatically.
 pause
 exit /b 1
 

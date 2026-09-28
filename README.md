@@ -53,17 +53,11 @@ $work task -- resume example
 
 ## 必要環境
 
-1. 最新版 Python，最低支援 Python 3.14。
-2. PyYAML。
-3. 最新版 Pydantic。
+1. Windows 或 macOS；本 Issue 不提供 Linux 安裝器或正式相容性保證。
+2. 已安裝 Rust 與 Cargo 1.85 或更新版本，以及本機可用的 linker 與 SDK。macOS 需要 Xcode Command Line Tools；Windows 需要對應 MSVC 或 GNU Rust 目標的建置工具。
+3. 首次編譯需要可取得 `rust/Cargo.lock` 指定的 crate；Cargo 可下載未快取的 crate。
 
-請使用相同的 Python 環境安裝或升級 Pydantic：
-
-```text
-python -m pip install --upgrade pydantic
-```
-
-安裝器只檢查必要環境，不會自動安裝或升級 Python 套件。
+安裝器會在 `rust/` 目錄從原始碼執行 `cargo build --release --locked -p work-cli`，不安裝工具鏈或修改 PATH。
 
 ## 安裝
 
@@ -109,9 +103,9 @@ os-scripts\windows\install-work.bat
 
 同名檔案會覆寫，但安裝器不會自動刪除舊檔案。
 
-重新選擇工作類型不會移除已安裝的分支。例如先安裝 `all`，再選 `general only`，先前的 web 分支仍會保留。
+重新選擇工作類型不會移除已安裝的分支。例如先安裝 `all`，再選 `general only`，先前的 web 分支仍會保留；其中已安裝的官方指引會更新，本次未選且原本不存在的分支不會新增。使用者自加檔案及舊版 `work.py`／`worklib/` 也會保留。逐檔複製若中途失敗，目錄可能暫時混合新舊版本；此風險已接受，應修正原因後重跑安裝器。
 
-安裝器會在寫入前檢查必要的 workflow、subagent、Python 入口與所選 instruction 是否存在；缺少時會停止並顯示檔案位置。此檢查不涵蓋所有 Python 模組及附屬文件，也不提供複製失敗時的自動回復。
+安裝器會在寫入前檢查必要的 workflow、subagent、Cargo manifest 與所選 instruction，並完成本機編譯及 `--help` 啟動檢查。編譯失敗不會改動已安裝的 binary。安裝位置的入口是 `<skill-root>/scripts/work`（macOS）或 `<skill-root>\scripts\work.exe`（Windows）；從不同工作目錄使用時，以已解析的 skill root 組成完整路徑，不依賴 PATH。指引檔逐檔複製失敗時不提供自動回復。
 
 ## 版本限制
 

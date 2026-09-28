@@ -1,0 +1,72 @@
+{
+  "schema": "work-task-index/v1",
+  "requirement_id": "example",
+  "spec_id": "TASK-SPEC-001",
+  "status": "confirmed",
+  "title": "Formal TASK",
+  "summary": "Result",
+  "artifacts": {
+    "plan": "outputs/work/plans/example.json",
+    "task": "outputs/work/tasks/example/index.json",
+    "execution": "outputs/work/executions/example"
+  },
+  "source_plan": {
+    "canonical_sha256": "268e3d2552290eead45e7da9012f52aaf6ed676de335dd087e5a98e0d9a18810",
+    "hierarchy_selection_sha256": "973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e"
+  },
+  "instruction_selection": {
+    "sources": [
+      {
+        "kind": "workflow",
+        "logical_name": "work.instruction-loading",
+        "canonical_sha256": "868209dba7dff984a33932c71906c134c916be0694234b04b0da0f27c9cc99a6",
+        "compatibility_revision": 2
+      },
+      {
+        "kind": "workflow",
+        "logical_name": "work.workflow.task",
+        "canonical_sha256": "e2bc9383d3eac24fcfb7a8972343850c22bc141aac73c0568d69e08216f68bda",
+        "compatibility_revision": 2
+      },
+      {
+        "kind": "instruction",
+        "logical_name": "task.general",
+        "canonical_sha256": "2b3eea1d9b82b1a14bcce44c9e30957873e5522a18e6eda8f232f394e66eaf00",
+        "compatibility_revision": 1
+      },
+      {
+        "kind": "reference",
+        "logical_name": "task.general.task-records",
+        "canonical_sha256": "195af88fa0ee0b1eaf88560bb0ff5c349b14c2b8a814d6cbc511c3d2b899f509",
+        "compatibility_revision": 1
+      },
+      {
+        "kind": "reference",
+        "logical_name": "task.general.instruction-maintenance",
+        "canonical_sha256": "31d88a1c8cbbf56d9ab3dd27b493b6d5d85ef3d711bd460b7c405a987099aa40",
+        "compatibility_revision": 1
+      }
+    ],
+    "references": [
+      "task.general.task-records",
+      "task.general.instruction-maintenance"
+    ],
+    "instructions_sha256": "094259fb9c1adb59b47d01115a1d5bb7c34958d362177c998293f9b13a994c5a"
+  },
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "path": "tasks/TASK-001.json",
+      "canonical_sha256": "70a7cec684fbcf4ce6f85ff25f13d5fb062b6df3c7e56c910f8a44e6f6badcc3"
+    },
+    {
+      "id": "TASK-002",
+      "path": "tasks/TASK-002.json",
+      "canonical_sha256": "2454f75afcd5eaf332e4557939d680e69f513a5c9ddbde8155d3ca63f26c3c9a"
+    }
+  ],
+  "readiness": {
+    "status": "passed",
+    "spec_id": "TASK-SPEC-001"
+  }
+}

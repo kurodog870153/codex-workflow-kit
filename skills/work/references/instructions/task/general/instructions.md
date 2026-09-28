@@ -27,12 +27,12 @@ metadata:
 2. [強制] 每個 `TASK-*` 產生一個可獨立驗收的單一成果；可分割成果須拆分，不可分割多檔修改可保留在同一 TASK。
 3. [強制] Execute 所需的所有檔案、順序、`CMD-*`、`OP-*`、`VAL-*` 與授權邊界必須在 Task 階段確定。
 4. [強制] 新決策改變已確認內容、references 或副作用時，列出影響並重新取得使用者確認。
-5. [強制] 全部決策完成後，由草稿組裝工具驗證完整候選，向使用者展示成果、範圍、檔案操作、命令與驗證並提供完整契約供審閱；正式核准須綁定組裝指紋。既有正式規格修訂沿用完整候選 JSON 程序；使用者核准及 Python 驗證前不得建立正式檔案。
+5. [強制] 全部決策完成後，由草稿組裝工具驗證完整候選，向使用者展示成果、範圍、檔案操作、命令與驗證並提供完整契約供審閱；正式核准須綁定組裝指紋。既有正式規格修訂沿用完整候選 JSON 程序；使用者核准及 Work CLI 驗證前不得建立正式檔案。
 
 ## 3. 正式 TASK contract
 
 1. [強制] 正式 v1 規格由單一 `work-task-index/v1` 純 JSON index 與每個 TASK 的 `work-task-item/v1` 純 JSON item 組成，固定使用 `status: confirmed` 與 `TASK-SPEC-nnn`；index 不重複 item 內容。
-2. [強制] keys、enums、IDs、statuses、paths、references 及 hashes 使用英文；語意字串可使用繁體中文。所有欄位、條件結構與引用規則以 Work Python validator 為唯一機器規格。
+2. [強制] keys、enums、IDs、statuses、paths、references 及 hashes 使用英文；語意字串可使用繁體中文。所有欄位、條件結構與引用規則以 Work CLI validator 為唯一機器規格。
 3. [強制] 正式候選使用預計正式化的 `confirmed` JSON；結構化規劃進度另以 `work-task-planning-index/v1` 與 `work-task-draft/v1` 保存，依 Task workflow 的 checkpoint 程序執行。使用者要求獨立保存討論時，依共用 discussion progress 流程交由父 agent 的私人 progress saver 忠實記錄；Task 可由該文件恢復討論，來源檢查與正式化仍循原流程。進度文件、草稿、`refined` 與保存確認都不是正式核准，不得使用 `TASK-SPEC-DRAFT` 或交給 Execute。
 4. [強制] 每個 TASK 的 `instruction_selection.selected_paths` 只能是來源 Plan 已確認葉節點、其祖先或空子集，且非空路徑必須完整存在於 Task 與 Execute catalog；`sources` 只保存 `kind`、`logical_name`、`canonical_sha256`，不得保存來源 layer 或絕對路徑。
 5. [強制] 每個 TASK 保存 `skill_id`、`instruction_selection`、`traceability`、單一 `goal`、有序 `steps` 與至少一個 `VAL-*`；只有 `skill_id` 可用 `null` 表示 base-only，沒有內容的選用欄位省略。
@@ -43,13 +43,13 @@ metadata:
 
 1. [強制] stdin 只接受純 JSON；path 模式只接受由共用 renderer 產生的 canonical 純 JSON 文件。
 2. [強制] validator 每次重新驗證來源 Plan、`hierarchy_selection_sha256`、TASK hierarchy 子集與雙模式可用性、技能選擇與 bundle 漂移、三個 artifact paths、Plan SHA、每 TASK 的單一技能綁定、Work references、DAG、ID、引用、檔案生命週期與 acceptance coverage。
-3. [強制] Python 不執行任意 CMD 或 OP；Task agent 必須在對話展示命令入口、語法、專案現況及驗證分類等唯讀證據。
+3. [強制] Work CLI 不執行任意 CMD 或 OP；Task agent 必須在對話展示命令入口、語法、專案現況及驗證分類等唯讀證據。
 4. [強制] 同一路徑由多個 TASK 處理時必須有明確相依順序；`create`、`modify` 與 `move` 的生命週期必須符合目前專案狀態。
 5. [強制] 任一確定性或就緒檢查未通過時維持對話候選，不得正式化或交給 Execute。
 
 ## 5. 完成與交接
 
 1. [強制] 正式 TASK 核准後才能建立或同步 execution index；Task 不建立 Attempt，也不執行成果。
-2. [強制] Plan 交入需求時使用 `plan_to_task`，Execute 發現正式 TASK 缺漏時使用 `execute_to_task`；兩者都必須是已由 Work Python CLI 驗證、含固定 `WORK-HANDOFF` marker 的純 JSON 交接，Task 不修改既有 Attempt。
-3. [強制] TASK 正式化後使用 `task_to_execute`，同一對話需要同步修改既有 Plan、TASK 與 index 時，回傳父 agent 交由私人 artifact editor 處理；跨對話需要修改 Plan 時使用 `task_to_plan`；交接須由 Work Python CLI render，只存在於對話，且本身不授權修改 Plan、TASK、index 或 Attempt。
+2. [強制] Plan 交入需求時使用 `plan_to_task`，Execute 發現正式 TASK 缺漏時使用 `execute_to_task`；兩者都必須是已由 Work CLI 驗證、含固定 `WORK-HANDOFF` marker 的純 JSON 交接，Task 不修改既有 Attempt。
+3. [強制] TASK 正式化後使用 `task_to_execute`，同一對話需要同步修改既有 Plan、TASK 與 index 時，回傳父 agent 交由私人 artifact editor 處理；跨對話需要修改 Plan 時使用 `task_to_plan`；交接須由 Work CLI render，只存在於對話，且本身不授權修改 Plan、TASK、index 或 Attempt。
 4. [強制] 完成回報列出 TASK spec、每 TASK 的 `skill_id`、變更檔案、Work references、驗證結果及仍需 Execute 處理的事項。

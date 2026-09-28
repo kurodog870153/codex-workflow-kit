@@ -1,0 +1,14 @@
+{
+  "schema": "work-spec-prepare-request/v1",
+  "requirement_id": "example",
+  "reason": "Confirmed collection revision",
+  "edits": [
+    {
+      "target": {
+        "artifact": "plan"
+      },
+      "field": "summary",
+      "after": "Plan summary. revised"
+    }
+  ]
+}

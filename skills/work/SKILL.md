@@ -1,6 +1,6 @@
 ---
 name: work
-description: Route an explicit $work plan, task, or execute invocation through deterministic Python workflow state and necessary-source selection. Use only when the user explicitly invokes $work.
+description: Route an explicit $work plan, task, or execute invocation through deterministic Work CLI state and necessary-source selection. Use only when the user explicitly invokes $work.
 ---
 
 # Work

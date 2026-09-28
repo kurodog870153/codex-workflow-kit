@@ -1,0 +1,141 @@
+{
+  "schema": "work-workflow-state/v1",
+  "requirement_id": "example",
+  "status": "execution_reconciliation_pending",
+  "next_action": "review_reconciliation",
+  "target": "outputs/work/executions/example",
+  "requires_user_confirmation": true,
+  "required_checks": [
+    "task validate",
+    "execute preflight"
+  ],
+  "artifacts": {
+    "plan": "outputs/work/plans/example.json",
+    "task": "outputs/work/tasks/example/index.json",
+    "execution": "outputs/work/executions/example"
+  },
+  "routing_status": "VALID",
+  "router_compatibility_revision": 3,
+  "required_instruction_sources": [
+    "work.instruction-loading",
+    "work.shared.transaction-workspace",
+    "work.shared.artifact-revision",
+    "work.shared.artifact-paths",
+    "work.shared.fingerprints",
+    "work.workflow.specification",
+    "work.workflow.specification.active-task-collection-revision-boundary",
+    "work.workflow.specification.prepare-and-review",
+    "work.workflow.specification.publish-and-recover",
+    "work.workflow.specification.specification-verification"
+  ],
+  "source_order": [
+    "work.instruction-loading",
+    "work.shared.transaction-workspace",
+    "work.shared.artifact-revision",
+    "work.shared.artifact-paths",
+    "work.shared.fingerprints",
+    "work.workflow.specification",
+    "work.workflow.specification.active-task-collection-revision-boundary",
+    "work.workflow.specification.prepare-and-review",
+    "work.workflow.specification.publish-and-recover",
+    "work.workflow.specification.specification-verification"
+  ],
+  "selection_sha256": "9dfd56481222462494d66c0a5f36fe374ddd504e02a4a1b17b8627407b80c213",
+  "routing_reasons": [
+    "operation:review_reconciliation",
+    "workflow_status:execution_reconciliation_pending",
+    "mode:specification"
+  ],
+  "selection_manifest": {
+    "schema": "work-instruction-selection-manifest/v1",
+    "router_compatibility_revision": 3,
+    "routing_input": {
+      "mode": "specification",
+      "status": "execution_reconciliation_pending",
+      "operation": "review_reconciliation",
+      "artifact_lifecycle": "execution_reconciliation_pending",
+      "formal_events": [],
+      "role": "main",
+      "authorization_state": "confirmation_required",
+      "verified_state_sha256": "6311e6e5bd10489838d3205c9d1586427882900ffa1cd74987911ec8c03356b1"
+    },
+    "routing_status": "VALID",
+    "sources": [
+      {
+        "logical_name": "work.instruction-loading",
+        "path": "references/instruction-loading.md",
+        "compatibility_revision": 2,
+        "canonical_sha256": "868209dba7dff984a33932c71906c134c916be0694234b04b0da0f27c9cc99a6"
+      },
+      {
+        "logical_name": "work.shared.transaction-workspace",
+        "path": "references/instruction-loading/transaction-workspace.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "3fb6223c7cbe1f704f0719e7bfdbfd31ac8fb3a06d5b5634acb2e2fe74d0f5b1"
+      },
+      {
+        "logical_name": "work.shared.artifact-revision",
+        "path": "references/instruction-loading/artifact-revision.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "918c8d0b19b92b219c4a1702e34f00da14723896d52cb96d13d75071aebbf41a"
+      },
+      {
+        "logical_name": "work.shared.artifact-paths",
+        "path": "references/instruction-loading/artifact-paths.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "b27d40bd8a066d8a09a78c6714eecc2314a0465fbceaa1cacf87af924d1bae32"
+      },
+      {
+        "logical_name": "work.shared.fingerprints",
+        "path": "references/instruction-loading/fingerprints.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "c30d78edbd16a51802160a2c8612f5476f2b9e93fdaa4630808488eb047623e8"
+      },
+      {
+        "logical_name": "work.workflow.specification",
+        "path": "references/workflows/specification.md",
+        "compatibility_revision": 2,
+        "canonical_sha256": "431089cdaee98d7b74c2297a12285abc03a28cff8441fed8313723ab480faef1"
+      },
+      {
+        "logical_name": "work.workflow.specification.active-task-collection-revision-boundary",
+        "path": "references/workflows/specification/active-task-collection-revision-boundary.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "2824128ddc0b2c42accd0673be7ae7ceea4a84bb50be125067a694ed6caa3c64"
+      },
+      {
+        "logical_name": "work.workflow.specification.prepare-and-review",
+        "path": "references/workflows/specification/prepare-and-review.md",
+        "compatibility_revision": 2,
+        "canonical_sha256": "d4a226eefe4fca5cca97b9241b0895820f9fe091a7f07c554737af201842412f"
+      },
+      {
+        "logical_name": "work.workflow.specification.publish-and-recover",
+        "path": "references/workflows/specification/publish-and-recover.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "473ba345ccfcb752129f6234432e03ace0c670af1028b959b4f8c558d9e04cbf"
+      },
+      {
+        "logical_name": "work.workflow.specification.specification-verification",
+        "path": "references/workflows/specification/specification-verification.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "3e577f689aacc83715c23911795bb31c4e2e7dc632d5ba5b15217bce409994fa"
+      }
+    ],
+    "confirmation_required": true,
+    "selection_sha256": "9dfd56481222462494d66c0a5f36fe374ddd504e02a4a1b17b8627407b80c213"
+  },
+  "details": {
+    "overall_status": "completed",
+    "pending_deviation_ids": [
+      "DEVIATION-001"
+    ]
+  },
+  "request_contract_id": "work-spec-reconciliation-prepare-request/v1",
+  "command": "task reconciliation-prepare",
+  "arguments": {
+    "input_file": "<semantic-input-file>",
+    "user_config_root": "<user-config-root>"
+  },
+  "semantic_input_contract": "work-spec-reconciliation-prepare-request/v1"
+}

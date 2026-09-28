@@ -1,0 +1,17 @@
+[package]
+name = "work-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "work"
+path = "src/main.rs"
+
+[dependencies]
+work-flow = { path = "../work-flow" }
+work-infrastructure = { path = "../work-infrastructure" }
+work-model = { path = "../work-model" }
+serde.workspace = true
+serde_json.workspace = true
+clap.workspace = true

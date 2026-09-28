@@ -1,0 +1,132 @@
+{
+  "schema": "work-workflow-state/v1",
+  "requirement_id": "example",
+  "status": "execution_pending_retry",
+  "next_action": "confirm_retry",
+  "target": "outputs/work/executions/example",
+  "requires_user_confirmation": true,
+  "required_checks": [
+    "task validate",
+    "execute preflight"
+  ],
+  "artifacts": {
+    "plan": "outputs/work/plans/example.json",
+    "task": "outputs/work/tasks/example/index.json",
+    "execution": "outputs/work/executions/example"
+  },
+  "routing_status": "VALID",
+  "router_compatibility_revision": 3,
+  "required_instruction_sources": [
+    "work.instruction-loading",
+    "work.shared.transaction-workspace",
+    "work.shared.formal-task-validation",
+    "work.shared.runtime",
+    "work.shared.artifact-paths",
+    "work.shared.fingerprints",
+    "work.workflow.execute",
+    "work.workflow.execute.apply-one-attempt-authorization-boundary",
+    "work.workflow.execute.start-an-attempt-transaction"
+  ],
+  "source_order": [
+    "work.instruction-loading",
+    "work.shared.transaction-workspace",
+    "work.shared.formal-task-validation",
+    "work.shared.runtime",
+    "work.shared.artifact-paths",
+    "work.shared.fingerprints",
+    "work.workflow.execute",
+    "work.workflow.execute.apply-one-attempt-authorization-boundary",
+    "work.workflow.execute.start-an-attempt-transaction"
+  ],
+  "selection_sha256": "1d5546c5476fe0b4f13aad451634882823de295955f0982731452c75df60ca8c",
+  "routing_reasons": [
+    "operation:confirm_retry",
+    "workflow_status:execution_pending_retry",
+    "mode:execute"
+  ],
+  "selection_manifest": {
+    "schema": "work-instruction-selection-manifest/v1",
+    "router_compatibility_revision": 3,
+    "routing_input": {
+      "mode": "execute",
+      "status": "execution_pending_retry",
+      "operation": "confirm_retry",
+      "artifact_lifecycle": "execution_pending_retry",
+      "formal_events": [],
+      "role": "main",
+      "authorization_state": "confirmation_required",
+      "verified_state_sha256": "93a7a354a01cbbd40df2ba567e5fb1cde0d0c19d7e131923378012b47af92446"
+    },
+    "routing_status": "VALID",
+    "sources": [
+      {
+        "logical_name": "work.instruction-loading",
+        "path": "references/instruction-loading.md",
+        "compatibility_revision": 2,
+        "canonical_sha256": "868209dba7dff984a33932c71906c134c916be0694234b04b0da0f27c9cc99a6"
+      },
+      {
+        "logical_name": "work.shared.transaction-workspace",
+        "path": "references/instruction-loading/transaction-workspace.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "3fb6223c7cbe1f704f0719e7bfdbfd31ac8fb3a06d5b5634acb2e2fe74d0f5b1"
+      },
+      {
+        "logical_name": "work.shared.formal-task-validation",
+        "path": "references/instruction-loading/formal-task-validation.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "266f8aeca6f9c5091c2066e290b4c134707d7ba3aa0f39903a92b592dd7971af"
+      },
+      {
+        "logical_name": "work.shared.runtime",
+        "path": "references/instruction-loading/runtime.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "3f1635a9110ca1054f2fc29659f545edc57604d95a4e193363e2925bff52ff4a"
+      },
+      {
+        "logical_name": "work.shared.artifact-paths",
+        "path": "references/instruction-loading/artifact-paths.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "b27d40bd8a066d8a09a78c6714eecc2314a0465fbceaa1cacf87af924d1bae32"
+      },
+      {
+        "logical_name": "work.shared.fingerprints",
+        "path": "references/instruction-loading/fingerprints.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "c30d78edbd16a51802160a2c8612f5476f2b9e93fdaa4630808488eb047623e8"
+      },
+      {
+        "logical_name": "work.workflow.execute",
+        "path": "references/workflows/execute.md",
+        "compatibility_revision": 2,
+        "canonical_sha256": "aae8f690856b61e54d84ab70908f3f3bc3462258807fa145b08ae742c00dc49d"
+      },
+      {
+        "logical_name": "work.workflow.execute.apply-one-attempt-authorization-boundary",
+        "path": "references/workflows/execute/apply-one-attempt-authorization-boundary.md",
+        "compatibility_revision": 2,
+        "canonical_sha256": "81ec6b0ffc96445de143543b824dda36e78a26a06b193e1b1abd2df00b998f0e"
+      },
+      {
+        "logical_name": "work.workflow.execute.start-an-attempt-transaction",
+        "path": "references/workflows/execute/start-an-attempt-transaction.md",
+        "compatibility_revision": 1,
+        "canonical_sha256": "0a264b55dbafa5c21d4bf0d32c95cc46c056b7fb7aaabd3ecc29f686b55bcc9e"
+      }
+    ],
+    "confirmation_required": true,
+    "selection_sha256": "1d5546c5476fe0b4f13aad451634882823de295955f0982731452c75df60ca8c"
+  },
+  "details": {
+    "overall_status": "pending_retry"
+  },
+  "request_contract_id": null,
+  "command": "execute preflight",
+  "arguments": {
+    "task_path": "outputs/work/tasks/example/index.json",
+    "execution_dir": "outputs/work/executions/example",
+    "task_id": "<confirmed-task-id>",
+    "user_config_root": "<user-config-root>"
+  },
+  "semantic_input_contract": null
+}

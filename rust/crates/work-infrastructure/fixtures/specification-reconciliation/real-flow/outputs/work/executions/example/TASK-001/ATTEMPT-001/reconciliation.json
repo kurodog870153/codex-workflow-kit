@@ -1,0 +1,13 @@
+{
+  "schema": "work-spec-reconciliation-ledger/v1",
+  "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
+  "entries": [
+    {
+      "deviation_id": "DEVIATION-001",
+      "outcome": "retained",
+      "target": "retain_only",
+      "attempt_sha256": "76bba8b989624b1422c881f7db8b82759d301a408217ca285d0512c4003da150",
+      "reconciliation_fingerprint": "718c53d93f15ecdd4b3b3f807d86e0316f3ea78bebb81c8dc4d88cc570efe0d1"
+    }
+  ]
+}

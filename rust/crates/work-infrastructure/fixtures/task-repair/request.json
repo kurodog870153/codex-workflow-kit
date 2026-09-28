@@ -1,0 +1,189 @@
+{
+  "schema": "work-task-repair-request/v1",
+  "stage": "complete",
+  "requirement_id": "example",
+  "artifacts": {
+    "plan": "outputs/work/plans/example.json",
+    "task": "outputs/work/tasks/example/index.json",
+    "execution": "outputs/work/executions/example"
+  },
+  "expected": {
+    "outputs/work/executions/example/index.json": "f1725842c255315f637ebd70247b9c29e3cb81ae65eb20fb57013fdcd322133a",
+    "outputs/work/tasks/example/index.json": "e4c9c1a311cb8db614c3303307e698024a06ddd7a14e31c3d5b2c84575658a82",
+    "outputs/work/tasks/example/tasks/TASK-001.json": "2ff6f684cdfd2d418d0573449a267434be7a5f1dc83691ae6f11fa00508f60e1"
+  },
+  "decisions": [
+    {
+      "location": "/",
+      "decision": "Use the reviewed candidate."
+    }
+  ],
+  "task_index": {
+    "schema": "work-task-index/v1",
+    "requirement_id": "example",
+    "spec_id": "TASK-SPEC-001",
+    "status": "confirmed",
+    "title": "Example TASK",
+    "summary": "Task summary.",
+    "artifacts": {
+      "plan": "outputs/work/plans/example.json",
+      "task": "outputs/work/tasks/example/index.json",
+      "execution": "outputs/work/executions/example"
+    },
+    "source_plan": {
+      "canonical_sha256": "4655dcf7fb19701538f21dced75e0512e5f03c1a3e445f842b61c21ae83ff2e3",
+      "hierarchy_selection_sha256": "973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e"
+    },
+    "instruction_selection": {
+      "sources": [
+        {
+          "kind": "workflow",
+          "logical_name": "work.instruction-loading",
+          "canonical_sha256": "868209dba7dff984a33932c71906c134c916be0694234b04b0da0f27c9cc99a6",
+          "compatibility_revision": 2
+        },
+        {
+          "kind": "workflow",
+          "logical_name": "work.workflow.task",
+          "canonical_sha256": "e2bc9383d3eac24fcfb7a8972343850c22bc141aac73c0568d69e08216f68bda",
+          "compatibility_revision": 2
+        },
+        {
+          "kind": "instruction",
+          "logical_name": "task.general",
+          "canonical_sha256": "2b3eea1d9b82b1a14bcce44c9e30957873e5522a18e6eda8f232f394e66eaf00",
+          "compatibility_revision": 1
+        },
+        {
+          "kind": "reference",
+          "logical_name": "task.general.task-records",
+          "canonical_sha256": "195af88fa0ee0b1eaf88560bb0ff5c349b14c2b8a814d6cbc511c3d2b899f509",
+          "compatibility_revision": 1
+        }
+      ],
+      "references": [
+        "task.general.task-records"
+      ],
+      "instructions_sha256": "d96cb66bc96c394655df49bb557f0850344be70763b99e96bad7c70732ea372d"
+    },
+    "execution_defaults": {
+      "working_directory": ".",
+      "os": "windows",
+      "shell": "powershell"
+    },
+    "tasks": [
+      {
+        "id": "TASK-001",
+        "path": "tasks/TASK-001.json",
+        "canonical_sha256": "2ff6f684cdfd2d418d0573449a267434be7a5f1dc83691ae6f11fa00508f60e1"
+      }
+    ],
+    "readiness": {
+      "status": "passed",
+      "spec_id": "TASK-SPEC-001"
+    }
+  },
+  "task_items": {
+    "TASK-001": {
+      "schema": "work-task-item/v1",
+      "id": "TASK-001",
+      "title": "Modify source",
+      "skill_id": null,
+      "instruction_selection": {
+        "selected_paths": [],
+        "resolved_paths": [
+          "general"
+        ],
+        "sources": [
+          {
+            "kind": "workflow",
+            "logical_name": "work.instruction-loading",
+            "canonical_sha256": "868209dba7dff984a33932c71906c134c916be0694234b04b0da0f27c9cc99a6",
+            "compatibility_revision": 2
+          },
+          {
+            "kind": "workflow",
+            "logical_name": "work.workflow.task",
+            "canonical_sha256": "e2bc9383d3eac24fcfb7a8972343850c22bc141aac73c0568d69e08216f68bda",
+            "compatibility_revision": 2
+          },
+          {
+            "kind": "instruction",
+            "logical_name": "task.general",
+            "canonical_sha256": "2b3eea1d9b82b1a14bcce44c9e30957873e5522a18e6eda8f232f394e66eaf00",
+            "compatibility_revision": 1
+          },
+          {
+            "kind": "reference",
+            "logical_name": "task.general.task-records",
+            "canonical_sha256": "195af88fa0ee0b1eaf88560bb0ff5c349b14c2b8a814d6cbc511c3d2b899f509",
+            "compatibility_revision": 1
+          }
+        ],
+        "references": [
+          "task.general.task-records"
+        ],
+        "instructions_sha256": "d96cb66bc96c394655df49bb557f0850344be70763b99e96bad7c70732ea372d"
+      },
+      "traceability": {
+        "goal_ids": [
+          "GOAL-001"
+        ],
+        "deliverable_ids": [
+          "DELIVERABLE-001"
+        ],
+        "acceptance_ids": [
+          "ACCEPTANCE-001"
+        ]
+      },
+      "goal": "Modify the source and validate it.",
+      "files": [
+        {
+          "id": "FILE-001",
+          "action": "modify",
+          "path": "src.txt"
+        }
+      ],
+      "steps": [
+        {
+          "id": "STEP-001",
+          "action": "Modify the source.",
+          "references": [
+            "FILE-001"
+          ]
+        },
+        {
+          "id": "STEP-002",
+          "action": "Run validation.",
+          "references": [
+            "CMD-001",
+            "VAL-001"
+          ]
+        }
+      ],
+      "commands": [
+        {
+          "id": "CMD-001",
+          "mode": "argv",
+          "argv": [
+            "python",
+            "--version"
+          ]
+        }
+      ],
+      "validations": [
+        {
+          "id": "VAL-001",
+          "kind": "automated",
+          "command_ids": [
+            "CMD-001"
+          ],
+          "pass_condition": "Exit code is zero.",
+          "acceptance_ids": [
+            "ACCEPTANCE-001"
+          ]
+        }
+      ]
+    }
+  }
+}

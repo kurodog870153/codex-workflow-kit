@@ -1,0 +1,36 @@
+{
+  "affected": {
+    "execution_indexes": 1,
+    "plans": 1,
+    "task_indexes": 1,
+    "task_items": 1
+  },
+  "approved_sha256": "bbc3bf74ce8e780a03a364ba6aac709dd7e7a9f94ce45a243d1690bc98ecaaeb",
+  "excluded": [],
+  "files": [
+    {
+      "after_sha256": "0783a38cda67dace4e8495e46417bd8541ccf81ec2c96b16463ae6f227f4f6df",
+      "before_sha256": "0d6c25f875a65111c7f694f5cee68aadc4a3c7adc864e64670b7f74e093cce83",
+      "path": "outputs/work/executions/example/index.json"
+    },
+    {
+      "after_sha256": "56128f60fcba48288206154f2ab40670efa2aa2e07d91bdb3f5289635d094aff",
+      "before_sha256": "4655dcf7fb19701538f21dced75e0512e5f03c1a3e445f842b61c21ae83ff2e3",
+      "path": "outputs/work/plans/example.json"
+    },
+    {
+      "after_sha256": "475eed818f368a8bb12e0bfb02aa3009131654ac56ccf606bcc0362689762124",
+      "before_sha256": "e4c9c1a311cb8db614c3303307e698024a06ddd7a14e31c3d5b2c84575658a82",
+      "path": "outputs/work/tasks/example/index.json"
+    },
+    {
+      "after_sha256": "218155007e5da790afb1e2d2be99c270dc38c1ff9a4ed78cd46a5321eac488bd",
+      "before_sha256": "2ff6f684cdfd2d418d0573449a267434be7a5f1dc83691ae6f11fa00508f60e1",
+      "path": "outputs/work/tasks/example/tasks/TASK-001.json"
+    }
+  ],
+  "requirement_id": "example",
+  "router_compatibility_revision": 3,
+  "schema": "work-instruction-migration-preview/v1",
+  "status": "migration_required"
+}

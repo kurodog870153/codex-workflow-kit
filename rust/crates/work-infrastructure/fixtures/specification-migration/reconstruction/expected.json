@@ -1,0 +1,63 @@
+{
+  "schema": "work-spec-migration-preview/v1",
+  "status": "ready",
+  "documents": [
+    "outputs/work/executions/example/index.json",
+    "outputs/work/plans/example.json",
+    "outputs/work/tasks/example/index.json",
+    "outputs/work/tasks/example/tasks/TASK-001.json"
+  ],
+  "diffs": [
+    {
+      "path": "outputs/work/executions/example/index.json",
+      "operation": "add",
+      "unified_diff": "--- outputs/work/executions/example/index.json:source\n+++ outputs/work/executions/example/index.json:candidate\n@@ -0,0 +1,21 @@\n+{\n+  \"schema\": \"work-execution-index/v1\",\n+  \"requirement_id\": \"example\",\n+  \"title\": \"Execution\",\n+  \"task_spec_id\": \"TASK-SPEC-001\",\n+  \"task_collection_sha256\": \"fb5854024d838a5abfcbe9a3fd040acf26b92abd75cb5fe5697723952c53aa12\",\n+  \"task_index_sha256\": \"e4c9c1a311cb8db614c3303307e698024a06ddd7a14e31c3d5b2c84575658a82\",\n+  \"task_instructions_sha256\": \"d96cb66bc96c394655df49bb557f0850344be70763b99e96bad7c70732ea372d\",\n+  \"hierarchy_selection_sha256\": \"973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e\",\n+  \"skill_selection_sha256\": \"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959\",\n+  \"overall_status\": \"pending\",\n+  \"tasks\": [\n+    {\n+      \"id\": \"TASK-001\",\n+      \"status\": \"pending\",\n+      \"skill_id\": null,\n+      \"task_item_sha256\": \"2ff6f684cdfd2d418d0573449a267434be7a5f1dc83691ae6f11fa00508f60e1\",\n+      \"instructions_sha256\": \"d96cb66bc96c394655df49bb557f0850344be70763b99e96bad7c70732ea372d\"\n+    }\n+  ]\n+}\n"
+    },
+    {
+      "path": "outputs/work/plans/example.json",
+      "operation": "replace",
+      "unified_diff": "--- outputs/work/plans/example.json:source\n+++ outputs/work/plans/example.json:candidate\n@@ -1 +1,91 @@\n-{\"schema\":\"incompatible\"}\n+{\n+  \"schema\": \"work-plan/v1\",\n+  \"requirement_id\": \"example\",\n+  \"status\": \"confirmed\",\n+  \"title\": \"Example Plan\",\n+  \"summary\": \"Plan summary.\",\n+  \"artifacts\": {\n+    \"plan\": \"outputs/work/plans/example.json\",\n+    \"task\": \"outputs/work/tasks/example/index.json\",\n+    \"execution\": \"outputs/work/executions/example\"\n+  },\n+  \"hierarchy_selection\": {\n+    \"schema\": \"work-hierarchy-selection/v1\",\n+    \"decision\": \"general_only\",\n+    \"selected_paths\": [],\n+    \"entries\": [],\n+    \"catalog_sha256\": \"21bcff3a175d3081a458e9c2e81990c1294ed50fc3217f88be67aa3bef1eeabb\",\n+    \"selection_sha256\": \"973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e\"\n+  },\n+  \"work_instruction_selection\": {\n+    \"selected_paths\": [],\n+    \"resolved_paths\": [\n+      \"general\"\n+    ],\n+    \"sources\": [\n+      {\n+        \"kind\": \"workflow\",\n+        \"logical_name\": \"work.instruction-loading\",\n+        \"canonical_sha256\": \"868209dba7dff984a33932c71906c134c916be0694234b04b0da0f27c9cc99a6\",\n+        \"compatibility_revision\": 2\n+      },\n+      {\n+        \"kind\": \"workflow\",\n+        \"logical_name\": \"work.workflow.plan\",\n+        \"canonical_sha256\": \"0810a39c71c6bd011f97e02baf60f29091c278210bbe085688fa4e84a102bfe9\",\n+        \"compatibility_revision\": 2\n+      },\n+      {\n+        \"kind\": \"instruction\",\n+        \"logical_name\": \"plan.general\",\n+        \"canonical_sha256\": \"08e63078de9f3a3545de9a4ec8d8e6cfba74b26623ccb93d7e3c046c324cfc80\",\n+        \"compatibility_revision\": 1\n+      }\n+    ],\n+    \"references\": [],\n+    \"instructions_sha256\": \"a33405cd5b536fd17b970a1bab1ffbdd6b508ae019573870984a7fe71d66ba0a\"\n+  },\n+  \"skill_selection\": {\n+    \"schema\": \"work-skill-selection/v1\",\n+    \"decision\": \"base_only\",\n+    \"skills\": [],\n+    \"selection_sha256\": \"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959\"\n+  },\n+  \"goals\": [\n+    {\n+      \"id\": \"GOAL-001\",\n+      \"statement\": \"Complete the goal.\"\n+    }\n+  ],\n+  \"scope\": [\n+    {\n+      \"id\": \"SCOPE-001\",\n+      \"kind\": \"in_scope\",\n+      \"statement\": \"Handle the scope.\",\n+      \"goal_ids\": [\n+        \"GOAL-001\"\n+      ]\n+    }\n+  ],\n+  \"deliverables\": [\n+    {\n+      \"id\": \"DELIVERABLE-001\",\n+      \"statement\": \"Produce the result.\",\n+      \"goal_ids\": [\n+        \"GOAL-001\"\n+      ],\n+      \"acceptance_ids\": [\n+        \"ACCEPTANCE-001\"\n+      ]\n+    }\n+  ],\n+  \"acceptance_criteria\": [\n+    {\n+      \"id\": \"ACCEPTANCE-001\",\n+      \"statement\": \"The result is observable.\",\n+      \"deliverable_ids\": [\n+        \"DELIVERABLE-001\"\n+      ]\n+    }\n+  ]\n+}\n"
+    },
+    {
+      "path": "outputs/work/tasks/example/index.json",
+      "operation": "replace",
+      "unified_diff": "--- outputs/work/tasks/example/index.json:source\n+++ outputs/work/tasks/example/index.json:candidate\n@@ -1 +1,65 @@\n-{\"schema\":\"incompatible\"}\n+{\n+  \"schema\": \"work-task-index/v1\",\n+  \"requirement_id\": \"example\",\n+  \"spec_id\": \"TASK-SPEC-001\",\n+  \"status\": \"confirmed\",\n+  \"title\": \"Example TASK\",\n+  \"summary\": \"Task summary.\",\n+  \"artifacts\": {\n+    \"plan\": \"outputs/work/plans/example.json\",\n+    \"task\": \"outputs/work/tasks/example/index.json\",\n+    \"execution\": \"outputs/work/executions/example\"\n+  },\n+  \"source_plan\": {\n+    \"canonical_sha256\": \"4655dcf7fb19701538f21dced75e0512e5f03c1a3e445f842b61c21ae83ff2e3\",\n+    \"hierarchy_selection_sha256\": \"973f1e1fba10d2e49181e6f55849e8465a20dba6b4ed323547dab13b66d4bf6e\"\n+  },\n+  \"instruction_selection\": {\n+    \"sources\": [\n+      {\n+        \"kind\": \"workflow\",\n+        \"logical_name\": \"work.instruction-loading\",\n+        \"canonical_sha256\": \"868209dba7dff984a33932c71906c134c916be0694234b04b0da0f27c9cc99a6\",\n+        \"compatibility_revision\": 2\n+      },\n+      {\n+        \"kind\": \"workflow\",\n+        \"logical_name\": \"work.workflow.task\",\n+        \"canonical_sha256\": \"e2bc9383d3eac24fcfb7a8972343850c22bc141aac73c0568d69e08216f68bda\",\n+        \"compatibility_revision\": 2\n+      },\n+      {\n+        \"kind\": \"instruction\",\n+        \"logical_name\": \"task.general\",\n+        \"canonical_sha256\": \"2b3eea1d9b82b1a14bcce44c9e30957873e5522a18e6eda8f232f394e66eaf00\",\n+        \"compatibility_revision\": 1\n+      },\n+      {\n+        \"kind\": \"reference\",\n+        \"logical_name\": \"task.general.task-records\",\n+        \"canonical_sha256\": \"195af88fa0ee0b1eaf88560bb0ff5c349b14c2b8a814d6cbc511c3d2b899f509\",\n+        \"compatibility_revision\": 1\n+      }\n+    ],\n+    \"references\": [\n+      \"task.general.task-records\"\n+    ],\n+    \"instructions_sha256\": \"d96cb66bc96c394655df49bb557f0850344be70763b99e96bad7c70732ea372d\"\n+  },\n+  \"execution_defaults\": {\n+    \"working_directory\": \".\",\n+    \"os\": \"windows\",\n+    \"shell\": \"powershell\"\n+  },\n+  \"tasks\": [\n+    {\n+      \"id\": \"TASK-001\",\n+      \"path\": \"tasks/TASK-001.json\",\n+      \"canonical_sha256\": \"2ff6f684cdfd2d418d0573449a267434be7a5f1dc83691ae6f11fa00508f60e1\"\n+    }\n+  ],\n+  \"readiness\": {\n+    \"status\": \"passed\",\n+    \"spec_id\": \"TASK-SPEC-001\"\n+  }\n+}\n"
+    },
+    {
+      "path": "outputs/work/tasks/example/tasks/TASK-001.json",
+      "operation": "replace",
+      "unified_diff": "--- outputs/work/tasks/example/tasks/TASK-001.json:source\n+++ outputs/work/tasks/example/tasks/TASK-001.json:candidate\n@@ -1 +1,101 @@\n-{\"schema\":\"incompatible\"}\n+{\n+  \"schema\": \"work-task-item/v1\",\n+  \"id\": \"TASK-001\",\n+  \"title\": \"Modify source\",\n+  \"skill_id\": null,\n+  \"instruction_selection\": {\n+    \"selected_paths\": [],\n+    \"resolved_paths\": [\n+      \"general\"\n+    ],\n+    \"sources\": [\n+      {\n+        \"kind\": \"workflow\",\n+        \"logical_name\": \"work.instruction-loading\",\n+        \"canonical_sha256\": \"868209dba7dff984a33932c71906c134c916be0694234b04b0da0f27c9cc99a6\",\n+        \"compatibility_revision\": 2\n+      },\n+      {\n+        \"kind\": \"workflow\",\n+        \"logical_name\": \"work.workflow.task\",\n+        \"canonical_sha256\": \"e2bc9383d3eac24fcfb7a8972343850c22bc141aac73c0568d69e08216f68bda\",\n+        \"compatibility_revision\": 2\n+      },\n+      {\n+        \"kind\": \"instruction\",\n+        \"logical_name\": \"task.general\",\n+        \"canonical_sha256\": \"2b3eea1d9b82b1a14bcce44c9e30957873e5522a18e6eda8f232f394e66eaf00\",\n+        \"compatibility_revision\": 1\n+      },\n+      {\n+        \"kind\": \"reference\",\n+        \"logical_name\": \"task.general.task-records\",\n+        \"canonical_sha256\": \"195af88fa0ee0b1eaf88560bb0ff5c349b14c2b8a814d6cbc511c3d2b899f509\",\n+        \"compatibility_revision\": 1\n+      }\n+    ],\n+    \"references\": [\n+      \"task.general.task-records\"\n+    ],\n+    \"instructions_sha256\": \"d96cb66bc96c394655df49bb557f0850344be70763b99e96bad7c70732ea372d\"\n+  },\n+  \"traceability\": {\n+    \"goal_ids\": [\n+      \"GOAL-001\"\n+    ],\n+    \"deliverable_ids\": [\n+      \"DELIVERABLE-001\"\n+    ],\n+    \"acceptance_ids\": [\n+      \"ACCEPTANCE-001\"\n+    ]\n+  },\n+  \"goal\": \"Modify the source and validate it.\",\n+  \"files\": [\n+    {\n+      \"id\": \"FILE-001\",\n+      \"action\": \"modify\",\n+      \"path\": \"src.txt\"\n+    }\n+  ],\n+  \"steps\": [\n+    {\n+      \"id\": \"STEP-001\",\n+      \"action\": \"Modify the source.\",\n+      \"references\": [\n+        \"FILE-001\"\n+      ]\n+    },\n+    {\n+      \"id\": \"STEP-002\",\n+      \"action\": \"Run validation.\",\n+      \"references\": [\n+        \"CMD-001\",\n+        \"VAL-001\"\n+      ]\n+    }\n+  ],\n+  \"commands\": [\n+    {\n+      \"id\": \"CMD-001\",\n+      \"mode\": \"argv\",\n+      \"argv\": [\n+        \"python\",\n+        \"--version\"\n+      ]\n+    }\n+  ],\n+  \"validations\": [\n+    {\n+      \"id\": \"VAL-001\",\n+      \"kind\": \"automated\",\n+      \"command_ids\": [\n+        \"CMD-001\"\n+      ],\n+      \"pass_condition\": \"Exit code is zero.\",\n+      \"acceptance_ids\": [\n+        \"ACCEPTANCE-001\"\n+      ]\n+    }\n+  ]\n+}\n"
+    }
+  ],
+  "validator_results": [
+    {
+      "name": "plan",
+      "status": "passed"
+    },
+    {
+      "name": "task_collection",
+      "status": "passed"
+    },
+    {
+      "name": "execution_index",
+      "status": "passed"
+    }
+  ],
+  "relationship_results": [
+    {
+      "name": "candidate_set",
+      "status": "passed"
+    },
+    {
+      "name": "artifact_paths",
+      "status": "passed"
+    },
+    {
+      "name": "execution_binding",
+      "status": "passed"
+    }
+  ],
+  "unresolved_items": [],
+  "fingerprint": "ac47531413bfed3621be0a3b76fc6dfbcddc1db9d98db2b321eb8bb287ded285",
+  "writable_ready": true
+}

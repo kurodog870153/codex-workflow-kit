@@ -1,0 +1,30 @@
+{
+  "schema": "work-spec-reconciliation-publication/v1",
+  "status": "updated",
+  "reconciliation_fingerprint": "718c53d93f15ecdd4b3b3f807d86e0316f3ea78bebb81c8dc4d88cc570efe0d1",
+  "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
+  "attempt_sha256": "76bba8b989624b1422c881f7db8b82759d301a408217ca285d0512c4003da150",
+  "selected_deviation_ids": [],
+  "retained_deviation_ids": [
+    "DEVIATION-001"
+  ],
+  "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
+  "ledger_sha256": "953b57182144651c00273c12714918144c1555cb9a5b18ac9ed81702c15e8723",
+  "publication": {
+    "schema": "work-spec-migration-publication/v1",
+    "status": "updated",
+    "fingerprint": "718c53d93f15ecdd4b3b3f807d86e0316f3ea78bebb81c8dc4d88cc570efe0d1",
+    "transaction_approval_sha256": "01bee6e32a3396f23911eb94fcd09a4da43038010b87ded73c2996ff3fe260db",
+    "journal": "outputs/work/executions/example/.work-spec-migration-718C53D93F15.json",
+    "completion_marker": "outputs/work/executions/example/.work-spec-migration-718C53D93F15.json.done",
+    "documents": [
+      "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json"
+    ],
+    "publication_status": "published",
+    "validator_results": [],
+    "relationship_results": []
+  },
+  "deviation_classifications": {
+    "DEVIATION-001": "retain_only"
+  }
+}
