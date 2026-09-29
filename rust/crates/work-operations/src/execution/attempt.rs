@@ -203,7 +203,7 @@ pub(crate) fn timestamp(value: &Value, location: &str) -> Result<i64, ExecutionI
     let shape = bytes.len() == 22
         && [4, 7, 10, 13, 16, 19]
             .iter()
-            .zip([b'-', b'-', b'T', b':', b'+', b':'])
+            .zip(*b"--T:+:")
             .all(|(position, expected)| {
                 bytes[*position] == expected || *position == 16 && bytes[*position] == b'-'
             })

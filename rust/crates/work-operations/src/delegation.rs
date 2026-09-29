@@ -207,22 +207,37 @@ pub fn render_envelope(value: &Value) -> Result<Vec<u8>, DelegationIssue> {
 mod tests {
     use super::*;
 
+    fn absolute_roots() -> (&'static str, &'static str) {
+        if cfg!(windows) {
+            ("C:/project", "C:/work")
+        } else {
+            ("/project", "/work")
+        }
+    }
+
     #[test]
     fn role_sender_mode_and_resume_boundaries() {
+        let (project_root, skill_root) = absolute_roots();
         let context = json!({"saved_progress":{"revision":1}});
         let envelope = build_envelope(
             "progress-saver",
             "plan",
             "Continue",
-            "/project",
-            "/work",
+            project_root,
+            skill_root,
             &context,
         )
         .unwrap();
         assert!(
-            validate_envelope(&envelope, "progress-saver", "parent", "/project", "/work")
-                .unwrap()
-                .3
+            validate_envelope(
+                &envelope,
+                "progress-saver",
+                "parent",
+                project_root,
+                skill_root
+            )
+            .unwrap()
+            .3
         );
         assert_eq!(
             validation_result("progress-saver", "plan", true)["scope"],
@@ -233,8 +248,8 @@ mod tests {
                 &envelope,
                 "progress-saver",
                 "task-coordinator",
-                "/project",
-                "/work"
+                project_root,
+                skill_root
             )
             .unwrap_err()
             .reason_code,
@@ -245,8 +260,8 @@ mod tests {
                 "task-skill",
                 "plan",
                 "Review",
-                "/project",
-                "/work",
+                project_root,
+                skill_root,
                 &context
             )
             .is_err()
@@ -259,7 +274,7 @@ mod tests {
                 "progress-saver",
                 "parent",
                 "relative/project",
-                "/work"
+                skill_root
             )
             .unwrap_err()
             .reason_code,
@@ -269,17 +284,18 @@ mod tests {
 
     #[test]
     fn python_envelope_literal_errors_precede_receiver_mismatch() {
+        let (project_root, skill_root) = absolute_roots();
         let envelope = build_envelope(
             "plan",
             "plan",
             "Confirmed role request",
-            "/project",
-            "/work",
+            project_root,
+            skill_root,
             &json!({"hierarchy_selection":{}}),
         )
         .unwrap();
         let (request, mode, context, resume) =
-            validate_envelope(&envelope, "plan", "parent", "/project", "/work").unwrap();
+            validate_envelope(&envelope, "plan", "parent", project_root, skill_root).unwrap();
         assert_eq!(request, "Confirmed role request");
         assert_eq!(mode, "plan");
         assert_eq!(context, envelope["context"]);
@@ -292,7 +308,7 @@ mod tests {
             let mut invalid = envelope.clone();
             invalid[field] = changed;
             assert_eq!(
-                validate_envelope(&invalid, "plan", "parent", "/project", "/work")
+                validate_envelope(&invalid, "plan", "parent", project_root, skill_root)
                     .unwrap_err()
                     .message,
                 "The delegation envelope structure is invalid.",
@@ -309,15 +325,17 @@ mod tests {
             let mut invalid = envelope.clone();
             invalid[field] = changed;
             assert!(
-                validate_envelope(&invalid, "plan", "parent", "/project", "/work").is_err(),
+                validate_envelope(&invalid, "plan", "parent", project_root, skill_root).is_err(),
                 "{field}"
             );
         }
-        assert!(validate_envelope(&envelope, "execute", "parent", "/project", "/work").is_err());
+        assert!(
+            validate_envelope(&envelope, "execute", "parent", project_root, skill_root).is_err()
+        );
         let mut wrong_marker = envelope;
         wrong_marker["marker"] = json!("WORK_PROGRESS_SAVE_V1");
         assert_eq!(
-            validate_envelope(&wrong_marker, "plan", "parent", "/project", "/work")
+            validate_envelope(&wrong_marker, "plan", "parent", project_root, skill_root)
                 .unwrap_err()
                 .message,
             "Envelope marker, skill, role or sender differs from the receiving context."

@@ -1,4 +1,4 @@
-//! Installer contracts, including macOS execution and Windows source checks.
+//! Installer contracts, including macOS and Windows execution.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -655,5 +655,167 @@ mod macos {
             b"previous instructions"
         );
         assert_eq!(fs::read_dir(&scripts).unwrap().count(), 1);
+    }
+}
+
+#[cfg(windows)]
+mod windows {
+    use super::*;
+    use std::io::{Read, Write};
+    use std::process::{Command, Output, Stdio};
+    use std::thread;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn workspace(label: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "work-installer-windows-{label}-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&path).unwrap();
+        path
+    }
+
+    fn run(home: &Path, rustflags: Option<&str>, default_home: bool) -> Output {
+        let cargo_home = std::env::var_os("CARGO_HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| {
+                PathBuf::from(std::env::var_os("USERPROFILE").unwrap()).join(".cargo")
+            });
+        let mut command = Command::new("cmd.exe");
+        command
+            .arg("/C")
+            .arg(
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../../os-scripts/windows/install-work.bat"),
+            )
+            .current_dir(home)
+            .env("USERPROFILE", home)
+            .env("CARGO_HOME", cargo_home)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        if let Some(flags) = rustflags {
+            command.env("RUSTFLAGS", flags);
+        }
+        let mut child = command.spawn().unwrap();
+        let mut stdin = child.stdin.take();
+        let mut stdout = child.stdout.take().unwrap();
+        let mut stderr = child.stderr.take().unwrap();
+        let stderr_reader = thread::spawn(move || {
+            let mut bytes = Vec::new();
+            stderr.read_to_end(&mut bytes).unwrap();
+            bytes
+        });
+        let mut prompts = vec![(
+            "Select an installation location [1]: ",
+            if default_home { "1\r\n" } else { "2\r\n" }.to_owned(),
+        )];
+        if !default_home {
+            prompts.push((
+                "Enter the installation directory: ",
+                format!("{}\r\n", home.display()),
+            ));
+        }
+        prompts.push((
+            "Select hierarchy numbers, enter \"all\", or press Enter for general only: ",
+            "1\r\n".to_owned(),
+        ));
+        let mut next = 0;
+        let mut output = Vec::new();
+        let mut byte = [0];
+        while stdout.read(&mut byte).unwrap() != 0 {
+            output.push(byte[0]);
+            if let Some((prompt, reply)) = prompts.get(next) {
+                if output.ends_with(prompt.as_bytes()) {
+                    stdin.as_mut().unwrap().write_all(reply.as_bytes()).unwrap();
+                    next += 1;
+                    if next == prompts.len() {
+                        stdin.take();
+                    }
+                }
+            }
+        }
+        Output {
+            status: child.wait().unwrap(),
+            stdout: output,
+            stderr: stderr_reader.join().unwrap(),
+        }
+    }
+
+    #[test]
+    fn custom_home_installs_native_work_outside_repository() {
+        let home = workspace("custom-home");
+        let output = run(&home, None, false);
+        assert!(
+            output.status.success(),
+            "stdout: {}\nstderr: {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let installed = home.join("skills/work");
+        let binary = installed.join("scripts/work.exe");
+        assert!(
+            binary.is_file(),
+            "stdout: {}\nstderr: {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            fs::read(installed.join("SKILL.md")).unwrap(),
+            fs::read(repository().join("skills/work/SKILL.md")).unwrap()
+        );
+        assert!(!installed.join("scripts/work.py").exists());
+        let help = Command::new(binary)
+            .arg("--help")
+            .current_dir(repository())
+            .output()
+            .unwrap();
+        assert!(help.status.success());
+        assert!(String::from_utf8_lossy(&help.stdout).contains("usage: work"));
+    }
+
+    #[test]
+    fn default_home_installs_native_work() {
+        let home = workspace("default-home");
+        let output = run(&home, None, true);
+        assert!(
+            output.status.success(),
+            "stdout: {}\nstderr: {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let binary = home.join(".agents/skills/work/scripts/work.exe");
+        assert!(binary.is_file());
+        let help = Command::new(binary)
+            .arg("--help")
+            .current_dir(&home)
+            .output()
+            .unwrap();
+        assert!(help.status.success());
+        assert!(String::from_utf8_lossy(&help.stdout).contains("usage: work"));
+    }
+
+    #[test]
+    fn failed_build_preserves_existing_binary_and_instructions() {
+        let home = workspace("build-failure");
+        let installed = home.join("skills/work");
+        fs::create_dir_all(installed.join("scripts")).unwrap();
+        fs::write(installed.join("scripts/work.exe"), b"previous work binary").unwrap();
+        fs::write(installed.join("SKILL.md"), b"previous instructions").unwrap();
+        let output = run(&home, Some("-C invalid-issue55-option"), false);
+        assert_eq!(output.status.code(), Some(1));
+        assert!(String::from_utf8_lossy(&output.stdout).contains("Rust build failed"));
+        assert_eq!(
+            fs::read(installed.join("scripts/work.exe")).unwrap(),
+            b"previous work binary"
+        );
+        assert_eq!(
+            fs::read(installed.join("SKILL.md")).unwrap(),
+            b"previous instructions"
+        );
     }
 }

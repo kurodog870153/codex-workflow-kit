@@ -926,15 +926,40 @@ mod tests {
         let rejected =
             prepare_command_from_project(&sources, &execution_storage, input).unwrap_err();
         assert_eq!(rejected.reason_code, "command_correction_command_not_found");
+        let (os, shell, original_argv, reviewed_argv) = if cfg!(windows) {
+            (
+                "windows",
+                "powershell",
+                json!([
+                    "powershell.exe",
+                    "-NoProfile",
+                    "-Command",
+                    "[Console]::Write('verified')"
+                ]),
+                json!([
+                    "powershell.exe",
+                    "-NoProfile",
+                    "-Command",
+                    "[Console]::Write('reviewed')"
+                ]),
+            )
+        } else {
+            (
+                "macos",
+                "sh",
+                json!(["/usr/bin/printf", "verified"]),
+                json!(["/usr/bin/printf", "reviewed"]),
+            )
+        };
         let mut command_item = item.clone();
         command_item["commands"] = json!([{"id":"CMD-001","mode":"argv",
-            "argv":["/usr/bin/printf","verified"]}]);
+            "argv":original_argv}]);
         command_item["steps"][0]["references"] = json!(["CMD-001", "VAL-001"]);
         let command_item_raw = render_task(&command_item, TaskDocumentKind::Item).unwrap();
         let mut command_index = index.clone();
         command_index["tasks"][0]["canonical_sha256"] = json!(sha256_hex(&command_item_raw));
         command_index["execution_defaults"] = json!({"working_directory":".",
-            "os":"macos","shell":"sh"});
+            "os":os,"shell":shell});
         fs::write(&item_path, &command_item_raw).unwrap();
         fs::write(
             &index_file,
@@ -955,7 +980,7 @@ mod tests {
         command_authorization["commands"] = json!([command_item["commands"][0]]);
         command_authorization["working_directories"] = json!(["."]);
         let deviation_action = json!({"kind":"replace_command","record_id":"CMD-001",
-            "replacement":{"mode":"argv","argv":["/usr/bin/printf","reviewed"]}});
+            "replacement":{"mode":"argv","argv":reviewed_argv}});
         command_authorization["allowed_deviations"] = json!([deviation_action]);
         let mut command_attempt = attempt.clone();
         command_attempt["task_collection_sha256"] =
@@ -1027,7 +1052,7 @@ mod tests {
                 task_id: "TASK-001",
             },
             &json!({"schema":"wrong","actual_command":{"mode":"argv",
-                "argv":["/usr/bin/printf","reviewed"]},"reason":"Review"}),
+                "argv":reviewed_argv},"reason":"Review"}),
         )
         .unwrap_err();
         assert_eq!(
@@ -1047,7 +1072,7 @@ mod tests {
                 task_id: "TASK-001",
             },
             &json!({"schema":"work-command-correction-request/v1",
-                "actual_command":{"mode":"argv","argv":["/usr/bin/printf","reviewed"]},
+                "actual_command":{"mode":"argv","argv":reviewed_argv},
                 "reason":"Use reviewed command."}),
         )
         .unwrap();

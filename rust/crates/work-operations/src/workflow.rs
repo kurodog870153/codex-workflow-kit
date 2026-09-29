@@ -24,63 +24,63 @@ pub fn decide_pre_execution(
     task_validation: Option<&Value>,
     execution_index_exists: bool,
 ) -> Result<Option<WorkflowDecision>, WorkflowIssue> {
-    let decision = if plan_validation.is_none() {
-        WorkflowDecision {
+    let decision = match (plan_validation, task_validation, execution_index_exists) {
+        (None, _, _) => WorkflowDecision {
             status: "plan_required".into(),
             next_action: "prepare_plan".into(),
             target_artifact: "plan",
             requires_user_confirmation: true,
             required_checks: vec![],
             details: json!({}),
-        }
-    } else if task_validation.is_none() {
-        let draft = draft.ok_or(WorkflowIssue {
-            reason_code: "workflow_draft_required",
-            message: "A TASK draft state is required before formal TASK creation.",
-        })?;
-        let status = draft["status"].as_str().ok_or(WorkflowIssue {
-            reason_code: "workflow_draft_invalid",
-            message: "The TASK draft state is invalid.",
-        })?;
-        let action = draft["next_action"].as_str().ok_or(WorkflowIssue {
-            reason_code: "workflow_draft_invalid",
-            message: "The TASK draft action is invalid.",
-        })?;
-        let checks = draft["required_checks"]
-            .as_array()
-            .filter(|checks| checks.iter().all(Value::is_string))
-            .ok_or(WorkflowIssue {
-                reason_code: "workflow_draft_invalid",
-                message: "The TASK draft checks are invalid.",
-            })?
-            .iter()
-            .map(|value| value.as_str().expect("checked string").to_owned())
-            .collect();
-        let confirmation = draft["requires_user_confirmation"]
-            .as_bool()
-            .ok_or(WorkflowIssue {
-                reason_code: "workflow_draft_invalid",
-                message: "The TASK draft confirmation state is invalid.",
+        },
+        (Some(plan_validation), None, _) => {
+            let draft = draft.ok_or(WorkflowIssue {
+                reason_code: "workflow_draft_required",
+                message: "A TASK draft state is required before formal TASK creation.",
             })?;
-        WorkflowDecision {
-            status: format!("task_{status}"),
-            next_action: action.into(),
-            target_artifact: "task",
-            requires_user_confirmation: confirmation,
-            required_checks: checks,
-            details: json!({"plan_sha256":plan_validation.expect("checked plan")["plan_sha256"],"draft":draft}),
+            let status = draft["status"].as_str().ok_or(WorkflowIssue {
+                reason_code: "workflow_draft_invalid",
+                message: "The TASK draft state is invalid.",
+            })?;
+            let action = draft["next_action"].as_str().ok_or(WorkflowIssue {
+                reason_code: "workflow_draft_invalid",
+                message: "The TASK draft action is invalid.",
+            })?;
+            let checks = draft["required_checks"]
+                .as_array()
+                .filter(|checks| checks.iter().all(Value::is_string))
+                .ok_or(WorkflowIssue {
+                    reason_code: "workflow_draft_invalid",
+                    message: "The TASK draft checks are invalid.",
+                })?
+                .iter()
+                .map(|value| value.as_str().expect("checked string").to_owned())
+                .collect();
+            let confirmation =
+                draft["requires_user_confirmation"]
+                    .as_bool()
+                    .ok_or(WorkflowIssue {
+                        reason_code: "workflow_draft_invalid",
+                        message: "The TASK draft confirmation state is invalid.",
+                    })?;
+            WorkflowDecision {
+                status: format!("task_{status}"),
+                next_action: action.into(),
+                target_artifact: "task",
+                requires_user_confirmation: confirmation,
+                required_checks: checks,
+                details: json!({"plan_sha256":plan_validation["plan_sha256"],"draft":draft}),
+            }
         }
-    } else if !execution_index_exists {
-        WorkflowDecision {
+        (Some(_), Some(task_validation), false) => WorkflowDecision {
             status: "execution_recovery_required".into(),
             next_action: "inspect_recovery".into(),
             target_artifact: "execution",
             requires_user_confirmation: true,
             required_checks: vec!["task validate".into()],
-            details: json!({"task_collection_sha256":task_validation.expect("checked task")["task_collection_sha256"]}),
-        }
-    } else {
-        return Ok(None);
+            details: json!({"task_collection_sha256":task_validation["task_collection_sha256"]}),
+        },
+        _ => return Ok(None),
     };
     Ok(Some(decision))
 }
