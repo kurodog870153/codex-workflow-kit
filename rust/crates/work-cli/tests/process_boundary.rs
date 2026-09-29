@@ -704,6 +704,8 @@ fn frozen_cli_responses_match_at_process_boundary() {
     let fixtures: Value =
         serde_json::from_str(include_str!("process_baseline.json")).expect("frozen fixtures");
     let root = project_root();
+    let encoded_root = serde_json::to_string(&root).expect("JSON root");
+    let encoded_placeholder = serde_json::to_string("<PROJECT_ROOT>").expect("JSON placeholder");
     for case in fixtures["cli_cases"].as_array().expect("CLI cases") {
         let arguments = case["argv"]
             .as_array()
@@ -726,7 +728,7 @@ fn frozen_cli_responses_match_at_process_boundary() {
         assert_eq!(
             String::from_utf8(actual.stdout)
                 .expect("UTF-8 stdout")
-                .replace(&root, "<PROJECT_ROOT>"),
+                .replace(&encoded_root, &encoded_placeholder),
             case["stdout"].as_str().expect("stdout"),
             "{name}: stdout"
         );

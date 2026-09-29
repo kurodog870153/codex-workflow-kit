@@ -97,7 +97,7 @@ pub fn ledger_transaction(
         .to_owned();
     let journal_path = format!(
         "{execution_dir}/.work-spec-migration-{}.json",
-        &approved_sha256[..12].to_ascii_uppercase()
+        approved_sha256[..12].to_ascii_uppercase()
     );
     let marker_path = format!("{journal_path}.done");
     Ok(LedgerPublication {

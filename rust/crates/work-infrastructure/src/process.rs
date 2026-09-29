@@ -219,4 +219,34 @@ mod tests {
         assert_eq!(missing.status, CommandStatus::LaunchFailed);
         assert_eq!(missing.exit_code, None);
     }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_argv_timeout_and_launch_failure() {
+        let cwd = root();
+        let spaced = LocalCommandRunner.run(&CommandRequest {
+            argv: vec!["cmd.exe".into(), "/C".into(), "echo a b".into()],
+            cwd: cwd.clone(),
+            timeout: Duration::from_secs(3),
+        });
+        assert_eq!(spaced.status, CommandStatus::Exited);
+        assert_eq!(spaced.stdout_tail.trim(), "a b");
+        let timed = LocalCommandRunner.run(&CommandRequest {
+            argv: vec![
+                "powershell.exe".into(),
+                "-NoProfile".into(),
+                "-Command".into(),
+                "Start-Sleep -Seconds 2".into(),
+            ],
+            cwd: cwd.clone(),
+            timeout: Duration::from_millis(50),
+        });
+        assert_eq!(timed.status, CommandStatus::TimedOut);
+        let missing = LocalCommandRunner.run(&CommandRequest {
+            argv: vec!["work-command-that-does-not-exist".into()],
+            cwd,
+            timeout: Duration::from_secs(1),
+        });
+        assert_eq!(missing.status, CommandStatus::LaunchFailed);
+    }
 }

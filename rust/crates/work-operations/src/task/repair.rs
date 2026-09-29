@@ -11,7 +11,7 @@ use crate::execution::{ExecutionIssue, derive_overall_status};
 pub fn transaction_id(request_raw: &[u8]) -> String {
     format!(
         "TASK-REPAIR-{}",
-        &sha256_hex(request_raw)[..12].to_ascii_uppercase()
+        sha256_hex(request_raw)[..12].to_ascii_uppercase()
     )
 }
 
@@ -98,7 +98,7 @@ mod tests {
             transaction_id(request),
             format!(
                 "TASK-REPAIR-{}",
-                &sha256_hex(request)[..12].to_ascii_uppercase()
+                sha256_hex(request)[..12].to_ascii_uppercase()
             )
         );
         let contents = BTreeMap::from([

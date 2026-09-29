@@ -27,7 +27,8 @@ impl ArtifactStore for LocalFiles {
             if matches!(
                 open_error.kind(),
                 std::io::ErrorKind::NotFound | std::io::ErrorKind::IsADirectory
-            ) {
+            ) || path.is_dir()
+            {
                 error(
                     ExitCode::ArtifactIntegrity,
                     "file_not_found",
@@ -242,6 +243,14 @@ pub fn resolve_project_path(root: &Path, raw: &str) -> Result<(String, PathBuf),
                 &candidate,
             )
         })?;
+    }
+    if ancestor != candidate && !ancestor.is_dir() {
+        return Err(error(
+            ExitCode::IoFailure,
+            "path_resolution_failed",
+            "The path could not be resolved.",
+            &candidate,
+        ));
     }
     let resolved = ancestor.canonicalize().map_err(|_| {
         error(
