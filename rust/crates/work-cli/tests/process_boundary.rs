@@ -765,7 +765,7 @@ fn every_public_leaf_has_frozen_help_at_process_boundary() {
         .expect("command manifest");
     let mut count = 0;
     check_help(&manifest["root"], &mut Vec::new(), &mut count);
-    assert_eq!(count, 106);
+    assert_eq!(count, 111);
 }
 
 #[test]
@@ -787,12 +787,82 @@ fn public_command_tree_matches_frozen_baseline() {
     let mut commands = Vec::new();
     collect(&manifest["root"], &mut Vec::new(), &mut commands);
     commands.sort();
-    assert_eq!(commands.len(), 106);
-    let raw = format!("{}\n", commands.join("\n"));
+    assert_eq!(commands.len(), 111);
+    let migration = [
+        "migration analyze",
+        "migration prepare",
+        "migration preview",
+        "migration apply",
+        "migration recover",
+        "migration semantic-prepare",
+        "migration semantic-preview",
+        "migration semantic-apply",
+        "migration semantic-recover",
+    ];
+    for new_command in migration {
+        assert!(commands.contains(&new_command.to_owned()));
+    }
+    let legacy = commands
+        .into_iter()
+        .filter(|command| !migration.contains(&command.as_str()))
+        .collect::<Vec<_>>();
+    assert_eq!(legacy.len(), 102);
+    let raw = format!("{}\n", legacy.join("\n"));
     assert_eq!(
         work_infrastructure::codec::sha256_hex(raw.as_bytes()),
-        "3b38859c8ede2db6006846f0bd43aa8a97ae8c90f5d59dd84436ea31aa479d54"
+        "746829842500b9281fb326a80867f73392a35b8cedef6c7e048bc8fe1f9927d8"
     );
+}
+
+#[test]
+fn semantic_migration_preview_uses_migration_mode_and_rejects_task_entry() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../work-infrastructure/fixtures/specification-migration");
+    let project = std::env::temp_dir().join(format!(
+        "work-semantic-migration-cli-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    for relative in [
+        "outputs/work/plans/example.json",
+        "outputs/work/tasks/example/index.json",
+        "outputs/work/tasks/example/tasks/TASK-001.json",
+        "outputs/work/executions/example/index.json",
+    ] {
+        let destination = project.join(relative);
+        fs::create_dir_all(destination.parent().unwrap()).unwrap();
+        fs::copy(fixture.join(relative), destination).unwrap();
+    }
+    let project_arg = project.to_string_lossy().into_owned();
+    let request_arg = fixture.join("request.json").to_string_lossy().into_owned();
+    let arguments = [
+        "--project-root",
+        project_arg.as_str(),
+        "migration",
+        "semantic-preview",
+        "--input-file",
+        request_arg.as_str(),
+        "--user-config-root",
+        project_arg.as_str(),
+    ]
+    .map(str::to_owned);
+    let output = run(&arguments);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(response["data"]["schema"], "work-spec-migration-preview/v1");
+
+    let mut legacy = arguments.to_vec();
+    legacy[2] = "task".into();
+    legacy[3] = "migration-preview".into();
+    let rejected = run(&legacy);
+    assert_eq!(rejected.status.code(), Some(ExitCode::CliUsage as i32));
 }
 
 #[test]

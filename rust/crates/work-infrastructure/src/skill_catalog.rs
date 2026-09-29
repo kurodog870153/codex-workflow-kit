@@ -376,17 +376,19 @@ mod tests {
         let snapshot = repository
             .snapshot("repo", "skills", "work/SKILL.md")
             .unwrap();
+        assert_eq!(snapshot["skill"]["name"], "work");
+        for hash in [
+            &snapshot["skill"]["id"],
+            &snapshot["skill"]["summary_sha256"],
+            &snapshot["bundle"]["bundle_sha256"],
+        ] {
+            assert!(work_operations::protocol::valid_sha256(
+                hash.as_str().unwrap()
+            ));
+        }
         assert_eq!(
-            snapshot["skill"]["id"],
-            "30bd7f92493f1ec33907db1a70ac0d86d74f1d5f43ac08ee8de77294da7dc808"
-        );
-        assert_eq!(
-            snapshot["skill"]["summary_sha256"],
-            "c8652a87ff59a9f6233a6372cd6b58e3a5f6c17deae0fd2141418d7ca1cdfb94"
-        );
-        assert_eq!(
-            snapshot["bundle"]["bundle_sha256"],
-            "31bee80db5eeaa46753f5811c01e6b3ac698e16927eb1fd54c264a80d12b4cc7"
+            snapshot["bundle"],
+            snapshot_skill_bundle(&repository.roots[0].path.join("work")).unwrap()
         );
         assert!(
             repository

@@ -3,9 +3,9 @@
 use serde_json::{Value, json};
 
 use crate::identifiers::{IdentifierIssue, RequirementId};
-use crate::protocol::WORKFLOW_MODES;
 
-const SYNTAX: &str = "$work <plan|task|execute> -- <request>";
+const SYNTAX: &str = "$work <plan|task|execute|migration> -- <request>";
+const PUBLIC_MODES: [&str; 4] = ["plan", "task", "execute", "migration"];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvocationIssue {
@@ -85,14 +85,14 @@ pub fn parse_invocation(text: &str) -> Result<Value, InvocationIssue> {
         return Err(usage(
             "work_invocation_mode_missing",
             "Choose one Work mode.",
-            json!({"modes":WORKFLOW_MODES}),
+            json!({"modes":PUBLIC_MODES}),
         ));
     };
-    if !WORKFLOW_MODES.contains(&mode) {
+    if !PUBLIC_MODES.contains(&mode) {
         return Err(usage(
             "work_invocation_mode_invalid",
-            "Only plan, task and execute are public Work modes.",
-            json!({"modes":WORKFLOW_MODES}),
+            "Only plan, task, execute and migration are public Work modes.",
+            json!({"modes":PUBLIC_MODES}),
         ));
     }
     if token(2) != Some("--") {
@@ -111,7 +111,11 @@ pub fn parse_invocation(text: &str) -> Result<Value, InvocationIssue> {
             json!({}),
         ));
     }
-    let mut entry = json!({"kind":"workflow"});
+    let mut entry = if mode == "migration" {
+        json!({"kind":"migration"})
+    } else {
+        json!({"kind":"workflow"})
+    };
     if matches!(mode, "plan" | "task") && request_words[0] == "resume" {
         if request_words.len() != 2 {
             return Err(usage(
@@ -142,7 +146,7 @@ mod tests {
 
     #[test]
     fn explicit_invocation_preserves_request_and_classifies_resume() {
-        for mode in ["plan", "task", "execute"] {
+        for mode in ["plan", "task", "execute", "migration"] {
             assert_eq!(
                 parse_invocation(&format!("$work {mode} -- review")).unwrap()["mode"],
                 mode
@@ -150,7 +154,14 @@ mod tests {
         }
         let invalid = parse_invocation("$work unsupported -- review").unwrap_err();
         assert_eq!(invalid.reason_code, "work_invocation_mode_invalid");
-        assert_eq!(invalid.details["modes"], json!(["plan", "task", "execute"]));
+        assert_eq!(
+            invalid.details["modes"],
+            json!(["plan", "task", "execute", "migration"])
+        );
+        assert_eq!(
+            parse_invocation("$work migration -- example").unwrap()["entry"],
+            json!({"kind":"migration"})
+        );
         let parsed = parse_invocation("$work task --  resume issue55\n").unwrap();
         assert_eq!(parsed["request"], "  resume issue55\n");
         assert_eq!(

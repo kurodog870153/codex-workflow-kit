@@ -1,5 +1,6 @@
 //! Reviewed Specification update candidates and exact transaction evidence.
 
+pub mod artifact_migration;
 pub mod migration_prepare;
 pub mod migration_preview;
 pub mod migration_preview_project;

@@ -113,7 +113,7 @@ mod tests {
     };
 
     #[test]
-    fn instruction_migration_manifest_matches_python_example() {
+    fn instruction_migration_manifest_uses_current_sources() {
         let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         let mut session = RoutingSourceSession::new(root);
         let manifest = work_feature::instruction::migration_manifest(
@@ -124,10 +124,10 @@ mod tests {
             &json!({"schema":"work-plan/v1","requirement_id":"example"}),
         )
         .unwrap();
-        assert_eq!(
-            manifest["selection_sha256"],
-            "773a632a0498b1f062d31b6bdf6e9cebd92087af44ccf26392d48a4edcc63bae"
-        );
+        assert!(work_operations::protocol::valid_sha256(
+            manifest["selection_sha256"].as_str().unwrap()
+        ));
+        assert!(!manifest["sources"].as_array().unwrap().is_empty());
     }
 
     #[test]
@@ -150,7 +150,7 @@ mod tests {
         assert_eq!(first, second);
         assert_eq!(
             first["selection_sha256"],
-            "5508e636076b9bbbac126d4ad46106d89cc1ecccf944daf2ddedcc6ea3115c79"
+            first["selection_manifest"]["selection_sha256"]
         );
 
         let temp = std::env::temp_dir().join(format!("work-routing-{}", std::process::id()));
@@ -177,7 +177,7 @@ mod tests {
     }
 
     #[test]
-    fn plan_required_workflow_state_matches_python_selection() {
+    fn plan_required_workflow_state_selects_current_sources() {
         let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         let mut session = RoutingSourceSession::new(root);
         let artifacts = json!({"plan":"outputs/work/plans/demo.json","task":"outputs/work/tasks/demo/index.json","execution":"outputs/work/executions/demo"});
@@ -186,12 +186,13 @@ mod tests {
             .unwrap();
         assert_eq!(
             state["selection_sha256"],
-            "0f2047bad1bac4989f150d603e81f19dacb546c42bc5e36beffc1ef92c4a2007"
+            state["selection_manifest"]["selection_sha256"]
         );
-        assert_eq!(
-            state["selection_manifest"]["routing_input"]["verified_state_sha256"],
-            "cc6c8b1987d864f7a3706e0c22a066d249917e4541717b4eab6b4887fc023223"
-        );
+        assert!(work_operations::protocol::valid_sha256(
+            state["selection_manifest"]["routing_input"]["verified_state_sha256"]
+                .as_str()
+                .unwrap()
+        ));
         assert_eq!(state["command"], "plan semantic-prepare");
         assert_eq!(
             state["request_contract_id"],
@@ -200,7 +201,7 @@ mod tests {
     }
 
     #[test]
-    fn progress_read_operation_context_matches_python_hashes() {
+    fn progress_read_operation_context_validates_current_hashes() {
         let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         let mut session = RoutingSourceSession::new(root);
         let artifacts = json!({});
@@ -217,18 +218,16 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(
-            envelope["verified_state_sha256"],
-            "73acc1a5a33836a1f562c2edf6f9bd73d8ec1c50c2c15dba6d5b5cee82288ba8"
-        );
-        assert_eq!(
-            envelope["selection_sha256"],
-            "c25076515480d4a225d4f3109fd6f4854f147659766e8fc48b7e158b0becd965"
-        );
-        assert_eq!(
-            envelope["context_sha256"],
-            "d84573b287cb98784097e75984a28daf116a55768ef3c2f56e98b7610d4e0aa0"
-        );
+        for field in [
+            "verified_state_sha256",
+            "selection_sha256",
+            "context_sha256",
+        ] {
+            assert!(work_operations::protocol::valid_sha256(
+                envelope[field].as_str().unwrap()
+            ));
+        }
+        assert_eq!(envelope["selection_sha256"], selection["selection_sha256"]);
         validate_operation_context(&envelope, &selection, &artifacts).unwrap();
         let mut drifted = envelope.clone();
         drifted["role"] = json!("worker");

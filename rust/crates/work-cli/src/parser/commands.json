@@ -2,7 +2,7 @@
   "schema": "work-command-tree/v1",
   "root": {
     "name": "work",
-    "help": "usage: work [-h] --project-root PROJECT_ROOT [--verbose]\n               {contract,paths,hierarchy,instructions,fingerprint,skills,handoff,attempt,correction,plan,progress,task,workflow,workspace,execute,invocation,delegation} ...\n\npositional arguments:\n  {contract,paths,hierarchy,instructions,fingerprint,skills,handoff,attempt,correction,plan,progress,task,workflow,workspace,execute,invocation,delegation}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --project-root PROJECT_ROOT\n  --verbose             Return the complete canonical success payload instead\n                        of the brief projection.\n",
+    "help": "usage: work [-h] --project-root PROJECT_ROOT [--verbose]\n               {contract,paths,hierarchy,instructions,fingerprint,skills,handoff,attempt,correction,plan,progress,task,workflow,workspace,execute,invocation,migration,delegation} ...\n\npositional arguments:\n  {contract,paths,hierarchy,instructions,fingerprint,skills,handoff,attempt,correction,plan,progress,task,workflow,workspace,execute,invocation,migration,delegation}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --project-root PROJECT_ROOT\n  --verbose             Return the complete canonical success payload instead\n                        of the brief projection.\n",
     "arguments": [
       {
         "name": "project_root",
@@ -2105,7 +2105,7 @@
       },
       {
         "name": "task",
-        "help": "usage: work task [-h]\n                    {spec-prepare,repair-prepare,spec-validate,spec-update,spec-recover,repair-validate,repair,repair-recover,spec-verify,migration-prepare,migration-preview,migration-apply,migration-recover,reconciliation-preview,reconciliation-prepare,reconciliation-apply,draft-init,semantic-prepare,draft-save,draft-recover,draft-read,draft-status,draft-check,draft-save-request,draft-recover-request,draft-list-update,draft-list-recover,diagnose,validate,draft-source-update,draft-source-recover,draft-assemble,draft-create,create,recover-create} ...\n\npositional arguments:\n  {spec-prepare,repair-prepare,spec-validate,spec-update,spec-recover,repair-validate,repair,repair-recover,spec-verify,migration-prepare,migration-preview,migration-apply,migration-recover,reconciliation-preview,reconciliation-prepare,reconciliation-apply,draft-init,semantic-prepare,draft-save,draft-recover,draft-read,draft-status,draft-check,draft-save-request,draft-recover-request,draft-list-update,draft-list-recover,diagnose,validate,draft-source-update,draft-source-recover,draft-assemble,draft-create,create,recover-create}\n    spec-prepare        Prepare validated field replacements without\n                        publishing.\n    repair-prepare      Prepare validated field replacements without\n                        publishing.\n    spec-validate       Internal coordinated specification revision.\n    spec-update         Internal coordinated specification revision.\n    spec-recover        Internal coordinated specification revision.\n    repair-validate     Review or publish an explicitly decided TASK repair.\n    repair              Review or publish an explicitly decided TASK repair.\n    repair-recover      Review or publish an explicitly decided TASK repair.\n    spec-verify         Inspect specification evidence without writes.\n    migration-prepare   Build cross-file migration candidates from semantic\n                        decisions.\n    migration-preview   Validate a Python-prepared cross-file migration\n                        without writing.\n    migration-apply     Publish or recover an approved cross-file migration.\n    migration-recover   Publish or recover an approved cross-file migration.\n    reconciliation-preview\n                        Review specification candidates derived from execution\n                        deviations.\n    reconciliation-prepare\n                        Build reconciliation candidates from semantic\n                        specification edits.\n    reconciliation-apply\n                        Publish an approved specification reconciliation.\n    draft-init          Save an initial planning index from a JSON request\n                        file.\n    semantic-prepare    Derive TASK planning machine fields from semantic\n                        input.\n    draft-save          Save one discussion from an index/draft JSON object.\n    draft-recover       Recover a fully prepared save using its original JSON\n                        request.\n    draft-read          Read the committed index or one historical draft.\n    draft-status        Inspect planning progress and the next action without\n                        writing.\n    draft-check         Verify one TASK's saved source fingerprints without\n                        writing.\n    draft-save-request  Save or recover one discussion with derived index and\n                        draft metadata.\n    draft-recover-request\n                        Save or recover one discussion with derived index and\n                        draft metadata.\n    diagnose            Diagnose an existing TASK without writing.\n\noptions:\n  -h, --help            Return command help in a JSON response.\n",
+        "help": "usage: work task [-h]\n                    {spec-prepare,repair-prepare,spec-validate,spec-update,spec-recover,repair-validate,repair,repair-recover,spec-verify,reconciliation-preview,reconciliation-prepare,reconciliation-apply,draft-init,semantic-prepare,draft-save,draft-recover,draft-read,draft-status,draft-check,draft-save-request,draft-recover-request,draft-list-update,draft-list-recover,diagnose,validate,draft-source-update,draft-source-recover,draft-assemble,draft-create,create,recover-create} ...\n\npositional arguments:\n  {spec-prepare,repair-prepare,spec-validate,spec-update,spec-recover,repair-validate,repair,repair-recover,spec-verify,reconciliation-preview,reconciliation-prepare,reconciliation-apply,draft-init,semantic-prepare,draft-save,draft-recover,draft-read,draft-status,draft-check,draft-save-request,draft-recover-request,draft-list-update,draft-list-recover,diagnose,validate,draft-source-update,draft-source-recover,draft-assemble,draft-create,create,recover-create}\n    spec-prepare        Prepare validated field replacements without\n                        publishing.\n    repair-prepare      Prepare validated field replacements without\n                        publishing.\n    spec-validate       Internal coordinated specification revision.\n    spec-update         Internal coordinated specification revision.\n    spec-recover        Internal coordinated specification revision.\n    repair-validate     Review or publish an explicitly decided TASK repair.\n    repair              Review or publish an explicitly decided TASK repair.\n    repair-recover      Review or publish an explicitly decided TASK repair.\n    spec-verify         Inspect specification evidence without writes.\n    reconciliation-preview\n                        Review specification candidates derived from execution\n                        deviations.\n    reconciliation-prepare\n                        Build reconciliation candidates from semantic\n                        specification edits.\n    reconciliation-apply\n                        Publish an approved specification reconciliation.\n    draft-init          Save an initial planning index from a JSON request\n                        file.\n    semantic-prepare    Derive TASK planning machine fields from semantic\n                        input.\n    draft-save          Save one discussion from an index/draft JSON object.\n    draft-recover       Recover a fully prepared save using its original JSON\n                        request.\n    draft-read          Read the committed index or one historical draft.\n    draft-status        Inspect planning progress and the next action without\n                        writing.\n    draft-check         Verify one TASK's saved source fingerprints without\n                        writing.\n    draft-save-request  Save or recover one discussion with derived index and\n                        draft metadata.\n    draft-recover-request\n                        Save or recover one discussion with derived index and\n                        draft metadata.\n    diagnose            Diagnose an existing TASK without writing.\n\noptions:\n  -h, --help            Return command help in a JSON response.\n",
         "arguments": [],
         "exclusive_groups": [],
         "children": [
@@ -2605,218 +2605,6 @@
                 "required": false,
                 "nargs": null,
                 "append": true,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [],
-            "children": []
-          },
-          {
-            "name": "migration-prepare",
-            "help": "usage: work task migration-prepare [-h] --input-file INPUT_FILE\n                                      --user-config-root USER_CONFIG_ROOT\n                                      [--skill-root SKILL_ROOT]\n                                      [--output-file OUTPUT_FILE]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --output-file OUTPUT_FILE\n",
-            "arguments": [
-              {
-                "name": "input_file",
-                "flags": [
-                  "--input-file"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "user_config_root",
-                "flags": [
-                  "--user-config-root"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "skill_root",
-                "flags": [
-                  "--skill-root"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": true,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "output_file",
-                "flags": [
-                  "--output-file"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [],
-            "children": []
-          },
-          {
-            "name": "migration-preview",
-            "help": "usage: work task migration-preview [-h] --input-file INPUT_FILE\n                                      --user-config-root USER_CONFIG_ROOT\n                                      [--skill-root SKILL_ROOT]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n",
-            "arguments": [
-              {
-                "name": "input_file",
-                "flags": [
-                  "--input-file"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "user_config_root",
-                "flags": [
-                  "--user-config-root"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "skill_root",
-                "flags": [
-                  "--skill-root"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": true,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [],
-            "children": []
-          },
-          {
-            "name": "migration-apply",
-            "help": "usage: work task migration-apply [-h] --input-file INPUT_FILE\n                                    --user-config-root USER_CONFIG_ROOT\n                                    [--skill-root SKILL_ROOT]\n                                    --approved-sha256 APPROVED_SHA256\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --approved-sha256 APPROVED_SHA256\n",
-            "arguments": [
-              {
-                "name": "input_file",
-                "flags": [
-                  "--input-file"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "user_config_root",
-                "flags": [
-                  "--user-config-root"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "skill_root",
-                "flags": [
-                  "--skill-root"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": true,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "approved_sha256",
-                "flags": [
-                  "--approved-sha256"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [],
-            "children": []
-          },
-          {
-            "name": "migration-recover",
-            "help": "usage: work task migration-recover [-h] --input-file INPUT_FILE\n                                      --user-config-root USER_CONFIG_ROOT\n                                      [--skill-root SKILL_ROOT]\n                                      --approved-sha256 APPROVED_SHA256\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --approved-sha256 APPROVED_SHA256\n",
-            "arguments": [
-              {
-                "name": "input_file",
-                "flags": [
-                  "--input-file"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "user_config_root",
-                "flags": [
-                  "--user-config-root"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "skill_root",
-                "flags": [
-                  "--skill-root"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": true,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "approved_sha256",
-                "flags": [
-                  "--approved-sha256"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
                 "boolean": false,
                 "choices": null,
                 "help": null
@@ -5877,6 +5665,278 @@
                 "name": "input_file",
                 "flags": [
                   "--input-file"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
+            ],
+            "exclusive_groups": [],
+            "children": []
+          }
+        ]
+      },
+      {
+        "name": "migration",
+        "help": "usage: work migration [-h] {analyze,prepare,preview,apply,recover,semantic-prepare,semantic-preview,semantic-apply,semantic-recover} ...\n",
+        "arguments": [],
+        "exclusive_groups": [],
+        "children": [
+          {
+            "name": "analyze",
+            "help": "usage: work migration analyze --requirement-id ID [--artifact {plan,task,execute}]\n",
+            "arguments": [
+              {"name":"requirement_id","flags":["--requirement-id"],"required":true,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
+              {"name":"artifact","flags":["--artifact"],"required":false,"nargs":null,"append":true,"boolean":false,"choices":["plan","task","execute"],"help":null}
+            ],
+            "exclusive_groups": [],
+            "children": []
+          },
+          {
+            "name": "prepare",
+            "help": "usage: work migration prepare --input-file INPUT_FILE\n",
+            "arguments": [
+              {"name":"input_file","flags":["--input-file"],"required":true,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null}
+            ],
+            "exclusive_groups": [],
+            "children": []
+          },
+          {
+            "name": "preview",
+            "help": "usage: work migration preview --request-path PATH --approved-sha256 SHA256 [--skill-root ROOT]\n",
+            "arguments": [
+              {"name":"request_path","flags":["--request-path"],"required":true,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
+              {"name":"approved_sha256","flags":["--approved-sha256"],"required":true,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
+              {"name":"skill_root","flags":["--skill-root"],"required":false,"nargs":null,"append":true,"boolean":false,"choices":null,"help":null}
+            ],
+            "exclusive_groups": [],
+            "children": []
+          },
+          {
+            "name": "apply",
+            "help": "usage: work migration apply --request-path PATH --approved-sha256 SHA256 [--skill-root ROOT]\n",
+            "arguments": [
+              {"name":"request_path","flags":["--request-path"],"required":true,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
+              {"name":"approved_sha256","flags":["--approved-sha256"],"required":true,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
+              {"name":"skill_root","flags":["--skill-root"],"required":false,"nargs":null,"append":true,"boolean":false,"choices":null,"help":null}
+            ],
+            "exclusive_groups": [],
+            "children": []
+          },
+          {
+            "name": "recover",
+            "help": "usage: work migration recover --request-path PATH --approved-sha256 SHA256 [--skill-root ROOT]\n",
+            "arguments": [
+              {"name":"request_path","flags":["--request-path"],"required":true,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
+              {"name":"approved_sha256","flags":["--approved-sha256"],"required":true,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
+              {"name":"skill_root","flags":["--skill-root"],"required":false,"nargs":null,"append":true,"boolean":false,"choices":null,"help":null}
+            ],
+            "exclusive_groups": [],
+            "children": []
+          },
+          {
+            "name": "semantic-prepare",
+            "help": "usage: work migration semantic-prepare [-h] --input-file INPUT_FILE\n                                      --user-config-root USER_CONFIG_ROOT\n                                      [--skill-root SKILL_ROOT]\n                                      [--output-file OUTPUT_FILE]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --output-file OUTPUT_FILE\n",
+            "arguments": [
+              {
+                "name": "input_file",
+                "flags": [
+                  "--input-file"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "user_config_root",
+                "flags": [
+                  "--user-config-root"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "skill_root",
+                "flags": [
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "output_file",
+                "flags": [
+                  "--output-file"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
+            ],
+            "exclusive_groups": [],
+            "children": []
+          },
+          {
+            "name": "semantic-preview",
+            "help": "usage: work migration semantic-preview [-h] --input-file INPUT_FILE\n                                      --user-config-root USER_CONFIG_ROOT\n                                      [--skill-root SKILL_ROOT]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n",
+            "arguments": [
+              {
+                "name": "input_file",
+                "flags": [
+                  "--input-file"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "user_config_root",
+                "flags": [
+                  "--user-config-root"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "skill_root",
+                "flags": [
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
+            ],
+            "exclusive_groups": [],
+            "children": []
+          },
+          {
+            "name": "semantic-apply",
+            "help": "usage: work migration semantic-apply [-h] --input-file INPUT_FILE\n                                    --user-config-root USER_CONFIG_ROOT\n                                    [--skill-root SKILL_ROOT]\n                                    --approved-sha256 APPROVED_SHA256\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --approved-sha256 APPROVED_SHA256\n",
+            "arguments": [
+              {
+                "name": "input_file",
+                "flags": [
+                  "--input-file"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "user_config_root",
+                "flags": [
+                  "--user-config-root"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "skill_root",
+                "flags": [
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "approved_sha256",
+                "flags": [
+                  "--approved-sha256"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
+            ],
+            "exclusive_groups": [],
+            "children": []
+          },
+          {
+            "name": "semantic-recover",
+            "help": "usage: work migration semantic-recover [-h] --input-file INPUT_FILE\n                                      --user-config-root USER_CONFIG_ROOT\n                                      [--skill-root SKILL_ROOT]\n                                      --approved-sha256 APPROVED_SHA256\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --approved-sha256 APPROVED_SHA256\n",
+            "arguments": [
+              {
+                "name": "input_file",
+                "flags": [
+                  "--input-file"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "user_config_root",
+                "flags": [
+                  "--user-config-root"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "skill_root",
+                "flags": [
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "approved_sha256",
+                "flags": [
+                  "--approved-sha256"
                 ],
                 "required": true,
                 "nargs": null,

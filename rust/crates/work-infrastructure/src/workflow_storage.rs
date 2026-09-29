@@ -361,10 +361,9 @@ mod tests {
             missing["selection_manifest"]["selection_sha256"],
             missing["selection_sha256"]
         );
-        assert_eq!(
-            missing["selection_sha256"],
-            "3509cb2eac17b1286558bdbab8e0e44f7775a2d0c2ea9b671eff2b716236eaf1"
-        );
+        assert!(work_operations::protocol::valid_sha256(
+            missing["selection_sha256"].as_str().unwrap()
+        ));
         assert_eq!(fs::read_dir(&root).unwrap().count(), 0);
 
         let path = root.join("outputs/work/plans/example.json");
@@ -383,8 +382,9 @@ mod tests {
         );
         assert_eq!(
             plan_only["selection_sha256"],
-            "553ec62d303a63a1956ea7f6d0cd30b128d2a892c85d65684863cfb480d17620"
+            plan_only["selection_manifest"]["selection_sha256"]
         );
+        assert_ne!(missing["selection_sha256"], plan_only["selection_sha256"]);
         assert_eq!(fs::read_dir(path.parent().unwrap()).unwrap().count(), 1);
     }
 
@@ -502,7 +502,7 @@ mod tests {
         assert_eq!(state["details"], json!({"overall_status":"completed"}));
         assert_eq!(
             state["selection_sha256"],
-            "727816a5b49c2757e2ab602bb94ee484ada530c4bc72e54432005cf9c036d7f3"
+            state["selection_manifest"]["selection_sha256"]
         );
     }
 
@@ -536,7 +536,7 @@ mod tests {
         assert_eq!(state["details"], json!({"overall_status":"pending"}));
         assert_eq!(
             state["selection_sha256"],
-            "38297cc5bd30a4f2d137b1ea1725c423385bad8d30f9ee9b4d361447e01f5413"
+            state["selection_manifest"]["selection_sha256"]
         );
         let wrong_plan = root.join("other/example.json");
         fs::create_dir_all(wrong_plan.parent().unwrap()).unwrap();

@@ -49,10 +49,14 @@ pub fn create(
     transaction_id
         .parse::<TransactionId>()
         .map_err(|issue| invalid_identifier(issue.reason_code()))?;
-    let relative = format!(
-        "outputs/work/transactions/{owner}/{}/{transaction_id}",
-        workflow.as_str()
-    );
+    let relative = if requirement_id.is_none() && workflow.as_str() == "invocation" {
+        format!(".work/transactions/pending/invocation/{transaction_id}")
+    } else {
+        format!(
+            "outputs/work/transactions/{owner}/{}/{transaction_id}",
+            workflow.as_str()
+        )
+    };
     let relative = allocator.allocate(&relative)?;
     Ok(
         json!({"schema":"work-transaction-workspace/v1","requirement_id":requirement_id,
@@ -81,7 +85,7 @@ mod tests {
             self.0.borrow_mut().push("allocate");
             assert_eq!(
                 relative,
-                "outputs/work/transactions/pending/invocation/20260927T000000Z-01234567"
+                ".work/transactions/pending/invocation/20260927T000000Z-01234567"
             );
             Ok(relative.to_owned())
         }
@@ -100,7 +104,7 @@ mod tests {
         let result = create(&allocator, None, "invocation").unwrap();
         assert_eq!(
             result["path"],
-            "outputs/work/transactions/pending/invocation/20260927T000000Z-01234567"
+            ".work/transactions/pending/invocation/20260927T000000Z-01234567"
         );
         assert_eq!(*allocator.0.borrow(), ["random", "clock", "allocate"]);
     }

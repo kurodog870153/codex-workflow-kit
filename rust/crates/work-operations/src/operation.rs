@@ -64,12 +64,13 @@ pub fn routing_identity(
             route.mode = "plan";
             route.next_action = "prepare_plan";
         }
+        "migration" => {
+            route.mode = "specification";
+            route.next_action = "review_reconciliation";
+            route.formal_events.push("migration");
+        }
         "task" => {
-            if operation.contains("migration") {
-                route.mode = "specification";
-                route.next_action = "review_reconciliation";
-                route.formal_events.push("migration");
-            } else if operation.contains("reconciliation") {
+            if operation.contains("reconciliation") {
                 route.mode = "specification";
                 route.next_action = "review_reconciliation";
                 route.formal_events.push("reconciliation");
@@ -122,11 +123,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn every_python_operation_has_an_explicit_effect() {
+    fn every_public_operation_has_an_explicit_effect() {
         let table: Value = serde_json::from_str(EFFECTS).unwrap();
         for (command, count) in [
             ("plan", 3),
-            ("task", 35),
+            ("task", 31),
+            ("migration", 9),
             ("execute", 16),
             ("delegation", 2),
             ("progress", 4),
@@ -164,7 +166,7 @@ mod tests {
     #[test]
     fn routing_identity_tracks_python_command_categories() {
         assert_eq!(
-            routing_identity("task", "migration-apply", None).unwrap(),
+            routing_identity("migration", "semantic-apply", None).unwrap(),
             OperationRouting {
                 mode: "specification",
                 next_action: "review_reconciliation",

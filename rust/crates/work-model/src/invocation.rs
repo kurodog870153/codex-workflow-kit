@@ -10,6 +10,7 @@ pub enum InvocationMode {
     Plan,
     Task,
     Execute,
+    Migration,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -18,6 +19,7 @@ pub enum InvocationEntryKind {
     Workflow,
     ProgressResume,
     TaskPlanning,
+    Migration,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
