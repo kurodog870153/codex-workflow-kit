@@ -1,4 +1,4 @@
-//! Public TASK validation, diagnosis, draft, and repair responses.
+//! Public TASK validation and draft responses.
 
 use std::collections::BTreeMap;
 
@@ -13,9 +13,7 @@ use super::draft::{
     DraftInstructionSelection, PlanningSource, PlanningTaskStatus, TaskDraft, TaskPlanningIndex,
 };
 use super::projection::TaskCollectionProjection;
-use super::request::{
-    TaskRepairDecision, TaskRepairPrepareInput, TaskRepairRequest, TaskRepairStage,
-};
+use super::request::TaskPlanningUpdateInput;
 
 /// Check a validated producer's output against its public model before returning JSON.
 pub fn typed_response<T: DeserializeOwned + Serialize>(value: Value) -> Value {
@@ -112,7 +110,7 @@ pub struct TaskDraftSourceCheck {
 #[serde(untagged)]
 pub enum DraftPrepareRequest {
     Initial(TaskPlanningIndex),
-    Update(TaskRepairPrepareInput),
+    Update(TaskPlanningUpdateInput),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -179,122 +177,4 @@ pub struct TaskDraftRecovery {
     pub revision: u64,
     pub status: DraftRecoveryStatus,
     pub display_copy: DraftDisplayCopyStatus,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum DiagnosticStatus {
-    Valid,
-    Blocked,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum DiagnosticCheckStatus {
-    Passed,
-    Failed,
-    NotChecked,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum DiagnosticRepairMode {
-    ReviewRequired,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct DiagnosticCheck {
-    pub name: String,
-    pub status: DiagnosticCheckStatus,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub requires: Option<Vec<String>>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum DiagnosticIssueCategory {
-    UserDecision,
-    FormatRepair,
-    SourceReview,
-    ReviewRequired,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct DiagnosticIssue {
-    pub stage: String,
-    pub code: String,
-    pub location: String,
-    pub category: DiagnosticIssueCategory,
-    pub message: String,
-    pub suggestion: String,
-    /// Error details vary with the failed validation stage.
-    pub details: Value,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct TaskCollectionDiagnostics {
-    pub schema: PublicSchema,
-    pub status: DiagnosticStatus,
-    pub task_path: String,
-    #[serde(deserialize_with = "deserialize_required_nullable")]
-    pub raw_sha256: Nullable<String>,
-    pub format_status: DiagnosticCheckStatus,
-    pub contract_status: DiagnosticCheckStatus,
-    pub normal_use_allowed: bool,
-    pub execution_binding_status: DiagnosticCheckStatus,
-    pub repair_mode: DiagnosticRepairMode,
-    pub checks: Vec<DiagnosticCheck>,
-    pub issues: Vec<DiagnosticIssue>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TaskRepairStatus {
-    Preview,
-    Repaired,
-    Recovered,
-    AlreadyCompleted,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TaskFileReadiness {
-    RequiresExecutePreflight,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TaskPublicationStatus {
-    Published,
-    AlreadyPublished,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct TaskRepairResponse {
-    pub schema: PublicSchema,
-    pub status: TaskRepairStatus,
-    pub stage: TaskRepairStage,
-    pub approved_sha256: String,
-    pub artifacts: super::index::TaskArtifactPaths,
-    pub decisions: Vec<TaskRepairDecision>,
-    pub affected_task_ids: Vec<String>,
-    pub changed_paths: Vec<String>,
-    pub task_diagnostics: TaskCollectionDiagnostics,
-    pub file_readiness: TaskFileReadiness,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub publication_status: Option<TaskPublicationStatus>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct TaskRepairPrepare {
-    pub schema: PublicSchema,
-    pub request: TaskRepairRequest,
-    pub preview: TaskRepairResponse,
-    #[serde(deserialize_with = "deserialize_required_nullable")]
-    pub output_file: Nullable<String>,
 }

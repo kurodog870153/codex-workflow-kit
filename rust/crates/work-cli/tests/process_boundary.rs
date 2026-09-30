@@ -198,7 +198,7 @@ fn task_semantic_prepare_reads_file_and_leaves_plan_unchanged() {
             project.to_string_lossy().into_owned(),
             "--verbose".into(),
             "task".into(),
-            "semantic-prepare".into(),
+            "prepare".into(),
             "--input-file".into(),
             input.to_string_lossy().into_owned(),
             "--requirement-id".into(),
@@ -221,6 +221,102 @@ fn task_semantic_prepare_reads_file_and_leaves_plan_unchanged() {
     assert_eq!(response["data"]["index"]["tasks"][0]["id"], "TASK-001");
     assert_eq!(fs::read(plan_file).unwrap(), plan_raw);
     assert!(!project.join("outputs/work/tasks").exists());
+}
+
+#[test]
+fn task_preview_and_apply_create_only_the_first_formal_collection() {
+    let fixture = PathBuf::from(project_root())
+        .join("rust/crates/work-infrastructure/fixtures/task-assembly");
+    let root = std::env::temp_dir().join(format!(
+        "work-task-public-lifecycle-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let plan = root.join("outputs/work/plans/example.json");
+    fs::create_dir_all(plan.parent().unwrap()).unwrap();
+    fs::copy(fixture.join("plan.json"), &plan).unwrap();
+    let index: Value =
+        serde_json::from_slice(&fs::read(fixture.join("index.json")).unwrap()).unwrap();
+    let draft: Value =
+        serde_json::from_slice(&fs::read(fixture.join("draft.json")).unwrap()).unwrap();
+    let storage = work_infrastructure::task::draft_storage::LocalTaskDraftStorage {
+        project_root: root.clone(),
+    };
+    let mut initial = index.clone();
+    initial["revision"] = json!(1);
+    initial["tasks"][0]["status"] = json!("planned");
+    initial["tasks"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("draft_ref");
+    storage.save_planning(&initial, 0, None).unwrap();
+    storage.save_planning(&index, 1, Some(&draft)).unwrap();
+    let metadata = root.join("metadata.json");
+    fs::write(&metadata, fs::read(fixture.join("metadata.json")).unwrap()).unwrap();
+    let args = |command: &str, approval: Option<&str>| {
+        let mut args = vec![
+            "--project-root".into(),
+            root.to_string_lossy().into_owned(),
+            "--verbose".into(),
+            "task".into(),
+            command.into(),
+            "--input-file".into(),
+            metadata.to_string_lossy().into_owned(),
+            "--requirement-id".into(),
+            "example".into(),
+            "--plan-path".into(),
+            "outputs/work/plans/example.json".into(),
+            "--user-config-root".into(),
+            root.to_string_lossy().into_owned(),
+        ];
+        if let Some(approval) = approval {
+            args.extend(["--approved-sha256".into(), approval.into()]);
+        }
+        args
+    };
+    let preview = run(&args("preview", None));
+    assert!(
+        preview.status.success(),
+        "{}",
+        String::from_utf8_lossy(&preview.stdout)
+    );
+    let preview: Value = serde_json::from_slice(&preview.stdout).unwrap();
+    let approval = preview["data"]["approval_sha256"].as_str().unwrap();
+    assert!(!root.join("outputs/work/tasks/example/index.json").exists());
+    let applied = run(&args("apply", Some(approval)));
+    assert!(
+        applied.status.success(),
+        "{}",
+        String::from_utf8_lossy(&applied.stdout)
+    );
+    let applied: Value = serde_json::from_slice(&applied.stdout).unwrap();
+    assert_eq!(applied["data"]["status"], "created");
+    assert!(root.join("outputs/work/tasks/example/index.json").is_file());
+    assert!(
+        root.join("outputs/work/executions/example/index.json")
+            .is_file()
+    );
+    let repeated = run(&args("apply", Some(approval)));
+    assert!(!repeated.status.success());
+    let recovered = run(&args("recover", Some(approval)));
+    assert!(
+        recovered.status.success(),
+        "{}",
+        String::from_utf8_lossy(&recovered.stdout)
+    );
+    let recovered: Value = serde_json::from_slice(&recovered.stdout).unwrap();
+    assert_eq!(recovered["data"]["status"], "already_completed");
+    let wrong = run(&args("recover", Some(&"0".repeat(64))));
+    assert!(!wrong.status.success());
+    let index_path = root.join("outputs/work/tasks/example/index.json");
+    let mut changed = fs::read(&index_path).unwrap();
+    changed.push(b' ');
+    fs::write(&index_path, changed).unwrap();
+    let conflict = run(&args("recover", Some(approval)));
+    assert!(!conflict.status.success());
 }
 
 #[test]
@@ -259,22 +355,11 @@ fn task_write_commands_reject_legacy_single_file_before_publication() {
             ],
         ),
         (
-            "spec-prepare",
+            "prepare",
             registry["items"]["work-spec-prepare-request/v1"]["description"]["example"].clone(),
             vec![],
         ),
-        (
-            "repair-prepare",
-            registry["items"]["work-task-repair-prepare-request/v1"]["description"]["example"]
-                .clone(),
-            vec![],
-        ),
-        (
-            "spec-validate",
-            json!({"plan":{"artifacts":artifacts}}),
-            vec![],
-        ),
-        ("repair-validate", json!({"artifacts":artifacts}), vec![]),
+        ("preview", json!({"plan":{"artifacts":artifacts}}), vec![]),
     ];
     let input = base.join("request.json");
     for (command, request, flags) in cases {
@@ -282,7 +367,12 @@ fn task_write_commands_reject_legacy_single_file_before_publication() {
         let mut args = vec![
             "--project-root".to_owned(),
             project.to_string_lossy().into_owned(),
-            "task".to_owned(),
+            (if matches!(command, "prepare" | "preview") {
+                "specification"
+            } else {
+                "task"
+            })
+            .to_owned(),
             command.to_owned(),
             "--input-file".to_owned(),
             input.to_string_lossy().into_owned(),
@@ -541,15 +631,13 @@ fn draft_request_cli_saves_small_payload_and_reuses_selection() {
             root_arg.clone(),
             "--verbose".to_owned(),
             "task".to_owned(),
-            "draft-save-request".to_owned(),
+            "save".to_owned(),
             "--input-file".to_owned(),
             request_arg.clone(),
             "--requirement-id".to_owned(),
             "example".to_owned(),
             "--task-id".to_owned(),
             "TASK-001".to_owned(),
-            "--expected-revision".to_owned(),
-            revision.to_string(),
             "--plan-path".to_owned(),
             "outputs/work/plans/example.json".to_owned(),
             "--user-config-root".to_owned(),
@@ -569,6 +657,64 @@ fn draft_request_cli_saves_small_payload_and_reuses_selection() {
         let response: Value = serde_json::from_slice(&output.stdout).unwrap();
         assert_eq!(response["data"]["revision"], revision + 1);
     }
+    let status_args = [
+        "--project-root",
+        root_arg.as_str(),
+        "--verbose",
+        "task",
+        "status",
+        "--requirement-id",
+        "example",
+        "--task-id",
+        "TASK-001",
+        "--plan-path",
+        "outputs/work/plans/example.json",
+        "--user-config-root",
+        root_arg.as_str(),
+    ];
+    let status = Command::new(&installed).args(status_args).output().unwrap();
+    assert!(
+        status.status.success(),
+        "{}",
+        String::from_utf8_lossy(&status.stdout)
+    );
+    let status: Value = serde_json::from_slice(&status.stdout).unwrap();
+    assert_eq!(status["data"]["source_validation"], "valid");
+    let overall = Command::new(&installed)
+        .args([
+            "--project-root",
+            root_arg.as_str(),
+            "--verbose",
+            "task",
+            "status",
+            "--requirement-id",
+            "example",
+            "--plan-path",
+            "outputs/work/plans/example.json",
+            "--user-config-root",
+            root_arg.as_str(),
+        ])
+        .output()
+        .unwrap();
+    assert!(overall.status.success());
+    let overall: Value = serde_json::from_slice(&overall.stdout).unwrap();
+    assert_eq!(overall["data"]["source_validation"], "valid");
+    let plan_file = root.join("outputs/work/plans/example.json");
+    let mut plan: Value = serde_json::from_slice(&fs::read(&plan_file).unwrap()).unwrap();
+    plan["summary"] = json!("Changed after planning");
+    fs::write(
+        &plan_file,
+        work_infrastructure::fixture_support::render_plan(&plan).unwrap(),
+    )
+    .unwrap();
+    let drift = Command::new(&installed).args(status_args).output().unwrap();
+    assert!(
+        drift.status.success(),
+        "{}",
+        String::from_utf8_lossy(&drift.stdout)
+    );
+    let drift: Value = serde_json::from_slice(&drift.stdout).unwrap();
+    assert_eq!(drift["data"]["source_validation"], "review_required");
     let draft: Value = serde_json::from_slice(
         &fs::read(root.join("outputs/work/tasks/example/drafts/history/3/TASK-001.json")).unwrap(),
     )
@@ -578,125 +724,16 @@ fn draft_request_cli_saves_small_payload_and_reuses_selection() {
 }
 
 #[test]
-fn task_diagnostics_cli_is_read_only_and_invalid_item_precedes_writer_lock() {
-    fn copy_tree(source: &Path, target: &Path) {
-        fs::create_dir_all(target).unwrap();
-        for entry in fs::read_dir(source).unwrap() {
-            let entry = entry.unwrap();
-            let destination = target.join(entry.file_name());
-            if entry.file_type().unwrap().is_dir() {
-                copy_tree(&entry.path(), &destination);
-            } else {
-                fs::copy(entry.path(), destination).unwrap();
-            }
-        }
-    }
-    let repo = PathBuf::from(project_root());
-    let fixture = repo.join("rust/crates/work-infrastructure/fixtures/task-diagnostics");
-    let base = std::env::temp_dir().join(format!(
-        "work-task-diagnostics-process-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    let root = base.join("project");
-    let skill = base.join("work");
-    let installed = skill.join("scripts/work");
-    fs::create_dir_all(installed.parent().unwrap()).unwrap();
-    fs::copy(executable(), &installed).unwrap();
-    copy_tree(
-        &repo.join("skills/work/references"),
-        &skill.join("references"),
-    );
-    let paths = [
-        "outputs/work/plans/example.json",
-        "outputs/work/tasks/example/index.json",
-        "outputs/work/tasks/example/tasks/TASK-001.json",
-        "outputs/work/executions/example/index.json",
-    ];
-    for relative in paths {
-        let destination = root.join(relative);
-        fs::create_dir_all(destination.parent().unwrap()).unwrap();
-        fs::copy(fixture.join(relative), destination).unwrap();
-    }
-    let before = paths
-        .iter()
-        .map(|path| fs::read(root.join(path)).unwrap())
-        .collect::<Vec<_>>();
-    let root_arg = root.to_string_lossy().into_owned();
-    let task_path = "outputs/work/tasks/example/index.json";
-    let diagnose = Command::new(&installed)
-        .args([
-            "--project-root".into(),
-            root_arg.clone(),
-            "--verbose".into(),
-            "task".into(),
-            "diagnose".into(),
-            "--path".into(),
-            task_path.into(),
-            "--plan-path".into(),
-            "outputs/work/plans/example.json".into(),
-            "--execution-dir".into(),
-            "outputs/work/executions/example".into(),
-            "--user-config-root".into(),
-            root_arg.clone(),
-        ])
-        .output()
-        .unwrap();
-    assert_eq!(
-        diagnose.status.code(),
-        Some(0),
-        "{}",
-        String::from_utf8_lossy(&diagnose.stdout)
-    );
-    assert!(diagnose.stderr.is_empty());
-    let response: Value = serde_json::from_slice(&diagnose.stdout).unwrap();
-    let direct = work_infrastructure::task::diagnostics::diagnose_task_collection(
-        &root,
-        &repo.join("skills/work"),
-        &[],
-        task_path,
-    );
-    assert_eq!(response["data"], direct);
-    assert_eq!(response["data"]["normal_use_allowed"], true);
-    for (path, original) in paths.iter().zip(&before) {
-        assert_eq!(fs::read(root.join(path)).unwrap(), *original);
-    }
-    let item = root.join("outputs/work/tasks/example/tasks/TASK-001.json");
-    fs::write(&item, b"{").unwrap();
-    let index_before = fs::read(root.join(task_path)).unwrap();
-    let execute = Command::new(&installed)
-        .args([
-            "--project-root".into(),
-            root_arg.clone(),
-            "--verbose".into(),
-            "execute".into(),
-            "record-begin".into(),
-            "--user-config-root".into(),
-            root_arg.clone(),
-            "--task-path".into(),
-            task_path.into(),
-            "--execution-dir".into(),
-            "outputs/work/executions/example".into(),
-            "--task-id".into(),
-            "TASK-001".into(),
-            "--record-id".into(),
-            "CMD-001".into(),
-        ])
-        .output()
-        .unwrap();
-    assert_ne!(execute.status.code(), Some(0));
-    let rejected: Value = serde_json::from_slice(&execute.stdout).unwrap();
-    assert_eq!(rejected["reason_code"], "invalid_json_contract");
-    assert_eq!(fs::read(root.join(task_path)).unwrap(), index_before);
-    assert_eq!(fs::read(&item).unwrap(), b"{");
-    assert!(
-        !root
-            .join("outputs/work/executions/example/.work-state-writer.lock")
-            .exists()
-    );
+fn removed_task_diagnose_is_rejected() {
+    let output = run(&[
+        "--project-root".into(),
+        project_root(),
+        "task".into(),
+        "diagnose".into(),
+    ]);
+    assert_ne!(output.status.code(), Some(0));
+    let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(response["reason_code"], "cli_usage_error");
 }
 
 #[test]
@@ -765,7 +802,7 @@ fn every_public_leaf_has_frozen_help_at_process_boundary() {
         .expect("command manifest");
     let mut count = 0;
     check_help(&manifest["root"], &mut Vec::new(), &mut count);
-    assert_eq!(count, 111);
+    assert_eq!(count, 112);
 }
 
 #[test]
@@ -787,7 +824,7 @@ fn public_command_tree_matches_frozen_baseline() {
     let mut commands = Vec::new();
     collect(&manifest["root"], &mut Vec::new(), &mut commands);
     commands.sort();
-    assert_eq!(commands.len(), 111);
+    assert_eq!(commands.len(), 112);
     let migration = [
         "migration analyze",
         "migration prepare",
@@ -802,16 +839,72 @@ fn public_command_tree_matches_frozen_baseline() {
     for new_command in migration {
         assert!(commands.contains(&new_command.to_owned()));
     }
+    for command in [
+        "task prepare",
+        "task status",
+        "task save",
+        "task preview",
+        "task apply",
+        "task recover",
+        "specification prepare",
+        "specification preview",
+        "specification apply",
+        "specification verify",
+        "specification recover",
+        "specification reconciliation-prepare",
+        "specification reconciliation-preview",
+        "specification reconciliation-apply",
+    ] {
+        assert!(commands.contains(&command.to_owned()));
+    }
+    for removed in [
+        "task spec-prepare",
+        "task spec-validate",
+        "task spec-update",
+        "task spec-verify",
+        "task spec-recover",
+        "task reconciliation-prepare",
+        "task reconciliation-preview",
+        "task reconciliation-apply",
+    ] {
+        assert!(!commands.contains(&removed.to_owned()));
+    }
     let legacy = commands
         .into_iter()
         .filter(|command| !migration.contains(&command.as_str()))
         .collect::<Vec<_>>();
-    assert_eq!(legacy.len(), 102);
+    assert_eq!(legacy.len(), 103);
     let raw = format!("{}\n", legacy.join("\n"));
     assert_eq!(
         work_infrastructure::codec::sha256_hex(raw.as_bytes()),
-        "746829842500b9281fb326a80867f73392a35b8cedef6c7e048bc8fe1f9927d8"
+        "9fba9828c9acda955bb94a3e9e96f15b1995c56056722f9980423ebe695216c4"
     );
+}
+
+#[test]
+fn specification_recover_dispatches_to_specification_validation() {
+    let project = std::env::temp_dir().join(format!(
+        "work-specification-recover-cli-{}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&project).unwrap();
+    let input = project.join("request.json");
+    fs::write(&input, b"{}").unwrap();
+    let output = run(&[
+        "--project-root".into(),
+        project.to_string_lossy().into_owned(),
+        "specification".into(),
+        "recover".into(),
+        "--input-file".into(),
+        input.to_string_lossy().into_owned(),
+        "--user-config-root".into(),
+        project.to_string_lossy().into_owned(),
+        "--approved-sha256".into(),
+        "a".repeat(64),
+    ]);
+    assert_eq!(output.status.code(), Some(ExitCode::WorkflowState as i32));
+    let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(response["reason_code"], "task_collection_required");
 }
 
 #[test]
@@ -1498,8 +1591,8 @@ fn specification_constraint_continuation_across_installed_processes() {
         };
         let prepared = invoke(
             &[
-                "task",
-                "spec-prepare",
+                "specification",
+                "prepare",
                 "--input-file",
                 request_path.to_str().unwrap(),
                 "--output-file",
@@ -1517,8 +1610,8 @@ fn specification_constraint_continuation_across_installed_processes() {
         assert!(prepared["data"].get("request").is_none());
         let validated = invoke(
             &[
-                "task",
-                "spec-validate",
+                "specification",
+                "preview",
                 "--input-file",
                 prepared_path.to_str().unwrap(),
                 "--summary",
@@ -1568,8 +1661,8 @@ fn specification_constraint_continuation_across_installed_processes() {
             .to_owned();
         let published = invoke(
             &[
-                "task",
-                "spec-update",
+                "specification",
+                "apply",
                 "--input-file",
                 prepared_path.to_str().unwrap(),
                 "--approved-sha256",
@@ -1593,8 +1686,8 @@ fn specification_constraint_continuation_across_installed_processes() {
             fs::write(&plan_path, render_plan(&changed).unwrap()).unwrap();
             let rejected = invoke(
                 &[
-                    "task",
-                    "spec-verify",
+                    "specification",
+                    "verify",
                     "--input-file",
                     verify_path.to_str().unwrap(),
                     "--user-config-root",
@@ -1611,8 +1704,8 @@ fn specification_constraint_continuation_across_installed_processes() {
         } else {
             let verified = invoke(
                 &[
-                    "task",
-                    "spec-verify",
+                    "specification",
+                    "verify",
                     "--input-file",
                     verify_path.to_str().unwrap(),
                     "--user-config-root",

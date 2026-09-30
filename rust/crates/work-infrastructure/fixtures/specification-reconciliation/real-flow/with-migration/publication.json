@@ -1,21 +1,21 @@
 {
   "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
-  "attempt_sha256": "d9b345a6c359a35b09cd37b94a59708718e9164f9f102c6e8d9db6404604c076",
+  "attempt_sha256": "c843c28d82e62ae5297f3a93db55590e347cec502cd98a2b02b0069b60a15572",
   "deviation_classifications": {
     "DEVIATION-001": "task_only"
   },
   "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
-  "ledger_sha256": "ea71530e55b4e519c36246d2f60953e4b245b2f000027751efe5585b4f36ba7d",
+  "ledger_sha256": "28937822ccfb121f4bb82c7bf2ae584e4b16cc8e541e71056440d05537a635c9",
   "publication": {
-    "completion_marker": "outputs/work/executions/example/.work-spec-migration-31D94DCAC446.json.done",
+    "completion_marker": "outputs/work/executions/example/.work-spec-migration-643052A499C1.json.done",
     "documents": [
       "outputs/work/executions/example/index.json",
       "outputs/work/plans/example.json",
       "outputs/work/tasks/example/index.json",
       "outputs/work/tasks/example/tasks/TASK-001.json"
     ],
-    "fingerprint": "31d94dcac446a3a6069e101f81ec2f3fa038bd6326a3cf079dae1bc2fa4fbc62",
-    "journal": "outputs/work/executions/example/.work-spec-migration-31D94DCAC446.json",
+    "fingerprint": "643052a499c167035a82383fdc80e94d43233625937ed61cd3b6867302857181",
+    "journal": "outputs/work/executions/example/.work-spec-migration-643052A499C1.json",
     "publication_status": "published",
     "relationship_results": [
       {
@@ -33,7 +33,7 @@
     ],
     "schema": "work-spec-migration-publication/v1",
     "status": "updated",
-    "transaction_approval_sha256": "6c54f3b3af7e41cc2678e6b4118000948575811a9a24b9813bb544baec152ca1",
+    "transaction_approval_sha256": "f5f76bb1e11ea3519a51aee12c049a7f06bd1db5efc865308125e9aa5675b1a7",
     "validator_results": [
       {
         "name": "plan",
@@ -49,7 +49,7 @@
       }
     ]
   },
-  "reconciliation_fingerprint": "accc38699d5d476c27523610e25b5a1bad86474b44dacaec9e9a19cc2624cbdd",
+  "reconciliation_fingerprint": "dd98d3f58f2b524974590181f3e2bad359e8d111cd458f3fa40bba8c2b79d8c7",
   "retained_deviation_ids": [],
   "schema": "work-spec-reconciliation-publication/v1",
   "selected_deviation_ids": [

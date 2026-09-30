@@ -37,14 +37,14 @@
       {
         "kind": "reference",
         "logical_name": "task.general.task-records",
-        "canonical_sha256": "f0b515ed95cd591bdad9116748c0bb3e929c0ef9ea68513ea6e1a59443c53966",
+        "canonical_sha256": "1ea4931d886c33c5bac81602aead13f66feb77dd6d35a07175c5fecd1a92c98c",
         "compatibility_revision": 1
       }
     ],
     "references": [
       "task.general.task-records"
     ],
-    "instructions_sha256": "bc408c5a41fbacf9c4cbc323e1da231d39cc5764fe52c293afaa4a47aee64df3"
+    "instructions_sha256": "faaf4a324feca64f085cc67beb0220b21b61e46cba2f8046a6d17097b113adb6"
   },
   "execution_defaults": {
     "working_directory": ".",
@@ -55,12 +55,12 @@
     {
       "id": "TASK-001",
       "path": "tasks/TASK-001.json",
-      "canonical_sha256": "02d617c7c5fe29ce83ba0edbfc9f7531ab7cb08a4055ad15283e621446ea8541"
+      "canonical_sha256": "af313241b49b13285fea19ee04397d79b189eeddd24cd327a31b24cdce85efc0"
     },
     {
       "id": "TASK-002",
       "path": "tasks/TASK-002.json",
-      "canonical_sha256": "7f077be9efae94088f6663278d96cf021730ac430f04f47b43791652efede941"
+      "canonical_sha256": "5dcdbd7b9dccc830d926aafc81ff43adb5c957fe26d57cbb22ef3add9bd06a38"
     }
   ],
   "changes": [
@@ -111,14 +111,14 @@
                 {
                   "kind": "reference",
                   "logical_name": "task.general.task-records",
-                  "canonical_sha256": "f0b515ed95cd591bdad9116748c0bb3e929c0ef9ea68513ea6e1a59443c53966",
+                  "canonical_sha256": "1ea4931d886c33c5bac81602aead13f66feb77dd6d35a07175c5fecd1a92c98c",
                   "compatibility_revision": 1
                 }
               ],
               "references": [
                 "task.general.task-records"
               ],
-              "instructions_sha256": "bc408c5a41fbacf9c4cbc323e1da231d39cc5764fe52c293afaa4a47aee64df3"
+              "instructions_sha256": "faaf4a324feca64f085cc67beb0220b21b61e46cba2f8046a6d17097b113adb6"
             },
             "traceability": {
               "goal_ids": [

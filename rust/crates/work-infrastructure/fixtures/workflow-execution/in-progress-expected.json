@@ -1,21 +1,20 @@
 {
-  "schema": "work-workflow-state/v1",
-  "requirement_id": "example",
-  "status": "execution_in_progress",
+  "arguments": {},
+  "artifacts": {
+    "execution": "outputs/work/executions/example",
+    "plan": "outputs/work/plans/example.json",
+    "task": "outputs/work/tasks/example/index.json"
+  },
+  "command": null,
+  "details": {
+    "overall_status": "in_progress"
+  },
   "next_action": "continue_execution",
-  "target": "outputs/work/executions/example",
-  "requires_user_confirmation": false,
+  "request_contract_id": null,
   "required_checks": [
     "task validate",
     "execute preflight"
   ],
-  "artifacts": {
-    "plan": "outputs/work/plans/example.json",
-    "task": "outputs/work/tasks/example/index.json",
-    "execution": "outputs/work/executions/example"
-  },
-  "routing_status": "VALID",
-  "router_compatibility_revision": 3,
   "required_instruction_sources": [
     "work.instruction-loading",
     "work.shared.transaction-workspace",
@@ -30,6 +29,109 @@
     "work.workflow.execute.record-one-execution-result",
     "work.workflow.execute.close-one-attempt"
   ],
+  "requirement_id": "example",
+  "requires_user_confirmation": false,
+  "router_compatibility_revision": 3,
+  "routing_reasons": [
+    "operation:continue_execution",
+    "workflow_status:execution_in_progress",
+    "mode:execute"
+  ],
+  "routing_status": "VALID",
+  "schema": "work-workflow-state/v1",
+  "selection_manifest": {
+    "confirmation_required": false,
+    "router_compatibility_revision": 3,
+    "routing_input": {
+      "artifact_lifecycle": "execution_in_progress",
+      "authorization_state": "read_only",
+      "formal_events": [],
+      "mode": "execute",
+      "operation": "continue_execution",
+      "role": "main",
+      "status": "execution_in_progress",
+      "verified_state_sha256": "6cd5151654f005d1e87728b062352e78797f563dc0c0509ec406a2a73af6a13d"
+    },
+    "routing_status": "VALID",
+    "schema": "work-instruction-selection-manifest/v1",
+    "selection_sha256": "3907597f3d34ced67b96b7d249ec86e555d445a93f17433e691d1e4d39ba61b2",
+    "sources": [
+      {
+        "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
+        "compatibility_revision": 2,
+        "logical_name": "work.instruction-loading",
+        "path": "references/instruction-loading.md"
+      },
+      {
+        "canonical_sha256": "3e33514adb6b27bb2b3566b6888fd1636e2025819eb9b54fca8ed808206e5355",
+        "compatibility_revision": 1,
+        "logical_name": "work.shared.transaction-workspace",
+        "path": "references/instruction-loading/transaction-workspace.md"
+      },
+      {
+        "canonical_sha256": "11f6edb8fbeccb01a12a1eb34be7a07524a9067b9e40eef79ebe01c1505aa313",
+        "compatibility_revision": 1,
+        "logical_name": "work.shared.formal-task-validation",
+        "path": "references/instruction-loading/formal-task-validation.md"
+      },
+      {
+        "canonical_sha256": "ea7b2fe8047298dcccab6cdbde250bb7abfc10d600efd90f707bca435db0dace",
+        "compatibility_revision": 1,
+        "logical_name": "work.shared.runtime",
+        "path": "references/instruction-loading/runtime.md"
+      },
+      {
+        "canonical_sha256": "e39ecdd85d31a5682cf3550f10b69b37626b7124621e7bca7f1be05f415c34ac",
+        "compatibility_revision": 1,
+        "logical_name": "work.shared.cli-transport",
+        "path": "references/instruction-loading/cli-transport.md"
+      },
+      {
+        "canonical_sha256": "b27d40bd8a066d8a09a78c6714eecc2314a0465fbceaa1cacf87af924d1bae32",
+        "compatibility_revision": 1,
+        "logical_name": "work.shared.artifact-paths",
+        "path": "references/instruction-loading/artifact-paths.md"
+      },
+      {
+        "canonical_sha256": "56b44b90cd595a3095ff1f0601560ad1661465fa9239b0b838b86c1fa0456e35",
+        "compatibility_revision": 1,
+        "logical_name": "work.shared.fingerprints",
+        "path": "references/instruction-loading/fingerprints.md"
+      },
+      {
+        "canonical_sha256": "7b4182014913d07b4203213a7ccf07269388d98861e66f5ebf37598b650a26eb",
+        "compatibility_revision": 2,
+        "logical_name": "work.workflow.execute",
+        "path": "references/workflows/execute.md"
+      },
+      {
+        "canonical_sha256": "5bc61f643766248977113f933868ae891b6c46dc436a31372559b6566520719f",
+        "compatibility_revision": 2,
+        "logical_name": "work.workflow.execute.apply-one-attempt-authorization-boundary",
+        "path": "references/workflows/execute/apply-one-attempt-authorization-boundary.md"
+      },
+      {
+        "canonical_sha256": "916df0c4563df033f468826a4b88678fe81dcba5cadce1a665abd69a6b6c7585",
+        "compatibility_revision": 1,
+        "logical_name": "work.workflow.execute.reserve-one-execution-record",
+        "path": "references/workflows/execute/reserve-one-execution-record.md"
+      },
+      {
+        "canonical_sha256": "26f03a9dcb2e0b0cdba778504047a8befd2c0e7b0b5284600c8502efd445156d",
+        "compatibility_revision": 1,
+        "logical_name": "work.workflow.execute.record-one-execution-result",
+        "path": "references/workflows/execute/record-one-execution-result.md"
+      },
+      {
+        "canonical_sha256": "afe0d77a3e19bca9a9feacf13d542d15c29b82db93dc0c9ad6abd6ff7247cd95",
+        "compatibility_revision": 2,
+        "logical_name": "work.workflow.execute.close-one-attempt",
+        "path": "references/workflows/execute/close-one-attempt.md"
+      }
+    ]
+  },
+  "selection_sha256": "3907597f3d34ced67b96b7d249ec86e555d445a93f17433e691d1e4d39ba61b2",
+  "semantic_input_contract": null,
   "source_order": [
     "work.instruction-loading",
     "work.shared.transaction-workspace",
@@ -44,108 +146,6 @@
     "work.workflow.execute.record-one-execution-result",
     "work.workflow.execute.close-one-attempt"
   ],
-  "selection_sha256": "d89e98d482ed66d5cb4e38d14eecf49500222c2d6cd14ea448f899ee7e95d027",
-  "routing_reasons": [
-    "operation:continue_execution",
-    "workflow_status:execution_in_progress",
-    "mode:execute"
-  ],
-  "selection_manifest": {
-    "schema": "work-instruction-selection-manifest/v1",
-    "router_compatibility_revision": 3,
-    "routing_input": {
-      "mode": "execute",
-      "status": "execution_in_progress",
-      "operation": "continue_execution",
-      "artifact_lifecycle": "execution_in_progress",
-      "formal_events": [],
-      "role": "main",
-      "authorization_state": "read_only",
-      "verified_state_sha256": "6cd5151654f005d1e87728b062352e78797f563dc0c0509ec406a2a73af6a13d"
-    },
-    "routing_status": "VALID",
-    "sources": [
-      {
-        "logical_name": "work.instruction-loading",
-        "path": "references/instruction-loading.md",
-        "compatibility_revision": 2,
-        "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f"
-      },
-      {
-        "logical_name": "work.shared.transaction-workspace",
-        "path": "references/instruction-loading/transaction-workspace.md",
-        "compatibility_revision": 1,
-        "canonical_sha256": "3e33514adb6b27bb2b3566b6888fd1636e2025819eb9b54fca8ed808206e5355"
-      },
-      {
-        "logical_name": "work.shared.formal-task-validation",
-        "path": "references/instruction-loading/formal-task-validation.md",
-        "compatibility_revision": 1,
-        "canonical_sha256": "aaa152b11f9bd2be7256c179d809bd78e7a69e5edc3e7f445ff6ee0f99a1b1d6"
-      },
-      {
-        "logical_name": "work.shared.runtime",
-        "path": "references/instruction-loading/runtime.md",
-        "compatibility_revision": 1,
-        "canonical_sha256": "ea7b2fe8047298dcccab6cdbde250bb7abfc10d600efd90f707bca435db0dace"
-      },
-      {
-        "logical_name": "work.shared.cli-transport",
-        "path": "references/instruction-loading/cli-transport.md",
-        "compatibility_revision": 1,
-        "canonical_sha256": "e39ecdd85d31a5682cf3550f10b69b37626b7124621e7bca7f1be05f415c34ac"
-      },
-      {
-        "logical_name": "work.shared.artifact-paths",
-        "path": "references/instruction-loading/artifact-paths.md",
-        "compatibility_revision": 1,
-        "canonical_sha256": "b27d40bd8a066d8a09a78c6714eecc2314a0465fbceaa1cacf87af924d1bae32"
-      },
-      {
-        "logical_name": "work.shared.fingerprints",
-        "path": "references/instruction-loading/fingerprints.md",
-        "compatibility_revision": 1,
-        "canonical_sha256": "56b44b90cd595a3095ff1f0601560ad1661465fa9239b0b838b86c1fa0456e35"
-      },
-      {
-        "logical_name": "work.workflow.execute",
-        "path": "references/workflows/execute.md",
-        "compatibility_revision": 2,
-        "canonical_sha256": "7b4182014913d07b4203213a7ccf07269388d98861e66f5ebf37598b650a26eb"
-      },
-      {
-        "logical_name": "work.workflow.execute.apply-one-attempt-authorization-boundary",
-        "path": "references/workflows/execute/apply-one-attempt-authorization-boundary.md",
-        "compatibility_revision": 2,
-        "canonical_sha256": "ebb98c88dc1eee8616113e4cd5cdf3d785545a46e9fc9bee24af0836aa5c6f7a"
-      },
-      {
-        "logical_name": "work.workflow.execute.reserve-one-execution-record",
-        "path": "references/workflows/execute/reserve-one-execution-record.md",
-        "compatibility_revision": 1,
-        "canonical_sha256": "916df0c4563df033f468826a4b88678fe81dcba5cadce1a665abd69a6b6c7585"
-      },
-      {
-        "logical_name": "work.workflow.execute.record-one-execution-result",
-        "path": "references/workflows/execute/record-one-execution-result.md",
-        "compatibility_revision": 1,
-        "canonical_sha256": "26f03a9dcb2e0b0cdba778504047a8befd2c0e7b0b5284600c8502efd445156d"
-      },
-      {
-        "logical_name": "work.workflow.execute.close-one-attempt",
-        "path": "references/workflows/execute/close-one-attempt.md",
-        "compatibility_revision": 2,
-        "canonical_sha256": "afe0d77a3e19bca9a9feacf13d542d15c29b82db93dc0c9ad6abd6ff7247cd95"
-      }
-    ],
-    "confirmation_required": false,
-    "selection_sha256": "d89e98d482ed66d5cb4e38d14eecf49500222c2d6cd14ea448f899ee7e95d027"
-  },
-  "details": {
-    "overall_status": "in_progress"
-  },
-  "request_contract_id": null,
-  "command": null,
-  "arguments": {},
-  "semantic_input_contract": null
+  "status": "execution_in_progress",
+  "target": "outputs/work/executions/example"
 }

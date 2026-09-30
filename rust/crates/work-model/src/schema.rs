@@ -198,8 +198,6 @@ pub enum PublicSchema {
     WorkSpecVerificationRequestV1,
     #[serde(rename = "work-spec-verification/v1")]
     WorkSpecVerificationV1,
-    #[serde(rename = "work-task-collection-diagnostics/v1")]
-    WorkTaskCollectionDiagnosticsV1,
     #[serde(rename = "work-task-collection-fingerprint/v1")]
     WorkTaskCollectionFingerprintV1,
     #[serde(rename = "work-task-collection-projection/v1")]
@@ -230,14 +228,6 @@ pub enum PublicSchema {
     WorkTaskPlanningIndexValidationV1,
     #[serde(rename = "work-task-planning-index/v1")]
     WorkTaskPlanningIndexV1,
-    #[serde(rename = "work-task-repair-prepare-request/v1")]
-    WorkTaskRepairPrepareRequestV1,
-    #[serde(rename = "work-task-repair-prepare/v1")]
-    WorkTaskRepairPrepareV1,
-    #[serde(rename = "work-task-repair-request/v1")]
-    WorkTaskRepairRequestV1,
-    #[serde(rename = "work-task-repair/v1")]
-    WorkTaskRepairV1,
     #[serde(rename = "work-task-semantic-request/v1")]
     WorkTaskSemanticRequestV1,
     #[serde(rename = "work-workflow-state/v1")]
@@ -245,7 +235,7 @@ pub enum PublicSchema {
 }
 
 impl PublicSchema {
-    pub const ALL: [Self; 119] = [
+    pub const ALL: [Self; 114] = [
         Self::WorkAttemptAuthorizationV1,
         Self::WorkAttemptCloseRequestV1,
         Self::WorkAttemptCloseV1,
@@ -343,7 +333,6 @@ impl PublicSchema {
         Self::WorkSpecUpdateV1,
         Self::WorkSpecVerificationRequestV1,
         Self::WorkSpecVerificationV1,
-        Self::WorkTaskCollectionDiagnosticsV1,
         Self::WorkTaskCollectionFingerprintV1,
         Self::WorkTaskCollectionProjectionV1,
         Self::WorkTaskCollectionValidationV1,
@@ -359,10 +348,6 @@ impl PublicSchema {
         Self::WorkTaskItemV1,
         Self::WorkTaskPlanningIndexValidationV1,
         Self::WorkTaskPlanningIndexV1,
-        Self::WorkTaskRepairPrepareRequestV1,
-        Self::WorkTaskRepairPrepareV1,
-        Self::WorkTaskRepairRequestV1,
-        Self::WorkTaskRepairV1,
         Self::WorkTaskSemanticRequestV1,
         Self::WorkWorkflowStateV1,
     ];
@@ -476,7 +461,6 @@ impl PublicSchema {
             Self::WorkSpecUpdateV1 => "work-spec-update/v1",
             Self::WorkSpecVerificationRequestV1 => "work-spec-verification-request/v1",
             Self::WorkSpecVerificationV1 => "work-spec-verification/v1",
-            Self::WorkTaskCollectionDiagnosticsV1 => "work-task-collection-diagnostics/v1",
             Self::WorkTaskCollectionFingerprintV1 => "work-task-collection-fingerprint/v1",
             Self::WorkTaskCollectionProjectionV1 => "work-task-collection-projection/v1",
             Self::WorkTaskCollectionValidationV1 => "work-task-collection-validation/v1",
@@ -492,10 +476,6 @@ impl PublicSchema {
             Self::WorkTaskItemV1 => "work-task-item/v1",
             Self::WorkTaskPlanningIndexValidationV1 => "work-task-planning-index-validation/v1",
             Self::WorkTaskPlanningIndexV1 => "work-task-planning-index/v1",
-            Self::WorkTaskRepairPrepareRequestV1 => "work-task-repair-prepare-request/v1",
-            Self::WorkTaskRepairPrepareV1 => "work-task-repair-prepare/v1",
-            Self::WorkTaskRepairRequestV1 => "work-task-repair-request/v1",
-            Self::WorkTaskRepairV1 => "work-task-repair/v1",
             Self::WorkTaskSemanticRequestV1 => "work-task-semantic-request/v1",
             Self::WorkWorkflowStateV1 => "work-workflow-state/v1",
         }
@@ -513,7 +493,7 @@ mod tests {
             .iter()
             .map(|schema| schema.as_str())
             .collect();
-        assert_eq!(ids.len(), 119);
+        assert_eq!(ids.len(), 114);
         for schema in PublicSchema::ALL {
             let literal = serde_json::to_value(schema).unwrap();
             assert_eq!(literal, schema.as_str());

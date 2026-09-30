@@ -37,25 +37,25 @@
       {
         "kind": "reference",
         "logical_name": "task.general.task-records",
-        "canonical_sha256": "f0b515ed95cd591bdad9116748c0bb3e929c0ef9ea68513ea6e1a59443c53966",
+        "canonical_sha256": "1ea4931d886c33c5bac81602aead13f66feb77dd6d35a07175c5fecd1a92c98c",
         "compatibility_revision": 1
       }
     ],
     "references": [
       "task.general.task-records"
     ],
-    "instructions_sha256": "bc408c5a41fbacf9c4cbc323e1da231d39cc5764fe52c293afaa4a47aee64df3"
+    "instructions_sha256": "faaf4a324feca64f085cc67beb0220b21b61e46cba2f8046a6d17097b113adb6"
   },
   "tasks": [
     {
       "id": "TASK-001",
       "path": "tasks/TASK-001.json",
-      "canonical_sha256": "8eb021d7fff61bddd623e87c9e38903edee1ad15eb9e15e35d8ed9a762f2d0f3"
+      "canonical_sha256": "99cd8bf32411c902e6874e79f6f0f463888c33cbffa0dc5d6e3cb2c615c17a7b"
     },
     {
       "id": "TASK-002",
       "path": "tasks/TASK-002.json",
-      "canonical_sha256": "f0ed3338322ee2a81fa713ff7486d45b32833b975caee4c180d3bd7015e2f45d"
+      "canonical_sha256": "bb170c790405774adfca5bb29506743532abc96c73bcc07062038a659b324e69"
     }
   ],
   "readiness": {

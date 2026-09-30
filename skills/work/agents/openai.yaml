@@ -1,6 +1,6 @@
 interface:
   display_name: "Work"
-  short_description: "Run Plan, Task, or Execute workflows explicitly"
+  short_description: "Run Plan, Task, Revise, Migration, or Execute explicitly"
   default_prompt: "Use $work plan -- describe the requirement and produce a confirmed Plan."
 
 policy:

@@ -82,13 +82,8 @@ use work_infrastructure::specification::workflow_storage::{
 };
 use work_infrastructure::task::assembly_storage::LocalTaskAssembly;
 use work_infrastructure::task::create_storage::LocalTaskCreation;
-use work_infrastructure::task::diagnostics::diagnose_task_collection;
 use work_infrastructure::task::draft_storage::{
     LocalTaskDraftStorage, TaskSourceCheckRequest, TaskSourceUpdateProjectRequest,
-};
-use work_infrastructure::task::repair_storage::{
-    PrepareRepairRequest, RepairOperation, RepairProjectRequest, prepare_repair_from_project,
-    repair_from_project,
 };
 use work_infrastructure::task::semantic_prepare::prepare_semantic_task_request;
 use work_infrastructure::task::storage::LocalTaskStorage;
@@ -1106,16 +1101,56 @@ fn dispatch(
             &contract::EmbeddedRegistry,
             argument(parsed, "contract_id")?,
         ),
-        ["task", "draft-status"] => work_flow::draft::status(|| {
-            LocalTaskDraftStorage {
+        ["task", "draft-status" | "status"] => {
+            let storage = LocalTaskDraftStorage {
                 project_root: root.to_path_buf(),
+            };
+            let mut result = work_flow::draft::status(|| {
+                storage.status(
+                    argument(parsed, "requirement_id")?,
+                    parsed.arguments.get("task_id").and_then(Value::as_str),
+                )
+            })?;
+            if parsed.path[1] == "status" && result["status"] == "saved" {
+                let configs = skill_configs(&string_list(parsed, "skill_root"))?;
+                let (plan_path, _) = resolve_project_path(root, argument(parsed, "plan_path")?)?;
+                let task_ids =
+                    if let Some(id) = parsed.arguments.get("task_id").and_then(Value::as_str) {
+                        vec![id.to_owned()]
+                    } else {
+                        result["tasks"]
+                            .as_array()
+                            .into_iter()
+                            .flatten()
+                            .filter_map(|row| row["id"].as_str().map(str::to_owned))
+                            .collect()
+                    };
+                let revision = result["revision"].as_u64().unwrap_or(0);
+                for task_id in task_ids {
+                    match storage.check_sources(&TaskSourceCheckRequest {
+                        requirement_id: argument(parsed, "requirement_id")?,
+                        task_id: &task_id,
+                        expected_revision: revision,
+                        plan_path: &plan_path,
+                        skill_root,
+                        skill_configs: &configs,
+                        selected_paths: None,
+                        reference_names: None,
+                    }) {
+                        Ok(_) => result["source_validation"] = json!("valid"),
+                        Err(error) if error.reason_code == "draft_source_drift" => {
+                            result["source_validation"] = json!("review_required");
+                            result["next_action"] = json!("review_sources");
+                            result["requires_user_confirmation"] = json!(true);
+                            break;
+                        }
+                        Err(error) => return Err(error),
+                    }
+                }
             }
-            .status(
-                argument(parsed, "requirement_id")?,
-                parsed.arguments.get("task_id").and_then(Value::as_str),
-            )
-        }),
-        ["task", "semantic-prepare"] => {
+            Ok(result)
+        }
+        ["task", "semantic-prepare" | "prepare"] => {
             let configs = skill_configs(&string_list(parsed, "skill_root"))?;
             work_flow::draft::semantic_prepare(|| {
                 prepare_semantic_task_request(
@@ -1126,6 +1161,13 @@ fn dispatch(
                     argument(parsed, "plan_path")?,
                     if parsed.arguments.contains_key("expected_revision") {
                         unsigned_argument(parsed, "expected_revision")?
+                    } else if parsed.path[1] == "prepare" {
+                        LocalTaskDraftStorage {
+                            project_root: root.to_path_buf(),
+                        }
+                        .status(argument(parsed, "requirement_id")?, None)?["revision"]
+                            .as_u64()
+                            .unwrap_or(0)
                     } else {
                         0
                     },
@@ -1205,7 +1247,10 @@ fn dispatch(
                 },
             )
         }
-        ["task", "draft-save-request" | "draft-recover-request"] => {
+        [
+            "task",
+            "draft-save-request" | "draft-recover-request" | "save",
+        ] => {
             let explicit = parsed.arguments.get("general_only") == Some(&json!(true))
                 || parsed.arguments.contains_key("instruction_path");
             work_flow::draft::with_source_selection(
@@ -1217,15 +1262,22 @@ fn dispatch(
                     let configs = skill_configs(&string_list(parsed, "skill_root"))?;
                     let (plan_path, _) =
                         resolve_project_path(root, argument(parsed, "plan_path")?)?;
-                    LocalTaskDraftStorage {
+                    let storage = LocalTaskDraftStorage {
                         project_root: root.to_path_buf(),
-                    }
-                    .save_discussion_request(
+                    };
+                    let revision = if parsed.arguments.contains_key("expected_revision") {
+                        unsigned_argument(parsed, "expected_revision")?
+                    } else {
+                        storage.read_planning_index(argument(parsed, "requirement_id")?)?["revision"]
+                            .as_u64().ok_or_else(|| WorkError::new(ExitCode::Contract,
+                                "invalid_draft_revision", "Planning revision is missing.", json!({})))?
+                    };
+                    storage.save_discussion_request(
                         &input_json(input)?,
                         &TaskSourceCheckRequest {
                             requirement_id: argument(parsed, "requirement_id")?,
                             task_id: argument(parsed, "task_id")?,
-                            expected_revision: unsigned_argument(parsed, "expected_revision")?,
+                            expected_revision: revision,
                             plan_path: &plan_path,
                             skill_root,
                             skill_configs: &configs,
@@ -1317,20 +1369,33 @@ fn dispatch(
                 )
             }
         }
-        ["task", "diagnose"] => {
-            let configs = skill_configs(&string_list(parsed, "skill_root"))?;
-            let report =
-                diagnose_task_collection(root, skill_root, &configs, argument(parsed, "path")?);
-            work_flow::task::diagnose(report)
-        }
-        ["task", "draft-assemble" | "draft-create"] => {
+        [
+            "task",
+            "draft-assemble" | "draft-create" | "preview" | "apply" | "recover",
+        ] => {
             let metadata = input_json(input)?;
             let configs = skill_configs(&string_list(parsed, "skill_root"))?;
             let (plan_path, _) = resolve_project_path(root, argument(parsed, "plan_path")?)?;
             let request = ProjectAssemblyInput {
                 requirement_id: argument(parsed, "requirement_id")?,
                 metadata: &metadata,
-                expected_revision: unsigned_argument(parsed, "expected_revision")?,
+                expected_revision: if parsed.arguments.contains_key("expected_revision") {
+                    unsigned_argument(parsed, "expected_revision")?
+                } else {
+                    LocalTaskDraftStorage {
+                        project_root: root.to_path_buf(),
+                    }
+                    .read_planning_index(argument(parsed, "requirement_id")?)?["revision"]
+                        .as_u64()
+                        .ok_or_else(|| {
+                            WorkError::new(
+                                ExitCode::Contract,
+                                "invalid_draft_revision",
+                                "Planning revision is missing.",
+                                json!({}),
+                            )
+                        })?
+                },
                 plan_path: &plan_path,
             };
             let hierarchy = LocalHierarchyCatalog {
@@ -1346,7 +1411,10 @@ fn dispatch(
             let repository = LocalTaskAssembly {
                 project_root: root.to_path_buf(),
             };
-            if parsed.path[1] == "draft-create" {
+            if matches!(
+                parsed.path[1].as_str(),
+                "draft-create" | "apply" | "recover"
+            ) {
                 create_draft_task(
                     DraftCreatePorts {
                         repository: &repository,
@@ -1360,6 +1428,7 @@ fn dispatch(
                     },
                     request,
                     argument(parsed, "approved_sha256")?,
+                    parsed.path[1] == "recover",
                 )
             } else {
                 assemble_task(&repository, &hierarchy, &skills, &paths, &roots, request)
@@ -1398,14 +1467,14 @@ fn dispatch(
                 },
             )
         }
-        ["task", "spec-validate" | "spec-update" | "spec-recover"] => {
+        ["specification", "preview" | "apply" | "recover"] => {
             let input = required_input(input)?;
             let request = input_json(Some(input))?;
             let configs = skill_configs(&string_list(parsed, "skill_root"))?;
             require_collection_path(request["plan"]["artifacts"]["task"].as_str().unwrap_or(""))?;
             let operation = match parsed.path[1].as_str() {
-                "spec-validate" => SpecOperation::Validate,
-                "spec-update" => SpecOperation::Apply,
+                "preview" => SpecOperation::Validate,
+                "apply" => SpecOperation::Apply,
                 _ => SpecOperation::Recover,
             };
             let result = work_flow::specification::update(|| {
@@ -1429,13 +1498,13 @@ fn dispatch(
                 Ok(result)
             }
         }
-        ["task", "spec-verify"] => {
+        ["specification", "verify"] => {
             let configs = skill_configs(&string_list(parsed, "skill_root"))?;
             let report =
                 verify_from_project(root, skill_root, &configs, &required_input(input)?.raw)?;
             work_flow::specification::verify(report)
         }
-        ["task", "spec-prepare"] => {
+        ["specification", "prepare"] => {
             let configs = skill_configs(&string_list(parsed, "skill_root"))?;
             let date = local_date();
             let output = parsed
@@ -1460,50 +1529,6 @@ fn dispatch(
             } else {
                 Ok(result)
             }
-        }
-        ["task", "repair-validate" | "repair" | "repair-recover"] => {
-            let input = required_input(input)?;
-            let request = input_json(Some(input))?;
-            require_collection_path(request["artifacts"]["task"].as_str().unwrap_or(""))?;
-            let configs = skill_configs(&string_list(parsed, "skill_root"))?;
-            work_flow::task::repair(|| {
-                repair_from_project(
-                    root,
-                    skill_root,
-                    &configs,
-                    RepairProjectRequest {
-                        raw: &input.raw,
-                        operation: match parsed.path[1].as_str() {
-                            "repair-validate" => RepairOperation::Validate,
-                            "repair" => RepairOperation::Apply,
-                            _ => RepairOperation::Recover,
-                        },
-                        approved_sha256: parsed
-                            .arguments
-                            .get("approved_sha256")
-                            .and_then(Value::as_str),
-                    },
-                )
-            })
-        }
-        ["task", "repair-prepare"] => {
-            let configs = skill_configs(&string_list(parsed, "skill_root"))?;
-            let output = parsed
-                .arguments
-                .get("output_file")
-                .and_then(Value::as_str)
-                .map(Path::new);
-            work_flow::task::repair_prepare(|| {
-                prepare_repair_from_project(
-                    root,
-                    skill_root,
-                    &configs,
-                    PrepareRepairRequest {
-                        raw: &required_input(input)?.raw,
-                        output_file: output,
-                    },
-                )
-            })
         }
         [
             "migration",
@@ -1544,7 +1569,10 @@ fn dispatch(
                 write_prepared_output,
             )
         }
-        ["task", "reconciliation-preview" | "reconciliation-apply"] => {
+        [
+            "specification",
+            "reconciliation-preview" | "reconciliation-apply",
+        ] => {
             let request = input_json(input)?;
             let configs = skill_configs(&string_list(parsed, "skill_root"))?;
             if parsed.path[1] == "reconciliation-preview" {
@@ -1566,7 +1594,7 @@ fn dispatch(
                 )
             }
         }
-        ["task", "reconciliation-prepare"] => {
+        ["specification", "reconciliation-prepare"] => {
             let configs = skill_configs(&string_list(parsed, "skill_root"))?;
             let mut prepared = prepare_reconciliation(
                 &LocalSemanticReconciliation { root },
@@ -2208,7 +2236,7 @@ mod tests {
             "preview":preview,
             "output_file":"prepared.json",
             "transport":{"request_field":"request"},
-            "next_step":{"command":"task spec-validate","input":"request"}
+            "next_step":{"command":"specification preview","input":"request"}
         });
         assert_eq!(
             specification_summary(&result),
@@ -2222,7 +2250,7 @@ mod tests {
                 "file_readiness":"requires_execute_preflight",
                 "output_file":"prepared.json",
                 "transport":{"request_field":"request"},
-                "next_step":{"command":"task spec-validate","input":"request"}
+                "next_step":{"command":"specification preview","input":"request"}
             })
         );
     }
@@ -3666,7 +3694,7 @@ mod tests {
         assert_eq!(result.data["task_count"], 2);
         assert_eq!(
             result.data["task_collection_sha256"],
-            "208ec698fd5777f3a3781dc736713a9049541281beaf53a117d3a7f00ab6460d"
+            "5346817ac77d01a98881d30fb74a5a1d42104b17ae6185e09533fc7e909a5101"
         );
     }
 

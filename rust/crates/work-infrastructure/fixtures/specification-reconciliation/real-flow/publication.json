@@ -1,26 +1,26 @@
 {
   "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
-  "attempt_sha256": "d9b345a6c359a35b09cd37b94a59708718e9164f9f102c6e8d9db6404604c076",
+  "attempt_sha256": "c843c28d82e62ae5297f3a93db55590e347cec502cd98a2b02b0069b60a15572",
   "deviation_classifications": {
     "DEVIATION-001": "retain_only"
   },
   "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
-  "ledger_sha256": "9748feedaa41ebffd0d3b59c323fbcb26c83986bf48e0f1a32312971a4e451e6",
+  "ledger_sha256": "1c25e9eb92c5ca488e83baf2d2570510cfd95bfcbb2009908bf1dfa74b8b36cb",
   "publication": {
-    "completion_marker": "outputs/work/executions/example/.work-spec-migration-A45A92621C33.json.done",
+    "completion_marker": "outputs/work/executions/example/.work-spec-migration-7A4BEFF9CBE8.json.done",
     "documents": [
       "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json"
     ],
-    "fingerprint": "a45a92621c33a9090e70b6036e07f3a5e8a6e3389ee63a40f1f4dffb7f4d7b0d",
-    "journal": "outputs/work/executions/example/.work-spec-migration-A45A92621C33.json",
+    "fingerprint": "7a4beff9cbe8c325cccff69002cfc13005ab12828df31d622d83973683273335",
+    "journal": "outputs/work/executions/example/.work-spec-migration-7A4BEFF9CBE8.json",
     "publication_status": "published",
     "relationship_results": [],
     "schema": "work-spec-migration-publication/v1",
     "status": "updated",
-    "transaction_approval_sha256": "75ad4173abdfa18c2695b94857d66e6371218b6ee356082b52a8c090142fe3ce",
+    "transaction_approval_sha256": "4100f605031688be43d1028148544723791bd884ee1771c20415ac920d51afd3",
     "validator_results": []
   },
-  "reconciliation_fingerprint": "a45a92621c33a9090e70b6036e07f3a5e8a6e3389ee63a40f1f4dffb7f4d7b0d",
+  "reconciliation_fingerprint": "7a4beff9cbe8c325cccff69002cfc13005ab12828df31d622d83973683273335",
   "retained_deviation_ids": [
     "DEVIATION-001"
   ],

@@ -176,7 +176,7 @@ pub fn mode_for_action(status: &str, next_action: &str) -> &'static str {
     } else if status.starts_with("task_") {
         "task"
     } else if next_action == "inspect_recovery" {
-        "repair"
+        "execute"
     } else if next_action == "review_reconciliation" {
         "specification"
     } else {
@@ -286,7 +286,7 @@ mod tests {
         );
         assert_eq!(
             mode_for_action(&recovery.status, &recovery.next_action),
-            "repair"
+            "execute"
         );
         assert!(
             decide_pre_execution(Some(&plan), None, Some(&task), true)

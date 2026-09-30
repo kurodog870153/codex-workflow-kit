@@ -2,9 +2,8 @@
 # Specification verification
 
 
-1. After a successful ordinary `spec-update` or its explicitly authorized recovery,
-   immediately transport the returned `verification_request` unchanged to the read-only `task
-   spec-verify --input-file "<request-path>" --user-config-root "<user-config-root>"`
+1. After a successful ordinary `specification apply` or its explicitly authorized recovery,
+   immediately transport the returned `verification_request` unchanged to the read-only `specification verify --input-file "<request-path>" --user-config-root "<user-config-root>"`
    command with the same project and confirmed skill roots without requesting another routine confirmation. The request contains
    exactly `schema: "work-spec-verification-request/v1"`, `requirement_id`, all three
    artifact paths and the actual `record_id`.

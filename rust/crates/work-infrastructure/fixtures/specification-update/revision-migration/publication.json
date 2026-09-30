@@ -1,10 +1,10 @@
 {
   "schema": "work-spec-migration-publication/v1",
   "status": "updated",
-  "fingerprint": "a43c6ae6eda7994838d4cd1e119dc8d43ffcdbebc228ff87381994dedeaa747b",
-  "transaction_approval_sha256": "7a2bd023a35163bbc67d420ccb39a8bd6c97cac5c9d8796e0be2300e144ebad3",
-  "journal": "outputs/work/executions/example/.work-spec-migration-A43C6AE6EDA7.json",
-  "completion_marker": "outputs/work/executions/example/.work-spec-migration-A43C6AE6EDA7.json.done",
+  "fingerprint": "31864f18945225d0b6d13010cffec4e104695c512f801f30ce201189bf80c0de",
+  "transaction_approval_sha256": "d4dbbc5803e66f03d961d7e53d17999f3a159143f9be826b5b4d2a5c5309f973",
+  "journal": "outputs/work/executions/example/.work-spec-migration-31864F189452.json",
+  "completion_marker": "outputs/work/executions/example/.work-spec-migration-31864F189452.json.done",
   "documents": [
     "outputs/work/executions/example/index.json",
     "outputs/work/plans/example.json",

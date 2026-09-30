@@ -203,7 +203,6 @@ pub fn require_no_spec_update(
             if name.ends_with(".json")
                 && [
                     ".work-spec-update-",
-                    ".work-task-repair-",
                     ".work-spec-migration-",
                     ".work-source-refresh-",
                 ]
@@ -353,7 +352,7 @@ mod tests {
     fn guard_requires_valid_markers_for_all_specification_record_types() {
         let root = policy_test_root("pending");
         fs::create_dir(root.join("execution")).unwrap();
-        for prefix in ["spec-update", "task-repair", "spec-migration"] {
+        for prefix in ["spec-update", "spec-migration"] {
             let relative = format!("execution/.work-{prefix}-example.json");
             let record = root.join(&relative);
             fs::write(&record, b"{}\n").unwrap();

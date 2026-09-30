@@ -4,7 +4,7 @@
   "contract_status": "passed",
   "normal_use_allowed": true,
   "execution_binding_status": "passed",
-  "raw_sha256": "32ec5309d2215f9546a734c8799b6ed8bd85e9cf66bbdce78a879a1927c2f408",
+  "raw_sha256": "270198d69ea92c2092b89144b1d6f163d053fbff2206bc25af6e1d7e9e17e25e",
   "checks": [
     {
       "name": "index:path",

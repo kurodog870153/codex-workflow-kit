@@ -235,6 +235,8 @@ pub struct ArtifactMigrationAnalysis {
     pub requirement_id: String,
     pub items: Vec<ArtifactMigrationItem>,
     pub fingerprint: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub diagnostics: Vec<Value>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -430,6 +432,12 @@ pub struct SpecUpdate {
     pub record_id: String,
     pub approved_sha256: String,
     pub affected_task_ids: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub validation: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diff: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lifecycle_impact: Option<Vec<Value>>,
     #[serde(
         default,
         deserialize_with = "deserialize_optional_nullable",

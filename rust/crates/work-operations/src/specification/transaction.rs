@@ -346,41 +346,6 @@ struct Ordered<'a> {
 }
 
 fn order(path: &[String], document: Option<&str>) -> &'static [&'static str] {
-    if document == Some("work-task-repair-request/v1")
-        && path.starts_with(&["metadata".to_owned(), "request".to_owned()])
-    {
-        let nested = &path[2..];
-        if nested.is_empty() {
-            return &[
-                "schema",
-                "stage",
-                "requirement_id",
-                "artifacts",
-                "expected",
-                "decisions",
-                "task_index",
-                "task_items",
-            ];
-        }
-        if nested == ["artifacts"] {
-            return &["plan", "task", "execution"];
-        }
-        if nested == ["decisions"] {
-            return &["location", "decision"];
-        }
-        if nested[0] == "task_index" {
-            return crate::task::ordering::fields(
-                &nested[1..],
-                crate::task::ordering::TaskDocumentKind::Index,
-            );
-        }
-        if nested.len() >= 2 && nested[0] == "task_items" {
-            return crate::task::ordering::fields(
-                &nested[2..],
-                crate::task::ordering::TaskDocumentKind::Item,
-            );
-        }
-    }
     if document == Some("work-spec-update-request/v1")
         && path.starts_with(&["metadata".to_owned(), "request".to_owned()])
     {
@@ -531,22 +496,6 @@ impl Serialize for Ordered<'_> {
                         0
                     } else if key.contains("/tasks/") && key.ends_with("/index.json") {
                         1
-                    } else if key.contains("/executions/") {
-                        2
-                    } else {
-                        3
-                    };
-                    (rank, *key)
-                });
-            } else if self.document.as_deref() == Some("work-task-repair-request/v1")
-                && matches!(self.path.as_slice(), [metadata, hashes] if metadata == "metadata" && (hashes == "source_sha256" || hashes == "candidate_sha256"))
-            {
-                let source = self.path[1] == "source_sha256";
-                keys.sort_by_key(|key| {
-                    let rank = if key.contains("/tasks/") && !key.ends_with("/index.json") {
-                        if source { 0 } else { 1 }
-                    } else if key.contains("/tasks/") {
-                        if source { 1 } else { 0 }
                     } else if key.contains("/executions/") {
                         2
                     } else {

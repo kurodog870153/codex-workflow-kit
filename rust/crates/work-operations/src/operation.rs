@@ -69,19 +69,20 @@ pub fn routing_identity(
             route.next_action = "review_reconciliation";
             route.formal_events.push("migration");
         }
+        "specification" => {
+            route.mode = "specification";
+            route.next_action = "review_reconciliation";
+            route
+                .formal_events
+                .push(if operation.starts_with("reconciliation-") {
+                    "reconciliation"
+                } else {
+                    "revision"
+                });
+        }
         "task" => {
-            if operation.contains("reconciliation") {
-                route.mode = "specification";
-                route.next_action = "review_reconciliation";
-                route.formal_events.push("reconciliation");
-            } else if operation.starts_with("spec-") {
-                route.mode = "specification";
-                route.next_action = "review_reconciliation";
-                route.formal_events.push("revision");
-            } else {
-                route.mode = "task";
-                route.next_action = "choose_task";
-            }
+            route.mode = "task";
+            route.next_action = "choose_task";
         }
         "progress" => {
             route.mode = "progress";
@@ -127,7 +128,8 @@ mod tests {
         let table: Value = serde_json::from_str(EFFECTS).unwrap();
         for (command, count) in [
             ("plan", 3),
-            ("task", 31),
+            ("task", 24),
+            ("specification", 8),
             ("migration", 9),
             ("execute", 16),
             ("delegation", 2),
