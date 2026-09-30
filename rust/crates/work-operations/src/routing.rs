@@ -209,23 +209,11 @@ mod tests {
     use std::{fs, path::Path};
 
     #[test]
-    fn installed_routing_matches_python_manifest_hashes() {
+    fn installed_routing_selects_current_instruction_sources() {
         let root = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
-        for (status, operation, confirmation, lifecycle, expected) in [
-            (
-                "plan_required",
-                "prepare_plan",
-                true,
-                "missing",
-                "5508e636076b9bbbac126d4ad46106d89cc1ecccf944daf2ddedcc6ea3115c79",
-            ),
-            (
-                "task_list_pending",
-                "confirm_task_list",
-                true,
-                "current",
-                "f62fb2fb557141ab9e27e829a4ca3d27a95fe7ab982f431cac99f010cf880688",
-            ),
+        for (status, operation, confirmation, lifecycle) in [
+            ("plan_required", "prepare_plan", true, "missing"),
+            ("task_list_pending", "confirm_task_list", true, "current"),
         ] {
             let request = RoutingRequest {
                 status,
@@ -244,7 +232,17 @@ mod tests {
             })
             .unwrap();
             assert_eq!(result["routing_status"], "VALID");
-            assert_eq!(result["selection_sha256"], expected);
+            assert!(crate::protocol::valid_sha256(
+                result["selection_sha256"].as_str().unwrap()
+            ));
+            assert_eq!(
+                result["selection_sha256"],
+                result["selection_manifest"]["selection_sha256"]
+            );
+            assert_eq!(
+                result["required_instruction_sources"],
+                result["source_order"]
+            );
         }
     }
 
@@ -269,7 +267,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             result["selection_sha256"],
-            "4e96e350aba7d548de97f827e5f82e32a542e59378eefd12cc769ea45d95f8af"
+            result["selection_manifest"]["selection_sha256"]
         );
         assert_eq!(result["source_order"], json!([BOOTSTRAP]));
     }

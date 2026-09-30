@@ -33,3 +33,6 @@ $RECYCLE.BIN/
 
 ### Rust
 /rust/target/
+
+### Work transport
+/.work/

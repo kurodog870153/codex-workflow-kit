@@ -44,7 +44,7 @@
     "work.workflow.execute.record-one-execution-result",
     "work.workflow.execute.close-one-attempt"
   ],
-  "selection_sha256": "09c792c11e55a861449aed30fa90b6a7d1765a0cae1e47e016cc129aea515f10",
+  "selection_sha256": "d89e98d482ed66d5cb4e38d14eecf49500222c2d6cd14ea448f899ee7e95d027",
   "routing_reasons": [
     "operation:continue_execution",
     "workflow_status:execution_in_progress",
@@ -75,7 +75,7 @@
         "logical_name": "work.shared.transaction-workspace",
         "path": "references/instruction-loading/transaction-workspace.md",
         "compatibility_revision": 1,
-        "canonical_sha256": "f6a825d3dc3e02be09e8d483861760c28bd845ffa041c709cecb422b69fd474d"
+        "canonical_sha256": "3e33514adb6b27bb2b3566b6888fd1636e2025819eb9b54fca8ed808206e5355"
       },
       {
         "logical_name": "work.shared.formal-task-validation",
@@ -139,7 +139,7 @@
       }
     ],
     "confirmation_required": false,
-    "selection_sha256": "09c792c11e55a861449aed30fa90b6a7d1765a0cae1e47e016cc129aea515f10"
+    "selection_sha256": "d89e98d482ed66d5cb4e38d14eecf49500222c2d6cd14ea448f899ee7e95d027"
   },
   "details": {
     "overall_status": "in_progress"

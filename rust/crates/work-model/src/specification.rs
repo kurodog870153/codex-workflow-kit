@@ -206,6 +206,135 @@ pub struct SpecMigrationPublication {
     pub relationship_results: Vec<CheckResult>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactMigrationItem {
+    pub id: String,
+    pub path: String,
+    pub kind: String,
+    pub target_schema: String,
+    pub required: bool,
+    pub source_sha256: String,
+    pub issue: String,
+    pub resolution_status: ArtifactMigrationItemStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proposed_content: Option<Value>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtifactMigrationItemStatus {
+    Proposed,
+    NeedsReview,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactMigrationAnalysis {
+    pub schema: PublicSchema,
+    pub requirement_id: String,
+    pub items: Vec<ArtifactMigrationItem>,
+    pub fingerprint: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtifactMigrationAction {
+    Apply,
+    Modify,
+    Skip,
+    Abort,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactMigrationDecision {
+    pub item: ArtifactMigrationItem,
+    pub action: ArtifactMigrationAction,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactMigrationRequest {
+    pub schema: PublicSchema,
+    pub requirement_id: String,
+    pub analysis_fingerprint: String,
+    pub decisions: Vec<ArtifactMigrationDecision>,
+}
+
+impl ArtifactMigrationRequest {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        use std::collections::BTreeSet;
+
+        if self.schema != PublicSchema::WorkArtifactMigrationRequestV1
+            || self.requirement_id.is_empty()
+            || !valid_migration_hash(&self.analysis_fingerprint)
+            || self.decisions.is_empty()
+        {
+            return Err("invalid_migration_request");
+        }
+        let mut ids = BTreeSet::new();
+        let mut paths = BTreeSet::new();
+        for decision in &self.decisions {
+            let item = &decision.item;
+            if item.id.is_empty()
+                || item.path.is_empty()
+                || item.issue.is_empty()
+                || item.target_schema
+                    != match item.kind.as_str() {
+                        "plan" => "work-plan/v1",
+                        "task_index" => "work-task-index/v1",
+                        "task_item" => "work-task-item/v1",
+                        "execution_index" => "work-execution-index/v1",
+                        _ => return Err("invalid_migration_item"),
+                    }
+                || (item.resolution_status == ArtifactMigrationItemStatus::Proposed)
+                    != item.proposed_content.is_some()
+                || !matches!(
+                    item.kind.as_str(),
+                    "plan" | "task_index" | "task_item" | "execution_index"
+                )
+                || !valid_migration_hash(&item.source_sha256)
+                || !ids.insert(&item.id)
+                || !paths.insert(&item.path)
+            {
+                return Err("invalid_migration_item");
+            }
+            match decision.action {
+                ArtifactMigrationAction::Apply
+                    if item.proposed_content.is_some() && decision.content.is_none() => {}
+                ArtifactMigrationAction::Modify if decision.content.is_some() => {}
+                ArtifactMigrationAction::Skip
+                    if decision.content.is_none()
+                        && decision
+                            .reason
+                            .as_ref()
+                            .is_some_and(|reason| !reason.is_empty()) => {}
+                _ => return Err("invalid_migration_decision"),
+            }
+        }
+        Ok(())
+    }
+
+    pub fn executable(&self) -> bool {
+        self.validate().is_ok()
+            && self.decisions.iter().all(|decision| {
+                !(decision.item.required && decision.action == ArtifactMigrationAction::Skip)
+            })
+    }
+}
+
+fn valid_migration_hash(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SnapshotBytes {
@@ -508,6 +637,56 @@ mod tests {
     use super::*;
 
     #[test]
+    fn artifact_migration_decisions_validate_and_round_trip() {
+        let item = ArtifactMigrationItem {
+            id: "PLAN-001".into(),
+            path: "outputs/work/plans/example.json".into(),
+            kind: "plan".into(),
+            target_schema: "work-plan/v1".into(),
+            required: true,
+            source_sha256: "a".repeat(64),
+            issue: "legacy schema".into(),
+            resolution_status: ArtifactMigrationItemStatus::Proposed,
+            proposed_content: Some(serde_json::json!({"schema":"work-plan/v1"})),
+        };
+        let mut request = ArtifactMigrationRequest {
+            schema: PublicSchema::WorkArtifactMigrationRequestV1,
+            requirement_id: "example".into(),
+            analysis_fingerprint: "b".repeat(64),
+            decisions: vec![ArtifactMigrationDecision {
+                item,
+                action: ArtifactMigrationAction::Apply,
+                content: None,
+                reason: None,
+            }],
+        };
+        assert_eq!(request.validate(), Ok(()));
+        assert!(request.executable());
+        let value = serde_json::to_value(&request).unwrap();
+        assert_eq!(
+            serde_json::from_value::<ArtifactMigrationRequest>(value).unwrap(),
+            request
+        );
+        request.decisions[0].action = ArtifactMigrationAction::Skip;
+        request.decisions[0].reason = Some("Deferred pending owner review".into());
+        assert_eq!(request.validate(), Ok(()));
+        assert!(!request.executable());
+        request.decisions.push(request.decisions[0].clone());
+        assert_eq!(request.validate(), Err("invalid_migration_item"));
+        request.decisions.pop();
+        request.decisions[0].item.required = false;
+        assert!(request.executable());
+        request.decisions[0].item.target_schema = "work-plan/v0".into();
+        assert_eq!(request.validate(), Err("invalid_migration_item"));
+        request.decisions[0].item.target_schema = "work-plan/v1".into();
+        request.decisions[0].item.resolution_status = ArtifactMigrationItemStatus::NeedsReview;
+        assert_eq!(request.validate(), Err("invalid_migration_item"));
+        request.decisions[0].item.resolution_status = ArtifactMigrationItemStatus::Proposed;
+        request.decisions[0].action = ArtifactMigrationAction::Abort;
+        assert_eq!(request.validate(), Err("invalid_migration_decision"));
+    }
+
+    #[test]
     fn public_specification_examples_match_models() {
         let registry: Value = crate::contract_data::registry_value();
         let items = &registry["items"];
@@ -529,6 +708,14 @@ mod tests {
         example!(
             "work-spec-migration-publication/v1",
             SpecMigrationPublication
+        );
+        example!(
+            "work-artifact-migration-analysis/v1",
+            ArtifactMigrationAnalysis
+        );
+        example!(
+            "work-artifact-migration-request/v1",
+            ArtifactMigrationRequest
         );
         example!("work-spec-prepare-request/v1", SpecPrepareRequest);
         example!("work-spec-prepare/v1", SpecPrepare);

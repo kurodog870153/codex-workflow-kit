@@ -4,11 +4,12 @@ Codex Workflow Kit 透過 `$work` 協助你規劃需求、拆分任務並執行�
 
 ## 功能
 
-1. 使用同一個入口處理 Plan、Task 與 Execute。
+1. 使用同一個入口處理 Plan、Task、Execute 與 Migration。
 2. Plan 會依需求推薦適合的工作類型與技能，並說明推薦原因。
 3. 推薦內容由你確認後才會使用。
 4. Plan 可組合多個技能，例如 UI、frontend 與 backend。
 5. Task 會把工作拆成最小可執行任務；Execute 只使用目標任務需要的技能。
+6. Migration 會檢查既有 Plan、TASK、Execute 文件與目前規格的相容性，經逐項確認後執行遷移。
 
 ## 使用方式
 
@@ -23,6 +24,7 @@ $work <mode> -- <request>
 1. `plan`：規劃需求並推薦技能。
 2. `task`：依已確認的 Plan 拆分任務。
 3. `execute`：執行指定任務。
+4. `migration`：遷移既有 Plan、TASK、Execute 文件；這是獨立於一般工作流程的維護模式。
 
 ### 範例
 
@@ -30,6 +32,7 @@ $work <mode> -- <request>
 $work plan -- 建立一個包含 UI、frontend 與 backend 的網站
 $work task -- 依已確認 Plan 拆分網站任務
 $work execute -- 執行正式 TASK-001
+$work migration -- 檢查並遷移 example 的既有 Plan、TASK 與 Execute 文件
 ```
 
 Plan 推薦技能後，你可以接受、加入、移除或取消。若沒有合適技能，也可以確認只使用 Work 的基本能力。

@@ -380,7 +380,7 @@ mod tests {
 
     #[test]
     fn command_manifest_keeps_all_python_public_leaves() {
-        assert_eq!(leaves(&manifest().root), 106);
+        assert_eq!(leaves(&manifest().root), 111);
         command(&manifest().root).debug_assert();
     }
 
@@ -589,7 +589,7 @@ mod tests {
     }
 
     #[test]
-    fn task_parser_preserves_public_migration_and_create_arguments() {
+    fn task_parser_preserves_specification_and_create_arguments() {
         let parse = |suffix: &[&str]| {
             let tokens = [&["--project-root", "/project", "task"][..], suffix]
                 .concat()
@@ -601,7 +601,7 @@ mod tests {
             };
             parsed
         };
-        for command in ["spec-verify", "migration-preview", "reconciliation-preview"] {
+        for command in ["spec-verify", "reconciliation-preview"] {
             let parsed = parse(&[
                 command,
                 "--input-file",
@@ -612,24 +612,56 @@ mod tests {
             assert_eq!(parsed.path, ["task", command]);
             assert_eq!(parsed.arguments["input_file"], "request.json");
         }
-        for command in [
-            "migration-apply",
-            "migration-recover",
+        let parsed = parse(&[
             "reconciliation-apply",
+            "--input-file",
+            "request.json",
+            "--user-config-root",
+            "/config",
+            "--approved-sha256",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ]);
+        assert_eq!(parsed.path, ["task", "reconciliation-apply"]);
+        assert_eq!(
+            parsed.arguments["approved_sha256"].as_str().unwrap().len(),
+            64
+        );
+        for command in [
+            "semantic-prepare",
+            "semantic-preview",
+            "semantic-apply",
+            "semantic-recover",
         ] {
-            let parsed = parse(&[
-                command,
+            let mut tokens = vec!["--project-root", "/project", "migration", command];
+            tokens.extend([
                 "--input-file",
                 "request.json",
                 "--user-config-root",
                 "/config",
-                "--approved-sha256",
-                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             ]);
-            assert_eq!(parsed.path, ["task", command]);
+            if matches!(command, "semantic-apply" | "semantic-recover") {
+                tokens.extend([
+                    "--approved-sha256",
+                    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                ]);
+            }
+            let ParseOutcome::Command(parsed) =
+                parse_tokens(&tokens.into_iter().map(str::to_owned).collect::<Vec<_>>()).unwrap()
+            else {
+                panic!("expected migration command");
+            };
+            assert_eq!(parsed.path, ["migration", command]);
+        }
+        for command in [
+            "migration-prepare",
+            "migration-preview",
+            "migration-apply",
+            "migration-recover",
+        ] {
+            let tokens = ["--project-root", "/project", "task", command].map(str::to_owned);
             assert_eq!(
-                parsed.arguments["approved_sha256"].as_str().unwrap().len(),
-                64
+                parse_tokens(&tokens).unwrap_err().reason_code,
+                "cli_usage_error"
             );
         }
         let create = parse(&[

@@ -153,7 +153,7 @@ mod tests {
         let pending_id = pending["transaction_id"].as_str().unwrap();
         assert_eq!(
             pending["path"],
-            format!("outputs/work/transactions/pending/invocation/{pending_id}")
+            format!(".work/transactions/pending/invocation/{pending_id}")
         );
         assert!(root.join(pending["path"].as_str().unwrap()).is_dir());
         for (owner, workflow, reason) in [

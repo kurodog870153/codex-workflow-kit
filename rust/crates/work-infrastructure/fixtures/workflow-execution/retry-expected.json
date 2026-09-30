@@ -38,7 +38,7 @@
     "work.workflow.execute.apply-one-attempt-authorization-boundary",
     "work.workflow.execute.start-an-attempt-transaction"
   ],
-  "selection_sha256": "e7bab411d9934069ff6fee3f3aaa32f166506ab7e85ca2ea32d26526cba8e9e4",
+  "selection_sha256": "e5239a78b48420dbf9bb99a4b30c9df08094eaf087b59f0d97bf7e052fa8df4d",
   "routing_reasons": [
     "operation:confirm_retry",
     "workflow_status:execution_pending_retry",
@@ -69,7 +69,7 @@
         "logical_name": "work.shared.transaction-workspace",
         "path": "references/instruction-loading/transaction-workspace.md",
         "compatibility_revision": 1,
-        "canonical_sha256": "f6a825d3dc3e02be09e8d483861760c28bd845ffa041c709cecb422b69fd474d"
+        "canonical_sha256": "3e33514adb6b27bb2b3566b6888fd1636e2025819eb9b54fca8ed808206e5355"
       },
       {
         "logical_name": "work.shared.formal-task-validation",
@@ -115,7 +115,7 @@
       }
     ],
     "confirmation_required": true,
-    "selection_sha256": "e7bab411d9934069ff6fee3f3aaa32f166506ab7e85ca2ea32d26526cba8e9e4"
+    "selection_sha256": "e5239a78b48420dbf9bb99a4b30c9df08094eaf087b59f0d97bf7e052fa8df4d"
   },
   "details": {
     "overall_status": "pending_retry"

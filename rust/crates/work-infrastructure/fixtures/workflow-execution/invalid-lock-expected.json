@@ -43,7 +43,7 @@
     "work.workflow.repair.review-approve-and-publish",
     "work.workflow.repair.authorized-recovery"
   ],
-  "selection_sha256": "a2bfe6957d922448632cec20431a86275fc963c76df29daf87d8e9b421375b8c",
+  "selection_sha256": "a6167bae2ce212c7a3b6458601b88957ad7ed1d38814069c75425e7d0b6685ef",
   "routing_reasons": [
     "operation:inspect_recovery",
     "workflow_status:execution_locked",
@@ -74,13 +74,13 @@
         "logical_name": "work.shared.transaction-workspace",
         "path": "references/instruction-loading/transaction-workspace.md",
         "compatibility_revision": 1,
-        "canonical_sha256": "f6a825d3dc3e02be09e8d483861760c28bd845ffa041c709cecb422b69fd474d"
+        "canonical_sha256": "3e33514adb6b27bb2b3566b6888fd1636e2025819eb9b54fca8ed808206e5355"
       },
       {
         "logical_name": "work.shared.artifact-migration",
         "path": "references/instruction-loading/artifact-migration.md",
         "compatibility_revision": 1,
-        "canonical_sha256": "ac7f3d9f16a25f67a128ddebe1927b8147566910e950f67e1443f64db514f92a"
+        "canonical_sha256": "37bbc2877f530936a8881328122439690e36b8396ae73c027f59186d26c89860"
       },
       {
         "logical_name": "work.shared.runtime",
@@ -110,7 +110,7 @@
         "logical_name": "work.workflow.repair.rebuild-a-related-artifact-set-with-ai",
         "path": "references/workflows/repair/rebuild-a-related-artifact-set-with-ai.md",
         "compatibility_revision": 1,
-        "canonical_sha256": "afdbf15dfbfd0f93d0264784392d031a4eb5374d4acf7c886c53a5790db9f26f"
+        "canonical_sha256": "3b5fcd97816685b37ae1c4f75a19312c6113dca7d06c3fa122dc4a54a9c46f50"
       },
       {
         "logical_name": "work.workflow.repair.prepare-the-request",
@@ -138,7 +138,7 @@
       }
     ],
     "confirmation_required": true,
-    "selection_sha256": "a2bfe6957d922448632cec20431a86275fc963c76df29daf87d8e9b421375b8c"
+    "selection_sha256": "a6167bae2ce212c7a3b6458601b88957ad7ed1d38814069c75425e7d0b6685ef"
   },
   "details": {
     "lock": {

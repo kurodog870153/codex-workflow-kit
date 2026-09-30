@@ -91,10 +91,10 @@ pub fn migration(
     preview: impl FnOnce() -> Result<Value, WorkError>,
     publish: impl FnOnce(&str) -> Result<Value, WorkError>,
 ) -> Result<Value, WorkError> {
-    if operation == "migration-preview" {
+    if operation == "semantic-preview" {
         preview()
     } else {
-        publish(if operation == "migration-recover" {
+        publish(if operation == "semantic-recover" {
             "recover"
         } else {
             "apply"

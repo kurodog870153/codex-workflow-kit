@@ -164,6 +164,10 @@ pub enum PublicSchema {
     WorkSourceRefreshPreviewV1,
     #[serde(rename = "work-source-refresh-publication/v1")]
     WorkSourceRefreshPublicationV1,
+    #[serde(rename = "work-artifact-migration-analysis/v1")]
+    WorkArtifactMigrationAnalysisV1,
+    #[serde(rename = "work-artifact-migration-request/v1")]
+    WorkArtifactMigrationRequestV1,
     #[serde(rename = "work-spec-migration-prepare-request/v1")]
     WorkSpecMigrationPrepareRequestV1,
     #[serde(rename = "work-spec-migration-preview-request/v1")]
@@ -241,7 +245,7 @@ pub enum PublicSchema {
 }
 
 impl PublicSchema {
-    pub const ALL: [Self; 117] = [
+    pub const ALL: [Self; 119] = [
         Self::WorkAttemptAuthorizationV1,
         Self::WorkAttemptCloseRequestV1,
         Self::WorkAttemptCloseV1,
@@ -322,6 +326,8 @@ impl PublicSchema {
         Self::WorkSourceImpactV1,
         Self::WorkSourceRefreshPreviewV1,
         Self::WorkSourceRefreshPublicationV1,
+        Self::WorkArtifactMigrationAnalysisV1,
+        Self::WorkArtifactMigrationRequestV1,
         Self::WorkSpecMigrationPrepareRequestV1,
         Self::WorkSpecMigrationPreviewRequestV1,
         Self::WorkSpecMigrationPreviewV1,
@@ -449,6 +455,8 @@ impl PublicSchema {
             Self::WorkSourceImpactV1 => "work-source-impact/v1",
             Self::WorkSourceRefreshPreviewV1 => "work-source-refresh-preview/v1",
             Self::WorkSourceRefreshPublicationV1 => "work-source-refresh-publication/v1",
+            Self::WorkArtifactMigrationAnalysisV1 => "work-artifact-migration-analysis/v1",
+            Self::WorkArtifactMigrationRequestV1 => "work-artifact-migration-request/v1",
             Self::WorkSpecMigrationPrepareRequestV1 => "work-spec-migration-prepare-request/v1",
             Self::WorkSpecMigrationPreviewRequestV1 => "work-spec-migration-preview-request/v1",
             Self::WorkSpecMigrationPreviewV1 => "work-spec-migration-preview/v1",
@@ -505,7 +513,7 @@ mod tests {
             .iter()
             .map(|schema| schema.as_str())
             .collect();
-        assert_eq!(ids.len(), 117);
+        assert_eq!(ids.len(), 119);
         for schema in PublicSchema::ALL {
             let literal = serde_json::to_value(schema).unwrap();
             assert_eq!(literal, schema.as_str());

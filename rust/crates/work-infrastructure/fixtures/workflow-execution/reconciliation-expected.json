@@ -40,7 +40,7 @@
     "work.workflow.specification.publish-and-recover",
     "work.workflow.specification.specification-verification"
   ],
-  "selection_sha256": "cb5d4f1ee9e8fdd8c4a7a335f14a593413d7c49ddd5d2a16ed2d22178029b8c6",
+  "selection_sha256": "1d4f02d8cfe9b7a1c6d8da7d0ece87f85d2fe369326197d317736a092cb28564",
   "routing_reasons": [
     "operation:review_reconciliation",
     "workflow_status:execution_reconciliation_pending",
@@ -71,7 +71,7 @@
         "logical_name": "work.shared.transaction-workspace",
         "path": "references/instruction-loading/transaction-workspace.md",
         "compatibility_revision": 1,
-        "canonical_sha256": "f6a825d3dc3e02be09e8d483861760c28bd845ffa041c709cecb422b69fd474d"
+        "canonical_sha256": "3e33514adb6b27bb2b3566b6888fd1636e2025819eb9b54fca8ed808206e5355"
       },
       {
         "logical_name": "work.shared.artifact-revision",
@@ -107,7 +107,7 @@
         "logical_name": "work.workflow.specification.prepare-and-review",
         "path": "references/workflows/specification/prepare-and-review.md",
         "compatibility_revision": 2,
-        "canonical_sha256": "7bc43a8b73ecfafa73c8baa2917c226afa2dde9186a65818d0768bebe2f70643"
+        "canonical_sha256": "13ae9b8f28ce516826d02b87f6d1c03d582bbc0e47b319cd94ab668387e4285a"
       },
       {
         "logical_name": "work.workflow.specification.publish-and-recover",
@@ -123,7 +123,7 @@
       }
     ],
     "confirmation_required": true,
-    "selection_sha256": "cb5d4f1ee9e8fdd8c4a7a335f14a593413d7c49ddd5d2a16ed2d22178029b8c6"
+    "selection_sha256": "1d4f02d8cfe9b7a1c6d8da7d0ece87f85d2fe369326197d317736a092cb28564"
   },
   "details": {
     "overall_status": "completed",
