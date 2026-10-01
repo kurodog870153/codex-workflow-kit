@@ -10,15 +10,15 @@ use work_feature::ports::{ArtifactStore, WriterLock};
 use work_feature::specification::migration_publication::{
     publication_paths, require_approved_preview,
 };
-use work_operations::canonical::{parse_json_contract, sha256_hex};
+use work_operations::canonical::parse_json_contract;
+use work_operations::derivation::fingerprint;
 use work_operations::specification::transaction::{render_transaction, validate_transaction};
 
 use crate::files::LocalFiles;
 use crate::skill_catalog::SkillRootConfig;
 use crate::specification::migration::preview_migration;
 use crate::specification::storage::{
-    execution_history_fingerprints, publish_journal, require_no_spec_update, storage_path,
-    write_journal,
+    execution_history_bytes, publish_journal, require_no_spec_update, storage_path, write_journal,
 };
 use crate::writer_lock::LocalWriterLock;
 
@@ -40,8 +40,8 @@ impl MigrationTransactionRepository for LocalMigrationTransaction<'_> {
     fn exists(&self, relative: &str) -> Result<bool, WorkError> {
         Ok(storage_path(self.root, relative)?.is_file())
     }
-    fn history_sha256(&self, execution_dir: &str) -> Result<BTreeMap<String, String>, WorkError> {
-        execution_history_fingerprints(self.root, execution_dir)
+    fn history_bytes(&self, execution_dir: &str) -> Result<BTreeMap<String, Vec<u8>>, WorkError> {
+        execution_history_bytes(self.root, execution_dir)
     }
 }
 
@@ -183,7 +183,7 @@ pub fn publish_migration_with_additional(
     {
         let target = storage_path(root, path)?;
         if let Some(expected) = candidate_sha.get(path) {
-            if json!(sha256_hex(&LocalFiles.read_raw(&target)?)) != *expected {
+            if json!(fingerprint::raw(&LocalFiles.read_raw(&target)?)) != *expected {
                 return Err(fail(
                     "migration_post_write",
                     "An installed migration artifact differs from approval.",
@@ -297,7 +297,7 @@ mod tests {
 
     #[test]
     fn migration_journal_resumes_each_published_count() {
-        use work_operations::specification::transaction::decode_snapshot;
+        use work_operations::derivation::snapshot::decode_snapshot;
 
         let fixture = Path::new(concat!(
             env!("CARGO_MANIFEST_DIR"),

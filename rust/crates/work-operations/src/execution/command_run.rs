@@ -5,9 +5,10 @@ use std::fmt::Write;
 use serde_json::{Value, json};
 
 use crate::canonical::sha256_hex;
+use crate::derivation::identity::next_record_id;
+use crate::execution::ExecutionIssue;
 use crate::execution::authorization::{effective_task, require_record_scope};
 use crate::execution::command_correction::validate_command_correction;
-use crate::execution::{ExecutionIssue, next_record_id};
 
 fn issue(reason_code: &'static str, message: &'static str, details: Value) -> ExecutionIssue {
     ExecutionIssue {

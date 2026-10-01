@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use serde_json::{Value, json};
 use work_feature::error::{ExitCode, WorkError};
 use work_feature::workflow::WorkflowRoutingRepository;
-use work_operations::canonical::{canonical_sha256, sha256_hex};
+use work_operations::derivation::fingerprint;
 use work_operations::routing::{RoutingRequest, select};
 
 pub struct RoutingSourceSession {
@@ -41,7 +41,7 @@ impl RoutingSourceSession {
             }
         }
         let raw = self.read(logical_name, relative)?;
-        let canonical = canonical_sha256(&raw).map_err(|_| {
+        let canonical = fingerprint::canonical(&raw).map_err(|_| {
             WorkError::new(
                 ExitCode::InputFormat,
                 "invalid_utf8",
@@ -51,14 +51,14 @@ impl RoutingSourceSession {
         })?;
         self.sources.insert(
             logical_name.into(),
-            (relative.into(), sha256_hex(&raw), canonical.clone()),
+            (relative.into(), fingerprint::raw(&raw), canonical.clone()),
         );
         Ok(canonical)
     }
 
     pub fn recheck(&self) -> Result<(), WorkError> {
         for (logical_name, (relative, expected_raw, _)) in &self.sources {
-            if sha256_hex(&self.read(logical_name, relative)?) != *expected_raw {
+            if fingerprint::raw(&self.read(logical_name, relative)?) != *expected_raw {
                 return Err(WorkError::new(
                     ExitCode::ArtifactIntegrity,
                     "routed_instruction_source_changed",

@@ -2,6 +2,7 @@
 
 use serde_json::{Value, json};
 
+use crate::derivation::identity::next_record_id;
 use crate::execution::attempt::render_attempt;
 use crate::execution::authorization::{
     effective_task, require_modified_files, require_record_finish_result_evidence,
@@ -10,7 +11,6 @@ use crate::execution::index::{render_execution_index, validate_execution_index};
 use crate::execution::requests::validate_record_finish_request;
 use crate::execution::{
     ExecutionIssue, finish_attempt_candidate, finished_record_index, formal_record_kind,
-    next_record_id,
 };
 
 fn issue(reason_code: &'static str, message: &'static str, details: Value) -> ExecutionIssue {

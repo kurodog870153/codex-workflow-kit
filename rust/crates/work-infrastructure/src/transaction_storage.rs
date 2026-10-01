@@ -7,7 +7,7 @@ use std::path::Path;
 use serde_json::json;
 use work_feature::error::{ExitCode, WorkError};
 use work_feature::ports::ArtifactStore;
-use work_operations::canonical::sha256_hex;
+use work_operations::derivation::publication::completion_marker;
 
 use crate::files::LocalFiles;
 
@@ -64,10 +64,6 @@ pub enum CompletionState {
     Incomplete,
     Completed,
     Corrupt,
-}
-
-pub fn completion_marker(record: &[u8]) -> Vec<u8> {
-    format!("{}\n", sha256_hex(record)).into_bytes()
 }
 
 pub fn completion_state(record: &[u8], marker: Option<&[u8]>) -> CompletionState {

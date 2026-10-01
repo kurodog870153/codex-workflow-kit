@@ -13,7 +13,7 @@ pub fn decode_utf8(raw: &[u8]) -> Result<&str, std::str::Utf8Error> {
 }
 
 pub fn sha256_hex(raw: &[u8]) -> String {
-    work_operations::canonical::sha256_hex(raw)
+    work_operations::derivation::fingerprint::raw(raw)
 }
 
 pub fn canonical_json(value: &Value) -> Result<Vec<u8>, serde_json::Error> {

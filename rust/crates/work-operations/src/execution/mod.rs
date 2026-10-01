@@ -4,7 +4,10 @@ use std::collections::{HashMap, HashSet};
 
 use serde_json::{Value, json};
 
-use crate::protocol::{ATTEMPT_ID_PREFIX, BLOCKING_STOPPED_TYPES};
+#[cfg(test)]
+use crate::derivation::identity::next_attempt_id;
+use crate::derivation::identity::next_record_id;
+use crate::protocol::BLOCKING_STOPPED_TYPES;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutionIssue {
@@ -42,35 +45,6 @@ pub fn derive_overall_status(statuses: &[&str]) -> &'static str {
     } else {
         "pending"
     }
-}
-
-pub fn next_attempt_id(source: Option<&str>) -> Result<String, ExecutionIssue> {
-    let Some(source) = source else {
-        return Ok("ATTEMPT-001".into());
-    };
-    let number = source
-        .strip_prefix(ATTEMPT_ID_PREFIX)
-        .and_then(|value| {
-            (value.len() == 3 && value.bytes().all(|byte| byte.is_ascii_digit()))
-                .then(|| value.parse::<u16>().ok())
-                .flatten()
-        })
-        .filter(|number| *number > 0)
-        .ok_or_else(|| {
-            issue(
-                "attempt_start_invalid_source_attempt",
-                "The continuation source Attempt ID is invalid.",
-                json!({}),
-            )
-        })?;
-    if number == 999 {
-        return Err(issue(
-            "attempt_start_id_exhausted",
-            "No additional three-digit Attempt ID is available.",
-            json!({}),
-        ));
-    }
-    Ok(format!("ATTEMPT-{:03}", number + 1))
 }
 
 pub fn closed_task_status(status: &str, final_type: Option<&str>) -> &'static str {
@@ -170,62 +144,6 @@ pub fn close_index(
         object.remove("lock");
     }
     Ok(result)
-}
-
-pub fn next_record_id(base_record_id: &str, attempt: &Value) -> Result<String, ExecutionIssue> {
-    let valid = ["CMD-", "OP-", "VAL-"].iter().any(|prefix| {
-        base_record_id.strip_prefix(prefix).is_some_and(|digits| {
-            digits.len() == 3 && digits.bytes().all(|byte| byte.is_ascii_digit())
-        })
-    });
-    if !valid {
-        return Err(issue(
-            "record_begin_invalid_base_record_id",
-            "record_id must be a base CMD-, OP-, or VAL- identifier.",
-            json!({"record_id":base_record_id}),
-        ));
-    }
-    let instances = attempt["carried_records"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .map(|row| &row["record_id"])
-        .chain(
-            attempt["records"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .map(|row| &row["id"]),
-        );
-    let maximum = instances
-        .filter_map(Value::as_str)
-        .filter_map(|id| {
-            let (base, retry) = id.split_once('#').unwrap_or((id, "0"));
-            (base == base_record_id
-                && (retry == "0" && !id.contains('#')
-                    || retry.starts_with(|character: char| ('1'..='9').contains(&character))
-                        && retry.bytes().all(|byte| byte.is_ascii_digit())))
-            .then_some(retry)
-        })
-        .max_by(|left, right| left.len().cmp(&right.len()).then(left.cmp(right)));
-    let Some(maximum) = maximum else {
-        return Ok(base_record_id.into());
-    };
-    let mut digits = maximum.as_bytes().to_vec();
-    for digit in digits.iter_mut().rev() {
-        if *digit < b'9' {
-            *digit += 1;
-            break;
-        }
-        *digit = b'0';
-    }
-    if digits.first() == Some(&b'0') {
-        digits.insert(0, b'1');
-    }
-    Ok(format!(
-        "{base_record_id}#{}",
-        String::from_utf8(digits).expect("ASCII digits")
-    ))
 }
 
 pub fn formal_record_kind(

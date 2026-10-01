@@ -56,7 +56,7 @@ fn lines(raw: &[u8]) -> Vec<String> {
         }
         Err(_) => vec![format!(
             "<binary sha256={}>\n",
-            work_operations::canonical::sha256_hex(raw)
+            work_operations::derivation::fingerprint::raw(raw)
         )],
     }
 }

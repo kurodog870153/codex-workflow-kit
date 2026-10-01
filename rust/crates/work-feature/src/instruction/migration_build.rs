@@ -7,12 +7,11 @@ use crate::workflow::WorkflowRoutingRepository;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::str::FromStr;
-use work_model::task::index::TaskItemReference;
-use work_operations::canonical::{canonical_sha256, parse_json_contract};
+use work_operations::canonical::parse_json_contract;
+use work_operations::derivation::graph::{rebind_execution_index, rebind_task_index};
 use work_operations::execution::index::{render_execution_index, validate_execution_index};
 use work_operations::identifiers::RequirementId;
 use work_operations::plan::render_plan_value;
-use work_operations::task::collection::collection_fingerprint_sha256;
 use work_operations::task::ordering::{TaskDocumentKind, render_task};
 
 pub trait MigrationSnapshotRepository {
@@ -62,10 +61,6 @@ fn render(value: &Value, kind: &str) -> Result<Vec<u8>, WorkError> {
     })
 }
 
-fn hash(raw: &[u8]) -> Result<String, WorkError> {
-    canonical_sha256(raw).map_err(|_| failure("invalid_utf8", "A formal artifact is not UTF-8."))
-}
-
 fn set_manifest(value: &mut Value, key: &str, manifest: Value) -> bool {
     if value[key]["routing_manifest"] == manifest {
         return false;
@@ -96,6 +91,7 @@ pub fn build_migration(
     let mut after = BTreeMap::new();
     let mut excluded = Vec::new();
     let mut counts = json!({"plans":0,"task_items":0,"task_indexes":0,"execution_indexes":0});
+    let mut item_bytes = BTreeMap::new();
 
     let (plan_raw, mut plan) = read(repository, plan_relative)?;
     let manifest = migration_manifest(routing, "plan", "plan_confirmed", "prepare_plan", &plan)?;
@@ -112,7 +108,6 @@ pub fn build_migration(
     if repository.exists(task_relative)? {
         let (index_raw, mut index) = read(repository, task_relative)?;
         let base = task_relative.rsplit_once('/').map_or("", |(base, _)| base);
-        let mut item_paths = BTreeMap::new();
         let references = index["tasks"]
             .as_array()
             .ok_or_else(|| {
@@ -133,12 +128,16 @@ pub fn build_migration(
             let (item_raw, mut item) = read(repository, &relative)?;
             let manifest =
                 migration_manifest(routing, "task", "task_confirmed", "choose_task", &item)?;
-            if set_manifest(&mut item, "instruction_selection", manifest) {
+            let effective_item = if set_manifest(&mut item, "instruction_selection", manifest) {
+                let rendered = render(&item, "item")?;
                 before.insert(relative.clone(), item_raw);
-                after.insert(relative.clone(), render(&item, "item")?);
+                after.insert(relative.clone(), rendered.clone());
                 counts["task_items"] = json!(counts["task_items"].as_u64().unwrap() + 1);
-            }
-            item_paths.insert(task_id.to_owned(), relative);
+                rendered
+            } else {
+                item_raw
+            };
+            item_bytes.insert(task_id.to_owned(), effective_item);
         }
         let manifest =
             migration_manifest(routing, "task", "task_confirmed", "confirm_review", &index)?;
@@ -146,26 +145,12 @@ pub fn build_migration(
             || counts["plans"] != 0
             || counts["task_items"] != 0
         {
-            index["source_plan"]["canonical_sha256"] = json!(hash(&effective_plan)?);
-            for reference in index["tasks"].as_array_mut().ok_or_else(|| {
-                failure(
-                    "invalid_task_index",
-                    "The TASK index has no task references.",
-                )
-            })? {
-                let task_id = reference["id"]
-                    .as_str()
-                    .ok_or_else(|| failure("invalid_task_index", "A TASK reference has no ID."))?;
-                let relative = &item_paths[task_id];
-                let raw = if let Some(raw) = after.get(relative) {
-                    raw.clone()
-                } else {
-                    read(repository, relative)?.0
-                };
-                reference["canonical_sha256"] = json!(hash(&raw)?);
-            }
+            let index_bytes =
+                rebind_task_index(&effective_plan, &mut index, &item_bytes).map_err(|issue| {
+                    failure(issue.reason_code(), "TASK bindings cannot be derived.")
+                })?;
             before.insert(task_relative.to_owned(), index_raw.clone());
-            after.insert(task_relative.to_owned(), render(&index, "index")?);
+            after.insert(task_relative.to_owned(), index_bytes);
             counts["task_indexes"] = json!(1);
         }
         if repository.exists(&execution_relative)? {
@@ -195,29 +180,10 @@ pub fn build_migration(
                 )?;
                 execution["instruction_selection_manifest"] = manifest;
                 if let Some(index_new) = after.get(task_relative) {
-                    let index_sha = hash(index_new)?;
-                    execution["task_index_sha256"] = json!(index_sha);
-                    execution["task_collection_sha256"] = json!(collection_fingerprint_sha256(
-                        &index_sha,
-                        &index["tasks"]
-                            .as_array()
-                            .unwrap()
-                            .iter()
-                            .map(|reference| serde_json::from_value::<TaskItemReference>(
-                                reference.clone()
-                            )
-                            .expect("validated TASK reference"))
-                            .collect::<Vec<_>>()
-                    ));
-                    for reference in index["tasks"].as_array().unwrap() {
-                        let task_id = &reference["id"];
-                        if let Some(row) = execution["tasks"]
-                            .as_array_mut()
-                            .and_then(|rows| rows.iter_mut().find(|row| row["id"] == *task_id))
-                        {
-                            row["task_item_sha256"] = reference["canonical_sha256"].clone();
-                        }
-                    }
+                    rebind_execution_index(index_new, &index, &item_bytes, &mut execution)
+                        .map_err(|issue| {
+                            failure(issue.reason_code(), "Execute bindings cannot be derived.")
+                        })?;
                 }
                 let candidate = render(&execution, "execution")?;
                 if candidate != execution_raw {

@@ -14,18 +14,21 @@ use work_model::specification::{
     ArtifactMigrationAction, ArtifactMigrationAnalysis, ArtifactMigrationDecision,
     ArtifactMigrationItem, ArtifactMigrationRequest,
 };
-use work_operations::canonical::{canonical_json_sha256, parse_json_contract, sha256_hex};
+use work_operations::canonical::parse_json_contract;
+#[cfg(test)]
+use work_operations::canonical::sha256_hex;
+use work_operations::derivation::fingerprint;
+use work_operations::derivation::snapshot::decode_snapshot;
+use work_operations::derivation::transaction::{
+    PublicationOrder, TransactionDeriver, TransactionInput, TransactionKind,
+};
 use work_operations::identifiers::RequirementId;
 use work_operations::specification::migration_diff::unified_diff;
-use work_operations::specification::transaction::{
-    approval_sha256, decode_snapshot, derived_transaction_id, encode_snapshot, render_transaction,
-    validate_transaction,
-};
+use work_operations::specification::transaction::{render_transaction, validate_transaction};
 
 use crate::files::LocalFiles;
 use crate::specification::storage::{
-    execution_history_fingerprints, publish_journal, require_no_spec_update, storage_path,
-    write_journal,
+    execution_history_bytes, publish_journal, require_no_spec_update, storage_path, write_journal,
 };
 use crate::writer_lock::LocalWriterLock;
 use work_feature::ports::WriterLock;
@@ -66,7 +69,7 @@ fn relationship_diagnostics(
                     "Plan and TASK artifact routes differ",
                 );
             }
-            if index["source_plan"]["canonical_sha256"] != sha256_hex(plan_raw) {
+            if index["source_plan"]["canonical_sha256"] != fingerprint::raw(plan_raw) {
                 report(
                     "source_plan_fingerprint_mismatch",
                     index_path,
@@ -93,7 +96,7 @@ fn relationship_diagnostics(
                         (
                             "execution_index_fingerprint_mismatch",
                             &execution["task_index_sha256"],
-                            &json!(sha256_hex(index_raw)),
+                            &json!(fingerprint::raw(index_raw)),
                         ),
                         (
                             "execution_instruction_mismatch",
@@ -138,7 +141,7 @@ fn relationship_diagnostics(
                     continue;
                 }
                 let raw = LocalFiles.read_raw(&absolute)?;
-                if row["canonical_sha256"] != sha256_hex(&raw) {
+                if row["canonical_sha256"] != fingerprint::raw(&raw) {
                     report(
                         "task_item_fingerprint_mismatch",
                         &path,
@@ -181,7 +184,10 @@ fn transaction_diagnostics(root: &Path, execution_dir: &str) -> Result<Vec<Value
         } else {
             continue;
         };
-        if directory.join(format!("{name}.done")).is_file() {
+        if directory
+            .join(work_operations::derivation::publication::completion_marker_path(&name))
+            .is_file()
+        {
             continue;
         }
         let path = format!("{execution_dir}/{name}");
@@ -283,7 +289,7 @@ pub fn analyze(
     } else {
         json!({"requirement_id":requirement,"items":items,"diagnostics":diagnostics})
     };
-    let fingerprint = canonical_json_sha256(&evidence)
+    let fingerprint = fingerprint::structured(&evidence)
         .map_err(|_| fail("migration_fingerprint", "Analysis cannot be fingerprinted."))?;
     let result = json!({"schema":"work-artifact-migration-analysis/v1",
         "requirement_id":requirement,"items":items,"fingerprint":fingerprint,
@@ -415,7 +421,7 @@ pub fn prepare_request(root: &Path, analysis: &Value, choices: &Value) -> Result
     })?;
     let value = serde_json::to_value(&request)
         .map_err(|_| fail("migration_request", "Request cannot be serialized."))?;
-    let hash = canonical_json_sha256(&value)
+    let hash = fingerprint::structured(&value)
         .map_err(|_| fail("migration_request", "Request cannot be fingerprinted."))?;
     let relative = format!(
         "outputs/work/migrations/{}/{}.json",
@@ -442,7 +448,7 @@ pub fn prepare_request(root: &Path, analysis: &Value, choices: &Value) -> Result
     }
     Ok(
         json!({"schema":"work-artifact-migration-prepared/v1","request_path":relative,
-        "request_sha256":sha256_hex(&raw),"executable":request.executable(),"request":value}),
+        "request_sha256":work_operations::derivation::fingerprint::raw(&raw),"executable":request.executable(),"request":value}),
     )
 }
 
@@ -453,7 +459,7 @@ fn read_request(
 ) -> Result<ArtifactMigrationRequest, WorkError> {
     let path = storage_path(root, relative)?;
     let raw = LocalFiles.read_raw(&path)?;
-    if sha256_hex(&raw) != approved_sha256 {
+    if fingerprint::raw(&raw) != approved_sha256 {
         return Err(fail(
             "migration_approval_changed",
             "The saved request differs from approval.",
@@ -511,7 +517,7 @@ fn read_request(
             ));
         }
     }
-    let hash = canonical_json_sha256(&value).map_err(|_| {
+    let hash = fingerprint::structured(&value).map_err(|_| {
         fail(
             "migration_request",
             "The saved request cannot be fingerprinted.",
@@ -534,7 +540,7 @@ fn read_request(
         .map(|row| &row.item)
         .collect::<Vec<_>>();
     let analysis_hash =
-        canonical_json_sha256(&json!({"requirement_id":request.requirement_id,"items":items}))
+        fingerprint::structured(&json!({"requirement_id":request.requirement_id,"items":items}))
             .map_err(|_| {
                 fail(
                     "migration_request",
@@ -587,30 +593,22 @@ fn transaction_for_file(
     decision: &ArtifactMigrationDecision,
     before: &[u8],
     after: &[u8],
-    history: &BTreeMap<String, String>,
+    history: &BTreeMap<String, Vec<u8>>,
 ) -> Result<Value, WorkError> {
     let path = &decision.item.path;
-    let files = json!([{"phase":10,"path":path,"operation":"replace",
-        "before":encode_snapshot(before),"after":encode_snapshot(after)}]);
-    let source_sha256 = BTreeMap::from([(path.clone(), sha256_hex(before))]);
-    let candidate_sha256 = BTreeMap::from([(path.clone(), sha256_hex(after))]);
-    let metadata = json!({"request":{"request_sha256":request_sha256,
-        "analysis_fingerprint":request.analysis_fingerprint,"item_id":decision.item.id},
-        "artifacts":{},"affected_task_ids":[],"history_sha256":history,
-        "source_sha256":source_sha256,"candidate_sha256":candidate_sha256});
-    let approval = approval_sha256(&files, &metadata);
-    let id = derived_transaction_id("MIGRATION", &approval).map_err(|_| {
-        fail(
-            "migration_transaction",
-            "The transaction ID cannot be derived.",
-        )
-    })?;
-    let transaction = json!({"schema":"work-spec-transaction/v1","transaction_id":id,
-        "approval_sha256":approval,"state":"prepared","published_count":0,
-        "metadata":metadata,"files":files});
-    validate_transaction(&transaction)
-        .map_err(|_| fail("migration_transaction", "The transaction is invalid."))?;
-    Ok(transaction)
+    let derived = TransactionDeriver::derive(TransactionInput {
+        kind: TransactionKind::Migration,
+        order: PublicationOrder::Flat,
+        request: json!({"request_sha256":request_sha256,
+            "analysis_fingerprint":request.analysis_fingerprint,"item_id":decision.item.id}),
+        artifacts: json!({}),
+        affected_task_ids: Vec::new(),
+        history: history.clone(),
+        source: BTreeMap::from([(path.clone(), before.to_vec())]),
+        candidate: BTreeMap::from([(path.clone(), after.to_vec())]),
+    })
+    .map_err(|_| fail("migration_transaction", "The transaction is invalid."))?;
+    Ok(derived.journal)
 }
 
 fn checked_sources(
@@ -629,7 +627,7 @@ fn checked_sources(
             }
         }
         let raw = LocalFiles.read_raw(&storage_path(root, &item.path)?)?;
-        if sha256_hex(&raw) != item.source_sha256 {
+        if fingerprint::raw(&raw) != item.source_sha256 {
             return Err(fail(
                 "migration_source_changed",
                 "A reviewed source changed before publication.",
@@ -641,10 +639,12 @@ fn checked_sources(
 }
 
 fn item_journal(execution: &str, approved_sha256: &str, position: usize) -> String {
-    format!(
-        "{execution}/.work-spec-migration-{}-{:03}.json",
-        approved_sha256[..12].to_ascii_uppercase(),
-        position + 1
+    work_operations::derivation::publication::journal_path(
+        execution,
+        work_operations::derivation::publication::JournalKind::SpecificationMigrationItem {
+            approved: approved_sha256,
+            position,
+        },
     )
 }
 
@@ -696,7 +696,7 @@ fn checked_journal(
         || files[0]["path"] != decision.item.path
         || files[0]["phase"] != 10
         || files[0]["operation"] != "replace"
-        || sha256_hex(&before) != decision.item.source_sha256
+        || fingerprint::raw(&before) != decision.item.source_sha256
         || after != candidate
     {
         return Err(fail(
@@ -744,7 +744,12 @@ pub fn preview(
                 decision,
             )?;
             let journal = item_journal(&paths["execution"], approved_sha256, position);
-            let status = if storage_path(root, &format!("{journal}.done"))?.is_file() {
+            let status = if storage_path(
+                root,
+                &work_operations::derivation::publication::completion_marker_path(&journal),
+            )?
+            .is_file()
+            {
                 "published"
             } else {
                 "recovery_required"
@@ -769,7 +774,7 @@ pub fn preview(
             .all(|item| item["status"] != "blocked" && item["status"] != "recovery_required");
     let relationship_error = if ready {
         match approved_candidates(&request).and_then(|candidates| {
-            crate::specification::artifact_reconciliation::validate_expected(
+            crate::specification::migration_reconciliation_publication::validate_expected(
                 root,
                 skill_root,
                 configs,
@@ -827,14 +832,14 @@ pub fn execute(
     require_no_spec_update(root, execution, None)?;
     let sources = checked_sources(root, &request, execution, approved_sha256)?;
     let candidates = approved_candidates(&request)?;
-    crate::specification::artifact_reconciliation::validate_expected(
+    crate::specification::migration_reconciliation_publication::validate_expected(
         root,
         skill_root,
         configs,
         &request.requirement_id,
         &candidates,
     )?;
-    let history = execution_history_fingerprints(root, execution)?;
+    let history = execution_history_bytes(root, execution)?;
     let mut statuses = Vec::new();
     for (position, decision) in request.decisions.iter().enumerate() {
         if decision.action == ArtifactMigrationAction::Skip {
@@ -851,7 +856,7 @@ pub fn execute(
             }
         };
         let journal = item_journal(execution, approved_sha256, position);
-        let marker = format!("{journal}.done");
+        let marker = work_operations::derivation::publication::completion_marker_path(&journal);
         let outcome = if storage_path(root, &journal)?.is_file() {
             checked_journal(root, &journal, &request, approved_sha256, decision)
                 .and_then(|_| publish_journal(root, &journal, &marker))
@@ -880,7 +885,7 @@ pub fn execute(
         .iter()
         .all(|row| row["status"] == "published" || row["status"] == "skipped");
     let reconciliation = if complete {
-        match crate::specification::artifact_reconciliation::reconcile(
+        match crate::specification::migration_reconciliation_publication::reconcile(
             root,
             skill_root,
             configs,
@@ -926,7 +931,7 @@ pub fn recover(
             continue;
         }
         let journal = item_journal(execution, approved_sha256, position);
-        let marker = format!("{journal}.done");
+        let marker = work_operations::derivation::publication::completion_marker_path(&journal);
         let journal_path = storage_path(root, &journal)?;
         if !journal_path.is_file() {
             statuses.push(json!({"id":decision.item.id,"status":"not_started"}));
@@ -944,7 +949,7 @@ pub fn recover(
         .iter()
         .all(|row| row["status"] == "published" || row["status"] == "skipped");
     let reconciliation = if complete {
-        match crate::specification::artifact_reconciliation::reconcile(
+        match crate::specification::migration_reconciliation_publication::reconcile(
             root,
             skill_root,
             configs,
@@ -1315,7 +1320,7 @@ mod tests {
                 "{}.done",
                 journal_path.strip_prefix(&root).unwrap().display()
             )),
-            work_operations::specification::transaction::completion_marker(b"invalid journal"),
+            work_operations::derivation::publication::completion_marker(b"invalid journal"),
         )
         .unwrap();
         let result = execute(
@@ -1335,7 +1340,7 @@ mod tests {
         assert_eq!(fs::read(root.join(paths[1])).unwrap(), originals[1]);
         assert_ne!(fs::read(root.join(paths[2])).unwrap(), originals[2]);
         assert!(
-            crate::specification::artifact_reconciliation::validate_expected(
+            crate::specification::migration_reconciliation_publication::validate_expected(
                 &root,
                 &repo.join("../skills/work"),
                 &[],

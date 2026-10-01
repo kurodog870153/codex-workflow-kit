@@ -14,14 +14,15 @@ pub mod reconciliation_semantic;
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Value, json};
-use work_operations::canonical::{parse_json_contract, sha256_hex};
+use work_operations::canonical::parse_json_contract;
+use work_operations::derivation::fingerprint;
+use work_operations::derivation::transaction::{
+    PublicationOrder, TransactionDeriver, TransactionInput, TransactionKind,
+};
 use work_operations::execution::index::{render_execution_index, validate_execution_index};
 use work_operations::plan::render_plan_value;
 use work_operations::specification::migration_diff::unified_diff;
-use work_operations::specification::transaction::{
-    approval_sha256, derived_transaction_id, encode_snapshot, validate_transaction,
-};
-use work_operations::specification::update::{content_fingerprints, rebuild_execution_index};
+use work_operations::specification::update::rebuild_execution_index;
 use work_operations::task::ordering::{TaskDocumentKind, render_task};
 
 use crate::error::{ExitCode, WorkError};
@@ -38,7 +39,7 @@ pub struct SpecificationBaseline<'a> {
     pub index_raw: &'a [u8],
     pub items: &'a BTreeMap<String, Vec<u8>>,
     pub execution_raw: &'a [u8],
-    pub history_sha256: &'a BTreeMap<String, String>,
+    pub history: &'a BTreeMap<String, Vec<u8>>,
 }
 
 pub struct SpecificationPreview {
@@ -146,11 +147,12 @@ where
             "A complete Plan, TASK index and item map are required.",
         ));
     }
-    let expected = json!({"plan_sha256":sha256_hex(baseline.plan_raw),
-        "task_index_sha256":sha256_hex(baseline.index_raw),
-        "execution_index_sha256":sha256_hex(baseline.execution_raw),
-        "task_item_sha256":baseline.items.iter().map(|(id, raw)|
-            (id.clone(), sha256_hex(raw))).collect::<BTreeMap<_, _>>()});
+    let expected = fingerprint::specification_baseline(
+        baseline.plan_raw,
+        baseline.index_raw,
+        baseline.execution_raw,
+        baseline.items,
+    );
     if request["expected"] != expected {
         return Err(fail(
             "spec_update_source_changed",
@@ -314,7 +316,6 @@ where
             path.clone(),
         )
     });
-    let mut files = Vec::new();
     let mut review_diff = Vec::new();
     for path in all_paths {
         let before = source.get(&path);
@@ -327,31 +328,21 @@ where
             before.map(Vec::as_slice),
             after.map(Vec::as_slice),
         ));
-        let phase = if path.contains("/tasks/") {
-            20
-        } else if path == baseline.plan_path {
-            10
-        } else if path == baseline.task_path {
-            30
-        } else {
-            40
-        };
-        let mut row = json!({"phase":phase,"path":path,"operation":
-            if before.is_none() {"add"} else if after.is_none() {"remove"} else {"replace"}});
-        if let Some(raw) = before {
-            row["before"] = encode_snapshot(raw);
-        }
-        if let Some(raw) = after {
-            row["after"] = encode_snapshot(raw);
-        }
-        files.push(row);
     }
-    let metadata = json!({"request":request,"artifacts":artifacts,"affected_task_ids":affected,
-        "history_sha256":baseline.history_sha256,"source_sha256":content_fingerprints(&source),
-        "candidate_sha256":content_fingerprints(&candidate)});
-    let files = Value::Array(files);
-    let approval = approval_sha256(&files, &metadata);
-    let id = derived_transaction_id("UPDATE", &approval).map_err(|issue| {
+    let derived = TransactionDeriver::derive(TransactionInput {
+        kind: TransactionKind::Update,
+        order: PublicationOrder::Artifact {
+            plan_path: baseline.plan_path.into(),
+            task_index_path: baseline.task_path.into(),
+        },
+        request: request.clone(),
+        artifacts: artifacts.clone(),
+        affected_task_ids: affected.clone(),
+        history: baseline.history.clone(),
+        source,
+        candidate,
+    })
+    .map_err(|issue| {
         WorkError::new(
             ExitCode::ArtifactIntegrity,
             issue.reason_code,
@@ -359,17 +350,9 @@ where
             issue.details,
         )
     })?;
-    let transaction = json!({"schema":"work-spec-transaction/v1","transaction_id":id,
-        "approval_sha256":approval,"state":"prepared","published_count":0,
-        "metadata":metadata,"files":files});
-    validate_transaction(&transaction).map_err(|issue| {
-        WorkError::new(
-            ExitCode::ArtifactIntegrity,
-            issue.reason_code,
-            issue.message,
-            issue.details,
-        )
-    })?;
+    let approval = derived.approval_sha256;
+    let transaction = derived.journal;
+    let id = transaction["transaction_id"].clone();
     let old_items = baseline
         .items
         .iter()

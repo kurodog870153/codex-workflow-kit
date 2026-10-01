@@ -50,6 +50,8 @@ flowchart TB
 
 各 crate 僅公開上層需要的型別、port 與入口；內部實作優先保持私有或使用 `pub(crate)`。Model 定義資料形狀與欄位契約；Operations 定義 canonical 序列化、指紋等演算法。公開 API 不應讓呼叫端繞過 Flow／Feature 的業務入口。
 
+正式 artifact 的跨檔案指紋、交易 snapshot／approval／ID、歷史證據 policy，以及 journal、marker、receipt 的衍生規則由 `work-operations::derivation` 擁有。Feature 提交語意變更與 candidate，Infrastructure 提供原始 bytes 並負責持久化和復原；兩者不得另建相同衍生演算法。既有 Attempt、Correction、授權與核准證據只驗證或保留，不因目前來源變動而回寫。`work-cli/tests/derivation_architecture.rs` 檢查已遷移的責任，防止 caller 重新加入本地 hash、交易鏈或 marker 實作。
+
 ### 公開資料契約的型別化實作
 
 1. `work-model/src/` 按 Plan、Task、Execution、Specification 等業務概念，定義已登錄公開 request、artifact、response 與 envelope 的 Rust `struct`／`enum` 及固定巢狀物件。契約允許任意 JSON 的欄位保留 `Value`；其餘欄位以 `serde` 表達欄名、可選、`null` 與 enum 字面值。

@@ -1,7 +1,8 @@
 //! Transaction workspace identity and allocation order.
 
 use serde_json::{Value, json};
-use work_operations::identifiers::{RequirementId, TransactionId, WorkflowId};
+use work_operations::derivation::identity::workspace_transaction_id;
+use work_operations::identifiers::{RequirementId, WorkflowId};
 
 use crate::error::{ExitCode, WorkError};
 
@@ -45,10 +46,9 @@ pub fn create(
         .parse::<WorkflowId>()
         .map_err(|issue| invalid_identifier(issue.reason_code()))?;
     let suffix = allocator.random_suffix()?;
-    let transaction_id = format!("{}-{suffix}", allocator.utc_stamp());
-    transaction_id
-        .parse::<TransactionId>()
+    let transaction_id = workspace_transaction_id(&allocator.utc_stamp(), &suffix)
         .map_err(|issue| invalid_identifier(issue.reason_code()))?;
+    let transaction_id = transaction_id.as_str();
     let relative = if requirement_id.is_none() && workflow.as_str() == "invocation" {
         format!(".work/transactions/pending/invocation/{transaction_id}")
     } else {

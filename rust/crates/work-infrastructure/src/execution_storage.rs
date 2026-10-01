@@ -1223,9 +1223,9 @@ impl LocalExecutionStorage {
                     )?;
                 return Ok(json!({"kind":"windows_batch",
                     "launcher":launcher.to_string_lossy(),
-                    "launcher_sha256":work_operations::canonical::sha256_hex(&LocalFiles.read_raw(&launcher)?),
+                    "launcher_sha256":work_operations::derivation::fingerprint::raw(&LocalFiles.read_raw(&launcher)?),
                     "script":selected.to_string_lossy(),
-                    "script_sha256":work_operations::canonical::sha256_hex(&LocalFiles.read_raw(&selected)?),
+                    "script_sha256":work_operations::derivation::fingerprint::raw(&LocalFiles.read_raw(&selected)?),
                     "arguments":arguments,"command_line":command_line,
                     "launcher_arguments":launcher_arguments}));
             }
@@ -1247,7 +1247,7 @@ impl LocalExecutionStorage {
         }
         Ok(
             json!({"kind":"direct","executable":selected.to_string_lossy(),
-            "executable_sha256":work_operations::canonical::sha256_hex(&LocalFiles.read_raw(&selected)?),
+            "executable_sha256":work_operations::derivation::fingerprint::raw(&LocalFiles.read_raw(&selected)?),
             "argv":argv}),
         )
     }

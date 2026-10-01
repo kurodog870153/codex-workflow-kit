@@ -43,11 +43,13 @@ pub fn publication_paths(
             "The approved migration fingerprint is invalid.",
         ));
     }
-    let journal = format!(
-        "{execution}/.work-spec-migration-{}.json",
-        approved_sha256[..12].to_ascii_uppercase()
+    let journal = work_operations::derivation::publication::journal_path(
+        execution,
+        work_operations::derivation::publication::JournalKind::SpecificationMigration(
+            approved_sha256,
+        ),
     );
-    let marker = format!("{journal}.done");
+    let marker = work_operations::derivation::publication::completion_marker_path(&journal);
     Ok(MigrationPublicationPaths {
         execution: execution.to_owned(),
         journal,

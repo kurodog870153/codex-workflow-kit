@@ -7,14 +7,16 @@ use std::path::{Path, PathBuf};
 use serde_json::{Value, json};
 use work_feature::error::{ExitCode, WorkError};
 use work_feature::ports::ArtifactStore;
+#[cfg(test)]
 use work_operations::canonical::sha256_hex;
+use work_operations::derivation::fingerprint;
+use work_operations::derivation::publication::completion_marker;
+use work_operations::derivation::snapshot::decode_snapshot;
 use work_operations::protocol::TASK_ID_PREFIX;
-use work_operations::specification::transaction::{decode_snapshot, render_transaction};
+use work_operations::specification::transaction::render_transaction;
 
 use crate::files::{LocalFiles, resolve_project_path};
-use crate::transaction_storage::{
-    Publication, completion_marker, publish_recoverable_sequence, replace_journal,
-};
+use crate::transaction_storage::{Publication, publish_recoverable_sequence, replace_journal};
 
 fn error(code: ExitCode, reason: &str, message: &str, details: Value) -> WorkError {
     WorkError::new(code, reason, message, details)
@@ -219,7 +221,10 @@ pub fn require_no_spec_update(
             continue;
         }
         let record = storage_path(root, &relative)?;
-        let marker = storage_path(root, &format!("{relative}.done"))?;
+        let marker = storage_path(
+            root,
+            &work_operations::derivation::publication::completion_marker_path(&relative),
+        )?;
         let raw = LocalFiles.read_raw(&record)?;
         if !marker.is_file() || LocalFiles.read_raw(&marker)? != completion_marker(&raw) {
             return Err(error(
@@ -237,6 +242,16 @@ pub fn execution_history_fingerprints(
     root: &Path,
     execution: &str,
 ) -> Result<BTreeMap<String, String>, WorkError> {
+    Ok(execution_history_bytes(root, execution)?
+        .iter()
+        .map(|(path, raw)| (path.clone(), fingerprint::history(raw)))
+        .collect())
+}
+
+pub fn execution_history_bytes(
+    root: &Path,
+    execution: &str,
+) -> Result<BTreeMap<String, Vec<u8>>, WorkError> {
     let directory = storage_path(root, execution)?;
     let mut result = BTreeMap::new();
     if !directory.is_dir() {
@@ -271,16 +286,16 @@ pub fn execution_history_fingerprints(
                     json!({}),
                 ));
             }
-            collect_history(root, &relative, &mut result)?;
+            collect_history_bytes(root, &relative, &mut result)?;
         }
     }
     Ok(result)
 }
 
-fn collect_history(
+fn collect_history_bytes(
     root: &Path,
     relative: &str,
-    result: &mut BTreeMap<String, String>,
+    result: &mut BTreeMap<String, Vec<u8>>,
 ) -> Result<(), WorkError> {
     let directory = storage_path(root, relative)?;
     for entry in fs::read_dir(directory).map_err(|_| {
@@ -302,9 +317,9 @@ fn collect_history(
         let child = format!("{relative}/{}", entry.file_name().to_string_lossy());
         let path = storage_path(root, &child)?;
         if path.is_dir() {
-            collect_history(root, &child, result)?;
+            collect_history_bytes(root, &child, result)?;
         } else if path.is_file() {
-            result.insert(child, sha256_hex(&LocalFiles.read_raw(&path)?));
+            result.insert(child, LocalFiles.read_raw(&path)?);
         }
     }
     Ok(())
@@ -313,9 +328,9 @@ fn collect_history(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use work_operations::specification::transaction::{
-        approval_sha256, derived_transaction_id, encode_snapshot,
-    };
+    use work_operations::derivation::identity::derived_transaction_id;
+    use work_operations::derivation::snapshot::encode_snapshot;
+    use work_operations::derivation::transaction::approval_sha256;
 
     fn policy_test_root(label: &str) -> PathBuf {
         let root = std::env::temp_dir().join(format!(

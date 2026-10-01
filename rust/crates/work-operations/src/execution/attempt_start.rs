@@ -5,9 +5,10 @@ use std::collections::HashSet;
 use serde_json::{Value, json};
 
 use crate::canonical::canonical_json_sha256;
+use crate::derivation::identity::next_attempt_id;
 use crate::execution::attempt::render_attempt;
 use crate::execution::index::{render_execution_index, validate_execution_index};
-use crate::execution::{ExecutionIssue, derive_overall_status, next_attempt_id};
+use crate::execution::{ExecutionIssue, derive_overall_status};
 use crate::protocol::ATTEMPT_ID_PREFIX;
 
 fn issue(reason_code: &'static str, message: &'static str, details: Value) -> ExecutionIssue {

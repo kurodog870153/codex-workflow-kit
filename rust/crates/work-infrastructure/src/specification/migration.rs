@@ -10,19 +10,22 @@ use work_feature::skill::SkillRoot;
 use work_feature::specification::migration_prepare::{
     MigrationPrepareRepository, build_revision_request, parse_revision_semantic,
 };
-use work_operations::canonical::{canonical_json_sha256, sha256_hex};
+#[cfg(test)]
+use work_operations::canonical::sha256_hex;
+use work_operations::derivation::fingerprint;
+use work_operations::derivation::snapshot::decode_snapshot;
+use work_operations::derivation::transaction::{
+    PublicationOrder, TransactionDeriver, TransactionInput, TransactionKind,
+};
 use work_operations::execution::index::render_execution_index;
 use work_operations::plan::render_plan_value;
-use work_operations::specification::transaction::{
-    approval_sha256, decode_snapshot, derived_transaction_id, encode_snapshot, validate_transaction,
-};
 use work_operations::task::ordering::{TaskDocumentKind, render_task};
 
 use crate::files::LocalFiles;
 use crate::hierarchy_catalog::LocalHierarchyCatalog;
 use crate::plan_storage::LocalPlanStorage;
 use crate::skill_catalog::{LocalSkillCatalog, SkillRootConfig};
-use crate::specification::storage::storage_path;
+use crate::specification::storage::{execution_history_bytes, storage_path};
 use crate::specification::workflow_storage::{SpecificationPrepareInput, prepare_simple_update};
 use work_feature::specification::migration_preview_project::{
     MigrationPreviewRepository, preview_migration as preview_from_ports,
@@ -132,7 +135,7 @@ pub fn preview_revision_from_prepared(
     let mut sources = BTreeMap::new();
     for (path, expected) in source_sha {
         let raw = LocalFiles.read_raw(&storage_path(root, path)?)?;
-        if expected != &json!(sha256_hex(&raw)) {
+        if expected != &json!(fingerprint::raw(&raw)) {
             return Err(fail(
                 "migration_source_changed",
                 "Migration source bytes changed.",
@@ -166,7 +169,7 @@ pub fn preview_revision_from_prepared(
                     "A candidate is missing.",
                 )
             })?;
-        if expected != &json!(sha256_hex(&raw)) {
+        if expected != &json!(fingerprint::raw(&raw)) {
             return Err(fail(
                 "migration_candidate_changed",
                 "Migration candidate bytes changed.",
@@ -212,16 +215,16 @@ pub fn preview_revision_from_prepared(
     let ready = unresolved.is_empty();
     let source_hashes = sources
         .iter()
-        .map(|(path, raw)| (path.clone(), sha256_hex(raw)))
+        .map(|(path, raw)| (path.clone(), fingerprint::raw(raw)))
         .collect::<BTreeMap<_, _>>();
     let candidate_hashes = candidates
         .iter()
-        .map(|(path, raw)| (path.clone(), sha256_hex(raw)))
+        .map(|(path, raw)| (path.clone(), fingerprint::raw(raw)))
         .collect::<BTreeMap<_, _>>();
     let evidence = json!({"request":migration_request,"source_sha256":source_hashes,
         "candidate_sha256":candidate_hashes,"validator_results":validators,
         "relationship_results":relationships,"unresolved_items":unresolved});
-    let fingerprint = canonical_json_sha256(&evidence).map_err(|_| {
+    let fingerprint = fingerprint::structured(&evidence).map_err(|_| {
         fail(
             "invalid_contract_value",
             "Migration evidence cannot be fingerprinted.",
@@ -310,7 +313,7 @@ pub fn revision_transaction(
             )
         })?;
         if requested_hashes
-            .insert(path.to_owned(), json!(sha256_hex(&raw)))
+            .insert(path.to_owned(), json!(fingerprint::raw(&raw)))
             .is_some()
         {
             return Err(fail(
@@ -329,7 +332,8 @@ pub fn revision_transaction(
             "Migration candidates differ from the reviewed update.",
         ));
     }
-    let mut files = Vec::new();
+    let mut source_raw = BTreeMap::new();
+    let mut candidate_raw = BTreeMap::new();
     let paths = source_sha
         .keys()
         .chain(candidate_sha.keys())
@@ -338,7 +342,7 @@ pub fn revision_transaction(
     for path in paths {
         let before = if source_sha.contains_key(&path) {
             let raw = LocalFiles.read_raw(&storage_path(root, &path)?)?;
-            if source_sha[&path] != json!(sha256_hex(&raw)) {
+            if source_sha[&path] != json!(fingerprint::raw(&raw)) {
                 return Err(fail(
                     "migration_source_changed",
                     "Migration source bytes changed.",
@@ -373,7 +377,7 @@ pub fn revision_transaction(
                         "A candidate is missing.",
                     )
                 })?;
-            if candidate_sha[&path] != json!(sha256_hex(&raw)) {
+            if candidate_sha[&path] != json!(fingerprint::raw(&raw)) {
                 return Err(fail(
                     "migration_candidate_changed",
                     "Migration candidate bytes changed.",
@@ -383,22 +387,13 @@ pub fn revision_transaction(
         } else {
             None
         };
-        let mut row = json!({"phase":if after.is_none() {50} else {10},"path":path,
-            "operation":if before.is_none() {"add"} else if after.is_none() {"remove"} else {"replace"}});
         if let Some(before) = before {
-            row["before"] = encode_snapshot(&before);
+            source_raw.insert(path.clone(), before);
         }
         if let Some(after) = after {
-            row["after"] = encode_snapshot(&after);
+            candidate_raw.insert(path, after);
         }
-        files.push(row);
     }
-    files.sort_by_key(|row| {
-        (
-            row["phase"].as_u64().unwrap(),
-            row["path"].as_str().unwrap().to_owned(),
-        )
-    });
     let artifacts = &migration_request["candidates"]
         .as_array()
         .into_iter()
@@ -418,14 +413,44 @@ pub fn revision_transaction(
         .filter_map(|row| row["task_id"].as_str().map(str::to_owned))
         .collect::<Vec<_>>();
     affected.sort();
-    let metadata = json!({"request":{"migration":migration_request,
-        "preview_fingerprint":preview["fingerprint"]},
-        "artifacts":artifacts,"affected_task_ids":affected,
-        "history_sha256":specification["metadata"]["history_sha256"],
-        "source_sha256":source_sha,"candidate_sha256":candidate_sha});
-    let files = Value::Array(files);
-    let approval = approval_sha256(&files, &metadata);
-    let id = derived_transaction_id("MIGRATION", &approval).map_err(|issue| {
+    let history_sha256 = serde_json::from_value::<BTreeMap<String, String>>(
+        specification["metadata"]["history_sha256"].clone(),
+    )
+    .map_err(|_| {
+        fail(
+            "invalid_contract_value",
+            "Migration history fingerprints are invalid.",
+        )
+    })?;
+    let execution = artifacts["execution"].as_str().ok_or_else(|| {
+        fail(
+            "migration_execution_directory",
+            "An execution directory is required.",
+        )
+    })?;
+    let history = execution_history_bytes(root, execution)?;
+    let current_history_sha256 = history
+        .iter()
+        .map(|(path, raw)| (path.clone(), fingerprint::history(raw)))
+        .collect::<BTreeMap<_, _>>();
+    if current_history_sha256 != history_sha256 {
+        return Err(fail(
+            "migration_source_changed",
+            "Migration history bytes changed.",
+        ));
+    }
+    let derived = TransactionDeriver::derive(TransactionInput {
+        kind: TransactionKind::Migration,
+        order: PublicationOrder::Migration,
+        request: json!({"migration":migration_request,
+            "preview_fingerprint":preview["fingerprint"]}),
+        artifacts: artifacts.clone(),
+        affected_task_ids: affected,
+        history,
+        source: source_raw,
+        candidate: candidate_raw,
+    })
+    .map_err(|issue| {
         WorkError::new(
             ExitCode::ArtifactIntegrity,
             issue.reason_code,
@@ -433,18 +458,7 @@ pub fn revision_transaction(
             issue.details,
         )
     })?;
-    let transaction = json!({"schema":"work-spec-transaction/v1",
-        "transaction_id":id,"approval_sha256":approval,"state":"prepared",
-        "published_count":0,"metadata":metadata,"files":files});
-    validate_transaction(&transaction).map_err(|issue| {
-        WorkError::new(
-            ExitCode::ArtifactIntegrity,
-            issue.reason_code,
-            issue.message,
-            issue.details,
-        )
-    })?;
-    Ok(transaction)
+    Ok(derived.journal)
 }
 
 #[cfg(test)]

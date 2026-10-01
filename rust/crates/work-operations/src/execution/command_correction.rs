@@ -2,9 +2,10 @@
 
 use serde_json::{Value, json};
 
+use crate::derivation::identity::next_record_id;
 use crate::execution::ExecutionIssue;
 use crate::execution::authorization::{authorization_evidence, effective_task, require_deviation};
-use crate::execution::{formal_record_kind, next_record_id};
+use crate::execution::formal_record_kind;
 
 fn issue(reason_code: &'static str, message: &'static str, details: Value) -> ExecutionIssue {
     ExecutionIssue {

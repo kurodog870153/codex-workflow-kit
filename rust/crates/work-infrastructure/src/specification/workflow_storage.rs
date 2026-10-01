@@ -1,6 +1,6 @@
 //! Specification update validation, publication, recovery and verification.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
@@ -13,8 +13,15 @@ use work_feature::ports::{ArtifactStore, WriterLock};
 use work_feature::skill::SkillRoot;
 use work_feature::specification::{SpecificationBaseline, preview_update};
 use work_feature::task::load_collection_with_file_state;
+use work_operations::canonical::parse_json_contract;
+#[cfg(test)]
 use work_operations::canonical::sha256_hex as raw_sha256;
-use work_operations::canonical::{parse_json_contract, sha256_hex};
+use work_operations::derivation::fingerprint;
+use work_operations::derivation::graph::{
+    ArtifactNode, bind_plan_source, reconcile_artifact_bindings,
+};
+use work_operations::derivation::identity::derived_transaction_id;
+use work_operations::derivation::publication::completion_marker;
 use work_operations::execution::attempt::{validate_attempt_bytes, validate_attempt_file_path};
 use work_operations::execution::correction::{
     render_correction, validate_correction, validate_correction_file_path,
@@ -22,9 +29,7 @@ use work_operations::execution::correction::{
 use work_operations::execution::index::validate_execution_index;
 use work_operations::plan::render_plan_value;
 use work_operations::specification::prepare::validate_prepare_request;
-use work_operations::specification::transaction::{
-    completion_marker, derived_transaction_id, render_transaction, validate_transaction,
-};
+use work_operations::specification::transaction::{render_transaction, validate_transaction};
 use work_operations::specification::update::validate_update_request;
 use work_operations::specification::verification::validate_request as validate_verification_request;
 use work_operations::task::candidate::{build_semantic_candidate, build_semantic_patch};
@@ -107,7 +112,7 @@ struct OwnedBaseline {
     index_raw: Vec<u8>,
     items: BTreeMap<String, Vec<u8>>,
     execution_raw: Vec<u8>,
-    history: BTreeMap<String, String>,
+    history: BTreeMap<String, Vec<u8>>,
 }
 
 impl OwnedBaseline {
@@ -120,7 +125,7 @@ impl OwnedBaseline {
             index_raw: &self.index_raw,
             items: &self.items,
             execution_raw: &self.execution_raw,
-            history_sha256: &self.history,
+            history: &self.history,
         }
     }
 }
@@ -813,8 +818,12 @@ fn sources(
             issue.details,
         ))
     })?;
-    let history = execution_history_fingerprints(root, execution)?;
-    validate_specification_history(root, &execution_value, execution, &history)?;
+    let history = crate::specification::storage::execution_history_bytes(root, execution)?;
+    let history_sha256 = history
+        .iter()
+        .map(|(path, raw)| (path.clone(), fingerprint::history(raw)))
+        .collect();
+    validate_specification_history(root, &execution_value, execution, &history_sha256)?;
     Ok(OwnedBaseline {
         plan_path: plan_path.into(),
         task_path: task_path.into(),
@@ -1315,14 +1324,23 @@ pub fn prepare_simple_update(
             normalized.push(row);
         }
     }
-    if plan_changed {
-        let bytes = render_plan_value(&plan).map_err(|_| {
+    let plan_raw = if plan_changed {
+        render_plan_value(&plan).map_err(|_| {
             fail(
                 "invalid_contract_value",
                 "The revised Plan cannot be rendered.",
             )
+        })?
+    } else {
+        baseline.plan_raw.clone()
+    };
+    if plan_changed {
+        bind_plan_source(&plan_raw, &mut index).map_err(|_| {
+            fail(
+                "invalid_contract_value",
+                "The revised Plan cannot be bound.",
+            )
         })?;
-        index["source_plan"]["canonical_sha256"] = json!(raw_sha256(&bytes));
     }
     if changed_item_set {
         let mut selections = Vec::new();
@@ -1363,6 +1381,7 @@ pub fn prepare_simple_update(
     index["spec_id"] = json!(spec_id);
     index["readiness"]["spec_id"] = json!(spec_id);
     let mut updated_references = Vec::new();
+    let mut item_raw = BTreeMap::new();
     for (id, item) in &items {
         let bytes = render_task(item, TaskDocumentKind::Item).map_err(|_| {
             fail(
@@ -1370,8 +1389,8 @@ pub fn prepare_simple_update(
                 "The revised TASK item cannot be rendered.",
             )
         })?;
-        updated_references.push(json!({"id":id,"path":format!("tasks/{id}.json"),
-            "canonical_sha256":raw_sha256(&bytes)}));
+        updated_references.push(json!({"id":id,"path":format!("tasks/{id}.json")}));
+        item_raw.insert(id.clone(), bytes);
     }
     index["tasks"] = Value::Array(updated_references);
     let change_number = index["changes"]
@@ -1435,7 +1454,14 @@ pub fn prepare_simple_update(
         "spec_id":spec_id,"date":input.date,"reason":reason,
         "affected_ids":affected,"edits":normalized}));
     index["changes"] = Value::Array(changes);
-    let index_raw = render_task(&index, TaskDocumentKind::Index).map_err(|_| {
+    let index_raw = reconcile_artifact_bindings(
+        &plan_raw,
+        &mut index,
+        &item_raw,
+        None,
+        &BTreeSet::from([ArtifactNode::PlanBytes]),
+    )
+    .map_err(|_| {
         fail(
             "invalid_contract_value",
             "The revised TASK index cannot be rendered.",
@@ -1444,11 +1470,12 @@ pub fn prepare_simple_update(
     if index_raw == baseline.index_raw {
         return Err(fail("spec_edit_state", "No Specification bytes changed."));
     }
-    let expected = json!({"plan_sha256":raw_sha256(&baseline.plan_raw),
-        "task_index_sha256":raw_sha256(&baseline.index_raw),
-        "execution_index_sha256":raw_sha256(&baseline.execution_raw),
-        "task_item_sha256":baseline.items.iter().map(|(id, raw)| (id.clone(), raw_sha256(raw)))
-            .collect::<BTreeMap<_,_>>()});
+    let expected = fingerprint::specification_baseline(
+        &baseline.plan_raw,
+        &baseline.index_raw,
+        &baseline.execution_raw,
+        &baseline.items,
+    );
     let request = json!({"schema":"work-spec-update-request/v1","reason":reason,
         "expected":expected,"plan":plan,"task_index":index,"task_items":items});
     let instructions = LocalHierarchyCatalog {
@@ -1548,7 +1575,10 @@ pub fn update_from_project(
                 issue.details,
             )
         })?;
-        let relative = format!("{execution}/.work-spec-update-{id}.json");
+        let relative = work_operations::derivation::publication::journal_path(
+            execution,
+            work_operations::derivation::publication::JournalKind::SpecificationUpdate(&id),
+        );
         let raw = LocalFiles.read_raw(&storage_path(root, &relative)?)?;
         let journal = parse_json_contract(&raw).map_err(|_| {
             fail(
@@ -1617,13 +1647,15 @@ pub fn update_from_project(
             "The approved transaction changed.",
         ));
     }
-    let journal = format!(
-        "{execution}/.work-spec-update-{}.json",
-        transaction["transaction_id"]
-            .as_str()
-            .expect("transaction ID")
+    let journal = work_operations::derivation::publication::journal_path(
+        execution,
+        work_operations::derivation::publication::JournalKind::SpecificationUpdate(
+            transaction["transaction_id"]
+                .as_str()
+                .expect("transaction ID"),
+        ),
     );
-    let marker = format!("{journal}.done");
+    let marker = work_operations::derivation::publication::completion_marker_path(&journal);
     let ignored = if matches!(input.operation, SpecOperation::Recover) {
         Some(journal.as_str())
     } else {
@@ -1664,7 +1696,7 @@ pub fn update_from_project(
         .as_object()
         .expect("candidate SHA")
     {
-        if sha256_hex(&LocalFiles.read_raw(&storage_path(root, path)?)?)
+        if fingerprint::raw(&LocalFiles.read_raw(&storage_path(root, path)?)?)
             != expected.as_str().unwrap_or("")
         {
             return Err(fail(
@@ -1734,7 +1766,10 @@ pub fn verify_from_project(
             "The verification record ID is invalid.",
         )
     })?;
-    let relative = format!("{execution}/.work-spec-update-{id}.json");
+    let relative = work_operations::derivation::publication::journal_path(
+        execution,
+        work_operations::derivation::publication::JournalKind::SpecificationUpdate(id),
+    );
     let raw = LocalFiles.read_raw(&storage_path(root, &relative)?)?;
     let journal = parse_json_contract(&raw).map_err(|_| {
         fail(
@@ -1750,7 +1785,10 @@ pub fn verify_from_project(
             issue.details,
         )
     })?;
-    let marker = LocalFiles.read_raw(&storage_path(root, &format!("{relative}.done"))?)?;
+    let marker = LocalFiles.read_raw(&storage_path(
+        root,
+        &work_operations::derivation::publication::completion_marker_path(&relative),
+    )?)?;
     if marker != completion_marker(&raw) {
         return Err(fail(
             "spec_verify_completion_mismatch",
@@ -1761,7 +1799,7 @@ pub fn verify_from_project(
         .as_object()
         .expect("candidate SHA")
     {
-        if sha256_hex(&LocalFiles.read_raw(&storage_path(root, path)?)?)
+        if fingerprint::raw(&LocalFiles.read_raw(&storage_path(root, path)?)?)
             != expected.as_str().unwrap_or("")
         {
             return Err(fail(
@@ -1809,7 +1847,7 @@ pub fn verify_from_project(
     >(
         json!({"schema":"work-spec-verification/v1","status":"verified","verified":true,
         "record_id":id,"requirement_id":request["requirement_id"],"artifacts":artifacts,
-        "task_collection_sha256":collection["task_collection_sha256"],"journal_sha256":sha256_hex(&raw),
+        "task_collection_sha256":collection["task_collection_sha256"],"journal_sha256":fingerprint::journal(&raw),
         "verification_scope":"exact_specification_result","execution_authorized":false,
         "next_step":"normal_execute_preflight"}),
     ))
@@ -2644,7 +2682,7 @@ mod tests {
 
     #[test]
     fn item_revision_preserves_other_item_and_recovers_partial_publication() {
-        use work_operations::specification::transaction::decode_snapshot;
+        use work_operations::derivation::snapshot::decode_snapshot;
 
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture =

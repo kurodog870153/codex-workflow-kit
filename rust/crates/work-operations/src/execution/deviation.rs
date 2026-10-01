@@ -807,14 +807,13 @@ pub fn append_approved_deviation(
         ));
     }
     let count = existing.map_or(0, Vec::len);
-    if count >= 999 {
-        return Err(issue(
+    let deviation_id = crate::derivation::identity::next_deviation_id(count).ok_or_else(|| {
+        issue(
             "deviation_record_limit",
             "The Attempt cannot allocate another DEVIATION-nnn ID.",
-        ));
-    }
+        )
+    })?;
     let proposal = &preview["proposal"];
-    let deviation_id = format!("DEVIATION-{:03}", count + 1);
     let artifact = json!({
         "schema":"work-execution-deviation/v1",
         "deviation_id":deviation_id,
