@@ -1,7 +1,7 @@
 //! Pre-execution workflow state assembly.
 
 use serde_json::{Value, json};
-use work_operations::canonical::canonical_json_sha256;
+use work_operations::derivation::fingerprint;
 use work_operations::operation::{operation_effect, routing_identity};
 use work_operations::routing::RoutingRequest;
 use work_operations::workflow::{
@@ -55,7 +55,7 @@ pub fn build_operation_context(
     })?;
     let identity =
         routing_identity(command, operation, delegated_role).expect("classified operation");
-    let state_sha256 = canonical_json_sha256(&json!({
+    let state_sha256 = fingerprint::structured(&json!({
         "command":command,"operation":operation,"mode":identity.mode,
         "events":identity.formal_events,"role":identity.role,"artifacts":artifacts,
         "project_root":project_root,
@@ -91,7 +91,7 @@ pub fn build_operation_context(
         "expected_result_contract":"work-operation-result/v1",
     });
     envelope["context_sha256"] =
-        json!(canonical_json_sha256(&envelope).expect("operation context serializes"));
+        json!(fingerprint::structured(&envelope).expect("operation context serializes"));
     let _: work_model::operation::OperationEnvelope =
         serde_json::from_value(envelope.clone()).expect("bound operation matches its model");
     Ok((envelope, selection))
@@ -114,7 +114,8 @@ pub fn validate_operation_context(
             )
         })?
         .remove("context_sha256");
-    if envelope["context_sha256"] != canonical_json_sha256(&context).expect("context serializes") {
+    if envelope["context_sha256"] != fingerprint::structured(&context).expect("context serializes")
+    {
         return Err(WorkError::new(
             ExitCode::WorkflowState,
             "operation_context_identity_mismatch",
@@ -256,7 +257,7 @@ fn render_state(
                 json!({"artifact":decision.target_artifact}),
             )
         })?;
-    let state_sha256 = canonical_json_sha256(&json!({
+    let state_sha256 = fingerprint::structured(&json!({
         "requirement_id":requirement_id,"status":decision.status,"next_action":decision.next_action,
         "target":target,"artifacts":artifacts,
     }))

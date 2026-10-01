@@ -1,7 +1,8 @@
 //! Discussion progress preview, preparation, read and save use cases.
 
 use serde_json::{Map, Value, json};
-use work_operations::canonical::{parse_json_contract, sha256_hex};
+use work_operations::canonical::parse_json_contract;
+use work_operations::derivation::fingerprint;
 use work_operations::identifiers::RequirementId;
 use work_operations::progress::{
     ProgressDocument, ProgressIssue, approval_sha256, render_progress, validate_progress,
@@ -124,7 +125,7 @@ pub fn read_progress(
     Ok(work_model::progress::verified::<
         work_model::progress::ProgressRead,
     >(
-        json!({"schema":"work-progress-read/v1","status":"saved","path":relative,"sha256":sha256_hex(&raw),"progress":value}),
+        json!({"schema":"work-progress-read/v1","status":"saved","path":relative,"sha256":fingerprint::raw(&raw),"progress":value}),
     ))
 }
 
@@ -459,7 +460,7 @@ pub fn save_progress_raw(
         value["requirement_id"].as_str().unwrap(),
         value["mode"].as_str().unwrap(),
     )?;
-    if saved["sha256"] != sha256_hex(&raw) {
+    if saved["sha256"] != fingerprint::raw(&raw) {
         return Err(failure(
             ExitCode::ArtifactIntegrity,
             "progress_write_mismatch",

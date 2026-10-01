@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 
 use serde_json::{Value, json};
-use work_operations::canonical::{canonical_json_sha256, sha256_hex};
+use work_operations::derivation::fingerprint;
 
 use crate::error::{ExitCode, WorkError};
 
@@ -177,14 +177,14 @@ pub fn preview_reconciliation(
         };
         classifications.insert(id.to_owned(), json!(target));
     }
-    let attempt_sha = sha256_hex(attempt_raw);
+    let attempt_sha = fingerprint::raw(attempt_raw);
     let migration_fingerprint =
         migration_preview.map_or(Value::Null, |value| value["fingerprint"].clone());
     let evidence = json!({"request":request,"attempt_sha256":attempt_sha,
         "pending_deviation_ids":pending,"selected_deviation_ids":selected,
         "retained_deviation_ids":retained,"deviation_classifications":classifications,
         "migration_fingerprint":migration_fingerprint});
-    let fingerprint = canonical_json_sha256(&evidence).map_err(|_| {
+    let fingerprint = fingerprint::structured(&evidence).map_err(|_| {
         fail(
             "invalid_contract_value",
             "Reconciliation evidence cannot be fingerprinted.",

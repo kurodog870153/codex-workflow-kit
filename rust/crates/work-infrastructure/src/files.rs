@@ -397,8 +397,8 @@ mod tests {
         fs::write(&path, b"source\r\n").unwrap();
         let raw = LocalFiles.read_raw(&path).unwrap();
         assert_eq!(raw, b"source\r\n");
-        let canonical = work_operations::canonical::canonical_sha256(&raw).unwrap();
-        let original = work_operations::canonical::sha256_hex(&raw);
+        let canonical = work_operations::derivation::fingerprint::canonical(&raw).unwrap();
+        let original = work_operations::derivation::fingerprint::raw(&raw);
         assert_eq!(canonical.len(), 64);
         assert_eq!(original.len(), 64);
         assert_ne!(canonical, original);

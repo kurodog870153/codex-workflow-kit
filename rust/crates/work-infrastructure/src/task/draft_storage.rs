@@ -1056,7 +1056,7 @@ impl TaskDraftHistoryRepository for LocalTaskDraftStorage {
 mod tests {
     use super::*;
     use std::collections::BTreeMap;
-    use work_operations::canonical::sha256_hex;
+    use work_operations::derivation::fingerprint::raw as sha256_hex;
 
     #[test]
     fn concurrent_status_index_change_keeps_revision_conflict() {

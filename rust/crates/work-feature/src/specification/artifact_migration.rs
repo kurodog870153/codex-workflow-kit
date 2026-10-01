@@ -2,7 +2,8 @@
 
 use serde_json::{Value, json};
 use work_model::specification::{ArtifactMigrationItem, ArtifactMigrationItemStatus};
-use work_operations::canonical::{parse_json_contract, sha256_hex};
+use work_operations::canonical::parse_json_contract;
+use work_operations::derivation::fingerprint;
 use work_operations::execution::index::{render_execution_index, validate_execution_index};
 use work_operations::plan::{render_plan_value, validation::validate_plan_structure};
 use work_operations::task::index::validate_task_index;
@@ -71,7 +72,7 @@ pub fn analyze_artifact(kind: &str, path: &str, raw: &[u8]) -> ArtifactMigration
         kind: kind.into(),
         target_schema: current_schema(kind).unwrap_or_default().into(),
         required: true,
-        source_sha256: sha256_hex(raw),
+        source_sha256: fingerprint::raw(raw),
         issue: String::new(),
         resolution_status: ArtifactMigrationItemStatus::NeedsReview,
         proposed_content: None,
@@ -113,6 +114,7 @@ pub fn analyze_artifact(kind: &str, path: &str, raw: &[u8]) -> ArtifactMigration
 #[cfg(test)]
 mod tests {
     use super::*;
+    use work_operations::derivation::fingerprint::raw as sha256_hex;
 
     #[test]
     fn damaged_source_remains_reviewable() {

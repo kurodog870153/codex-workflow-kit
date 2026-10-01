@@ -101,8 +101,10 @@ mod tests {
         CollectionInput, load_collection, load_task_execution_context,
         recheck_task_execution_context, validate_collection,
     };
-    use work_operations::canonical::{canonical_json_sha256, sha256_hex};
     use work_operations::derivation::fingerprint::skill_selection as skill_selection_sha256;
+    use work_operations::derivation::fingerprint::{
+        raw as sha256_hex, structured as canonical_json_sha256,
+    };
     use work_operations::execution::attempt::render_attempt;
     use work_operations::execution::build_execution_lock;
     use work_operations::execution::correction::{build_correction_candidates, render_correction};

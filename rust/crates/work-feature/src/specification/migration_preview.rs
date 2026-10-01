@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use serde_json::{Value, json};
-use work_operations::canonical::{canonical_json_sha256, sha256_hex};
+use work_operations::derivation::fingerprint;
 
 use crate::error::{ExitCode, WorkError};
 
@@ -42,16 +42,16 @@ pub fn finish_preview(input: MigrationPreviewInput<'_>) -> Result<Value, WorkErr
             .all(|row| row["status"] == "passed");
     let source_hashes = sources
         .iter()
-        .map(|(path, raw)| (path.clone(), sha256_hex(raw)))
+        .map(|(path, raw)| (path.clone(), fingerprint::raw(raw)))
         .collect::<BTreeMap<_, _>>();
     let candidate_hashes = candidates
         .iter()
-        .map(|(path, raw)| (path.clone(), sha256_hex(raw)))
+        .map(|(path, raw)| (path.clone(), fingerprint::raw(raw)))
         .collect::<BTreeMap<_, _>>();
     let evidence = json!({"request":request,"source_sha256":source_hashes,
         "candidate_sha256":candidate_hashes,"validator_results":validators,
         "relationship_results":relationships,"unresolved_items":unresolved});
-    let fingerprint = canonical_json_sha256(&evidence).map_err(|_| {
+    let fingerprint = fingerprint::structured(&evidence).map_err(|_| {
         WorkError::new(
             ExitCode::ArtifactIntegrity,
             "invalid_contract_value",

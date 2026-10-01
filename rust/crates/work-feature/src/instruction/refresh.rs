@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Value, json};
-use work_operations::canonical::{canonical_json_sha256, sha256_hex};
+use work_operations::derivation::fingerprint;
 
 use crate::error::{ExitCode, WorkError};
 use crate::instruction::refresh_build::RefreshCandidate;
@@ -47,12 +47,12 @@ pub fn decide_refresh(
         .iter()
         .map(|(path, raw)| {
             json!({"path":path,
-                "before_sha256":sha256_hex(&before[path]),"after_sha256":sha256_hex(raw)})
+                "before_sha256":fingerprint::raw(&before[path]),"after_sha256":fingerprint::raw(raw)})
         })
         .collect::<Vec<_>>();
     let evidence = json!({"requirement_id":requirement_id,"changed_sources":changed_sources,
         "blocked":blocked,"files":files});
-    let approval = canonical_json_sha256(&evidence).map_err(|_| {
+    let approval = fingerprint::structured(&evidence).map_err(|_| {
         WorkError::new(
             ExitCode::ArtifactIntegrity,
             "invalid_contract_value",
@@ -121,7 +121,7 @@ pub fn batch_preview(impact: &Value) -> Result<Value, WorkError> {
         .iter()
         .map(|row| json!([row["requirement_id"], row["approved_sha256"]]))
         .collect::<Vec<_>>();
-    let approved = canonical_json_sha256(&json!(evidence)).map_err(|_| {
+    let approved = fingerprint::structured(&json!(evidence)).map_err(|_| {
         WorkError::new(
             ExitCode::ArtifactIntegrity,
             "invalid_contract_value",

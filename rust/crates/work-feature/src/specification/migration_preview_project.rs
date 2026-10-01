@@ -8,7 +8,7 @@ use crate::specification::migration_preview::{MigrationPreviewInput, finish_prev
 use crate::task::{CollectionInput, validate_collection};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
-use work_operations::canonical::sha256_hex;
+use work_operations::derivation::fingerprint;
 use work_operations::execution::index::{render_execution_index, validate_execution_index};
 use work_operations::plan::render_plan_value;
 use work_operations::specification::migration_diff::unified_diff;
@@ -89,7 +89,7 @@ where
             ));
         }
         let raw = repository.read(path)?;
-        if evidence["raw_sha256"] != sha256_hex(&raw) {
+        if evidence["raw_sha256"] != fingerprint::raw(&raw) {
             return Err(fail(
                 "migration_source_changed",
                 "Migration source bytes differ from reviewed evidence.",

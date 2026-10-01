@@ -1,6 +1,7 @@
 //! Pure instruction source and selection contracts.
 
-use crate::canonical::{InstructionSource as FingerprintSource, instructions_sha256, sha256_hex};
+use crate::canonical::InstructionSource as FingerprintSource;
+use crate::derivation::fingerprint;
 use crate::hierarchy::Hierarchy;
 
 pub use work_model::instruction::{
@@ -41,7 +42,7 @@ pub fn source_summary(
     Ok(SourceSummary {
         kind: kind.into(),
         logical_name: logical_name.into(),
-        canonical_sha256: sha256_hex(content),
+        canonical_sha256: fingerprint::raw(content),
         compatibility_revision: compatibility_revision(content)?,
     })
 }
@@ -60,7 +61,7 @@ pub fn from_sources(mode: &str, hierarchy: Hierarchy, sources: Vec<LoadedSource>
             content: &source.canonical_content,
         })
         .collect();
-    let digest = instructions_sha256(mode, &fingerprint_sources);
+    let digest = fingerprint::instruction_selection(mode, &fingerprint_sources);
     SourceSet {
         mode: mode.into(),
         hierarchy,
@@ -87,6 +88,7 @@ pub fn selection(source: &SourceSet) -> InstructionSelection {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::canonical::sha256_hex;
 
     #[test]
     fn revision_marker_and_source_hash() {

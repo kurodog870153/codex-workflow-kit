@@ -15,6 +15,10 @@ pub fn raw(raw: &[u8]) -> String {
     sha256_hex(raw)
 }
 
+pub fn verify_raw(raw: &[u8], expected: &str) -> bool {
+    self::raw(raw) == expected
+}
+
 pub fn ledger(raw: &[u8]) -> String {
     sha256_hex(raw)
 }
@@ -76,14 +80,122 @@ pub fn canonical(raw: &[u8]) -> Result<String, std::str::Utf8Error> {
     canonical_sha256(raw)
 }
 
+pub fn verify_canonical(raw: &[u8], expected: &str) -> Result<bool, std::str::Utf8Error> {
+    Ok(canonical(raw)? == expected)
+}
+
 pub fn structured(value: &Value) -> Result<String, serde_json::Error> {
     canonical_json_sha256(value)
+}
+
+pub fn verify_structured(value: &Value, expected: &str) -> Result<bool, serde_json::Error> {
+    Ok(structured(value)? == expected)
 }
 
 pub fn instruction_selection(scope: &str, sources: &[InstructionSource<'_>]) -> String {
     instructions_sha256(scope, sources)
 }
 
+pub fn hierarchy_selection(
+    decision: &str,
+    selected_paths: &[String],
+    entries: &[Value],
+    catalog_sha256: &str,
+) -> String {
+    crate::hierarchy::selection_sha256(decision, selected_paths, entries, catalog_sha256)
+}
+
 pub fn task_collection(index_sha256: &str, references: &[TaskItemReference]) -> String {
     collection_fingerprint_sha256(index_sha256, references)
+}
+
+pub fn task_draft_approval(index_raw: &[u8], approval_bytes: &[u8]) -> String {
+    let mut review = b"WORK-TASK-DRAFT-APPROVAL-V1\n".to_vec();
+    review.extend_from_slice(index_raw);
+    review.extend_from_slice(approval_bytes);
+    raw(&review)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn facade_preserves_raw_canonical_and_structured_hashes() {
+        let bytes = b"first\r\nsecond\r\n";
+        let raw_digest = sha256_hex(bytes);
+        let canonical_digest = canonical_sha256(bytes).unwrap();
+        let value = json!({"z": [2, 1], "a": "value"});
+        let structured_digest = canonical_json_sha256(&value).unwrap();
+
+        assert_eq!(raw(bytes), raw_digest);
+        assert!(verify_raw(bytes, &raw_digest));
+        assert!(!verify_raw(b"changed", &raw_digest));
+        assert_eq!(canonical(bytes).unwrap(), canonical_digest);
+        assert!(verify_canonical(bytes, &canonical_digest).unwrap());
+        assert!(!verify_canonical(b"changed", &canonical_digest).unwrap());
+        assert_eq!(structured(&value).unwrap(), structured_digest);
+        assert!(verify_structured(&value, &structured_digest).unwrap());
+        assert!(!verify_structured(&json!({"a": "changed"}), &structured_digest).unwrap());
+        assert!(canonical(b"\xff").is_err());
+        assert!(verify_canonical(b"\xff", &canonical_digest).is_err());
+    }
+
+    #[test]
+    fn task_collection_preserves_framing_and_reference_order() {
+        let first = TaskItemReference {
+            id: "TASK-001".into(),
+            path: "tasks/TASK-001.json".into(),
+            canonical_sha256: "a".repeat(64),
+        };
+        let second = TaskItemReference {
+            id: "TASK-002".into(),
+            path: "tasks/TASK-002.json".into(),
+            canonical_sha256: "b".repeat(64),
+        };
+        let index = "c".repeat(64);
+        assert_eq!(
+            task_collection(&index, &[first.clone(), second.clone()]),
+            "87e0e7695438c2e22ca4ad7e1e23ece55be20dcc995bc76174ed4d479c7f0efc"
+        );
+        assert_ne!(
+            task_collection(&index, &[first.clone(), second.clone()]),
+            task_collection(&index, &[second, first])
+        );
+    }
+
+    #[test]
+    fn task_draft_approval_preserves_review_byte_framing() {
+        let expected = b"WORK-TASK-DRAFT-APPROVAL-V1\nindex\ncollection\n";
+        assert_eq!(
+            task_draft_approval(b"index\n", b"collection\n"),
+            sha256_hex(expected)
+        );
+        assert_ne!(
+            task_draft_approval(b"index\n", b"collection\n"),
+            task_draft_approval(b"collection\n", b"index\n")
+        );
+    }
+
+    #[test]
+    fn hierarchy_selection_preserves_catalog_and_entry_order() {
+        let paths = vec!["web".to_owned(), "web/backend".to_owned()];
+        let entries = vec![json!({"path": "web"}), json!({"path": "web/backend"})];
+        let catalog = "a".repeat(64);
+        let expected = crate::hierarchy::selection_sha256("guided", &paths, &entries, &catalog);
+        assert_eq!(
+            hierarchy_selection("guided", &paths, &entries, &catalog),
+            expected
+        );
+        assert_ne!(
+            hierarchy_selection("guided", &paths, &entries, &catalog),
+            hierarchy_selection("guided", &paths, &entries, &"b".repeat(64))
+        );
+        let mut reversed = entries;
+        reversed.reverse();
+        assert_ne!(
+            hierarchy_selection("guided", &paths, &reversed, &catalog),
+            expected
+        );
+    }
 }

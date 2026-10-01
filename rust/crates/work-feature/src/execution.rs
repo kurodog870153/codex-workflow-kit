@@ -12,7 +12,8 @@ use crate::plan::PlanPathRepository;
 use crate::skill::{SkillRoot, SkillSnapshotRepository};
 use crate::task::{self, TaskCollectionRepository};
 use serde_json::{Value, json};
-use work_operations::canonical::{JsonContractIssue, parse_json_contract, sha256_hex};
+use work_operations::canonical::{JsonContractIssue, parse_json_contract};
+use work_operations::derivation::fingerprint;
 use work_operations::derivation::fingerprint::skill_selection as skill_selection_sha256;
 use work_operations::execution::ExecutionIssue;
 use work_operations::execution::attempt::{render_attempt, validate_attempt_bytes};
@@ -264,7 +265,7 @@ fn prepare_command_context(
                 json!({}),
             ));
         }
-        source_hashes.insert(path.clone(), json!(sha256_hex(bytes)));
+        source_hashes.insert(path.clone(), json!(fingerprint::raw(bytes)));
     }
     build_command_preview(CommandPreviewInput {
         request,
@@ -482,7 +483,7 @@ where
         evidence.insert(
             path.clone(),
             serde_json::to_value(work_model::execution::recovery::ExecutionRecoveryEvidence {
-                raw_sha256: sha256_hex(raw),
+                raw_sha256: fingerprint::raw(raw),
                 size_bytes: raw.len() as u64,
             })
             .expect("recovery evidence serializes"),
@@ -674,7 +675,7 @@ where
             )
         })?;
     let plan_raw = sources.paths.read(plan_path)?;
-    if sha256_hex(&plan_raw) != context.index["source_plan"]["canonical_sha256"] {
+    if fingerprint::raw(&plan_raw) != context.index["source_plan"]["canonical_sha256"] {
         return Err(error(
             ExitCode::ArtifactIntegrity,
             "execute_preflight_plan_changed",
@@ -1897,7 +1898,7 @@ fn prepare_deviation_context(
                 json!({"path":path}),
             ));
         }
-        sources.insert(path.clone(), sha256_hex(raw));
+        sources.insert(path.clone(), fingerprint::raw(raw));
     }
     build_deviation_preview(proposal, record_kind, &sources).map_err(rule)
 }
@@ -2355,8 +2356,8 @@ pub fn inspect_worktree(
     let item_path = format!("{task_parent}/tasks/{task_id}.json");
     let raw_index = repository.read_file(task_path)?;
     let raw_item = repository.read_file(&item_path)?;
-    let unchanged = sha256_hex(&raw_index) == preflight["task_index_sha256"]
-        && sha256_hex(&raw_item) == preflight["task_item_sha256"]
+    let unchanged = fingerprint::raw(&raw_index) == preflight["task_index_sha256"]
+        && fingerprint::raw(&raw_item) == preflight["task_item_sha256"]
         && validation["task_collection_sha256"] == preflight["task_collection_sha256"]
         && validation["task_index_sha256"] == preflight["task_index_sha256"]
         && validation["task_item_sha256"][task_id] == preflight["task_item_sha256"];
@@ -2951,7 +2952,9 @@ mod tests {
     use super::*;
     use crate::hierarchy::HierarchyCatalogRepository;
     use std::cell::RefCell;
-    use work_operations::canonical::canonical_json_sha256;
+    use work_operations::derivation::fingerprint::{
+        raw as sha256_hex, structured as canonical_json_sha256,
+    };
     use work_operations::hierarchy::{CrossModeCatalog, Hierarchy};
     use work_operations::instruction::{LoadedSource, SourceSet, SourceSummary};
 

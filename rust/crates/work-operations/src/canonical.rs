@@ -187,7 +187,7 @@ pub fn canonical_bytes(raw: &[u8]) -> Result<Vec<u8>, std::str::Utf8Error> {
     Ok(canonical_text(decode_utf8(raw)?).into_bytes())
 }
 
-pub fn sha256_hex(raw: &[u8]) -> String {
+pub(crate) fn sha256_hex(raw: &[u8]) -> String {
     let digest = Sha256::digest(raw);
     let mut hex = String::with_capacity(64);
     for byte in digest {
@@ -197,7 +197,7 @@ pub fn sha256_hex(raw: &[u8]) -> String {
     hex
 }
 
-pub fn canonical_sha256(raw: &[u8]) -> Result<String, std::str::Utf8Error> {
+pub(crate) fn canonical_sha256(raw: &[u8]) -> Result<String, std::str::Utf8Error> {
     Ok(sha256_hex(&canonical_bytes(raw)?))
 }
 
@@ -206,7 +206,9 @@ pub fn canonical_json(value: &serde_json::Value) -> Result<Vec<u8>, serde_json::
     Ok(canonical_text(&encoded).into_bytes())
 }
 
-pub fn canonical_json_sha256(value: &serde_json::Value) -> Result<String, serde_json::Error> {
+pub(crate) fn canonical_json_sha256(
+    value: &serde_json::Value,
+) -> Result<String, serde_json::Error> {
     Ok(sha256_hex(&serde_json::to_vec(value)?))
 }
 
@@ -216,7 +218,7 @@ pub struct InstructionSource<'a> {
     pub content: &'a [u8],
 }
 
-pub fn instructions_sha256(scope: &str, sources: &[InstructionSource<'_>]) -> String {
+pub(crate) fn instructions_sha256(scope: &str, sources: &[InstructionSource<'_>]) -> String {
     let mut framed = b"WORK-INSTRUCTIONS-SHA-256-V1\n".to_vec();
     for source in sources {
         framed.push(b'S');

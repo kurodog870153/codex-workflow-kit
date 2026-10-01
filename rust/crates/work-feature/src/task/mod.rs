@@ -6,13 +6,10 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use serde_json::{Value, json};
 use work_model::task::index::{TaskIndex, TaskItemReference};
 use work_model::task::item::TaskItem;
-use work_operations::canonical::{
-    JsonContractIssue, parse_json_contract, portable_path_identity, sha256_hex,
-};
+use work_operations::canonical::{JsonContractIssue, parse_json_contract, portable_path_identity};
+use work_operations::derivation::fingerprint;
 use work_operations::task::TaskIssue;
-use work_operations::task::collection::{
-    collection_fingerprint_sha256, require_item_set, semantic_projection,
-};
+use work_operations::task::collection::{require_item_set, semantic_projection};
 use work_operations::task::index::validate_task_index;
 use work_operations::task::item::validate_task_item;
 use work_operations::task::semantic::{validate_task_file_state, validate_task_plan_semantics};
@@ -143,7 +140,8 @@ where
     let plan_path = context.contract["artifacts"]["plan"]
         .as_str()
         .expect("validated Plan path");
-    if sha256_hex(&paths.read(plan_path)?) != context.index["source_plan"]["canonical_sha256"] {
+    if fingerprint::raw(&paths.read(plan_path)?) != context.index["source_plan"]["canonical_sha256"]
+    {
         return Err(error(
             ExitCode::ArtifactIntegrity,
             "source_plan_fingerprint_mismatch",
@@ -183,7 +181,7 @@ where
         true,
     )?;
     let index_raw = cached.read_task_file(index_path)?;
-    if sha256_hex(&index_raw) != validated["task_index_sha256"] {
+    if fingerprint::raw(&index_raw) != validated["task_index_sha256"] {
         return Err(error(
             ExitCode::ArtifactIntegrity,
             "task_execution_source_changed",
@@ -242,7 +240,7 @@ where
         })?;
         let path = format!("{directory}/{relative}");
         let raw = cached.read_task_file(&path)?;
-        if sha256_hex(&raw) != validated["task_item_sha256"][id] {
+        if fingerprint::raw(&raw) != validated["task_item_sha256"][id] {
             return Err(error(
                 ExitCode::ArtifactIntegrity,
                 "task_execution_source_changed",
@@ -620,7 +618,7 @@ where
                 .expect("validated TASK reference")
         })
         .collect::<Vec<_>>();
-    let collection_sha = collection_fingerprint_sha256(
+    let collection_sha = fingerprint::task_collection(
         index_validation["task_index_sha256"]
             .as_str()
             .expect("validated hash"),
@@ -637,7 +635,7 @@ where
         work_model::task::response::TaskCollectionValidation,
     >(json!({
         "schema": "work-task-collection-validation/v1", "requirement_id": index["requirement_id"], "spec_id": index["spec_id"],
-        "task_ids": task_ids, "task_count": task_ids.len(), "task_index_sha256": sha256_hex(input.index_raw),
+        "task_ids": task_ids, "task_count": task_ids.len(), "task_index_sha256": fingerprint::raw(input.index_raw),
         "task_item_sha256": item_hashes, "task_collection_sha256": collection_sha, "source_plan_sha256": plan_sha,
         "instructions_sha256": document_selection["instructions_sha256"], "task_instructions_sha256": semantics["task_instruction_hashes"],
         "task_skill_ids": semantics["task_skill_ids"], "hierarchy_selection_sha256": plan_validation["hierarchy_selection_sha256"],

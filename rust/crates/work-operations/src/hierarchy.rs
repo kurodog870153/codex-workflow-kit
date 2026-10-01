@@ -120,7 +120,7 @@ pub fn build_hierarchy(
 
 pub use work_model::hierarchy::CrossModeCatalog;
 
-pub fn selection_sha256(
+pub(crate) fn selection_sha256(
     decision: &str,
     selected_paths: &[String],
     entries: &[Value],

@@ -3079,7 +3079,7 @@ mod tests {
     use crate::process::LocalCommandRunner;
     use serde_json::json;
     use work_feature::execution::{preflight_index, prepare_initial_index};
-    use work_operations::canonical::canonical_json_sha256;
+    use work_operations::derivation::fingerprint::structured as canonical_json_sha256;
     use work_operations::execution::attempt::render_attempt;
     use work_operations::execution::attempt_close::build_close_candidates;
     use work_operations::execution::build_execution_lock;
@@ -3756,7 +3756,7 @@ mod tests {
         assert_eq!(invocation["argv"], json!(["./venv tool", "a b"]));
         assert_eq!(
             invocation["executable_sha256"],
-            work_operations::canonical::sha256_hex(b"#!/bin/sh\nexit 0\n")
+            work_operations::derivation::fingerprint::raw(b"#!/bin/sh\nexit 0\n")
         );
         let batch = root.join("run.cmd");
         fs::write(&batch, b"echo hello\n").unwrap();

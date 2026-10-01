@@ -1042,7 +1042,7 @@ pub fn build_closed_return(
             "skill_id":skill_id,"execute_skill_selection_sha256":fingerprint,
             "execution_context":{"attempt":{"status":attempt["status"],"id":input.attempt_id},
                 "phase":"execution","issue_type":"specification_defect","reason":request["reason"]},
-            "attempt_sha256":work_operations::canonical::sha256_hex(input.attempt_raw)}),
+            "attempt_sha256":work_operations::derivation::fingerprint::raw(input.attempt_raw)}),
         &payload,
     )?;
     let mut known: BTreeSet<String> = [

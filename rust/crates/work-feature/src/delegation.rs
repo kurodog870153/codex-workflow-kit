@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use serde_json::{Value, json};
 use work_operations::canonical::parse_json_contract;
 use work_operations::delegation::{build_envelope, validate_envelope, validation_result};
+use work_operations::derivation::fingerprint;
 use work_operations::execution::index::validate_execution_index;
 use work_operations::identifiers::RequirementId;
 use work_operations::plan::validation::validate_plan_structure;
@@ -255,7 +256,7 @@ pub fn validate_execute_role(
         .ok_or_else(|| boundary("Supply the confirmed hierarchy snapshot."))?;
     if hierarchy["schema"] != "work-hierarchy-selection/v1"
         || hierarchy["selection_sha256"]
-            != work_operations::hierarchy::selection_sha256(decision, &selected, entries, catalog)
+            != fingerprint::hierarchy_selection(decision, &selected, entries, catalog)
         || context["hierarchy_selection_sha256"] != hierarchy["selection_sha256"]
     {
         return Err(boundary(
@@ -454,7 +455,7 @@ pub fn validate_artifact_editor(
         .ok_or_else(|| boundary("Supply the confirmed hierarchy snapshot."))?;
     if hierarchy["schema"] != "work-hierarchy-selection/v1"
         || hierarchy["selection_sha256"]
-            != work_operations::hierarchy::selection_sha256(decision, &selected, entries, catalog)
+            != fingerprint::hierarchy_selection(decision, &selected, entries, catalog)
     {
         return Err(boundary(
             "The stored hierarchy fingerprint disagrees with its fields.",
@@ -573,7 +574,7 @@ pub fn validate_plan_role(
         .ok_or_else(|| boundary("Supply the confirmed hierarchy snapshot."))?;
     if hierarchy["schema"] != "work-hierarchy-selection/v1"
         || hierarchy["selection_sha256"]
-            != work_operations::hierarchy::selection_sha256(decision, &selected, entries, catalog)
+            != fingerprint::hierarchy_selection(decision, &selected, entries, catalog)
     {
         return Err(boundary(
             "The stored hierarchy fingerprint disagrees with its fields.",
