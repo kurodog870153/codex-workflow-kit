@@ -3,8 +3,9 @@
 use std::path::Path;
 
 use serde_json::{Value, json};
+use work_operations::derivation::fingerprint;
 use work_operations::hierarchy::{
-    CrossModeCatalog, HierarchyIssue, authorize_task_paths, build_hierarchy, selection_sha256,
+    CrossModeCatalog, HierarchyIssue, authorize_task_paths, build_hierarchy,
 };
 use work_operations::protocol::{INVALID_SHA256_ERROR_CODE, valid_sha256 as valid_sha256_text};
 
@@ -169,7 +170,8 @@ pub fn build_selection(
             "recommendation_reason": reason,
         }));
     }
-    let hash = selection_sha256(decision, &paths, &entries, &catalog.catalog_sha256);
+    let hash =
+        fingerprint::hierarchy_selection(decision, &paths, &entries, &catalog.catalog_sha256);
     let result = json!({
         "schema": "work-hierarchy-selection/v1",
         "decision": decision,
@@ -307,7 +309,7 @@ pub fn validate_selection(
         "hierarchy_selection.selection_sha256",
     )?;
     if stored
-        != selection_sha256(
+        != fingerprint::hierarchy_selection(
             decision,
             &selected_paths,
             &validated_entries,

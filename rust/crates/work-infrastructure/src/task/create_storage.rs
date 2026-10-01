@@ -302,7 +302,7 @@ mod tests {
     use super::*;
     use std::collections::BTreeMap;
     use work_feature::task::assembly::{AssemblyInput, assemble_task_drafts};
-    use work_operations::canonical::sha256_hex;
+    use work_operations::derivation::fingerprint::raw as sha256_hex;
 
     #[test]
     fn draft_assembly_matches_python_review_fingerprint() {

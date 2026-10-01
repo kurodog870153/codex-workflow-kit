@@ -3,7 +3,7 @@
 use serde_json::{Value, json};
 use work_feature::error::WorkError;
 use work_feature::execution::{ExecutionWorktreeRepository, inspect_worktree};
-use work_operations::canonical::sha256_hex;
+use work_operations::derivation::fingerprint::raw as sha256_hex;
 
 struct FormalSources;
 

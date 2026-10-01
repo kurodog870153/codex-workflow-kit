@@ -12,7 +12,7 @@ use work_model::task::{TaskCollectionFingerprint, TaskFingerprintItem};
 use crate::canonical::sha256_hex;
 use crate::task::TaskIssue;
 
-pub fn collection_fingerprint_sha256(
+pub(crate) fn collection_fingerprint_sha256(
     index_sha256: &str,
     references: &[TaskItemReference],
 ) -> String {

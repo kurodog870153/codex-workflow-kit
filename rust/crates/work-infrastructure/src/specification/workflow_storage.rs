@@ -14,9 +14,9 @@ use work_feature::skill::SkillRoot;
 use work_feature::specification::{SpecificationBaseline, preview_update};
 use work_feature::task::load_collection_with_file_state;
 use work_operations::canonical::parse_json_contract;
-#[cfg(test)]
-use work_operations::canonical::sha256_hex as raw_sha256;
 use work_operations::derivation::fingerprint;
+#[cfg(test)]
+use work_operations::derivation::fingerprint::raw as raw_sha256;
 use work_operations::derivation::graph::{
     ArtifactNode, bind_plan_source, reconcile_artifact_bindings,
 };

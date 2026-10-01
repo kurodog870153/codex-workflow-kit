@@ -7,9 +7,9 @@ use std::path::{Path, PathBuf};
 use serde_json::{Value, json};
 use work_feature::error::{ExitCode, WorkError};
 use work_feature::ports::ArtifactStore;
-#[cfg(test)]
-use work_operations::canonical::sha256_hex;
 use work_operations::derivation::fingerprint;
+#[cfg(test)]
+use work_operations::derivation::fingerprint::raw as sha256_hex;
 use work_operations::derivation::publication::completion_marker;
 use work_operations::derivation::snapshot::decode_snapshot;
 use work_operations::protocol::TASK_ID_PREFIX;

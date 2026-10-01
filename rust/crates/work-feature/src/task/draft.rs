@@ -4,7 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Value, json};
 use work_model::task::draft::{TaskDraft, TaskPlanningIndex};
-use work_operations::canonical::{canonical_json, sha256_hex};
+use work_operations::canonical::canonical_json;
+use work_operations::derivation::fingerprint;
 use work_operations::protocol::PLANNING_STATUSES;
 use work_operations::task::TaskIssue;
 use work_operations::task::candidate::validate_semantic_candidate;
@@ -245,7 +246,7 @@ pub fn draft_reference(index: &Value, task_id: &str) -> Result<(u64, String), Wo
 }
 
 pub fn validate_draft_fingerprint(raw: &[u8], expected_sha256: &str) -> Result<(), WorkError> {
-    if expected_sha256 != sha256_hex(raw) {
+    if !fingerprint::verify_raw(raw, expected_sha256) {
         return Err(workflow(
             "draft_content_integrity",
             "The draft does not match its indexed fingerprint.",
@@ -866,7 +867,7 @@ pub fn prepare_save(
                 .remove("draft_ref");
             validate_task_draft(draft, &proposed).map_err(domain)?;
             let raw = canonical_task_draft(draft);
-            let reference = json!({"save_revision": proposed["revision"], "revision": draft["revision"], "sha256": sha256_hex(&raw)});
+            let reference = json!({"save_revision": proposed["revision"], "revision": draft["revision"], "sha256": fingerprint::raw(&raw)});
             proposed["tasks"]
                 .as_array_mut()
                 .expect("validated tasks")
@@ -1291,7 +1292,7 @@ mod tests {
         let saved = prepare_save(&next, 1, Some(&index), Some(&draft)).unwrap();
         assert_eq!(
             saved.index["tasks"][0]["draft_ref"]["sha256"],
-            sha256_hex(saved.draft_raw.as_ref().unwrap())
+            work_operations::derivation::fingerprint::raw(saved.draft_raw.as_ref().unwrap())
         );
         assert_eq!(
             prepare_save(&next, 0, Some(&index), Some(&draft))

@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use serde_json::{Value, json};
-use work_operations::canonical::{canonical_json_sha256, sha256_hex};
+use work_operations::derivation::fingerprint;
 
 use crate::error::{ExitCode, WorkError};
 use crate::instruction::migration_build::MigrationCandidate;
@@ -30,12 +30,12 @@ pub fn decide_migration(
         .iter()
         .map(|(path, raw)| {
             json!({"path":path,
-                "before_sha256":sha256_hex(&before[path]),"after_sha256":sha256_hex(raw)})
+                "before_sha256":fingerprint::raw(&before[path]),"after_sha256":fingerprint::raw(raw)})
         })
         .collect::<Vec<_>>();
     let evidence = json!({"requirement_id":requirement_id,"router_compatibility_revision":3,
         "excluded":excluded,"files":files});
-    let approval = canonical_json_sha256(&evidence).map_err(|_| {
+    let approval = fingerprint::structured(&evidence).map_err(|_| {
         WorkError::new(
             ExitCode::ArtifactIntegrity,
             "invalid_contract_value",

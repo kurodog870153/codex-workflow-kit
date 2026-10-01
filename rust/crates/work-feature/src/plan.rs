@@ -1,7 +1,8 @@
 //! Plan preparation and validation over feature ports.
 
 use serde_json::{Value, json};
-use work_operations::canonical::{JsonContractIssue, parse_json_contract, sha256_hex};
+use work_operations::canonical::{JsonContractIssue, parse_json_contract};
+use work_operations::derivation::fingerprint;
 use work_operations::identifiers::RequirementId;
 use work_operations::instruction::selection as source_selection;
 use work_operations::plan::render_plan_value;
@@ -190,7 +191,7 @@ where
             json!({"source": input.actual_plan_path}),
         ));
     }
-    let result = json!({"schema": "work-plan-validation/v1", "requirement_id": requirement.as_str(), "status": "confirmed", "plan_sha256": sha256_hex(input.raw), "hierarchy_selection_sha256": plan["hierarchy_selection"]["selection_sha256"], "work_instructions_sha256": source_set.instructions_sha256, "skill_selection_sha256": plan["skill_selection"]["selection_sha256"], "item_count": item_count});
+    let result = json!({"schema": "work-plan-validation/v1", "requirement_id": requirement.as_str(), "status": "confirmed", "plan_sha256": fingerprint::raw(input.raw), "hierarchy_selection_sha256": plan["hierarchy_selection"]["selection_sha256"], "work_instructions_sha256": source_set.instructions_sha256, "skill_selection_sha256": plan["skill_selection"]["selection_sha256"], "item_count": item_count});
     let _: work_model::plan::PlanValidation =
         serde_json::from_value(result.clone()).expect("validated Plan result matches its model");
     Ok(result)

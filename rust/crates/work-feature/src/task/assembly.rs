@@ -3,7 +3,8 @@
 use std::collections::BTreeMap;
 
 use serde_json::{Value, json};
-use work_operations::canonical::{canonical_json, parse_json_contract, sha256_hex};
+use work_operations::canonical::{canonical_json, parse_json_contract};
+use work_operations::derivation::fingerprint;
 use work_operations::task::TaskIssue;
 use work_operations::task::candidate::{build_semantic_candidate, validate_semantic_candidate};
 use work_operations::task::draft::{validate_planning_index, validate_task_draft};
@@ -380,13 +381,10 @@ where
         },
     )?;
     let index_raw = canonical_json(input.index).expect("JSON value serializes");
-    let mut review = b"WORK-TASK-DRAFT-APPROVAL-V1\n".to_vec();
-    review.extend_from_slice(&index_raw);
-    review.extend_from_slice(&prepared.approval_bytes);
     Ok(
         json!({"schema":"work-task-draft-assembly/v1","status":"valid",
         "requirement_id":input.index["requirement_id"],"revision":input.expected_revision,
-        "approval_sha256":sha256_hex(&review),
+        "approval_sha256":fingerprint::task_draft_approval(&index_raw, &prepared.approval_bytes),
         "task_collection_sha256":prepared.validation["task_collection_sha256"],
         "task_index_sha256":prepared.validation["task_index_sha256"],
         "task_item_sha256":prepared.validation["task_item_sha256"],"contract":contract}),

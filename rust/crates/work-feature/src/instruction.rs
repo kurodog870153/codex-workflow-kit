@@ -11,7 +11,7 @@ pub mod refresh_publication;
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Value, json};
-use work_operations::canonical::canonical_json_sha256;
+use work_operations::derivation::fingerprint;
 use work_operations::hierarchy::{CrossModeCatalog, Hierarchy, build_hierarchy, sorted_paths};
 use work_operations::instruction::{
     InstructionSelection, ModeCatalog, SourceSet, SourceSummary, selection as source_selection,
@@ -124,7 +124,8 @@ pub fn cross_mode_catalog(
     }
     let value = json!({"schema":"work-instruction-catalog/v1","mode":"all",
         "paths":paths,"children":children,"metadata":metadata});
-    let catalog_sha256 = canonical_json_sha256(&value).expect("catalog contains only JSON values");
+    let catalog_sha256 =
+        fingerprint::structured(&value).expect("catalog contains only JSON values");
     Ok(CrossModeCatalog {
         paths,
         children,
@@ -173,7 +174,7 @@ pub fn catalog(
     }
     let value = json!({"schema":"work-instruction-catalog/v1","mode":mode,
         "paths":catalog.paths,"children":children,"metadata":catalog.metadata});
-    let catalog_sha256 = canonical_json_sha256(&value).expect("catalog JSON serializes");
+    let catalog_sha256 = fingerprint::structured(&value).expect("catalog JSON serializes");
     let mut result = value;
     result["catalog_sha256"] = json!(catalog_sha256);
     Ok(work_model::instruction::verified::<
@@ -211,7 +212,7 @@ pub fn migration_manifest(
             state.insert(field.into(), value.clone());
         }
     }
-    let state_sha = canonical_json_sha256(&Value::Object(state)).map_err(|_| {
+    let state_sha = fingerprint::structured(&Value::Object(state)).map_err(|_| {
         WorkError::new(
             ExitCode::Contract,
             "instruction_migration_state_invalid",
@@ -703,7 +704,7 @@ pub fn task_document_selection(task_sources: &[SourceSet]) -> Result<Value, Work
             content: &source.canonical_content,
         })
         .collect();
-    let digest = work_operations::canonical::instructions_sha256("task", &fingerprint_sources);
+    let digest = fingerprint::instruction_selection("task", &fingerprint_sources);
     let summaries: Vec<_> = union.iter().map(|source| source.summary.clone()).collect();
     Ok(json!({"sources": summaries, "references": references, "instructions_sha256": digest}))
 }

@@ -48,7 +48,7 @@ use work_flow::workflow::{
     OperationContextRequest, build_operation_context, validate_operation_context,
 };
 use work_infrastructure::clock_workspace::{LocalWorkspaceAllocator, local_date, local_timestamp};
-use work_infrastructure::codec::{canonical_json, decode_utf8, parse_json_contract, sha256_hex};
+use work_infrastructure::codec::{canonical_json, decode_utf8, fingerprint, parse_json_contract};
 use work_infrastructure::delegation_storage::LocalDelegationStorage;
 use work_infrastructure::execution_storage::{AttemptStartRecoveryRequest, LocalExecutionStorage};
 use work_infrastructure::files::resolve_project_path;
@@ -184,7 +184,7 @@ fn read_input_file(raw_path: &str) -> Result<FileInput, WorkError> {
     Ok(FileInput {
         raw: text.as_bytes().to_vec(),
         source: path.to_string_lossy().into_owned(),
-        source_raw_sha256: sha256_hex(&raw),
+        source_raw_sha256: fingerprint::raw(&raw),
     })
 }
 
@@ -232,7 +232,7 @@ fn operation_artifacts(
             }
             input.source_raw_sha256.clone()
         } else if path.is_file() {
-            sha256_hex(&fs::read(&path).map_err(|_| {
+            fingerprint::raw(&fs::read(&path).map_err(|_| {
                 WorkError::new(
                     ExitCode::IoFailure,
                     "operation_artifact_read_failed",
@@ -2126,7 +2126,7 @@ mod tests {
         fs::write(&input, raw).unwrap();
         let decoded = read_input_file(&path).unwrap();
         assert_eq!(decoded.raw, b"{}");
-        assert_eq!(decoded.source_raw_sha256, sha256_hex(raw));
+        assert_eq!(decoded.source_raw_sha256, fingerprint::raw(raw));
         for (raw, reason) in [
             (b"\xff".as_slice(), "invalid_utf8"),
             (b"\xff\xfe{\0}\0".as_slice(), "invalid_utf8"),

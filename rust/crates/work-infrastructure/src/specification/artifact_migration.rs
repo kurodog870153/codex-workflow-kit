@@ -15,9 +15,9 @@ use work_model::specification::{
     ArtifactMigrationItem, ArtifactMigrationRequest,
 };
 use work_operations::canonical::parse_json_contract;
-#[cfg(test)]
-use work_operations::canonical::sha256_hex;
 use work_operations::derivation::fingerprint;
+#[cfg(test)]
+use work_operations::derivation::fingerprint::raw as sha256_hex;
 use work_operations::derivation::snapshot::decode_snapshot;
 use work_operations::derivation::transaction::{
     PublicationOrder, TransactionDeriver, TransactionInput, TransactionKind,
@@ -990,7 +990,7 @@ mod tests {
         assert_eq!(result["items"].as_array().unwrap().len(), 1);
         assert_eq!(
             result["items"][0]["source_sha256"],
-            work_operations::canonical::sha256_hex(b"broken")
+            work_operations::derivation::fingerprint::raw(b"broken")
         );
         assert_eq!(fs::read(path).unwrap(), b"broken");
     }

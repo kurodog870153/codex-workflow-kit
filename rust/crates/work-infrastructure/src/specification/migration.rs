@@ -10,9 +10,9 @@ use work_feature::skill::SkillRoot;
 use work_feature::specification::migration_prepare::{
     MigrationPrepareRepository, build_revision_request, parse_revision_semantic,
 };
-#[cfg(test)]
-use work_operations::canonical::sha256_hex;
 use work_operations::derivation::fingerprint;
+#[cfg(test)]
+use work_operations::derivation::fingerprint::raw as sha256_hex;
 use work_operations::derivation::snapshot::decode_snapshot;
 use work_operations::derivation::transaction::{
     PublicationOrder, TransactionDeriver, TransactionInput, TransactionKind,

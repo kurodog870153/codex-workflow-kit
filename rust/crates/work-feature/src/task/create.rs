@@ -3,7 +3,8 @@
 use std::collections::BTreeMap;
 
 use serde_json::{Value, json};
-use work_operations::canonical::{JsonContractIssue, parse_json_contract, sha256_hex};
+use work_operations::canonical::{JsonContractIssue, parse_json_contract};
+use work_operations::derivation::fingerprint;
 use work_operations::execution::index::{
     build_initial_execution_index, render_execution_index, validate_execution_index,
 };
@@ -288,7 +289,7 @@ where
         "task_collection_sha256":prepared.validation["task_collection_sha256"],
         "task_index_sha256":prepared.validation["task_index_sha256"],
         "task_item_sha256":prepared.validation["task_item_sha256"],
-        "index_sha256":sha256_hex(&stored_index),"status":status});
+        "index_sha256":fingerprint::raw(&stored_index),"status":status});
     if request.recovery {
         result["recovered"] = json!(changed);
     }
