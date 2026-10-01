@@ -92,9 +92,11 @@ pub fn approved_receipt<'a>(
     let record_id = preview["record_id"].as_str().unwrap_or("");
     let task_id = preview["task_id"].as_str().unwrap_or("");
     let attempt_id = preview["attempt_id"].as_str().unwrap_or("");
-    let expected = format!(
-        "{execution_dir}/{task_id}/{attempt_id}/.work-command-{}",
-        record_id.replace('#', "-retry-")
+    let expected = work_operations::derivation::publication::command_receipt_prefix(
+        execution_dir,
+        task_id,
+        attempt_id,
+        record_id,
     );
     if receipt != expected {
         return Err(WorkError::new(

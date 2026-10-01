@@ -7,7 +7,7 @@ use serde_json::json;
 use work_feature::error::{ExitCode, WorkError};
 use work_feature::ports::{ArtifactStore, WriterLock};
 use work_feature::progress::ProgressRepository;
-use work_operations::canonical::sha256_hex;
+use work_operations::derivation::fingerprint;
 
 use crate::files::LocalFiles;
 use crate::specification::storage::storage_path;
@@ -84,7 +84,12 @@ impl ProgressRepository for LocalProgressStorage {
         } else {
             None
         };
-        if current_raw.as_ref().map(|raw| sha256_hex(raw)).as_deref() != previous_sha256 {
+        if current_raw
+            .as_ref()
+            .map(|raw| fingerprint::raw(raw))
+            .as_deref()
+            != previous_sha256
+        {
             return Err(error(
                 ExitCode::WorkflowState,
                 "progress_revision_conflict",

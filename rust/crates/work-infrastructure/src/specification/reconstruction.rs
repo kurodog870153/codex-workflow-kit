@@ -13,7 +13,9 @@ use work_feature::plan::{PlanPathRepository, prepare_semantic};
 use work_feature::ports::ArtifactStore;
 use work_feature::skill::SkillRoot;
 use work_feature::task::{CollectionInput, validate_collection};
-use work_operations::canonical::{parse_json_contract, sha256_hex};
+use work_operations::canonical::parse_json_contract;
+use work_operations::derivation::fingerprint;
+use work_operations::derivation::graph::{ArtifactNode, reconcile_artifact_bindings};
 use work_operations::execution::index::{build_initial_execution_index, render_execution_index};
 use work_operations::identifiers::RequirementId;
 use work_operations::plan::render_plan_value;
@@ -258,8 +260,7 @@ pub fn prepare_reconstruction_request(
         "requirement_id":plan["requirement_id"],"spec_id":"TASK-SPEC-001",
         "status":"confirmed","title":request["task_title"],"summary":request["task_summary"],
         "artifacts":artifacts,
-        "source_plan":{"canonical_sha256":sha256_hex(&plan_raw),
-            "hierarchy_selection_sha256":prepared_plan["validation"]["hierarchy_selection_sha256"]},
+        "source_plan":{},
         "instruction_selection":task_document_selection(&source_sets)?,
         "readiness":{"status":"passed","spec_id":"TASK-SPEC-001"}});
     if !request["execution_defaults"].is_null() {
@@ -275,12 +276,18 @@ pub fn prepare_reconstruction_request(
                 "A reconstructed TASK item cannot be rendered.",
             )
         })?;
-        references.push(json!({"id":id,"path":format!("tasks/{id}.json"),
-            "canonical_sha256":sha256_hex(&raw)}));
+        references.push(json!({"id":id,"path":format!("tasks/{id}.json")}));
         item_raw.insert(id.clone(), raw);
     }
     index["tasks"] = Value::Array(references);
-    let index_raw = render_task(&index, TaskDocumentKind::Index).map_err(|_| {
+    let index_raw = reconcile_artifact_bindings(
+        &plan_raw,
+        &mut index,
+        &item_raw,
+        None,
+        &BTreeSet::from([ArtifactNode::PlanBytes]),
+    )
+    .map_err(|_| {
         fail(
             "invalid_contract_value",
             "The reconstructed TASK index cannot be rendered.",
@@ -330,7 +337,7 @@ pub fn prepare_reconstruction_request(
         let absolute = storage_path(root, path)?;
         if absolute.exists() {
             let raw = LocalFiles.read_raw(&absolute)?;
-            sources.push(json!({"path":path,"raw_sha256":sha256_hex(&raw)}));
+            sources.push(json!({"path":path,"raw_sha256":fingerprint::raw(&raw)}));
         }
     }
     if sources.is_empty() {

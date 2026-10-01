@@ -6,7 +6,7 @@ use work_feature::error::WorkError;
 use work_feature::skill::{
     SkillRoot, SkillSnapshotRepository, build_selection, validate_selection,
 };
-use work_operations::skill::selection_sha256;
+use work_operations::derivation::fingerprint::skill_selection as selection_sha256;
 
 struct Empty;
 impl SkillSnapshotRepository for Empty {

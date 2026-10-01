@@ -26,7 +26,11 @@ pub fn render_execution_index(value: &Value) -> Result<Vec<u8>, serde_json::Erro
 }
 
 pub fn selection_sha256(mode: &str, skills: &[Value]) -> String {
-    work_operations::skill::selection_sha256(mode, skills)
+    work_operations::derivation::fingerprint::skill_selection(mode, skills)
+}
+
+pub fn raw_sha256(raw: &[u8]) -> String {
+    work_operations::derivation::fingerprint::raw(raw)
 }
 
 pub fn valid_sha256(value: &str) -> bool {

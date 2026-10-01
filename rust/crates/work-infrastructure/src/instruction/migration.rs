@@ -10,15 +10,15 @@ use work_feature::instruction::migration::require_writable_approval;
 use work_feature::instruction::migration_publication::transaction;
 use work_feature::ports::WriterLock;
 use work_operations::canonical::parse_json_contract;
+use work_operations::derivation::publication::completion_marker;
 use work_operations::identifiers::RequirementId;
 use work_operations::specification::transaction::validate_transaction;
 
 use crate::routing_sources::RoutingSourceSession;
 use crate::specification::storage::storage_path;
 use crate::specification::storage::{
-    execution_history_fingerprints, publish_journal, require_no_spec_update, write_journal,
+    execution_history_bytes, publish_journal, require_no_spec_update, write_journal,
 };
-use crate::transaction_storage::completion_marker;
 use crate::writer_lock::LocalWriterLock;
 use work_feature::plan::default_artifact_paths;
 
@@ -74,13 +74,14 @@ pub fn apply_migration(
         .map_err(|_| failure("invalid_requirement_id", "The requirement ID is invalid."))?;
     let paths = default_artifact_paths(&id);
     let execution_dir = &paths[2].1;
-    let short = approved_sha256
-        .chars()
-        .take(12)
-        .collect::<String>()
-        .to_uppercase();
-    let journal_relative = format!("{execution_dir}/.work-instruction-migration-{short}.json");
-    let marker_relative = format!("{journal_relative}.done");
+    let journal_relative = work_operations::derivation::publication::journal_path(
+        execution_dir,
+        work_operations::derivation::publication::JournalKind::InstructionMigration(
+            approved_sha256,
+        ),
+    );
+    let marker_relative =
+        work_operations::derivation::publication::completion_marker_path(&journal_relative);
     let journal_path = storage_path(project_root, &journal_relative)?;
     let marker_path = storage_path(project_root, &marker_relative)?;
     if marker_path.is_file() {
@@ -131,14 +132,8 @@ pub fn apply_migration(
     }
     let candidate = build_migration(project_root, skill_root, requirement_id)?;
     require_writable_approval(&candidate, approved_sha256)?;
-    let history_sha256 = execution_history_fingerprints(project_root, execution_dir)?;
-    let (journal, approval) = transaction(
-        &candidate,
-        requirement_id,
-        approved_sha256,
-        &short,
-        &history_sha256,
-    );
+    let history = execution_history_bytes(project_root, execution_dir)?;
+    let (journal, approval) = transaction(&candidate, requirement_id, approved_sha256, &history)?;
     require_no_spec_update(project_root, execution_dir, None)?;
     let lock = storage_path(
         project_root,

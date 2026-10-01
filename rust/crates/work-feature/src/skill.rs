@@ -4,9 +4,8 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
-use work_operations::canonical::canonical_json_sha256;
+use work_operations::derivation::fingerprint;
 use work_operations::protocol::{INVALID_SHA256_ERROR_CODE, WORKFLOW_MODES, valid_sha256};
-use work_operations::skill::{identity_sha256, selection_sha256};
 
 use crate::error::{ExitCode, WorkError};
 
@@ -402,8 +401,8 @@ pub fn summary_from_metadata(
     }
     let name = name.trim();
     let fields = json!({"name": name, "description": description.trim(), "work_modes": modes, "work_tags": tags, "allow_implicit_invocation": allow_implicit, "dependencies": dependencies});
-    let digest = canonical_json_sha256(&fields).expect("JSON values serialize");
-    let mut result = json!({"id": identity_sha256(name, scope, locator, source), "scope": scope, "root": locator, "source": source, "summary_sha256": digest});
+    let digest = fingerprint::structured(&fields).expect("JSON values serialize");
+    let mut result = json!({"id": fingerprint::skill_identity(name, scope, locator, source), "scope": scope, "root": locator, "source": source, "summary_sha256": digest});
     for (key, value) in fields.as_object().unwrap() {
         result[key] = value.clone();
     }
@@ -532,7 +531,7 @@ pub fn build_selection(
     let _: work_model::skill::SkillSelectionRequest =
         serde_json::from_value(Value::Object(request.clone()))
             .expect("validated Skill request matches its model");
-    let digest = selection_sha256(decision, &skills);
+    let digest = fingerprint::skill_selection(decision, &skills);
     let selection = json!({"schema": "work-skill-selection/v1", "decision": decision, "skills": skills, "selection_sha256": digest});
     validate_selection(repository, roots, &selection)?;
     Ok(selection)
@@ -747,7 +746,7 @@ pub fn validate_selection(
             json!({"location": "skill_selection.selection_sha256"}),
         ));
     }
-    if stored != selection_sha256(decision, skills) {
+    if stored != fingerprint::skill_selection(decision, skills) {
         return Err(error(
             ExitCode::ArtifactIntegrity,
             "skill_selection_fingerprint_mismatch",

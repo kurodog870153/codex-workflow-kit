@@ -229,7 +229,9 @@ impl LocalHandoffStorage {
         )?;
         let mut snapshot = BTreeMap::new();
         let index_raw = repository.read_task_file(&normalized)?;
-        if work_operations::canonical::sha256_hex(&index_raw) != validation["task_index_sha256"] {
+        if work_operations::derivation::fingerprint::raw(&index_raw)
+            != validation["task_index_sha256"]
+        {
             return Err(Self::source_changed("task_path"));
         }
         snapshot.insert(normalized.clone(), index_raw);
@@ -238,7 +240,9 @@ impl LocalHandoffStorage {
             let id = reference["id"].as_str().expect("validated ID");
             let relative = format!("{directory}/tasks/{id}.json");
             let raw = repository.read_task_file(&relative)?;
-            if work_operations::canonical::sha256_hex(&raw) != validation["task_item_sha256"][id] {
+            if work_operations::derivation::fingerprint::raw(&raw)
+                != validation["task_item_sha256"][id]
+            {
                 return Err(Self::source_changed("task_path"));
             }
             snapshot.insert(relative, raw);
@@ -247,7 +251,9 @@ impl LocalHandoffStorage {
             .as_str()
             .expect("validated Plan path");
         let plan_raw = paths.read(plan_path)?;
-        if work_operations::canonical::sha256_hex(&plan_raw) != validation["source_plan_sha256"] {
+        if work_operations::derivation::fingerprint::raw(&plan_raw)
+            != validation["source_plan_sha256"]
+        {
             return Err(Self::source_changed("plan_path"));
         }
         snapshot.insert(plan_path.into(), plan_raw);
@@ -1671,7 +1677,7 @@ mod tests {
         check_pending();
         fs::write(
             &marker,
-            crate::transaction_storage::completion_marker(journal_raw),
+            work_operations::derivation::publication::completion_marker(journal_raw),
         )
         .unwrap();
         assert_eq!(
@@ -1746,7 +1752,7 @@ mod tests {
         }
         fs::write(
             PathBuf::from(format!("{}.done", journal.display())),
-            crate::transaction_storage::completion_marker(journal_raw),
+            work_operations::derivation::publication::completion_marker(journal_raw),
         )
         .unwrap();
         for direction in ["execute_to_task", "execute_to_plan"] {

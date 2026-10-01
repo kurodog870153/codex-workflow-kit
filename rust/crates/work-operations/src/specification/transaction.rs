@@ -8,7 +8,14 @@ use serde::{
 };
 use serde_json::{Value, json};
 
-use crate::canonical::{canonical_json_sha256, sha256_hex};
+#[cfg(test)]
+use crate::canonical::sha256_hex;
+use crate::derivation::identity::derived_transaction_id;
+use crate::derivation::publication::completion_marker;
+use crate::derivation::snapshot::decode_snapshot;
+#[cfg(test)]
+use crate::derivation::snapshot::encode_snapshot;
+use crate::derivation::transaction::approval_sha256;
 use crate::protocol::valid_sha256;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,117 +55,6 @@ fn strict(value: &Value, required: &[&str], optional: &[&str]) -> Result<(), Tra
 
 fn sha(value: &Value) -> bool {
     value.as_str().is_some_and(valid_sha256)
-}
-
-fn base64_encode(raw: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut result = String::with_capacity(raw.len().div_ceil(3) * 4);
-    for chunk in raw.chunks(3) {
-        let first = chunk[0];
-        let second = *chunk.get(1).unwrap_or(&0);
-        let third = *chunk.get(2).unwrap_or(&0);
-        result.push(ALPHABET[(first >> 2) as usize] as char);
-        result.push(ALPHABET[(((first & 3) << 4) | (second >> 4)) as usize] as char);
-        result.push(if chunk.len() > 1 {
-            ALPHABET[(((second & 15) << 2) | (third >> 6)) as usize] as char
-        } else {
-            '='
-        });
-        result.push(if chunk.len() > 2 {
-            ALPHABET[(third & 63) as usize] as char
-        } else {
-            '='
-        });
-    }
-    result
-}
-
-fn base64_decode(value: &str) -> Option<Vec<u8>> {
-    if value.len() % 4 != 0 || !value.is_ascii() {
-        return None;
-    }
-    let mut result = Vec::with_capacity(value.len() / 4 * 3);
-    for (index, chunk) in value.as_bytes().chunks_exact(4).enumerate() {
-        let last = index + 1 == value.len() / 4;
-        let digit = |byte: u8| -> Option<u8> {
-            match byte {
-                b'A'..=b'Z' => Some(byte - b'A'),
-                b'a'..=b'z' => Some(byte - b'a' + 26),
-                b'0'..=b'9' => Some(byte - b'0' + 52),
-                b'+' => Some(62),
-                b'/' => Some(63),
-                _ => None,
-            }
-        };
-        let a = digit(chunk[0])?;
-        let b = digit(chunk[1])?;
-        let c = if chunk[2] == b'=' && last {
-            0
-        } else {
-            digit(chunk[2])?
-        };
-        let d = if chunk[3] == b'=' && last {
-            0
-        } else {
-            digit(chunk[3])?
-        };
-        if chunk[2] == b'=' && chunk[3] != b'=' {
-            return None;
-        }
-        result.push((a << 2) | (b >> 4));
-        if chunk[2] != b'=' {
-            result.push((b << 4) | (c >> 2));
-        }
-        if chunk[3] != b'=' {
-            result.push((c << 6) | d);
-        }
-    }
-    (base64_encode(&result) == value).then_some(result)
-}
-
-pub fn encode_snapshot(raw: &[u8]) -> Value {
-    json!({"raw_sha256": sha256_hex(raw), "base64": base64_encode(raw)})
-}
-
-pub fn decode_snapshot(value: &Value) -> Result<Vec<u8>, TransactionIssue> {
-    strict(value, &["raw_sha256", "base64"], &[])?;
-    let raw = base64_decode(value["base64"].as_str().ok_or_else(|| {
-        issue(
-            "invalid_contract_value",
-            "Transaction bytes must use canonical base64.",
-        )
-    })?)
-    .ok_or_else(|| {
-        issue(
-            "invalid_contract_value",
-            "Transaction bytes must use canonical base64.",
-        )
-    })?;
-    if !sha(&value["raw_sha256"]) || value["raw_sha256"] != sha256_hex(&raw) {
-        return Err(issue(
-            "invalid_contract_value",
-            "Transaction bytes do not match their fingerprint.",
-        ));
-    }
-    Ok(raw)
-}
-
-pub fn approval_sha256(files: &Value, metadata: &Value) -> String {
-    canonical_json_sha256(&json!({"files":files,"metadata":metadata}))
-        .expect("JSON value serializes")
-}
-
-pub fn derived_transaction_id(kind: &str, approval: &str) -> Result<String, TransactionIssue> {
-    if !matches!(kind, "UPDATE" | "MIGRATION" | "RECONCILIATION") || !sha(&json!(approval)) {
-        return Err(issue(
-            "spec_transaction_identity",
-            "A validated transaction kind and approval fingerprint are required.",
-        ));
-    }
-    Ok(format!(
-        "SPEC-{kind}-{}",
-        approval[..12].to_ascii_uppercase()
-    ))
 }
 
 pub fn validate_transaction(value: &Value) -> Result<(), TransactionIssue> {
@@ -562,10 +458,6 @@ pub enum CompletionState {
     Corrupt,
 }
 
-pub fn completion_marker(record_raw: &[u8]) -> Vec<u8> {
-    format!("{}\n", sha256_hex(record_raw)).into_bytes()
-}
-
 pub fn completion_state(record_raw: &[u8], marker_raw: Option<&[u8]>) -> CompletionState {
     match marker_raw {
         None => CompletionState::Incomplete,
@@ -603,6 +495,10 @@ mod tests {
         assert_eq!(parsed["published_count"], 0);
         let mut changed = value.clone();
         changed["metadata"]["request"] = json!({"schema":"different/v1"});
+        assert_eq!(
+            validate_transaction(&changed).unwrap_err().reason_code,
+            "invalid_contract_value"
+        );
         let changed_approval = approval_sha256(&changed["files"], &changed["metadata"]);
         assert_ne!(
             value["transaction_id"],

@@ -9,14 +9,13 @@ use crate::workflow::WorkflowRoutingRepository;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::str::FromStr;
-use work_model::task::index::TaskItemReference;
-use work_operations::canonical::{canonical_sha256, parse_json_contract};
+use work_operations::canonical::parse_json_contract;
+use work_operations::derivation::graph::{rebind_execution_index, rebind_task_index};
 use work_operations::execution::index::{render_execution_index, validate_execution_index};
 use work_operations::identifiers::RequirementId;
 use work_operations::instruction::{SourceSet, selection as source_selection};
 use work_operations::instruction_refresh::{Compatibility, combined_compatibility};
 use work_operations::plan::render_plan_value;
-use work_operations::task::collection::collection_fingerprint_sha256;
 use work_operations::task::ordering::{TaskDocumentKind, render_task};
 
 pub trait RefreshSnapshotRepository {
@@ -70,10 +69,6 @@ fn render(value: &Value, kind: &str) -> Result<Vec<u8>, WorkError> {
             "The refreshed artifact cannot be rendered.",
         )
     })
-}
-
-fn hash(raw: &[u8]) -> Result<String, WorkError> {
-    canonical_sha256(raw).map_err(|_| failure("invalid_utf8", "A formal artifact is not UTF-8."))
 }
 
 fn strings(value: &Value) -> Result<Vec<String>, WorkError> {
@@ -180,7 +175,6 @@ pub fn build_refresh(
             })?
             .clone();
         let mut item_paths = BTreeMap::new();
-        let mut items = BTreeMap::new();
         let mut loaded_sets = Vec::new();
         for reference in &references {
             let task_id = reference["id"]
@@ -211,7 +205,6 @@ pub fn build_refresh(
                 counts["task_items"] = json!(counts["task_items"].as_u64().unwrap() + 1);
             }
             item_paths.insert(task_id.to_owned(), relative);
-            items.insert(task_id.to_owned(), item);
         }
         let mut current = task_document_selection(&loaded_sets)?;
         current["routing_manifest"] =
@@ -226,20 +219,26 @@ pub fn build_refresh(
             blocked.push(json!({"path":task_relative,"reason":"routing_manifest_changed"}));
         }
         if blocked.is_empty() && (!after.is_empty() || state == Compatibility::Refreshable) {
-            index["source_plan"]["canonical_sha256"] = json!(hash(&effective_plan)?);
             index["instruction_selection"] = current;
-            for reference in index["tasks"].as_array_mut().unwrap() {
-                let task_id = reference["id"].as_str().unwrap();
-                let relative = &item_paths[task_id];
-                let raw = if let Some(raw) = after.get(relative) {
-                    raw.clone()
-                } else {
-                    read(repository, relative)?.0
-                };
-                reference["canonical_sha256"] = json!(hash(&raw)?);
-            }
+            let item_bytes = item_paths
+                .iter()
+                .map(|(task_id, relative)| {
+                    Ok((
+                        task_id.clone(),
+                        if let Some(raw) = after.get(relative) {
+                            raw.clone()
+                        } else {
+                            read(repository, relative)?.0
+                        },
+                    ))
+                })
+                .collect::<Result<BTreeMap<_, _>, WorkError>>()?;
+            let index_bytes =
+                rebind_task_index(&effective_plan, &mut index, &item_bytes).map_err(|issue| {
+                    failure(issue.reason_code(), "TASK bindings cannot be derived.")
+                })?;
             before.insert(task_relative.to_owned(), index_raw);
-            after.insert(task_relative.to_owned(), render(&index, "index")?);
+            after.insert(task_relative.to_owned(), index_bytes);
             counts["task_indexes"] = json!(1);
             if repository.exists(&execution_relative)? {
                 let (execution_raw, mut execution) = read(repository, &execution_relative)?;
@@ -267,34 +266,15 @@ pub fn build_refresh(
                         "select_task_for_execution",
                         &execution,
                     )?;
-                    let index_sha = hash(&after[task_relative])?;
-                    execution["task_index_sha256"] = json!(index_sha);
-                    execution["task_collection_sha256"] = json!(collection_fingerprint_sha256(
-                        &index_sha,
-                        &index["tasks"]
-                            .as_array()
-                            .unwrap()
-                            .iter()
-                            .map(|reference| serde_json::from_value::<TaskItemReference>(
-                                reference.clone()
-                            )
-                            .expect("validated TASK reference"))
-                            .collect::<Vec<_>>()
-                    ));
-                    execution["task_instructions_sha256"] =
-                        index["instruction_selection"]["instructions_sha256"].clone();
-                    for reference in index["tasks"].as_array().unwrap() {
-                        let task_id = reference["id"].as_str().unwrap();
-                        if let Some(row) = execution["tasks"]
-                            .as_array_mut()
-                            .and_then(|rows| rows.iter_mut().find(|row| row["id"] == task_id))
-                        {
-                            row["task_item_sha256"] = reference["canonical_sha256"].clone();
-                            row["instructions_sha256"] =
-                                items[task_id]["instruction_selection"]["instructions_sha256"]
-                                    .clone();
-                        }
-                    }
+                    rebind_execution_index(
+                        &after[task_relative],
+                        &index,
+                        &item_bytes,
+                        &mut execution,
+                    )
+                    .map_err(|issue| {
+                        failure(issue.reason_code(), "Execute bindings cannot be derived.")
+                    })?;
                     before.insert(execution_relative.clone(), execution_raw);
                     after.insert(execution_relative.clone(), render(&execution, "execution")?);
                     counts["execution_indexes"] = json!(1);

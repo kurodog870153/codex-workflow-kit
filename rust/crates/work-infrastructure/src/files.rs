@@ -281,8 +281,12 @@ mod tests {
 
     fn temp_root() -> PathBuf {
         let root = std::env::temp_dir().join(format!(
-            "work-rust-file-test-{}-{}",
+            "work-rust-file-test-{}-{}-{}",
             std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock is after the Unix epoch")
+                .as_nanos(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir(&root).unwrap();

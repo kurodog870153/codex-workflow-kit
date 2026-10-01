@@ -17,7 +17,7 @@ use work_feature::specification::reconciliation_publication::{
 use work_feature::specification::reconciliation_semantic::{
     ReconciliationSemanticRepository, prepare_semantic_selection,
 };
-use work_operations::canonical::sha256_hex;
+use work_operations::derivation::fingerprint;
 use work_operations::specification::reconciliation_ledger::render_ledger;
 
 use crate::files::LocalFiles;
@@ -185,7 +185,7 @@ pub fn publish_ledger_only(
     require_no_spec_update(root, execution_dir, Some(journal_path))?;
     write_journal(root, journal_path, &transaction.journal)?;
     let published = publish_journal(root, journal_path, marker_path)?;
-    if sha256_hex(&LocalFiles.read_raw(&target)?) != sha256_hex(&after) {
+    if !fingerprint::verify_ledger(&LocalFiles.read_raw(&target)?, &fingerprint::ledger(&after)) {
         return Err(fail(
             "reconciliation_ledger_post_write",
             "The installed reconciliation ledger differs from approval.",
@@ -204,7 +204,7 @@ pub fn publish_ledger_only(
         "attempt_sha256":preview["attempt_sha256"],
         "selected_deviation_ids":preview["selected_deviation_ids"],
         "retained_deviation_ids":preview["retained_deviation_ids"],
-        "ledger_path":ledger_path,"ledger_sha256":sha256_hex(&after),
+        "ledger_path":ledger_path,"ledger_sha256":fingerprint::ledger(&after),
         "publication":publication,"deviation_classifications":preview["deviation_classifications"]}),
     ))
 }
@@ -239,9 +239,10 @@ pub fn publish_with_migration(
         migration_fingerprint,
         &additional,
     )?;
-    if sha256_hex(&LocalFiles.read_raw(&storage_path(root, ledger_path)?)?)
-        != sha256_hex(&ledger_raw)
-    {
+    if !fingerprint::verify_ledger(
+        &LocalFiles.read_raw(&storage_path(root, ledger_path)?)?,
+        &fingerprint::ledger(&ledger_raw),
+    ) {
         return Err(fail(
             "reconciliation_ledger_post_write",
             "The installed reconciliation ledger differs from approval.",
@@ -255,7 +256,7 @@ pub fn publish_with_migration(
         "attempt_sha256":preview["attempt_sha256"],
         "selected_deviation_ids":preview["selected_deviation_ids"],
         "retained_deviation_ids":preview["retained_deviation_ids"],
-        "ledger_path":ledger_path,"ledger_sha256":sha256_hex(&ledger_raw),
+        "ledger_path":ledger_path,"ledger_sha256":fingerprint::ledger(&ledger_raw),
         "publication":publication,"deviation_classifications":preview["deviation_classifications"]}),
     ))
 }
@@ -346,6 +347,30 @@ mod tests {
                 .find(|(_, (left, right))| left != right)
                 .map(|(line, (left, right))| (line, left.to_owned(), right.to_owned()))
         );
+        let correction = json!({
+            "schema":"work-correction/v1",
+            "correction_id":"ATTEMPT-001-CORRECTION-001",
+            "created_at":"2026-09-26T10:05+08:00",
+            "target_attempt_id":"ATTEMPT-001",
+            "task_collection_sha256":attempt["task_collection_sha256"],
+            "task_index_sha256":attempt["task_index_sha256"],
+            "task_item_sha256":attempt["task_item_sha256"],
+            "task_instructions_sha256":attempt["task_instructions_sha256"],
+            "execute_instructions_sha256":attempt["execute_instructions_sha256"],
+            "field":"records[0].outcome",
+            "correct_value":"passed",
+            "reason":"Historical correction evidence."
+        });
+        work_operations::execution::correction::validate_correction(&correction).unwrap();
+        let correction_raw =
+            work_operations::execution::correction::render_correction(&correction).unwrap();
+        let correction_path = root
+            .join(request["attempt_path"].as_str().unwrap())
+            .parent()
+            .unwrap()
+            .join("corrections/ATTEMPT-001-CORRECTION-001.json");
+        fs::create_dir_all(correction_path.parent().unwrap()).unwrap();
+        fs::write(&correction_path, &correction_raw).unwrap();
         let expected: Value =
             serde_json::from_slice(&fs::read(fixture.join("expected.json")).unwrap()).unwrap();
         let semantic: Value =
@@ -435,6 +460,7 @@ mod tests {
             fs::read(root.join(request["attempt_path"].as_str().unwrap())).unwrap(),
             attempt_raw
         );
+        assert_eq!(fs::read(&correction_path).unwrap(), correction_raw);
         for relative in [
             published["ledger_path"].as_str().unwrap(),
             published["publication"]["journal"].as_str().unwrap(),
@@ -624,6 +650,7 @@ mod tests {
         let destination = root.join(attempt);
         fs::create_dir_all(destination.parent().unwrap()).unwrap();
         fs::copy(fixture.join(attempt), destination).unwrap();
+        let attempt_before = fs::read(root.join(attempt)).unwrap();
         fs::write(root.join("src.txt"), b"source\n").unwrap();
         let actual =
             preview_from_project(&root, &repo.join("../skills/work"), &[], &request).unwrap();
@@ -693,6 +720,7 @@ mod tests {
             expected["fingerprint"].as_str().unwrap(),
         )
         .unwrap();
+        assert_eq!(fs::read(root.join(attempt)).unwrap(), attempt_before);
         let reference: Value =
             serde_json::from_slice(&fs::read(fixture.join("publication.json")).unwrap()).unwrap();
         assert_eq!(published, reference);

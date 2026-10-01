@@ -89,7 +89,7 @@ pub fn validate_task_skill(
         "external_skills"
     };
     if plan["skill_selection"]["selection_sha256"]
-        != work_operations::skill::selection_sha256(decision, skills)
+        != work_operations::derivation::fingerprint::skill_selection(decision, skills)
         || selected["skill_id"] != skill_id
         || !skills.contains(skill)
         || skill["mode_support"]["task"] == "unsupported"
@@ -285,7 +285,7 @@ pub fn validate_execute_role(
     if skills["schema"] != "work-skill-selection/v1"
         || skills["decision"] != decision
         || skills["selection_sha256"]
-            != work_operations::skill::selection_sha256(decision, selected_skills)
+            != work_operations::derivation::fingerprint::skill_selection(decision, selected_skills)
     {
         return Err(boundary(
             "Skill snapshot identities or selection fingerprint disagree.",
@@ -315,7 +315,10 @@ pub fn validate_execute_role(
         || matching.len() != if task["skill_id"].is_null() { 0 } else { 1 }
         || execute_skills["decision"] != execute_decision
         || execute_skills["selection_sha256"]
-            != work_operations::skill::selection_sha256(execute_decision, &matching)
+            != work_operations::derivation::fingerprint::skill_selection(
+                execute_decision,
+                &matching,
+            )
     {
         return Err(boundary(
             "Execute must retain the target's exact skill and hierarchy identity.",
@@ -469,7 +472,7 @@ pub fn validate_artifact_editor(
     if skills["schema"] != "work-skill-selection/v1"
         || skills["decision"] != decision
         || skills["selection_sha256"]
-            != work_operations::skill::selection_sha256(decision, selected_skills)
+            != work_operations::derivation::fingerprint::skill_selection(decision, selected_skills)
     {
         return Err(boundary(
             "Skill snapshot identities or selection fingerprint disagree.",
@@ -600,7 +603,10 @@ pub fn validate_plan_role(
     if skills["schema"] != "work-skill-selection/v1"
         || skills["decision"] != skill_decision
         || skills["selection_sha256"]
-            != work_operations::skill::selection_sha256(skill_decision, selected_skills)
+            != work_operations::derivation::fingerprint::skill_selection(
+                skill_decision,
+                selected_skills,
+            )
     {
         return Err(boundary(
             "Skill snapshot identities or selection fingerprint disagree.",
@@ -922,7 +928,7 @@ pub fn build_execute_role(
         "hierarchy_selection_sha256":plan["hierarchy_selection"]["selection_sha256"],
         "execute_skill_selection":{"schema":"work-skill-selection/v1",
             "decision":skill_decision,"skills":selected_skills,
-            "selection_sha256":work_operations::skill::selection_sha256(skill_decision, &selected_skills)},
+            "selection_sha256":work_operations::derivation::fingerprint::skill_selection(skill_decision, &selected_skills)},
     });
     let project_root = source_repository.canonical_project_root()?;
     let skill_root = source_repository.canonical_skill_root()?;

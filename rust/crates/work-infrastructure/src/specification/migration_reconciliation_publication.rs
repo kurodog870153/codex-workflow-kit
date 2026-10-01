@@ -1,6 +1,6 @@
-//! One final fingerprint reconciliation after selective artifact publication.
+//! Publication orchestration for final migration reconciliation.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use serde_json::{Value, json};
@@ -9,21 +9,23 @@ use work_feature::plan::{PlanValidationInput, default_artifact_paths, validate_p
 use work_feature::ports::ArtifactStore;
 use work_feature::skill::SkillRoot;
 use work_feature::task::{CollectionInput, validate_collection};
-use work_operations::canonical::{parse_json_contract, sha256_hex};
+use work_operations::canonical::parse_json_contract;
+use work_operations::derivation::graph::{
+    ArtifactNode, rebind_validated_execution, reconcile_artifact_bindings,
+};
+use work_operations::derivation::transaction::{
+    PublicationOrder, TransactionDeriver, TransactionInput, TransactionKind,
+};
 use work_operations::execution::index::{render_execution_index, validate_execution_index};
 use work_operations::identifiers::RequirementId;
-use work_operations::specification::transaction::{
-    approval_sha256, derived_transaction_id, encode_snapshot, render_transaction,
-    validate_transaction,
-};
-use work_operations::task::ordering::{TaskDocumentKind, render_task};
+use work_operations::specification::transaction::{render_transaction, validate_transaction};
 
 use crate::files::LocalFiles;
 use crate::hierarchy_catalog::LocalHierarchyCatalog;
 use crate::plan_storage::LocalPlanStorage;
 use crate::skill_catalog::{LocalSkillCatalog, SkillRootConfig};
 use crate::specification::storage::{
-    execution_history_fingerprints, publish_journal, storage_path, write_journal,
+    execution_history_bytes, publish_journal, storage_path, write_journal,
 };
 
 fn fail(code: &str, message: &str) -> WorkError {
@@ -34,7 +36,6 @@ struct Update {
     path: String,
     before: Vec<u8>,
     after: Vec<u8>,
-    phase: u64,
 }
 
 fn read_optional(
@@ -184,26 +185,15 @@ fn build_updates(
         })?;
         item_raw.insert(task_id.to_owned(), raw);
     }
-    index["source_plan"]["canonical_sha256"] = json!(sha256_hex(&plan_raw));
-    index["source_plan"]["hierarchy_selection_sha256"] =
-        plan["hierarchy_selection"]["selection_sha256"].clone();
-    for row in index["tasks"].as_array_mut().ok_or_else(|| {
-        fail(
-            "migration_task_invalid",
-            "The TASK index has no item references.",
-        )
-    })? {
-        let task_id = row["id"]
-            .as_str()
-            .ok_or_else(|| fail("migration_task_invalid", "A TASK reference has no ID."))?;
-        row["canonical_sha256"] = json!(sha256_hex(&item_raw[task_id]));
-    }
-    let mut new_index = render_task(&index, TaskDocumentKind::Index).map_err(|_| {
-        fail(
-            "migration_task_invalid",
-            "The TASK index cannot be rendered.",
-        )
-    })?;
+    let changed_roots = BTreeSet::from([ArtifactNode::PlanBytes]);
+    let new_index =
+        reconcile_artifact_bindings(&plan_raw, &mut index, &item_raw, None, &changed_roots)
+            .map_err(|_| {
+                fail(
+                    "migration_task_invalid",
+                    "The TASK index bindings cannot be derived.",
+                )
+            })?;
     let validation = validate_collection(
         &hierarchy,
         &skills,
@@ -220,8 +210,7 @@ fn build_updates(
         updates.push(Update {
             path: index_path.clone(),
             before: index_raw,
-            after: std::mem::take(&mut new_index),
-            phase: 30,
+            after: new_index.clone(),
         });
     }
     let Some(execution_raw) = execution_raw else {
@@ -258,23 +247,25 @@ fn build_updates(
             "Execute TASK rows differ from the installed collection.",
         ));
     }
-    execution["task_spec_id"] = validation["spec_id"].clone();
-    execution["task_collection_sha256"] = validation["task_collection_sha256"].clone();
-    execution["task_index_sha256"] = validation["task_index_sha256"].clone();
-    execution["task_instructions_sha256"] = validation["instructions_sha256"].clone();
-    execution["hierarchy_selection_sha256"] = validation["hierarchy_selection_sha256"].clone();
-    execution["skill_selection_sha256"] = validation["skill_selection_sha256"].clone();
-    for row in execution["tasks"].as_array_mut().expect("checked rows") {
-        let task_id = row["id"].as_str().expect("checked TASK ID").to_owned();
-        if row["skill_id"] != validation["task_skill_ids"][&task_id] {
-            return Err(fail(
-                "migration_execution_binding",
-                "Execute skill assignment differs from TASK.",
-            ));
-        }
-        row["task_item_sha256"] = validation["task_item_sha256"][&task_id].clone();
-        row["instructions_sha256"] = validation["task_instructions_sha256"][&task_id].clone();
-    }
+    reconcile_artifact_bindings(
+        &plan_raw,
+        &mut index,
+        &item_raw,
+        Some(&mut execution),
+        &changed_roots,
+    )
+    .map_err(|_| {
+        fail(
+            "migration_execution_binding",
+            "Execute TASK bindings cannot be derived.",
+        )
+    })?;
+    rebind_validated_execution(&mut execution, &validation).map_err(|_| {
+        fail(
+            "migration_execution_binding",
+            "Execute TASK rows differ from the installed collection.",
+        )
+    })?;
     let new_execution = render_execution_index(&execution).map_err(|_| {
         fail(
             "migration_execution_invalid",
@@ -292,7 +283,6 @@ fn build_updates(
             path: execution_path,
             before: execution_raw,
             after: new_execution,
-            phase: 40,
         });
     }
     Ok(updates)
@@ -326,11 +316,13 @@ pub fn reconcile(
         .into_iter()
         .collect::<BTreeMap<_, _>>();
     let execution = &paths["execution"];
-    let journal = format!(
-        "{execution}/.work-spec-migration-{}-reconcile.json",
-        request_sha256[..12].to_ascii_uppercase()
+    let journal = work_operations::derivation::publication::journal_path(
+        execution,
+        work_operations::derivation::publication::JournalKind::SpecificationMigrationReconcile(
+            request_sha256,
+        ),
     );
-    let marker = format!("{journal}.done");
+    let marker = work_operations::derivation::publication::completion_marker_path(&journal);
     if storage_path(root, &journal)?.is_file() {
         let raw = LocalFiles.read_raw(&storage_path(root, &journal)?)?;
         let transaction = parse_json_contract(&raw).map_err(|_| {
@@ -384,45 +376,34 @@ pub fn reconcile(
     if updates.is_empty() {
         return Ok(json!({"status":"valid","publication_status":"unchanged"}));
     }
-    let files = Value::Array(
-        updates
-            .iter()
-            .map(|update| {
-                json!({
-                    "phase":update.phase,"path":update.path,"operation":"replace",
-                    "before":encode_snapshot(&update.before),"after":encode_snapshot(&update.after)
-                })
-            })
-            .collect(),
-    );
-    let source_sha256 = updates
+    let source = updates
         .iter()
-        .map(|update| (update.path.clone(), sha256_hex(&update.before)))
+        .map(|update| (update.path.clone(), update.before.clone()))
         .collect::<BTreeMap<_, _>>();
-    let candidate_sha256 = updates
+    let candidate = updates
         .iter()
-        .map(|update| (update.path.clone(), sha256_hex(&update.after)))
+        .map(|update| (update.path.clone(), update.after.clone()))
         .collect::<BTreeMap<_, _>>();
-    let history = execution_history_fingerprints(root, execution)?;
-    let metadata = json!({"request":{"request_sha256":request_sha256,"phase":"reconciliation"},
-        "artifacts":paths,"affected_task_ids":[],"history_sha256":history,
-        "source_sha256":source_sha256,"candidate_sha256":candidate_sha256});
-    let approval = approval_sha256(&files, &metadata);
-    let transaction_id = derived_transaction_id("RECONCILIATION", &approval).map_err(|_| {
-        fail(
-            "migration_reconciliation",
-            "Reconciliation ID cannot be derived.",
-        )
-    })?;
-    let transaction = json!({"schema":"work-spec-transaction/v1","transaction_id":transaction_id,
-        "approval_sha256":approval,"state":"prepared","published_count":0,
-        "metadata":metadata,"files":files});
-    validate_transaction(&transaction).map_err(|_| {
+    let history = execution_history_bytes(root, execution)?;
+    let derived = TransactionDeriver::derive(TransactionInput {
+        kind: TransactionKind::Reconciliation,
+        order: PublicationOrder::FinalReconciliation {
+            task_index_path: paths["task"].clone(),
+        },
+        request: json!({"request_sha256":request_sha256,"phase":"reconciliation"}),
+        artifacts: json!(paths),
+        affected_task_ids: Vec::new(),
+        history,
+        source,
+        candidate,
+    })
+    .map_err(|_| {
         fail(
             "migration_reconciliation",
             "Reconciliation transaction is invalid.",
         )
     })?;
+    let transaction = derived.journal;
     write_journal(root, &journal, &transaction)?;
     let publication = publish_journal(root, &journal, &marker)?;
     if !build_updates(root, skill_root, configs, requirement, &BTreeMap::new())?.is_empty() {

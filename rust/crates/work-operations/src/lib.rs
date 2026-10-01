@@ -2,6 +2,7 @@
 
 pub mod canonical;
 pub mod delegation;
+pub mod derivation;
 pub mod execution;
 pub mod handoff;
 pub mod hierarchy;

@@ -876,7 +876,7 @@ fn public_command_tree_matches_frozen_baseline() {
     assert_eq!(legacy.len(), 103);
     let raw = format!("{}\n", legacy.join("\n"));
     assert_eq!(
-        work_infrastructure::codec::sha256_hex(raw.as_bytes()),
+        work_infrastructure::fixture_support::raw_sha256(raw.as_bytes()),
         "9fba9828c9acda955bb94a3e9e96f15b1995c56056722f9980423ebe695216c4"
     );
 }
@@ -1245,8 +1245,9 @@ fn handoff_build_output_validates_across_installed_processes() {
     let mut custom_index: Value =
         serde_json::from_slice(&fs::read(project.join(task_path)).unwrap()).unwrap();
     custom_index["artifacts"] = custom_artifacts.clone();
-    custom_index["source_plan"]["canonical_sha256"] =
-        json!(work_infrastructure::codec::sha256_hex(&custom_plan_raw));
+    custom_index["source_plan"]["canonical_sha256"] = json!(
+        work_infrastructure::fixture_support::raw_sha256(&custom_plan_raw)
+    );
     let custom_index_raw =
         work_infrastructure::fixture_support::render_task_index(&custom_index).unwrap();
     let custom_index_file = custom_project.join(custom_task_path);
@@ -1489,9 +1490,9 @@ fn progress_prepare_validate_save_and_resume_across_processes() {
 #[test]
 fn specification_constraint_continuation_across_installed_processes() {
     use work_flow::task::validate_collection;
-    use work_infrastructure::codec::sha256_hex;
     use work_infrastructure::fixture_support::{
-        build_initial_execution_index, render_execution_index, render_plan, render_task_index,
+        build_initial_execution_index, raw_sha256, render_execution_index, render_plan,
+        render_task_index,
     };
     use work_infrastructure::hierarchy_catalog::LocalHierarchyCatalog;
     use work_infrastructure::plan_storage::LocalPlanStorage;
@@ -1529,7 +1530,7 @@ fn specification_constraint_continuation_across_installed_processes() {
         fs::write(&plan_path, &plan_raw).unwrap();
         let index_path = project.join("outputs/work/tasks/example/index.json");
         let mut index: Value = serde_json::from_slice(&fs::read(&index_path).unwrap()).unwrap();
-        index["source_plan"]["canonical_sha256"] = json!(sha256_hex(&plan_raw));
+        index["source_plan"]["canonical_sha256"] = json!(raw_sha256(&plan_raw));
         fs::write(&index_path, render_task_index(&index).unwrap()).unwrap();
         let skill = repo.join("skills/work");
         let collection = validate_collection(

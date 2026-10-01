@@ -2,9 +2,9 @@
 
 use crate::error::{ExitCode, WorkError};
 use serde_json::{Value, json};
-use work_operations::canonical::sha256_hex;
-use work_operations::specification::transaction::{
-    approval_sha256, derived_transaction_id, encode_snapshot,
+use std::collections::BTreeMap;
+use work_operations::derivation::transaction::{
+    PublicationOrder, TransactionDeriver, TransactionInput, TransactionKind,
 };
 
 pub struct LedgerPublication {
@@ -63,21 +63,20 @@ pub fn ledger_transaction(
     after: &[u8],
 ) -> Result<LedgerPublication, WorkError> {
     let ledger_path = preview["ledger_path"].as_str().unwrap();
-    let mut file = json!({"phase":10,"path":ledger_path,
-        "operation":if before.is_some() {"replace"} else {"add"},
-        "after":encode_snapshot(after)});
-    if let Some(raw) = before {
-        file["before"] = encode_snapshot(raw);
-    }
-    let files = json!([file]);
-    let metadata = json!({"request":{"reconciliation_fingerprint":approved_sha256,
-        "attempt_path":preview["attempt_path"]},"artifacts":{},"affected_task_ids":[],
-        "history_sha256":{},
-        "source_sha256":before.map_or_else(|| json!({}),
-            |raw| json!({ledger_path:sha256_hex(raw)})),
-        "candidate_sha256":{ledger_path:sha256_hex(after)}});
-    let approval = approval_sha256(&files, &metadata);
-    let transaction_id = derived_transaction_id("RECONCILIATION", &approval).map_err(|issue| {
+    let derived = TransactionDeriver::derive(TransactionInput {
+        kind: TransactionKind::Reconciliation,
+        order: PublicationOrder::Flat,
+        request: json!({"reconciliation_fingerprint":approved_sha256,
+            "attempt_path":preview["attempt_path"]}),
+        artifacts: json!({}),
+        affected_task_ids: Vec::new(),
+        history: BTreeMap::new(),
+        source: before.map_or_else(BTreeMap::new, |raw| {
+            BTreeMap::from([(ledger_path.to_owned(), raw.to_vec())])
+        }),
+        candidate: BTreeMap::from([(ledger_path.to_owned(), after.to_vec())]),
+    })
+    .map_err(|issue| {
         WorkError::new(
             ExitCode::ArtifactIntegrity,
             issue.reason_code,
@@ -85,9 +84,8 @@ pub fn ledger_transaction(
             issue.details,
         )
     })?;
-    let journal = json!({"schema":"work-spec-transaction/v1","transaction_id":transaction_id,
-        "approval_sha256":approval,"state":"prepared","published_count":0,
-        "metadata":metadata,"files":files});
+    let journal = derived.journal;
+    let approval = derived.approval_sha256;
     let execution_dir = preview["attempt_path"]
         .as_str()
         .unwrap()
@@ -95,11 +93,14 @@ pub fn ledger_transaction(
         .next()
         .unwrap()
         .to_owned();
-    let journal_path = format!(
-        "{execution_dir}/.work-spec-migration-{}.json",
-        approved_sha256[..12].to_ascii_uppercase()
+    let journal_path = work_operations::derivation::publication::journal_path(
+        &execution_dir,
+        work_operations::derivation::publication::JournalKind::SpecificationMigration(
+            approved_sha256,
+        ),
     );
-    let marker_path = format!("{journal_path}.done");
+    let marker_path =
+        work_operations::derivation::publication::completion_marker_path(&journal_path);
     Ok(LedgerPublication {
         journal,
         approval,

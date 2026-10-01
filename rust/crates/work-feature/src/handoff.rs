@@ -734,7 +734,7 @@ pub fn build_preflight_return(
         .filter(|skill| skill["id"] == *skill_id)
         .cloned()
         .collect();
-    let fingerprint = work_operations::skill::selection_sha256(
+    let fingerprint = work_operations::derivation::fingerprint::skill_selection(
         if skill_id.is_null() {
             "base_only"
         } else {
@@ -1000,7 +1000,7 @@ pub fn build_closed_return(
         .filter(|row| row["id"] == *skill_id)
         .cloned()
         .collect();
-    let fingerprint = work_operations::skill::selection_sha256(
+    let fingerprint = work_operations::derivation::fingerprint::skill_selection(
         if skill_id.is_null() {
             "base_only"
         } else {

@@ -6,8 +6,14 @@ pub mod recovery;
 
 use std::collections::{HashMap, HashSet};
 
+use crate::error::{ExitCode, WorkError};
+use crate::instruction::{self, InstructionSourceRepository};
+use crate::plan::PlanPathRepository;
+use crate::skill::{SkillRoot, SkillSnapshotRepository};
+use crate::task::{self, TaskCollectionRepository};
 use serde_json::{Value, json};
 use work_operations::canonical::{JsonContractIssue, parse_json_contract, sha256_hex};
+use work_operations::derivation::fingerprint::skill_selection as skill_selection_sha256;
 use work_operations::execution::ExecutionIssue;
 use work_operations::execution::attempt::{render_attempt, validate_attempt_bytes};
 use work_operations::execution::attempt_close::build_close_candidates;
@@ -49,16 +55,8 @@ use work_operations::execution::{
     record_begin_candidate, start_index, validate_authorization_scope, validate_completed_coverage,
     validate_deviation_action, validate_execution_identity, validate_preflight_identity,
 };
-use work_operations::skill::selection_sha256 as skill_selection_sha256;
-
-use crate::error::{ExitCode, WorkError};
-use crate::instruction::{self, InstructionSourceRepository};
-use crate::plan::PlanPathRepository;
-use crate::skill::{SkillRoot, SkillSnapshotRepository};
-use crate::task::{self, TaskCollectionRepository};
-
 pub fn validate_record_id(raw: &str) -> Result<&str, WorkError> {
-    work_operations::execution::next_record_id(raw, &json!({})).map_err(|issue| {
+    work_operations::derivation::identity::next_record_id(raw, &json!({})).map_err(|issue| {
         WorkError::new(
             ExitCode::Contract,
             issue.reason_code,
@@ -222,10 +220,11 @@ fn prepare_command_context(
         .map(|value| value.as_str().expect("validated argument").to_owned())
         .collect();
     let invocation = repository.resolve_invocation(&argv, &cwd)?;
-    let receipt = format!(
-        "{execution_dir}/{task_id}/{}/.work-command-{}",
-        selected.attempt_id,
-        selected.record_id.replace('#', "-retry-")
+    let receipt = work_operations::derivation::publication::command_receipt_prefix(
+        execution_dir,
+        task_id,
+        &selected.attempt_id,
+        &selected.record_id,
     );
     if repository.receipt_exists(&receipt)? {
         return Err(error(
@@ -569,33 +568,25 @@ where
     validate_execution_identity(collection, &validation, &index, &attempt, target.task_id)
         .map_err(rule)?;
     let names = repository.correction_names(target.execution_dir, target.task_id, attempt_id)?;
-    let prefix = format!("{attempt_id}-CORRECTION-");
-    let mut maximum = 0u16;
-    for name in names {
-        let number = name
-            .strip_prefix(&prefix)
-            .and_then(|tail| tail.strip_suffix(".json"));
-        let number = number
-            .filter(|tail| tail.len() == 3 && tail.bytes().all(|byte| byte.is_ascii_digit()))
-            .ok_or_else(|| {
-                error(
-                    ExitCode::ArtifactIntegrity,
-                    "correction_create_invalid_existing_name",
-                    "An existing Correction-like filename is not canonical.",
-                    json!({"name":name}),
-                )
-            })?;
-        maximum = maximum.max(number.parse::<u16>().expect("ASCII three-digit number"));
-    }
-    if maximum >= 999 {
-        return Err(error(
+    let correction_id = work_operations::derivation::identity::next_correction_id(
+        attempt_id, &names,
+    )
+    .map_err(|issue| match issue {
+        work_operations::derivation::identity::CorrectionIdentityIssue::InvalidExistingName(
+            name,
+        ) => error(
+            ExitCode::ArtifactIntegrity,
+            "correction_create_invalid_existing_name",
+            "An existing Correction-like filename is not canonical.",
+            json!({"name":name}),
+        ),
+        work_operations::derivation::identity::CorrectionIdentityIssue::Exhausted => error(
             ExitCode::WorkflowState,
             "correction_create_id_exhausted",
             "The Correction ID range is exhausted for this Attempt.",
             json!({}),
-        ));
-    }
-    let correction_id = format!("{prefix}{:03}", maximum + 1);
+        ),
+    })?;
     let candidates = build_correction_candidates(
         collection,
         &index,
@@ -2605,13 +2596,14 @@ pub fn start_attempt_from_preflight(
             json!({}),
         ));
     }
-    let attempt_id =
-        work_operations::execution::next_attempt_id(if row["status"] == "pending_retry" {
+    let attempt_id = work_operations::derivation::identity::next_attempt_id(
+        if row["status"] == "pending_retry" {
             latest
         } else {
             None
-        })
-        .map_err(rule)?;
+        },
+    )
+    .map_err(rule)?;
     let names = repository.attempt_names(execution_dir, task_id)?;
     validate_attempt_namespace(
         &names,

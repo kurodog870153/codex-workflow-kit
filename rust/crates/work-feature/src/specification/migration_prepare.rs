@@ -3,7 +3,7 @@
 use crate::error::{ExitCode, WorkError};
 use serde_json::{Value, json};
 use work_operations::canonical::parse_json_contract;
-use work_operations::specification::transaction::decode_snapshot;
+use work_operations::derivation::snapshot::decode_snapshot;
 
 pub trait MigrationPrepareRepository {
     fn read_execution(&self, relative: &str) -> Result<Vec<u8>, WorkError>;

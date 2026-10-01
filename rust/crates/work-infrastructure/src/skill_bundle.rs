@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 use work_feature::error::{ExitCode, WorkError};
-use work_operations::canonical::{canonical_sha256, sha256_hex};
-use work_operations::skill::{BundleEntry, bundle_sha256};
+use work_operations::derivation::fingerprint;
+use work_operations::skill::BundleEntry;
 
 fn error(code: ExitCode, reason: &str, message: &str, details: Value) -> WorkError {
     WorkError::new(code, reason, message, details)
@@ -126,7 +126,7 @@ pub fn snapshot_skill_bundle(skill_root: &Path) -> Result<Value, WorkError> {
             || relative == "SKILL.md";
         let normalization = if is_text { "canonical-text" } else { "raw" };
         let hash = if is_text {
-            canonical_sha256(&raw).map_err(|invalid| {
+            fingerprint::canonical(&raw).map_err(|invalid| {
                 error(
                     ExitCode::InputFormat,
                     "invalid_utf8",
@@ -135,7 +135,7 @@ pub fn snapshot_skill_bundle(skill_root: &Path) -> Result<Value, WorkError> {
                 )
             })?
         } else {
-            sha256_hex(&raw)
+            fingerprint::raw(&raw)
         };
         files.push(
             json!({"path": relative, "normalization": normalization, "content_sha256": hash}),
@@ -151,7 +151,7 @@ pub fn snapshot_skill_bundle(skill_root: &Path) -> Result<Value, WorkError> {
         .collect();
     Ok(
         work_model::skill::verified::<work_model::skill::SkillBundle>(
-            json!({"schema": "work-skill-bundle/v1", "files": files, "bundle_sha256": bundle_sha256(&entries)}),
+            json!({"schema": "work-skill-bundle/v1", "files": files, "bundle_sha256": fingerprint::skill_bundle(&entries)}),
         ),
     )
 }
