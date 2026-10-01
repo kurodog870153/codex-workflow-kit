@@ -171,5 +171,4 @@ pub mod draft_source;
 pub mod index;
 pub mod item;
 pub mod ordering;
-pub mod repair;
 pub mod semantic;

@@ -1,21 +1,25 @@
 {
-  "schema": "work-workflow-state/v1",
-  "requirement_id": "example",
-  "status": "execution_pending",
+  "arguments": {
+    "execution_dir": "outputs/work/executions/example",
+    "task_id": "<confirmed-task-id>",
+    "task_path": "outputs/work/tasks/example/index.json",
+    "user_config_root": "<user-config-root>"
+  },
+  "artifacts": {
+    "execution": "outputs/work/executions/example",
+    "plan": "outputs/work/plans/example.json",
+    "task": "outputs/work/tasks/example/index.json"
+  },
+  "command": "execute preflight",
+  "details": {
+    "overall_status": "pending"
+  },
   "next_action": "select_task_for_execution",
-  "target": "outputs/work/executions/example",
-  "requires_user_confirmation": true,
+  "request_contract_id": null,
   "required_checks": [
     "task validate",
     "execute preflight"
   ],
-  "artifacts": {
-    "plan": "outputs/work/plans/example.json",
-    "task": "outputs/work/tasks/example/index.json",
-    "execution": "outputs/work/executions/example"
-  },
-  "routing_status": "VALID",
-  "router_compatibility_revision": 3,
   "required_instruction_sources": [
     "work.instruction-loading",
     "work.shared.formal-task-validation",
@@ -26,6 +30,85 @@
     "work.workflow.execute.identify-the-execution-target",
     "work.workflow.execute.run-deterministic-read-only-eligibility-checks"
   ],
+  "requirement_id": "example",
+  "requires_user_confirmation": true,
+  "router_compatibility_revision": 3,
+  "routing_reasons": [
+    "operation:select_task_for_execution",
+    "workflow_status:execution_pending",
+    "mode:execute"
+  ],
+  "routing_status": "VALID",
+  "schema": "work-workflow-state/v1",
+  "selection_manifest": {
+    "confirmation_required": true,
+    "router_compatibility_revision": 3,
+    "routing_input": {
+      "artifact_lifecycle": "execution_pending",
+      "authorization_state": "confirmation_required",
+      "formal_events": [],
+      "mode": "execute",
+      "operation": "select_task_for_execution",
+      "role": "main",
+      "status": "execution_pending",
+      "verified_state_sha256": "cc2bb328ae112eea708edbd95df8524136b4ec6c813f0d20bffcb741732f93aa"
+    },
+    "routing_status": "VALID",
+    "schema": "work-instruction-selection-manifest/v1",
+    "selection_sha256": "51779b2213811d218954b27229bba9df84778ddac1cbfba8af52b0c79cce4204",
+    "sources": [
+      {
+        "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
+        "compatibility_revision": 2,
+        "logical_name": "work.instruction-loading",
+        "path": "references/instruction-loading.md"
+      },
+      {
+        "canonical_sha256": "11f6edb8fbeccb01a12a1eb34be7a07524a9067b9e40eef79ebe01c1505aa313",
+        "compatibility_revision": 1,
+        "logical_name": "work.shared.formal-task-validation",
+        "path": "references/instruction-loading/formal-task-validation.md"
+      },
+      {
+        "canonical_sha256": "f0a86b7471ea45669b74cc74c9e3576c87f5eae278853e413e472d2d11575bd1",
+        "compatibility_revision": 1,
+        "logical_name": "work.shared.source-loading",
+        "path": "references/instruction-loading/source-loading.md"
+      },
+      {
+        "canonical_sha256": "b27d40bd8a066d8a09a78c6714eecc2314a0465fbceaa1cacf87af924d1bae32",
+        "compatibility_revision": 1,
+        "logical_name": "work.shared.artifact-paths",
+        "path": "references/instruction-loading/artifact-paths.md"
+      },
+      {
+        "canonical_sha256": "56b44b90cd595a3095ff1f0601560ad1661465fa9239b0b838b86c1fa0456e35",
+        "compatibility_revision": 1,
+        "logical_name": "work.shared.fingerprints",
+        "path": "references/instruction-loading/fingerprints.md"
+      },
+      {
+        "canonical_sha256": "7b4182014913d07b4203213a7ccf07269388d98861e66f5ebf37598b650a26eb",
+        "compatibility_revision": 2,
+        "logical_name": "work.workflow.execute",
+        "path": "references/workflows/execute.md"
+      },
+      {
+        "canonical_sha256": "7aea262eb05eedef461182e34d56ad415213bc5a9db51497d698ffb8485410b8",
+        "compatibility_revision": 1,
+        "logical_name": "work.workflow.execute.identify-the-execution-target",
+        "path": "references/workflows/execute/identify-the-execution-target.md"
+      },
+      {
+        "canonical_sha256": "b16bd6382707095b5a059c638b47473a6996c722e3c51e9d49c78424ca36ca8a",
+        "compatibility_revision": 1,
+        "logical_name": "work.workflow.execute.run-deterministic-read-only-eligibility-checks",
+        "path": "references/workflows/execute/run-deterministic-read-only-eligibility-checks.md"
+      }
+    ]
+  },
+  "selection_sha256": "51779b2213811d218954b27229bba9df84778ddac1cbfba8af52b0c79cce4204",
+  "semantic_input_contract": null,
   "source_order": [
     "work.instruction-loading",
     "work.shared.formal-task-validation",
@@ -36,89 +119,6 @@
     "work.workflow.execute.identify-the-execution-target",
     "work.workflow.execute.run-deterministic-read-only-eligibility-checks"
   ],
-  "selection_sha256": "38297cc5bd30a4f2d137b1ea1725c423385bad8d30f9ee9b4d361447e01f5413",
-  "routing_reasons": [
-    "operation:select_task_for_execution",
-    "workflow_status:execution_pending",
-    "mode:execute"
-  ],
-  "selection_manifest": {
-    "schema": "work-instruction-selection-manifest/v1",
-    "router_compatibility_revision": 3,
-    "routing_input": {
-      "mode": "execute",
-      "status": "execution_pending",
-      "operation": "select_task_for_execution",
-      "artifact_lifecycle": "execution_pending",
-      "formal_events": [],
-      "role": "main",
-      "authorization_state": "confirmation_required",
-      "verified_state_sha256": "cc2bb328ae112eea708edbd95df8524136b4ec6c813f0d20bffcb741732f93aa"
-    },
-    "routing_status": "VALID",
-    "sources": [
-      {
-        "logical_name": "work.instruction-loading",
-        "path": "references/instruction-loading.md",
-        "compatibility_revision": 2,
-        "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f"
-      },
-      {
-        "logical_name": "work.shared.formal-task-validation",
-        "path": "references/instruction-loading/formal-task-validation.md",
-        "compatibility_revision": 1,
-        "canonical_sha256": "aaa152b11f9bd2be7256c179d809bd78e7a69e5edc3e7f445ff6ee0f99a1b1d6"
-      },
-      {
-        "logical_name": "work.shared.source-loading",
-        "path": "references/instruction-loading/source-loading.md",
-        "compatibility_revision": 1,
-        "canonical_sha256": "f0a86b7471ea45669b74cc74c9e3576c87f5eae278853e413e472d2d11575bd1"
-      },
-      {
-        "logical_name": "work.shared.artifact-paths",
-        "path": "references/instruction-loading/artifact-paths.md",
-        "compatibility_revision": 1,
-        "canonical_sha256": "b27d40bd8a066d8a09a78c6714eecc2314a0465fbceaa1cacf87af924d1bae32"
-      },
-      {
-        "logical_name": "work.shared.fingerprints",
-        "path": "references/instruction-loading/fingerprints.md",
-        "compatibility_revision": 1,
-        "canonical_sha256": "56b44b90cd595a3095ff1f0601560ad1661465fa9239b0b838b86c1fa0456e35"
-      },
-      {
-        "logical_name": "work.workflow.execute",
-        "path": "references/workflows/execute.md",
-        "compatibility_revision": 2,
-        "canonical_sha256": "7b4182014913d07b4203213a7ccf07269388d98861e66f5ebf37598b650a26eb"
-      },
-      {
-        "logical_name": "work.workflow.execute.identify-the-execution-target",
-        "path": "references/workflows/execute/identify-the-execution-target.md",
-        "compatibility_revision": 1,
-        "canonical_sha256": "7aea262eb05eedef461182e34d56ad415213bc5a9db51497d698ffb8485410b8"
-      },
-      {
-        "logical_name": "work.workflow.execute.run-deterministic-read-only-eligibility-checks",
-        "path": "references/workflows/execute/run-deterministic-read-only-eligibility-checks.md",
-        "compatibility_revision": 1,
-        "canonical_sha256": "b16bd6382707095b5a059c638b47473a6996c722e3c51e9d49c78424ca36ca8a"
-      }
-    ],
-    "confirmation_required": true,
-    "selection_sha256": "38297cc5bd30a4f2d137b1ea1725c423385bad8d30f9ee9b4d361447e01f5413"
-  },
-  "details": {
-    "overall_status": "pending"
-  },
-  "request_contract_id": null,
-  "command": "execute preflight",
-  "arguments": {
-    "task_path": "outputs/work/tasks/example/index.json",
-    "execution_dir": "outputs/work/executions/example",
-    "task_id": "<confirmed-task-id>",
-    "user_config_root": "<user-config-root>"
-  },
-  "semantic_input_contract": null
+  "status": "execution_pending",
+  "target": "outputs/work/executions/example"
 }

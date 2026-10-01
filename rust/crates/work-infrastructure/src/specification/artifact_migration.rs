@@ -34,6 +34,175 @@ fn fail(code: &str, message: &str) -> WorkError {
     WorkError::new(ExitCode::ArtifactIntegrity, code, message, json!({}))
 }
 
+fn relationship_diagnostics(
+    root: &Path,
+    paths: &BTreeMap<String, String>,
+) -> Result<Vec<Value>, WorkError> {
+    let mut diagnostics = Vec::new();
+    let plan_path = &paths["plan"];
+    let index_path = &paths["task"];
+    let execution_path = format!("{}/index.json", paths["execution"]);
+    let read = |path: &str| -> Result<Option<(Value, Vec<u8>)>, WorkError> {
+        let absolute = storage_path(root, path)?;
+        if !absolute.is_file() {
+            return Ok(None);
+        }
+        let raw = LocalFiles.read_raw(&absolute)?;
+        Ok(parse_json_contract(&raw).ok().map(|value| (value, raw)))
+    };
+    let plan = read(plan_path)?;
+    let index = read(index_path)?;
+    let execution = read(&execution_path)?;
+    let mut report = |code: &str, path: &str, detail: &str| {
+        diagnostics.push(json!({"code":code,"path":path,"detail":detail,
+            "next_command":"migration semantic-prepare","mode":"reconstruction"}));
+    };
+    if let (Some((plan, plan_raw)), Some((index, index_raw))) = (&plan, &index) {
+        if plan["schema"] == "work-plan/v1" && index["schema"] == "work-task-index/v1" {
+            if plan["artifacts"] != index["artifacts"] {
+                report(
+                    "plan_task_routing_mismatch",
+                    index_path,
+                    "Plan and TASK artifact routes differ",
+                );
+            }
+            if index["source_plan"]["canonical_sha256"] != sha256_hex(plan_raw) {
+                report(
+                    "source_plan_fingerprint_mismatch",
+                    index_path,
+                    "TASK source Plan SHA differs from installed Plan bytes",
+                );
+            }
+            if index["source_plan"]["hierarchy_selection_sha256"]
+                != plan["hierarchy_selection"]["selection_sha256"]
+            {
+                report(
+                    "hierarchy_selection_mismatch",
+                    index_path,
+                    "TASK hierarchy selection differs from Plan",
+                );
+            }
+            if let Some((execution, _)) = &execution {
+                if execution["schema"] == "work-execution-index/v1" {
+                    for (code, actual, expected) in [
+                        (
+                            "execution_spec_mismatch",
+                            &execution["task_spec_id"],
+                            &index["spec_id"],
+                        ),
+                        (
+                            "execution_index_fingerprint_mismatch",
+                            &execution["task_index_sha256"],
+                            &json!(sha256_hex(index_raw)),
+                        ),
+                        (
+                            "execution_instruction_mismatch",
+                            &execution["task_instructions_sha256"],
+                            &index["instruction_selection"]["instructions_sha256"],
+                        ),
+                        (
+                            "execution_hierarchy_mismatch",
+                            &execution["hierarchy_selection_sha256"],
+                            &index["source_plan"]["hierarchy_selection_sha256"],
+                        ),
+                    ] {
+                        if actual != expected {
+                            report(
+                                code,
+                                &execution_path,
+                                "Execution binding differs from installed TASK collection",
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if let Some((index, _)) = &index {
+        if index["schema"] == "work-task-index/v1" {
+            let directory = index_path.rsplit_once('/').map_or("", |(parent, _)| parent);
+            for row in index["tasks"].as_array().into_iter().flatten() {
+                let Some(relative) = row["path"].as_str() else {
+                    continue;
+                };
+                let path = format!("{directory}/{relative}");
+                let absolute = match storage_path(root, &path) {
+                    Ok(path) => path,
+                    Err(_) => {
+                        report("invalid_task_item_path", &path, "TASK item path is invalid");
+                        continue;
+                    }
+                };
+                if !absolute.is_file() {
+                    report("missing_task_item", &path, "Indexed TASK item is absent");
+                    continue;
+                }
+                let raw = LocalFiles.read_raw(&absolute)?;
+                if row["canonical_sha256"] != sha256_hex(&raw) {
+                    report(
+                        "task_item_fingerprint_mismatch",
+                        &path,
+                        "Indexed TASK item SHA differs from installed bytes",
+                    );
+                }
+            }
+        }
+    }
+    Ok(diagnostics)
+}
+
+fn transaction_diagnostics(root: &Path, execution_dir: &str) -> Result<Vec<Value>, WorkError> {
+    let directory = storage_path(root, execution_dir)?;
+    if !directory.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut diagnostics = Vec::new();
+    let mut entries = fs::read_dir(&directory)
+        .map_err(|_| {
+            fail(
+                "migration_transaction_read",
+                "Transaction journals cannot be listed.",
+            )
+        })?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| {
+            fail(
+                "migration_transaction_read",
+                "Transaction journals cannot be listed.",
+            )
+        })?;
+    entries.sort_by_key(|entry| entry.file_name());
+    for entry in entries {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let command = if name.starts_with(".work-spec-update-") && name.ends_with(".json") {
+            "specification recover"
+        } else if name.starts_with(".work-spec-migration-") && name.ends_with(".json") {
+            "migration recover"
+        } else {
+            continue;
+        };
+        if directory.join(format!("{name}.done")).is_file() {
+            continue;
+        }
+        let path = format!("{execution_dir}/{name}");
+        let raw = LocalFiles.read_raw(&entry.path())?;
+        let valid = parse_json_contract(&raw).ok().is_some_and(|journal| {
+            validate_transaction(&journal).is_ok()
+                && render_transaction(&journal).ok().as_deref() == Some(raw.as_slice())
+        });
+        if valid {
+            diagnostics.push(json!({"code":"incomplete_transaction","path":path,
+                "detail":"An approved transaction has no completion marker",
+                "next_command":command,"mode":"recover"}));
+        } else {
+            diagnostics.push(json!({"code":"invalid_transaction","path":path,
+                "detail":"Transaction evidence is invalid; inspect bytes before any publication",
+                "next_command":"manual review","mode":"blocked"}));
+        }
+    }
+    Ok(diagnostics)
+}
+
 pub fn analyze(
     root: &Path,
     requirement: &str,
@@ -102,11 +271,23 @@ pub fn analyze(
             &format!("{}/index.json", paths["execution"]),
         )?;
     }
-    let fingerprint =
-        canonical_json_sha256(&json!({"requirement_id":requirement,"items":items}))
-            .map_err(|_| fail("migration_fingerprint", "Analysis cannot be fingerprinted."))?;
+    let diagnostics = if requested("task") || requested("execute") {
+        let mut diagnostics = relationship_diagnostics(root, &paths)?;
+        diagnostics.extend(transaction_diagnostics(root, &paths["execution"])?);
+        diagnostics
+    } else {
+        Vec::new()
+    };
+    let evidence = if diagnostics.is_empty() {
+        json!({"requirement_id":requirement,"items":items})
+    } else {
+        json!({"requirement_id":requirement,"items":items,"diagnostics":diagnostics})
+    };
+    let fingerprint = canonical_json_sha256(&evidence)
+        .map_err(|_| fail("migration_fingerprint", "Analysis cannot be fingerprinted."))?;
     let result = json!({"schema":"work-artifact-migration-analysis/v1",
-        "requirement_id":requirement,"items":items,"fingerprint":fingerprint});
+        "requirement_id":requirement,"items":items,"fingerprint":fingerprint,
+        "diagnostics":diagnostics});
     serde_json::from_value::<ArtifactMigrationAnalysis>(result.clone()).map_err(|_| {
         fail(
             "invalid_contract_value",
@@ -119,6 +300,12 @@ pub fn analyze(
 pub fn prepare_request(root: &Path, analysis: &Value, choices: &Value) -> Result<Value, WorkError> {
     let reviewed: ArtifactMigrationAnalysis = serde_json::from_value(analysis.clone())
         .map_err(|_| fail("migration_analysis", "A valid analysis is required."))?;
+    if !reviewed.diagnostics.is_empty() {
+        return Err(fail(
+            "migration_reconstruction_required",
+            "Broken artifact relations require reviewed reconstruction.",
+        ));
+    }
     if reviewed.schema != PublicSchema::WorkArtifactMigrationAnalysisV1 || reviewed.items.is_empty()
     {
         return Err(fail(
@@ -1210,6 +1397,68 @@ mod tests {
         .unwrap();
         assert_eq!(recovered["status"], "completed");
         assert_eq!(fs::read(&source).unwrap(), candidate);
+    }
+
+    #[test]
+    fn missing_item_and_broken_execution_binding_route_to_reconstruction() {
+        let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-update");
+        let root = std::env::temp_dir().join(format!(
+            "work-artifact-relations-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        for relative in [
+            "outputs/work/plans/example.json",
+            "outputs/work/tasks/example/index.json",
+            "outputs/work/executions/example/index.json",
+        ] {
+            let destination = root.join(relative);
+            fs::create_dir_all(destination.parent().unwrap()).unwrap();
+            fs::copy(fixture.join(relative), destination).unwrap();
+        }
+        let execution = root.join("outputs/work/executions/example/index.json");
+        let mut value: Value = serde_json::from_slice(&fs::read(&execution).unwrap()).unwrap();
+        value["task_spec_id"] = json!("TASK-SPEC-WRONG");
+        fs::write(&execution, serde_json::to_vec_pretty(&value).unwrap()).unwrap();
+        let analysis = analyze(&root, "example", &[]).unwrap();
+        let diagnostics = analysis["diagnostics"].as_array().unwrap();
+        assert!(
+            diagnostics
+                .iter()
+                .any(|row| row["code"] == "missing_task_item")
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .any(|row| row["code"] == "execution_spec_mismatch")
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .all(|row| row["next_command"] == "migration semantic-prepare"
+                    && row["mode"] == "reconstruction")
+        );
+        assert_eq!(
+            prepare_request(&root, &analysis, &json!([]))
+                .unwrap_err()
+                .reason_code,
+            "migration_reconstruction_required"
+        );
+        let invalid_journal =
+            root.join("outputs/work/executions/example/.work-spec-update-invalid.json");
+        fs::write(&invalid_journal, b"{").unwrap();
+        let with_transaction = analyze(&root, "example", &[]).unwrap();
+        assert!(
+            with_transaction["diagnostics"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|row| row["code"] == "invalid_transaction" && row["mode"] == "blocked")
+        );
     }
 
     #[test]

@@ -1,19 +1,19 @@
 {
   "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
-  "attempt_sha256": "d9b345a6c359a35b09cd37b94a59708718e9164f9f102c6e8d9db6404604c076",
+  "attempt_sha256": "c843c28d82e62ae5297f3a93db55590e347cec502cd98a2b02b0069b60a15572",
   "choice": "retain_only",
   "deviation_classifications": {
     "DEVIATION-001": "retain_only"
   },
-  "fingerprint": "a45a92621c33a9090e70b6036e07f3a5e8a6e3389ee63a40f1f4dffb7f4d7b0d",
+  "fingerprint": "7a4beff9cbe8c325cccff69002cfc13005ab12828df31d622d83973683273335",
   "ledger": {
     "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
     "entries": [
       {
-        "attempt_sha256": "d9b345a6c359a35b09cd37b94a59708718e9164f9f102c6e8d9db6404604c076",
+        "attempt_sha256": "c843c28d82e62ae5297f3a93db55590e347cec502cd98a2b02b0069b60a15572",
         "deviation_id": "DEVIATION-001",
         "outcome": "retained",
-        "reconciliation_fingerprint": "a45a92621c33a9090e70b6036e07f3a5e8a6e3389ee63a40f1f4dffb7f4d7b0d",
+        "reconciliation_fingerprint": "7a4beff9cbe8c325cccff69002cfc13005ab12828df31d622d83973683273335",
         "target": "retain_only"
       }
     ],

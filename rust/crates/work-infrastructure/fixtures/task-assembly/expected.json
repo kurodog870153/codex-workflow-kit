@@ -1,5 +1,5 @@
 {
-  "approval_sha256": "c175b267bd41fb4874a21d0b87379a9b1b0793d21d6b1e3678753ba8b69d93db",
+  "approval_sha256": "370ce83b3915eeb5d5507f8920391043edb31d9b449a8c1c0f1baaf01150727b",
   "contract": {
     "artifacts": {
       "execution": "outputs/work/executions/example",
@@ -7,7 +7,7 @@
       "task": "outputs/work/tasks/example/index.json"
     },
     "instruction_selection": {
-      "instructions_sha256": "bc408c5a41fbacf9c4cbc323e1da231d39cc5764fe52c293afaa4a47aee64df3",
+      "instructions_sha256": "faaf4a324feca64f085cc67beb0220b21b61e46cba2f8046a6d17097b113adb6",
       "references": [
         "task.general.task-records"
       ],
@@ -31,7 +31,7 @@
           "logical_name": "task.general"
         },
         {
-          "canonical_sha256": "f0b515ed95cd591bdad9116748c0bb3e929c0ef9ea68513ea6e1a59443c53966",
+          "canonical_sha256": "1ea4931d886c33c5bac81602aead13f66feb77dd6d35a07175c5fecd1a92c98c",
           "compatibility_revision": 1,
           "kind": "reference",
           "logical_name": "task.general.task-records"
@@ -57,7 +57,7 @@
         "goal": "Result",
         "id": "TASK-001",
         "instruction_selection": {
-          "instructions_sha256": "bc408c5a41fbacf9c4cbc323e1da231d39cc5764fe52c293afaa4a47aee64df3",
+          "instructions_sha256": "faaf4a324feca64f085cc67beb0220b21b61e46cba2f8046a6d17097b113adb6",
           "references": [
             "task.general.task-records"
           ],
@@ -85,7 +85,7 @@
               "logical_name": "task.general"
             },
             {
-              "canonical_sha256": "f0b515ed95cd591bdad9116748c0bb3e929c0ef9ea68513ea6e1a59443c53966",
+              "canonical_sha256": "1ea4931d886c33c5bac81602aead13f66feb77dd6d35a07175c5fecd1a92c98c",
               "compatibility_revision": 1,
               "kind": "reference",
               "logical_name": "task.general.task-records"
@@ -133,9 +133,9 @@
   "revision": 2,
   "schema": "work-task-draft-assembly/v1",
   "status": "valid",
-  "task_collection_sha256": "83b76a8fe4015e485c5d080a9190843d7726e2df299b8ab08ffc528d6d2903d9",
-  "task_index_sha256": "88924fa915c14615e0092ffb7d4656979ba3378ba73db82825c7519129168e83",
+  "task_collection_sha256": "d78a84dc2d4c74168c926e2f36faad2767619b292cbaa5db471c8a4596d657e4",
+  "task_index_sha256": "6cc4ee7ff18bd6aa88c388152968a45b96a749322a06fc1466e01886b839fcdd",
   "task_item_sha256": {
-    "TASK-001": "aaad46e655b0e95f73ca40bacce471de0ca655da51b2bbbdc4f19510fc9defa9"
+    "TASK-001": "a7213dd29c6fa018d9e614ffc09f70402bc7093e44167e9f4d6d4ba68c9ab60a"
   }
 }

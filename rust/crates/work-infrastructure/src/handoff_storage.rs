@@ -1066,10 +1066,10 @@ mod tests {
         let task_path = "outputs/work/tasks/example/index.json";
         let request = json!({"summary":"Start execution."});
         let source = json!({"stage":"task","task_spec_id":"TASK-SPEC-001","task_id":"TASK-001",
-            "task_collection_sha256":"d6613eed97b770b10523a201090296d6e11a6f8b12ab57745d88163146865c2d",
-            "task_index_sha256":"32ec5309d2215f9546a734c8799b6ed8bd85e9cf66bbdce78a879a1927c2f408",
-            "task_item_sha256":"02d617c7c5fe29ce83ba0edbfc9f7531ab7cb08a4055ad15283e621446ea8541",
-            "task_instructions_sha256":"bc408c5a41fbacf9c4cbc323e1da231d39cc5764fe52c293afaa4a47aee64df3",
+            "task_collection_sha256":"49d02ea2ddc5b8a9ad228e694158caaadecbdb62ed949a843ee8f3b1a36add55",
+            "task_index_sha256":"270198d69ea92c2092b89144b1d6f163d053fbff2206bc25af6e1d7e9e17e25e",
+            "task_item_sha256":"af313241b49b13285fea19ee04397d79b189eeddd24cd327a31b24cdce85efc0",
+            "task_instructions_sha256":"faaf4a324feca64f085cc67beb0220b21b61e46cba2f8046a6d17097b113adb6",
             "skill_id":null,"skill_selection_sha256":"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"});
         let expected = json!({"schema":"work-handoff/v1","marker":"WORK-HANDOFF",
             "direction":"task_to_execute","requirement_id":"example",
@@ -1206,15 +1206,15 @@ mod tests {
             "affected_ids":["TASK-001"],"validation_requirements":["Review criteria."]});
         let base_source = json!({"stage":"task","plan_sha256":"32060424c0c7084b6301982b90f71472ee5abe5cec3f2e9712bfa4e6134e3e5c",
             "task_spec_id":"TASK-SPEC-001",
-            "task_collection_sha256":"d6613eed97b770b10523a201090296d6e11a6f8b12ab57745d88163146865c2d",
-            "task_index_sha256":"32ec5309d2215f9546a734c8799b6ed8bd85e9cf66bbdce78a879a1927c2f408",
+            "task_collection_sha256":"49d02ea2ddc5b8a9ad228e694158caaadecbdb62ed949a843ee8f3b1a36add55",
+            "task_index_sha256":"270198d69ea92c2092b89144b1d6f163d053fbff2206bc25af6e1d7e9e17e25e",
             "skill_selection_sha256":"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"});
         for task_id in [None, Some("TASK-001")] {
             let mut source = base_source.clone();
             if let Some(id) = task_id {
                 source["task_id"] = json!(id);
                 source["task_item_sha256"] =
-                    json!("02d617c7c5fe29ce83ba0edbfc9f7531ab7cb08a4055ad15283e621446ea8541");
+                    json!("af313241b49b13285fea19ee04397d79b189eeddd24cd327a31b24cdce85efc0");
                 source["skill_id"] = Value::Null;
             }
             let expected = json!({"schema":"work-handoff/v1","marker":"WORK-HANDOFF",
@@ -1334,10 +1334,10 @@ mod tests {
             "requested_changes":["Clarify scope."],"preserve":["Current behavior."],
             "affected_ids":["TASK-001"],"validation_requirements":["Review criteria."]});
         let source = json!({"stage":"execute","task_spec_id":"TASK-SPEC-001","task_id":"TASK-001",
-            "task_collection_sha256":"d6613eed97b770b10523a201090296d6e11a6f8b12ab57745d88163146865c2d",
-            "task_index_sha256":"32ec5309d2215f9546a734c8799b6ed8bd85e9cf66bbdce78a879a1927c2f408",
-            "task_item_sha256":"02d617c7c5fe29ce83ba0edbfc9f7531ab7cb08a4055ad15283e621446ea8541",
-            "task_instructions_sha256":"bc408c5a41fbacf9c4cbc323e1da231d39cc5764fe52c293afaa4a47aee64df3",
+            "task_collection_sha256":"49d02ea2ddc5b8a9ad228e694158caaadecbdb62ed949a843ee8f3b1a36add55",
+            "task_index_sha256":"270198d69ea92c2092b89144b1d6f163d053fbff2206bc25af6e1d7e9e17e25e",
+            "task_item_sha256":"af313241b49b13285fea19ee04397d79b189eeddd24cd327a31b24cdce85efc0",
+            "task_instructions_sha256":"faaf4a324feca64f085cc67beb0220b21b61e46cba2f8046a6d17097b113adb6",
             "skill_id":null,"execute_skill_selection_sha256":"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
             "execution_context":{"attempt":{"status":"not_created"},"phase":"preflight",
                 "issue_type":"specification_defect","reason":"Specification defect."}});

@@ -390,11 +390,11 @@ mod tests {
         assert_eq!(context.contract["tasks"][0]["id"], "TASK-001");
         assert_eq!(
             canonical_json_sha256(&context.contract).unwrap(),
-            "002eeb864e41b793ec60fb026dd187dbab74ba9086d7b1898f935e87f1189235"
+            "4e6d146cda11ff823d1cd6f205584ddf0cb19c2bffb0afe9b1e160f675f7f503"
         );
         assert_eq!(
             canonical_json_sha256(&context.validation).unwrap(),
-            "3d931572c60a651f880a2d6848f4fa42b4250b46a4c1b9e0992e06bc229dea79"
+            "d26464c0ee2e20a0b98f076226b84b2c333c32a972ee4f11e8c7c7184e2075a5"
         );
         assert_eq!(
             context.validation["task_collection_sha256"],

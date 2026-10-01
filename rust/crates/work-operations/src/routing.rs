@@ -43,9 +43,9 @@ where
     if ![
         "plan",
         "task",
+        "revise",
         "execute",
         "progress",
-        "repair",
         "specification",
     ]
     .contains(&mode)
@@ -190,13 +190,14 @@ where
 fn infer_mode(operation: &str) -> &'static str {
     match operation {
         "prepare_plan" => "plan",
+        "prepare_revision" => "revise",
         "confirm_task_list"
         | "choose_task"
         | "confirm_start"
         | "confirm_resume"
         | "confirm_review"
         | "assemble_for_review" => "task",
-        "inspect_recovery" => "repair",
+        "inspect_recovery" => "execute",
         "review_reconciliation" => "specification",
         _ => "execute",
     }
@@ -312,6 +313,29 @@ mod tests {
                         == "references/instruction-loading/instruction-maintenance.md")
             );
         }
+    }
+
+    #[test]
+    fn revision_routes_to_specification_sources() {
+        let routed = route_fixture(
+            "prepare_revision",
+            None,
+            &["revision"],
+            "main",
+            false,
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(routed["routing_status"], "VALID");
+        assert_eq!(
+            routed["selection_manifest"]["routing_input"]["mode"],
+            "revise"
+        );
+        let sources = routed["required_instruction_sources"].as_array().unwrap();
+        assert!(sources.contains(&json!("work.workflow.specification")));
+        assert!(sources.contains(&json!("work.shared.artifact-revision")));
+        assert!(!sources.contains(&json!("work.workflow.repair")));
     }
 
     fn route_fixture(

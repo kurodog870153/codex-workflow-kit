@@ -4,8 +4,8 @@ use serde_json::{Value, json};
 
 use crate::identifiers::{IdentifierIssue, RequirementId};
 
-const SYNTAX: &str = "$work <plan|task|execute|migration> -- <request>";
-const PUBLIC_MODES: [&str; 4] = ["plan", "task", "execute", "migration"];
+const SYNTAX: &str = "$work <plan|task|revise|migration|execute> -- <request>";
+const PUBLIC_MODES: [&str; 5] = ["plan", "task", "revise", "migration", "execute"];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvocationIssue {
@@ -91,7 +91,7 @@ pub fn parse_invocation(text: &str) -> Result<Value, InvocationIssue> {
     if !PUBLIC_MODES.contains(&mode) {
         return Err(usage(
             "work_invocation_mode_invalid",
-            "Only plan, task, execute and migration are public Work modes.",
+            "Only plan, task, revise, migration and execute are public Work modes.",
             json!({"modes":PUBLIC_MODES}),
         ));
     }
@@ -146,7 +146,7 @@ mod tests {
 
     #[test]
     fn explicit_invocation_preserves_request_and_classifies_resume() {
-        for mode in ["plan", "task", "execute", "migration"] {
+        for mode in ["plan", "task", "revise", "migration", "execute"] {
             assert_eq!(
                 parse_invocation(&format!("$work {mode} -- review")).unwrap()["mode"],
                 mode
@@ -156,11 +156,15 @@ mod tests {
         assert_eq!(invalid.reason_code, "work_invocation_mode_invalid");
         assert_eq!(
             invalid.details["modes"],
-            json!(["plan", "task", "execute", "migration"])
+            json!(["plan", "task", "revise", "migration", "execute"])
         );
         assert_eq!(
             parse_invocation("$work migration -- example").unwrap()["entry"],
             json!({"kind":"migration"})
+        );
+        assert_eq!(
+            parse_invocation("$work revise -- 修改 example 的 TASK-001 goal").unwrap()["entry"],
+            json!({"kind":"workflow"})
         );
         let parsed = parse_invocation("$work task --  resume issue55\n").unwrap();
         assert_eq!(parsed["request"], "  resume issue55\n");
@@ -184,7 +188,7 @@ mod tests {
     fn python_invocation_preserves_opaque_requests_and_rejects_bad_headers() {
         let tail =
             "  建立 e\u{0301}\r\n\"quoted\" -- $HOME $(command)\n$work execute -- embedded\n";
-        for mode in ["plan", "task", "execute"] {
+        for mode in ["plan", "task", "revise", "execute"] {
             assert_eq!(
                 parse_invocation(&format!("$work {mode} --{tail}")).unwrap(),
                 json!({"schema":"work-invocation/v1","mode":mode,"request":tail,"entry":{"kind":"workflow"}})

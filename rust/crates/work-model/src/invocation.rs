@@ -9,6 +9,7 @@ use crate::schema::PublicSchema;
 pub enum InvocationMode {
     Plan,
     Task,
+    Revise,
     Execute,
     Migration,
 }

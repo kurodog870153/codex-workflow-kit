@@ -82,7 +82,7 @@ mod tests {
 
     #[test]
     fn frozen_catalog_keeps_public_descriptions_and_scaffolds() {
-        assert_eq!(list()["contracts"].as_array().unwrap().len(), 119);
+        assert_eq!(list()["contracts"].as_array().unwrap().len(), 114);
         assert_eq!(
             describe("work-plan-semantic-request/v1").unwrap()["kind"],
             "semantic_request"
@@ -419,28 +419,6 @@ mod tests {
         assert_eq!(example["context_sha256"], "0".repeat(64));
         for required in description["required"].as_array().unwrap() {
             assert!(example.get(required.as_str().unwrap()).is_some());
-        }
-    }
-
-    #[test]
-    fn task_repair_examples_round_trip_through_public_registry() {
-        for id in [
-            "work-task-repair-prepare-request/v1",
-            "work-task-repair-request/v1",
-            "work-task-repair/v1",
-            "work-task-repair-prepare/v1",
-        ] {
-            let description = describe(id).unwrap();
-            let example = &description["example"];
-            assert_eq!(example["schema"], id);
-            for field in description["required"].as_array().unwrap() {
-                assert!(example.get(field.as_str().unwrap()).is_some(), "{id}");
-            }
-            let raw = work_infrastructure::codec::canonical_json(example).unwrap();
-            assert_eq!(
-                work_infrastructure::codec::parse_json_contract(&raw).unwrap(),
-                *example
-            );
         }
     }
 

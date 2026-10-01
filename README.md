@@ -4,12 +4,13 @@ Codex Workflow Kit 透過 `$work` 協助你規劃需求、拆分任務並執行�
 
 ## 功能
 
-1. 使用同一個入口處理 Plan、Task、Execute 與 Migration。
+1. 使用同一個入口處理 Plan、Task、Revise、Migration 與 Execute。
 2. Plan 會依需求推薦適合的工作類型與技能，並說明推薦原因。
 3. 推薦內容由你確認後才會使用。
 4. Plan 可組合多個技能，例如 UI、frontend 與 backend。
-5. Task 會把工作拆成最小可執行任務；Execute 只使用目標任務需要的技能。
-6. Migration 會檢查既有 Plan、TASK、Execute 文件與目前規格的相容性，經逐項確認後執行遷移。
+5. Task 以 prepare、status、save、preview、apply、recover 規劃並建立第一版正式 TASK collection；Execute 只使用目標任務需要的技能。
+6. Revise 透過內部 Specification 流程修改有效的正式 Plan、TASK 與 Execution，預覽完整變更並在核准後以同一交易發布。
+7. Migration 診斷損壞或不相容的既有文件，必要時重建相關 Plan、TASK 與 Execution；選擇性遷移後會核對最終指紋。
 
 ## 使用方式
 
@@ -22,20 +23,24 @@ $work <mode> -- <request>
 可用 `<mode>` 模式：
 
 1. `plan`：規劃需求並推薦技能。
-2. `task`：依已確認的 Plan 拆分任務。
-3. `execute`：執行指定任務。
-4. `migration`：遷移既有 Plan、TASK、Execute 文件；這是獨立於一般工作流程的維護模式。
+2. `task`：依已確認的 Plan 討論任務，建立第一版正式 TASK collection。
+3. `revise`：依確認的語意變更，修訂有效的正式 Plan、TASK 與 Execution。
+4. `migration`：分析、遷移或重建損壞及不相容的既有文件。
+5. `execute`：執行指定任務。
 
 ### 範例
 
 ```text
 $work plan -- 建立一個包含 UI、frontend 與 backend 的網站
 $work task -- 依已確認 Plan 拆分網站任務
+$work revise -- 調整 example 的 TASK-001 驗收條件並檢查下游影響
+$work migration -- 分析 example 的既有 Plan、TASK 與 Execution，重建損壞的關聯
 $work execute -- 執行正式 TASK-001
-$work migration -- 檢查並遷移 example 的既有 Plan、TASK 與 Execute 文件
 ```
 
 Plan 推薦技能後，你可以接受、加入、移除或取消。若沒有合適技能，也可以確認只使用 Work 的基本能力。
+
+一般流程是 Plan → Task → Revise（需要修改正式規格時）→ Execute。Task 的第一版正式文件須先預覽，再以核准的指紋發布；已有有效正式文件的修改使用 Revise。若現有文件無法構成可信的正式基線，先使用 Migration analyze 診斷，確認重建內容後再執行。交易中斷時，只能用該領域的 recover 恢復相同且已核准的變更。
 
 ### 保存討論進度
 

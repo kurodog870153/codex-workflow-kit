@@ -17,11 +17,12 @@ use serde_json::{Value, json};
 use work_operations::canonical::{parse_json_contract, sha256_hex};
 use work_operations::execution::index::{render_execution_index, validate_execution_index};
 use work_operations::plan::render_plan_value;
+use work_operations::specification::migration_diff::unified_diff;
 use work_operations::specification::transaction::{
     approval_sha256, derived_transaction_id, encode_snapshot, validate_transaction,
 };
+use work_operations::specification::update::{content_fingerprints, rebuild_execution_index};
 use work_operations::task::ordering::{TaskDocumentKind, render_task};
-use work_operations::task::repair::{content_fingerprints, rebuild_execution_index};
 
 use crate::error::{ExitCode, WorkError};
 use crate::instruction::InstructionSourceRepository;
@@ -167,7 +168,10 @@ where
             issue.details,
         )
     })?;
-    if old_execution.get("lock").is_some() {
+    if old_execution
+        .get("lock")
+        .is_some_and(|value| !value.is_null())
+    {
         return Err(fail(
             "spec_update_lock_present",
             "The execution index already contains a lock.",
@@ -311,12 +315,18 @@ where
         )
     });
     let mut files = Vec::new();
+    let mut review_diff = Vec::new();
     for path in all_paths {
         let before = source.get(&path);
         let after = candidate.get(&path);
         if before == after {
             continue;
         }
+        review_diff.push(unified_diff(
+            &path,
+            before.map(Vec::as_slice),
+            after.map(Vec::as_slice),
+        ));
         let phase = if path.contains("/tasks/") {
             20
         } else if path == baseline.plan_path {
@@ -373,14 +383,48 @@ where
         &old_items,
         &items,
     );
+    let old_rows = old_execution["tasks"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let next_rows = rebuilt["tasks"].as_array().cloned().unwrap_or_default();
+    let mut lifecycle_impact = Vec::new();
+    for id in old_rows
+        .iter()
+        .chain(next_rows.iter())
+        .filter_map(|row| row["id"].as_str())
+    {
+        if lifecycle_impact
+            .iter()
+            .any(|row: &Value| row["task_id"] == id)
+        {
+            continue;
+        }
+        let old_row = old_rows.iter().find(|row| row["id"] == id);
+        let next_row = next_rows.iter().find(|row| row["id"] == id);
+        let before = old_row
+            .map(|row| row["status"].clone())
+            .unwrap_or(Value::Null);
+        let after = next_row
+            .map(|row| row["status"].clone())
+            .unwrap_or(Value::Null);
+        if before != after || affected.iter().any(|task_id| task_id == id) {
+            lifecycle_impact.push(json!({"task_id":id,"before":before,"after":after,
+                "reason_before":old_row.map(|row| row["status_reason"].clone()).unwrap_or(Value::Null),
+                "reason_after":next_row.map(|row| row["status_reason"].clone()).unwrap_or(Value::Null)}));
+        }
+    }
     let result = work_model::specification::verified::<work_model::specification::SpecUpdate>(
         json!({"schema":"work-spec-update/v1","status":"valid",
         "requirement_id":request["plan"]["requirement_id"],"record_id":id,
         "approved_sha256":approval,"affected_task_ids":affected,"changed_fields":changed,
+        "validation":{"task_collection":validation,"execution_index":"valid",
+            "history":"validated"},"diff":review_diff,
+        "lifecycle_impact":lifecycle_impact,
         "artifacts":artifacts,"candidate":{"plan":request["plan"],
             "task_index":request["task_index"],"task_items":request["task_items"]},
         "transaction":transaction,"file_readiness":"requires_execute_preflight",
-        "next_step":{"command":"task spec-update","input":"same_request","approved_sha256":approval}}),
+        "next_step":{"command":"specification apply","input":"same_request","approved_sha256":approval}}),
     );
     let _: work_model::specification::SpecUpdateRequest = serde_json::from_value(request.clone())
         .expect("validated Specification update request matches its model");

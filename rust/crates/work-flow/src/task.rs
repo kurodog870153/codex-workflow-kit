@@ -1,8 +1,6 @@
 //! Task command flows.
 
-use serde_json::Value;
-use serde_json::json;
-use work_feature::error::ExitCode;
+use serde_json::{Value, json};
 use work_feature::error::WorkError;
 use work_feature::instruction::InstructionSourceRepository;
 use work_feature::plan::PlanPathRepository;
@@ -69,6 +67,7 @@ pub fn create_from_drafts<R, H, S, P, T>(
     ports: DraftCreatePorts<'_, R, H, S, P, T>,
     request: ProjectAssemblyInput<'_>,
     approved_sha256: &str,
+    recovery: bool,
 ) -> Result<Value, WorkError>
 where
     R: TaskAssemblyRepository,
@@ -99,34 +98,11 @@ where
             plan_path: artifacts["plan"].as_str().unwrap(),
             task_path: artifacts["task"].as_str().unwrap(),
             execution_dir: artifacts["execution"].as_str().unwrap(),
-            recovery: false,
+            recovery,
         },
     )?;
     created["approval_sha256"] = serde_json::json!(approved_sha256);
     Ok(created)
-}
-
-pub fn diagnose(report: Value) -> Result<Value, WorkError> {
-    if report["normal_use_allowed"] == false {
-        Err(WorkError::new(
-            ExitCode::Contract,
-            "task_diagnostics_failed",
-            "TASK validation is blocked; review the diagnostic report.",
-            report,
-        ))
-    } else {
-        Ok(report)
-    }
-}
-
-pub fn repair(repair: impl FnOnce() -> Result<Value, WorkError>) -> Result<Value, WorkError> {
-    repair()
-}
-
-pub fn repair_prepare(
-    prepare: impl FnOnce() -> Result<Value, WorkError>,
-) -> Result<Value, WorkError> {
-    prepare()
 }
 
 pub fn validate_collection<H, S, P, R>(

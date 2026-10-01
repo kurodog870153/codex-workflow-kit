@@ -564,9 +564,9 @@ mod macos {
     #[test]
     fn missing_source_never_writes_installation() {
         for missing in [
+            "references/instruction-loading/invocation.md",
             "references/workflows/specification.md",
             "references/workflows/task-drafts.md",
-            "references/workflows/repair.md",
             "references/workflows/progress.md",
             "references/subagents/artifact-editor.md",
             "references/subagents/progress-saver.md",
@@ -587,6 +587,7 @@ mod macos {
                     .unwrap();
                 }
                 let source = repository().join("skills/work");
+                assert!(source.join(missing).is_file(), "{missing}");
                 copy_tree(&source, &fixture.join("skills/work"), &source.join(missing));
                 let home = root.join("home");
                 fs::create_dir(&home).unwrap();

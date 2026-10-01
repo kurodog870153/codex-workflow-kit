@@ -1,6 +1,7 @@
 //! Specification update validation, publication, recovery and verification.
 
 use std::collections::BTreeMap;
+use std::fs;
 use std::path::Path;
 
 use serde_json::{Value, json};
@@ -14,6 +15,10 @@ use work_feature::specification::{SpecificationBaseline, preview_update};
 use work_feature::task::load_collection_with_file_state;
 use work_operations::canonical::sha256_hex as raw_sha256;
 use work_operations::canonical::{parse_json_contract, sha256_hex};
+use work_operations::execution::attempt::{validate_attempt_bytes, validate_attempt_file_path};
+use work_operations::execution::correction::{
+    render_correction, validate_correction, validate_correction_file_path,
+};
 use work_operations::execution::index::validate_execution_index;
 use work_operations::plan::render_plan_value;
 use work_operations::specification::prepare::validate_prepare_request;
@@ -22,7 +27,7 @@ use work_operations::specification::transaction::{
 };
 use work_operations::specification::update::validate_update_request;
 use work_operations::specification::verification::validate_request as validate_verification_request;
-use work_operations::task::candidate::build_semantic_candidate;
+use work_operations::task::candidate::{build_semantic_candidate, build_semantic_patch};
 use work_operations::task::ordering::{TaskDocumentKind, render_task};
 
 use crate::files::LocalFiles;
@@ -33,9 +38,48 @@ use crate::specification::storage::{
     execution_history_fingerprints, publish_journal, require_no_spec_update, storage_path,
     write_journal,
 };
-use crate::task::repair_storage::work_json_files;
 use crate::task::storage::LocalTaskStorage;
 use crate::writer_lock::LocalWriterLock;
+
+fn work_json_files(root: &Path) -> Result<Vec<String>, WorkError> {
+    let mut pending = vec!["outputs/work".to_owned()];
+    let mut files = Vec::new();
+    while let Some(relative) = pending.pop() {
+        let directory = storage_path(root, &relative)?;
+        if !directory.is_dir() {
+            continue;
+        }
+        for entry in fs::read_dir(directory).map_err(|_| {
+            WorkError::new(
+                ExitCode::IoFailure,
+                "file_read_failed",
+                "The managed Work directory cannot be inspected.",
+                json!({}),
+            )
+        })? {
+            let entry = entry.map_err(|_| {
+                WorkError::new(
+                    ExitCode::IoFailure,
+                    "file_read_failed",
+                    "The managed Work directory cannot be inspected.",
+                    json!({}),
+                )
+            })?;
+            let path = entry.path();
+            if path.is_symlink() {
+                continue;
+            }
+            let child = format!("{relative}/{}", entry.file_name().to_string_lossy());
+            if path.is_dir() {
+                pending.push(child);
+            } else if path.is_file() && path.extension().is_some_and(|value| value == "json") {
+                files.push(child);
+            }
+        }
+    }
+    files.sort();
+    Ok(files)
+}
 
 pub enum SpecOperation {
     Validate,
@@ -83,6 +127,400 @@ impl OwnedBaseline {
 
 fn fail(reason: &str, message: &str) -> WorkError {
     WorkError::new(ExitCode::ArtifactIntegrity, reason, message, json!({}))
+}
+
+fn with_migration_route(mut error: WorkError) -> WorkError {
+    if let Some(details) = error.details.as_object_mut() {
+        details.insert("next_command".into(), json!("migration analyze"));
+    } else {
+        error.details = json!({"next_command":"migration analyze"});
+    }
+    error
+}
+
+fn validate_specification_history(
+    root: &Path,
+    execution: &Value,
+    execution_dir: &str,
+    fingerprints: &BTreeMap<String, String>,
+) -> Result<(), WorkError> {
+    let invalid = |path: &str, reason: &str| {
+        WorkError::new(
+            ExitCode::ArtifactIntegrity,
+            "spec_update_history_invalid",
+            "The execution history must be valid before revision.",
+            json!({"path":path,"cause":reason,"next_command":"migration analyze"}),
+        )
+    };
+    for path in fingerprints.keys() {
+        if !(path.ends_with("/attempt.json")
+            || path.contains("/corrections/") && path.ends_with(".json"))
+        {
+            continue;
+        }
+        let raw = LocalFiles.read_raw(&storage_path(root, path)?)?;
+        let value =
+            parse_json_contract(&raw).map_err(|_| invalid(path, "invalid_json_contract"))?;
+        if path.ends_with("/attempt.json") {
+            validate_attempt_bytes(&value, &raw)
+                .map_err(|issue| invalid(path, issue.reason_code))?;
+            validate_attempt_file_path(path, &value)
+                .map_err(|issue| invalid(path, issue.reason_code))?;
+        } else {
+            validate_correction(&value).map_err(|issue| invalid(path, issue.reason_code))?;
+            validate_correction_file_path(path, &value)
+                .map_err(|issue| invalid(path, issue.reason_code))?;
+            if render_correction(&value).map_err(|issue| invalid(path, issue.reason_code))? != raw {
+                return Err(invalid(path, "noncanonical_json"));
+            }
+        }
+    }
+    for row in execution["tasks"].as_array().into_iter().flatten() {
+        if let (Some(task), Some(attempt)) = (row["id"].as_str(), row["latest_attempt"].as_str()) {
+            let path = format!("{execution_dir}/{task}/{attempt}/attempt.json");
+            if !fingerprints.contains_key(&path) {
+                return Err(invalid(&path, "missing_latest_attempt"));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn semantic_error(reason: &str, message: &str) -> WorkError {
+    WorkError::new(ExitCode::Contract, reason, message, json!({}))
+}
+
+fn semantic_positions(value: &Value, rows: &Value) -> Result<Vec<String>, WorkError> {
+    let positions = value.as_array().ok_or_else(|| {
+        semantic_error("invalid_semantic_position", "Expected one-based positions.")
+    })?;
+    let source = rows.as_array().ok_or_else(|| {
+        semantic_error(
+            "invalid_semantic_reference",
+            "The referenced collection is unavailable.",
+        )
+    })?;
+    let mut result = Vec::new();
+    for position in positions {
+        let id = position
+            .as_u64()
+            .filter(|position| *position > 0)
+            .and_then(|position| source.get(position as usize - 1))
+            .and_then(|row| row["id"].as_str())
+            .ok_or_else(|| {
+                semantic_error(
+                    "invalid_semantic_position",
+                    "A one-based position must identify an existing item.",
+                )
+            })?;
+        if result.iter().any(|previous| previous == id) {
+            return Err(semantic_error(
+                "invalid_semantic_position",
+                "Semantic positions must be unique.",
+            ));
+        }
+        result.push(id.to_owned());
+    }
+    Ok(result)
+}
+
+fn semantic_plan_rows(plan: &Value, field: &str, choices: &Value) -> Result<Value, WorkError> {
+    let (prefix, required, references): (&str, &[&str], &[(&str, &str)]) = match field {
+        "goals" => ("GOAL", &["statement"], &[]),
+        "scope" => (
+            "SCOPE",
+            &["kind", "statement"],
+            &[("goal_positions", "goals")],
+        ),
+        "dependencies" => ("DEPENDENCY", &["statement", "applies_to"], &[]),
+        "risks" => (
+            "RISK",
+            &["condition", "impact", "mitigation", "applies_to"],
+            &[],
+        ),
+        "milestones" => (
+            "MILESTONE",
+            &["statement", "deliverable_positions"],
+            &[("deliverable_positions", "deliverables")],
+        ),
+        "deliverables" => (
+            "DELIVERABLE",
+            &["statement", "goal_positions", "acceptance_positions"],
+            &[
+                ("goal_positions", "goals"),
+                ("acceptance_positions", "acceptance_criteria"),
+            ],
+        ),
+        "acceptance_criteria" => (
+            "ACCEPTANCE",
+            &["statement", "deliverable_positions"],
+            &[("deliverable_positions", "deliverables")],
+        ),
+        "decisions" => ("DECISION", &["statement", "rationale", "applies_to"], &[]),
+        _ => {
+            return Err(semantic_error(
+                "spec_prepare_field",
+                "Unsupported semantic Plan field.",
+            ));
+        }
+    };
+    let choices = choices.as_array().ok_or_else(|| {
+        semantic_error(
+            "invalid_semantic_items",
+            "A semantic collection must be an array.",
+        )
+    })?;
+    let source = plan[field].as_array();
+    let mut next = source
+        .into_iter()
+        .flatten()
+        .filter_map(|row| row["id"].as_str())
+        .filter_map(|id| id.rsplit_once('-')?.1.parse::<usize>().ok())
+        .max()
+        .unwrap_or(0);
+    let mut keys = std::collections::BTreeSet::new();
+    let mut positions = std::collections::BTreeSet::new();
+    let mut result = Vec::new();
+    for choice in choices {
+        let object = choice.as_object().ok_or_else(|| {
+            semantic_error("invalid_semantic_object", "A semantic object is required.")
+        })?;
+        if required.iter().any(|name| !object.contains_key(*name))
+            || object.keys().any(|name| {
+                name != "key"
+                    && name != "existing_position"
+                    && !required.contains(&name.as_str())
+                    && !references.iter().any(|(semantic, _)| name == semantic)
+            })
+        {
+            return Err(semantic_error(
+                "invalid_object_fields",
+                "The semantic object has missing or unknown fields.",
+            ));
+        }
+        let key = choice["key"]
+            .as_str()
+            .filter(|key| {
+                !key.is_empty()
+                    && key.as_bytes()[0].is_ascii_lowercase()
+                    && key.bytes().all(|byte| {
+                        byte.is_ascii_lowercase()
+                            || byte.is_ascii_digit()
+                            || byte == b'_'
+                            || byte == b'-'
+                    })
+            })
+            .ok_or_else(|| semantic_error("invalid_semantic_key", "Use a lowercase local key."))?;
+        if !keys.insert(key) {
+            return Err(semantic_error(
+                "duplicate_semantic_key",
+                "Local keys must be unique.",
+            ));
+        }
+        let id = if let Some(position) = object.get("existing_position") {
+            let position = position
+                .as_u64()
+                .filter(|value| *value > 0)
+                .ok_or_else(|| {
+                    semantic_error("invalid_semantic_position", "Invalid source position.")
+                })? as usize;
+            if !positions.insert(position) {
+                return Err(semantic_error(
+                    "duplicate_semantic_position",
+                    "A source item may be retained once.",
+                ));
+            }
+            source
+                .and_then(|rows| rows.get(position - 1))
+                .and_then(|row| row["id"].as_str())
+                .ok_or_else(|| {
+                    semantic_error("invalid_semantic_position", "Invalid source position.")
+                })?
+                .to_owned()
+        } else {
+            next += 1;
+            format!("{prefix}-{next:03}")
+        };
+        let mut formal = object.clone();
+        formal.remove("key");
+        formal.remove("existing_position");
+        formal.insert("id".into(), json!(id));
+        for (semantic, collection) in references {
+            if let Some(value) = formal.remove(*semantic) {
+                let ids = semantic_positions(&value, &plan[*collection])?;
+                formal.insert(semantic.replace("_positions", "_ids"), json!(ids));
+            }
+        }
+        if let Some(value) = formal.remove("applies_to") {
+            let rows = value
+                .as_array()
+                .filter(|rows| !rows.is_empty())
+                .ok_or_else(|| {
+                    semantic_error(
+                        "invalid_semantic_reference",
+                        "applies_to requires semantic references.",
+                    )
+                })?;
+            let mut ids = Vec::new();
+            for reference in rows {
+                let collection = reference["collection"].as_str().ok_or_else(|| {
+                    semantic_error("invalid_semantic_reference", "Invalid Plan reference.")
+                })?;
+                let id = if collection == "plan"
+                    && reference.as_object().is_some_and(|value| value.len() == 1)
+                {
+                    "PLAN".to_owned()
+                } else {
+                    let position = reference["position"]
+                        .as_u64()
+                        .filter(|position| *position > 0)
+                        .ok_or_else(|| {
+                            semantic_error("invalid_semantic_position", "Invalid Plan position.")
+                        })?;
+                    plan.get(collection)
+                        .and_then(Value::as_array)
+                        .and_then(|rows| rows.get(position as usize - 1))
+                        .and_then(|row| row["id"].as_str())
+                        .ok_or_else(|| {
+                            semantic_error("invalid_semantic_reference", "Unknown Plan reference.")
+                        })?
+                        .to_owned()
+                };
+                if ids.contains(&id) {
+                    return Err(semantic_error(
+                        "invalid_semantic_reference",
+                        "Plan references must be unique.",
+                    ));
+                }
+                ids.push(id);
+            }
+            formal.insert("applies_to".into(), json!(ids));
+        }
+        result.push(Value::Object(formal));
+    }
+    Ok(Value::Array(result))
+}
+
+fn semantic_index_decisions(index: &Value, choices: &Value) -> Result<Value, WorkError> {
+    let rows = choices.as_array().ok_or_else(|| {
+        semantic_error(
+            "invalid_semantic_items",
+            "Index decisions must be an array.",
+        )
+    })?;
+    let source = index["decisions"].as_array();
+    let mut next = source
+        .into_iter()
+        .flatten()
+        .filter_map(|row| row["id"].as_str())
+        .filter_map(|id| id.rsplit_once('-')?.1.parse::<usize>().ok())
+        .max()
+        .unwrap_or(0);
+    let mut used = std::collections::BTreeSet::new();
+    let mut keys = std::collections::BTreeSet::new();
+    let mut result = Vec::new();
+    for row in rows {
+        let fields = row.as_object().ok_or_else(|| {
+            semantic_error(
+                "invalid_semantic_object",
+                "Index decisions require objects.",
+            )
+        })?;
+        if !["key", "statement", "rationale", "task_positions"]
+            .iter()
+            .all(|name| fields.contains_key(*name))
+            || fields.keys().any(|name| {
+                ![
+                    "key",
+                    "statement",
+                    "rationale",
+                    "task_positions",
+                    "existing_position",
+                ]
+                .contains(&name.as_str())
+            })
+        {
+            return Err(semantic_error(
+                "invalid_object_fields",
+                "Invalid index decision fields.",
+            ));
+        }
+        let key = row["key"]
+            .as_str()
+            .filter(|key| !key.is_empty())
+            .ok_or_else(|| semantic_error("invalid_semantic_key", "A local key is required."))?;
+        if !keys.insert(key) {
+            return Err(semantic_error(
+                "duplicate_semantic_key",
+                "Local keys must be unique.",
+            ));
+        }
+        let id = if let Some(position) = fields.get("existing_position") {
+            let position = position
+                .as_u64()
+                .filter(|value| *value > 0)
+                .ok_or_else(|| {
+                    semantic_error("invalid_semantic_position", "Invalid decision position.")
+                })? as usize;
+            if !used.insert(position) {
+                return Err(semantic_error(
+                    "duplicate_semantic_position",
+                    "Decision positions must be unique.",
+                ));
+            }
+            source
+                .and_then(|rows| rows.get(position - 1))
+                .and_then(|row| row["id"].as_str())
+                .ok_or_else(|| {
+                    semantic_error("invalid_semantic_position", "Invalid decision position.")
+                })?
+                .to_owned()
+        } else {
+            next += 1;
+            format!("TASK-DECISION-{next:03}")
+        };
+        let ids = semantic_positions(&row["task_positions"], &index["tasks"])?;
+        result.push(json!({"id":id,"statement":row["statement"],
+            "rationale":row["rationale"],"task_ids":ids}));
+    }
+    Ok(Value::Array(result))
+}
+
+fn semantic_traceability(plan: &Value, choices: &Value) -> Result<Value, WorkError> {
+    let fields = choices.as_object().ok_or_else(|| {
+        semantic_error(
+            "invalid_semantic_object",
+            "Traceability needs a semantic object.",
+        )
+    })?;
+    let groups = [
+        ("goal_positions", "goals"),
+        ("deliverable_positions", "deliverables"),
+        ("acceptance_positions", "acceptance_criteria"),
+        ("milestone_positions", "milestones"),
+    ];
+    if fields
+        .keys()
+        .any(|key| !groups.iter().any(|(name, _)| key == name))
+        || groups[..3]
+            .iter()
+            .any(|(name, _)| !fields.contains_key(*name))
+    {
+        return Err(semantic_error(
+            "invalid_object_fields",
+            "Traceability has missing or unknown positions.",
+        ));
+    }
+    let mut result = serde_json::Map::new();
+    for (name, collection) in groups {
+        if let Some(value) = fields.get(name) {
+            result.insert(
+                name.replace("_positions", "_ids"),
+                json!(semantic_positions(value, &plan[collection])?),
+            );
+        }
+    }
+    Ok(Value::Object(result))
 }
 
 fn semantic_constraint_rows(plan: &Value, choices: &Value) -> Result<Value, WorkError> {
@@ -276,51 +714,57 @@ fn sources(
     plan_path: &str,
 ) -> Result<OwnedBaseline, WorkError> {
     let plan_raw = LocalFiles.read_raw(&storage_path(root, plan_path)?)?;
-    let plan = parse_json_contract(&plan_raw)
-        .map_err(|_| fail("invalid_json_contract", "The source Plan is invalid."))?;
+    let plan = parse_json_contract(&plan_raw).map_err(|_| {
+        with_migration_route(fail("invalid_json_contract", "The source Plan is invalid."))
+    })?;
     let artifacts = &plan["artifacts"];
     let task_path = artifacts["task"]
         .as_str()
         .filter(|path| path.ends_with("/index.json"))
         .ok_or_else(|| {
-            fail(
+            with_migration_route(fail(
                 "spec_artifact_identity",
                 "The Plan must route to a TASK collection index.",
-            )
+            ))
         })?;
     if artifacts["plan"] != plan_path {
-        return Err(fail(
+        return Err(with_migration_route(fail(
             "spec_artifact_identity",
             "The Plan artifact binding is invalid.",
-        ));
+        )));
     }
     let execution = artifacts["execution"].as_str().ok_or_else(|| {
-        fail(
+        with_migration_route(fail(
             "spec_artifact_identity",
             "The Plan execution binding is invalid.",
-        )
+        ))
     })?;
     let execution_path = format!("{execution}/index.json");
-    let index_raw = LocalFiles.read_raw(&storage_path(root, task_path)?)?;
-    let index = parse_json_contract(&index_raw)
-        .map_err(|_| fail("invalid_json_contract", "The TASK index is invalid."))?;
+    let index_raw = LocalFiles
+        .read_raw(&storage_path(root, task_path)?)
+        .map_err(with_migration_route)?;
+    let index = parse_json_contract(&index_raw).map_err(|_| {
+        with_migration_route(fail("invalid_json_contract", "The TASK index is invalid."))
+    })?;
     let directory = task_path.rsplit_once('/').map_or("", |(parent, _)| parent);
     let mut items = BTreeMap::new();
     for reference in index["tasks"].as_array().ok_or_else(|| {
-        fail(
+        with_migration_route(fail(
             "invalid_task_index",
             "The TASK index has no item references.",
-        )
+        ))
     })? {
-        let id = reference["id"]
-            .as_str()
-            .ok_or_else(|| fail("invalid_task_index", "A TASK item has no ID."))?;
-        let relative = reference["path"]
-            .as_str()
-            .ok_or_else(|| fail("invalid_task_index", "A TASK item has no path."))?;
+        let id = reference["id"].as_str().ok_or_else(|| {
+            with_migration_route(fail("invalid_task_index", "A TASK item has no ID."))
+        })?;
+        let relative = reference["path"].as_str().ok_or_else(|| {
+            with_migration_route(fail("invalid_task_index", "A TASK item has no path."))
+        })?;
         items.insert(
             id.to_owned(),
-            LocalFiles.read_raw(&storage_path(root, &format!("{directory}/{relative}"))?)?,
+            LocalFiles
+                .read_raw(&storage_path(root, &format!("{directory}/{relative}"))?)
+                .map_err(with_migration_route)?,
         );
     }
     let instructions = LocalHierarchyCatalog {
@@ -350,19 +794,27 @@ fn sources(
         &roots,
         task_path,
         true,
-    )?;
-    let execution_raw = LocalFiles.read_raw(&storage_path(root, &execution_path)?)?;
-    let execution_value = parse_json_contract(&execution_raw)
-        .map_err(|_| fail("invalid_json_contract", "The execution index is invalid."))?;
+    )
+    .map_err(with_migration_route)?;
+    let execution_raw = LocalFiles
+        .read_raw(&storage_path(root, &execution_path)?)
+        .map_err(with_migration_route)?;
+    let execution_value = parse_json_contract(&execution_raw).map_err(|_| {
+        with_migration_route(fail(
+            "invalid_json_contract",
+            "The execution index is invalid.",
+        ))
+    })?;
     validate_execution_index(&execution_value, &execution_raw).map_err(|issue| {
-        WorkError::new(
+        with_migration_route(WorkError::new(
             ExitCode::ArtifactIntegrity,
             issue.reason_code,
             issue.message,
             issue.details,
-        )
+        ))
     })?;
     let history = execution_history_fingerprints(root, execution)?;
+    validate_specification_history(root, &execution_value, execution, &history)?;
     Ok(OwnedBaseline {
         plan_path: plan_path.into(),
         task_path: task_path.into(),
@@ -419,20 +871,21 @@ pub fn prepare_simple_update(
         .as_array()
         .filter(|rows| !rows.is_empty())
         .ok_or_else(|| fail("spec_prepare_edits", "Supply non-empty collection edits."))?;
-    let plan_path = resolve_plan_path(root, requirement)?;
+    let plan_path = resolve_plan_path(root, requirement).map_err(with_migration_route)?;
     let plan_raw = LocalFiles.read_raw(&storage_path(root, &plan_path)?)?;
-    let plan = parse_json_contract(&plan_raw)
-        .map_err(|_| fail("invalid_json_contract", "The source Plan is invalid."))?;
+    let plan = parse_json_contract(&plan_raw).map_err(|_| {
+        with_migration_route(fail("invalid_json_contract", "The source Plan is invalid."))
+    })?;
     if plan["artifacts"]["task"]
         .as_str()
         .is_none_or(|path| !path.ends_with("/index.json"))
     {
-        return Err(WorkError::new(
+        return Err(with_migration_route(WorkError::new(
             ExitCode::WorkflowState,
             "task_collection_required",
             "TASK writes require a collection index.json artifact.",
             json!({}),
-        ));
+        )));
     }
     let baseline = sources(root, skill_root, configs, &plan_path)?;
     let execution_dir = baseline
@@ -477,6 +930,32 @@ pub fn prepare_simple_update(
     let instruction_catalog = LocalHierarchyCatalog {
         skill_root: skill_root.to_path_buf(),
     };
+    let nested_groups = [
+        "inputs",
+        "decisions",
+        "files",
+        "risks",
+        "steps",
+        "commands",
+        "operations",
+        "validations",
+    ];
+    let mut nested_edits = BTreeMap::<String, serde_json::Map<String, Value>>::new();
+    for edit in edits {
+        if edit["target"]["artifact"] == "task_item" {
+            if let (Some(id), Some(field)) =
+                (edit["target"]["task_id"].as_str(), edit["field"].as_str())
+            {
+                if nested_groups.contains(&field) {
+                    nested_edits
+                        .entry(id.to_owned())
+                        .or_default()
+                        .insert(field.to_owned(), edit["semantic_after"].clone());
+                }
+            }
+        }
+    }
+    let mut nested_candidates = BTreeMap::<String, Value>::new();
     for edit in edits {
         if edit["operation"] == "remove_task" {
             let position = edit["task_position"].as_u64().ok_or_else(|| {
@@ -665,14 +1144,32 @@ pub fn prepare_simple_update(
         let artifact = target["artifact"].as_str().unwrap_or("");
         let field = edit["field"].as_str().unwrap_or("");
         let task_id = target["task_id"].as_str();
-        let supported = match artifact {
-            "plan" => task_id.is_none() && ["title", "summary", "constraints"].contains(&field),
-            "task_index" => task_id.is_none() && ["title", "summary"].contains(&field),
-            "task_item" => task_id.is_some() && ["title", "goal"].contains(&field),
+        let simple = match artifact {
+            "plan" | "task_index" => ["title", "summary"].contains(&field),
+            "task_item" => ["title", "goal"].contains(&field),
             _ => false,
         };
-        if !supported
-            || (field != "constraints" && edit["after"].as_str().is_none())
+        let semantic = match artifact {
+            "plan" => [
+                "goals",
+                "scope",
+                "constraints",
+                "dependencies",
+                "risks",
+                "milestones",
+                "deliverables",
+                "acceptance_criteria",
+                "decisions",
+            ]
+            .contains(&field),
+            "task_index" => ["decisions", "execution_defaults"].contains(&field),
+            "task_item" => {
+                ["traceability", "dependencies"].contains(&field) || nested_groups.contains(&field)
+            }
+            _ => false,
+        };
+        if !(simple || semantic)
+            || (simple && edit["after"].as_str().is_none())
             || !seen.insert((
                 artifact.to_owned(),
                 task_id.map(str::to_owned),
@@ -684,17 +1181,114 @@ pub fn prepare_simple_update(
                 "This Specification preparation needs a supported, unique field edit.",
             ));
         }
+        let after = match (artifact, field) {
+            ("plan", "constraints") => semantic_constraint_rows(&plan, &edit["semantic_after"])?,
+            ("plan", _) if semantic => semantic_plan_rows(&plan, field, &edit["semantic_after"])?,
+            ("task_index", "decisions") => {
+                semantic_index_decisions(&index, &edit["semantic_after"])?
+            }
+            ("task_index", "execution_defaults") => {
+                let value = &edit["semantic_after"];
+                let valid = value.as_object().is_some_and(|fields| {
+                    fields.len() == 3
+                        && ["working_directory", "os", "shell"]
+                            .iter()
+                            .all(|key| fields.get(*key).is_some_and(Value::is_string))
+                });
+                if !valid {
+                    return Err(semantic_error(
+                        "invalid_object_fields",
+                        "Execution defaults need working directory, OS and shell.",
+                    ));
+                }
+                value.clone()
+            }
+            ("task_item", "traceability") => semantic_traceability(&plan, &edit["semantic_after"])?,
+            ("task_item", "dependencies") => {
+                let refs = task_ids
+                    .iter()
+                    .map(|id| json!({"id":id}))
+                    .collect::<Vec<_>>();
+                json!(semantic_positions(&edit["semantic_after"], &json!(refs))?)
+            }
+            ("task_item", group) if nested_groups.contains(&group) => {
+                let id = task_id.expect("validated TASK target");
+                if !nested_candidates.contains_key(id) {
+                    let current = items
+                        .get(id)
+                        .ok_or_else(|| fail("spec_prepare_task_id", "Unknown TASK ID."))?;
+                    let dependencies = edits
+                        .iter()
+                        .find(|row| {
+                            row["target"]["task_id"] == id && row["field"] == "dependencies"
+                        })
+                        .map(|row| {
+                            let refs = task_ids
+                                .iter()
+                                .map(|id| json!({"id":id}))
+                                .collect::<Vec<_>>();
+                            semantic_positions(&row["semantic_after"], &json!(refs))
+                        })
+                        .transpose()?
+                        .unwrap_or_else(|| {
+                            current["dependencies"]
+                                .as_array()
+                                .into_iter()
+                                .flatten()
+                                .filter_map(|value| value.as_str().map(str::to_owned))
+                                .collect()
+                        });
+                    let dependency_files = dependencies
+                        .iter()
+                        .map(|dep| {
+                            let files = items[dep]["files"]
+                                .as_array()
+                                .into_iter()
+                                .flatten()
+                                .enumerate()
+                                .filter_map(|(position, row)| {
+                                    row["id"].as_str().map(|id| {
+                                        (format!("existing-{}", position + 1), id.to_owned())
+                                    })
+                                })
+                                .collect::<BTreeMap<_, _>>();
+                            (dep.clone(), files)
+                        })
+                        .collect::<BTreeMap<_, _>>();
+                    let acceptance = plan["acceptance_criteria"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|row| row["id"].as_str().map(str::to_owned))
+                        .collect::<Vec<_>>();
+                    let replacements = Value::Object(nested_edits[id].clone());
+                    let built = build_semantic_patch(
+                        current,
+                        &replacements,
+                        &acceptance,
+                        &dependencies,
+                        &dependency_files,
+                    )
+                    .map_err(|issue| {
+                        WorkError::new(
+                            ExitCode::Contract,
+                            issue.reason_code,
+                            issue.message,
+                            issue.details,
+                        )
+                    })?;
+                    nested_candidates.insert(id.to_owned(), built);
+                }
+                nested_candidates[id][group].clone()
+            }
+            _ => edit["after"].clone(),
+        };
         let source = match artifact {
             "plan" => &mut plan,
             "task_index" => &mut index,
             _ => items
                 .get_mut(task_id.expect("TASK ID"))
                 .ok_or_else(|| fail("spec_prepare_task_id", "Unknown TASK ID."))?,
-        };
-        let after = if artifact == "plan" && field == "constraints" {
-            semantic_constraint_rows(source, &edit["semantic_after"])?
-        } else {
-            edit["after"].clone()
         };
         let before = source
             .get(field)
@@ -898,7 +1492,7 @@ pub fn prepare_simple_update(
         "output_file":input.output_file.map(|path| path.to_string_lossy().to_string()),
         "transport":{"request_field":"request","request_schema":"work-spec-update-request/v1",
             "output_file":input.output_file.map(|path| path.to_string_lossy().to_string())},
-        "next_step":{"command":"task spec-validate","input":"request"}}),
+        "next_step":{"command":"specification preview","input":"request"}}),
     ))
 }
 
@@ -1097,7 +1691,7 @@ pub fn update_from_project(
         "requirement_id":request["plan"]["requirement_id"],"artifacts":artifacts,
         "record_id":transaction["transaction_id"]});
     result["verification_request"] = verification;
-    result["next_step"] = json!({"command":"task spec-verify","input":"verification_request"});
+    result["next_step"] = json!({"command":"specification verify","input":"verification_request"});
     Ok(result)
 }
 
@@ -1548,6 +2142,260 @@ mod tests {
     }
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn semantic_plan_and_task_edits_build_one_complete_candidate() {
+        let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-update");
+        let root = std::env::temp_dir().join(format!(
+            "work-spec-semantic-candidate-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        for relative in [
+            "outputs/work/plans/example.json",
+            "outputs/work/tasks/example/index.json",
+            "outputs/work/tasks/example/tasks/TASK-001.json",
+            "outputs/work/executions/example/index.json",
+        ] {
+            let destination = root.join(relative);
+            fs::create_dir_all(destination.parent().unwrap()).unwrap();
+            fs::copy(fixture.join(relative), destination).unwrap();
+        }
+        fs::write(root.join("src.txt"), b"source\n").unwrap();
+        let semantic = serde_json::to_vec(&json!({
+            "schema":"work-spec-prepare-request/v1",
+            "requirement_id":"example",
+            "reason":"Confirmed semantic revision",
+            "edits":[
+                {"target":{"artifact":"plan"},"field":"goals",
+                    "semantic_after":[{"key":"outcome","existing_position":1,
+                        "statement":"Deliver the revised outcome."}]},
+                {"target":{"artifact":"plan"},"field":"scope",
+                    "semantic_after":[{"key":"boundary","existing_position":1,
+                        "kind":"in_scope","statement":"Handle the revised scope.",
+                        "goal_positions":[1]}]},
+                {"target":{"artifact":"plan"},"field":"acceptance_criteria",
+                    "semantic_after":[{"key":"accepted","existing_position":1,
+                        "statement":"The revised result is observable.",
+                        "deliverable_positions":[1]}]},
+                {"target":{"artifact":"task_item","task_id":"TASK-001"},"field":"commands",
+                    "semantic_after":[{"key":"check","existing_position":1,
+                        "mode":"argv","argv":["python","-V"]}]},
+                {"target":{"artifact":"task_item","task_id":"TASK-001"},"field":"steps",
+                    "semantic_after":[
+                        {"key":"modify","existing_position":1,"action":"Modify the source.",
+                            "references":[{"kind":"files","key":"existing-1"}]},
+                        {"key":"validate","existing_position":2,"action":"Run revised validation.",
+                            "references":[{"kind":"commands","key":"check"},
+                                {"kind":"validations","key":"verify"}]}]},
+                {"target":{"artifact":"task_item","task_id":"TASK-001"},"field":"validations",
+                    "semantic_after":[{"key":"verify","existing_position":1,
+                        "kind":"automated","command_keys":["check"],
+                        "pass_condition":"Version command succeeds.",
+                        "acceptance_positions":[1]}]}
+            ]
+        }))
+        .unwrap();
+        let prepared = prepare_simple_update(
+            &root,
+            &repo.join("../skills/work"),
+            &[],
+            SpecificationPrepareInput {
+                raw: &semantic,
+                date: "2026-09-30",
+                output_file: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(prepared["preview"]["status"], "valid");
+        assert_eq!(
+            prepared["preview"]["validation"]["execution_index"],
+            "valid"
+        );
+        assert_eq!(prepared["preview"]["validation"]["history"], "validated");
+        assert!(
+            prepared["preview"]["diff"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|value| value.as_str().is_some_and(|text| text.contains("GOAL-001")))
+        );
+        assert!(
+            prepared["preview"]["lifecycle_impact"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|row| row["task_id"] == "TASK-001"
+                    && row["before"] == "pending"
+                    && row["after"] == "pending")
+        );
+        assert_eq!(prepared["request"]["plan"]["goals"][0]["id"], "GOAL-001");
+        assert_eq!(
+            prepared["request"]["plan"]["scope"][0]["goal_ids"],
+            json!(["GOAL-001"])
+        );
+        assert_eq!(
+            prepared["request"]["plan"]["acceptance_criteria"][0]["deliverable_ids"],
+            json!(["DELIVERABLE-001"])
+        );
+        assert_eq!(
+            prepared["request"]["task_items"]["TASK-001"]["commands"][0]["id"],
+            "CMD-001"
+        );
+        assert_eq!(
+            prepared["request"]["task_items"]["TASK-001"]["validations"][0]["command_ids"],
+            json!(["CMD-001"])
+        );
+        assert_eq!(
+            prepared["request"]["task_items"]["TASK-001"]["steps"][1]["references"],
+            json!(["CMD-001", "VAL-001"])
+        );
+        let files = prepared["preview"]["transaction"]["files"]
+            .as_array()
+            .unwrap();
+        assert!(
+            files
+                .iter()
+                .any(|row| row["path"] == "outputs/work/plans/example.json")
+        );
+        assert!(
+            files
+                .iter()
+                .any(|row| row["path"] == "outputs/work/tasks/example/index.json")
+        );
+        assert!(
+            files
+                .iter()
+                .any(|row| row["path"] == "outputs/work/executions/example/index.json")
+        );
+    }
+
+    #[test]
+    fn untrusted_specification_sources_direct_to_migration() {
+        let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-update");
+        let semantic = fs::read(fixture.join("semantic-request.json")).unwrap();
+        for (case, include_item, corrupt_plan, corrupt_history) in [
+            ("missing-item", false, false, false),
+            ("invalid-plan", true, true, false),
+            ("invalid-history", true, false, true),
+        ] {
+            let root = std::env::temp_dir().join(format!(
+                "work-spec-untrusted-{case}-{}-{}",
+                std::process::id(),
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            for relative in [
+                "outputs/work/plans/example.json",
+                "outputs/work/tasks/example/index.json",
+                "outputs/work/executions/example/index.json",
+            ] {
+                let destination = root.join(relative);
+                fs::create_dir_all(destination.parent().unwrap()).unwrap();
+                fs::copy(fixture.join(relative), destination).unwrap();
+            }
+            if include_item {
+                let relative = "outputs/work/tasks/example/tasks/TASK-001.json";
+                let destination = root.join(relative);
+                fs::create_dir_all(destination.parent().unwrap()).unwrap();
+                fs::copy(fixture.join(relative), destination).unwrap();
+            }
+            if corrupt_plan {
+                fs::write(root.join("outputs/work/plans/example.json"), b"{").unwrap();
+            }
+            if corrupt_history {
+                let attempt =
+                    root.join("outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json");
+                fs::create_dir_all(attempt.parent().unwrap()).unwrap();
+                fs::write(attempt, b"{").unwrap();
+            }
+            let error = prepare_simple_update(
+                &root,
+                &repo.join("../skills/work"),
+                &[],
+                SpecificationPrepareInput {
+                    raw: &semantic,
+                    date: "2026-09-30",
+                    output_file: None,
+                },
+            )
+            .unwrap_err();
+            assert_eq!(error.details["next_command"], "migration analyze", "{case}");
+        }
+    }
+
+    #[test]
+    fn semantic_dependency_and_defaults_rebuild_execution_binding() {
+        let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+        let fixture =
+            repo.join("crates/work-infrastructure/fixtures/specification-update/remove-task");
+        let root = std::env::temp_dir().join(format!(
+            "work-spec-dependencies-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        for relative in [
+            "outputs/work/plans/example.json",
+            "outputs/work/tasks/example/index.json",
+            "outputs/work/tasks/example/tasks/TASK-001.json",
+            "outputs/work/tasks/example/tasks/TASK-002.json",
+            "outputs/work/executions/example/index.json",
+        ] {
+            let destination = root.join(relative);
+            fs::create_dir_all(destination.parent().unwrap()).unwrap();
+            fs::copy(fixture.join(relative), destination).unwrap();
+        }
+        fs::write(root.join("src.txt"), b"source\n").unwrap();
+        let semantic = serde_json::to_vec(&json!({
+            "schema":"work-spec-prepare-request/v1",
+            "requirement_id":"example",
+            "reason":"Confirmed dependency and default revision",
+            "edits":[
+                {"target":{"artifact":"task_item","task_id":"TASK-002"},
+                    "field":"dependencies","semantic_after":[]},
+                {"target":{"artifact":"task_index"},"field":"execution_defaults",
+                    "semantic_after":{"working_directory":".","os":"windows","shell":"pwsh"}}
+            ]
+        }))
+        .unwrap();
+        let prepared = prepare_simple_update(
+            &root,
+            &repo.join("../skills/work"),
+            &[],
+            SpecificationPrepareInput {
+                raw: &semantic,
+                date: "2026-09-30",
+                output_file: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(prepared["preview"]["status"], "valid");
+        assert_eq!(
+            prepared["request"]["task_items"]["TASK-002"]["dependencies"],
+            json!([])
+        );
+        assert_eq!(
+            prepared["request"]["task_index"]["execution_defaults"]["shell"],
+            "pwsh"
+        );
+        assert!(
+            prepared["preview"]["transaction"]["files"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|row| row["path"] == "outputs/work/executions/example/index.json")
+        );
+    }
 
     #[test]
     fn index_revision_preview_publication_and_verify_match_python() {

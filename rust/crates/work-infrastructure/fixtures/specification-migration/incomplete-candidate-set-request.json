@@ -7,15 +7,15 @@
     },
     {
       "path": "outputs/work/tasks/example/index.json",
-      "raw_sha256": "32ec5309d2215f9546a734c8799b6ed8bd85e9cf66bbdce78a879a1927c2f408"
+      "raw_sha256": "270198d69ea92c2092b89144b1d6f163d053fbff2206bc25af6e1d7e9e17e25e"
     },
     {
       "path": "outputs/work/tasks/example/tasks/TASK-001.json",
-      "raw_sha256": "02d617c7c5fe29ce83ba0edbfc9f7531ab7cb08a4055ad15283e621446ea8541"
+      "raw_sha256": "af313241b49b13285fea19ee04397d79b189eeddd24cd327a31b24cdce85efc0"
     },
     {
       "path": "outputs/work/executions/example/index.json",
-      "raw_sha256": "6143288cbbb12aa4d9caf92767e51213d7a871a3d9fd529d9d4ec1e239fe2419"
+      "raw_sha256": "65216b747d033e3934c8a8733245c90cf67b3227d017c524efea2552e49e98b5"
     }
   ],
   "candidates": [
@@ -156,14 +156,14 @@
             {
               "kind": "reference",
               "logical_name": "task.general.task-records",
-              "canonical_sha256": "f0b515ed95cd591bdad9116748c0bb3e929c0ef9ea68513ea6e1a59443c53966",
+              "canonical_sha256": "1ea4931d886c33c5bac81602aead13f66feb77dd6d35a07175c5fecd1a92c98c",
               "compatibility_revision": 1
             }
           ],
           "references": [
             "task.general.task-records"
           ],
-          "instructions_sha256": "bc408c5a41fbacf9c4cbc323e1da231d39cc5764fe52c293afaa4a47aee64df3"
+          "instructions_sha256": "faaf4a324feca64f085cc67beb0220b21b61e46cba2f8046a6d17097b113adb6"
         },
         "execution_defaults": {
           "working_directory": ".",
@@ -174,7 +174,7 @@
           {
             "id": "TASK-001",
             "path": "tasks/TASK-001.json",
-            "canonical_sha256": "02d617c7c5fe29ce83ba0edbfc9f7531ab7cb08a4055ad15283e621446ea8541"
+            "canonical_sha256": "af313241b49b13285fea19ee04397d79b189eeddd24cd327a31b24cdce85efc0"
           }
         ],
         "readiness": {
@@ -218,14 +218,14 @@
             {
               "kind": "reference",
               "logical_name": "task.general.task-records",
-              "canonical_sha256": "f0b515ed95cd591bdad9116748c0bb3e929c0ef9ea68513ea6e1a59443c53966",
+              "canonical_sha256": "1ea4931d886c33c5bac81602aead13f66feb77dd6d35a07175c5fecd1a92c98c",
               "compatibility_revision": 1
             }
           ],
           "references": [
             "task.general.task-records"
           ],
-          "instructions_sha256": "bc408c5a41fbacf9c4cbc323e1da231d39cc5764fe52c293afaa4a47aee64df3"
+          "instructions_sha256": "faaf4a324feca64f085cc67beb0220b21b61e46cba2f8046a6d17097b113adb6"
         },
         "traceability": {
           "goal_ids": [
