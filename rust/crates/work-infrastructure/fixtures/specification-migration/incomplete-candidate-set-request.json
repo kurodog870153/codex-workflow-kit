@@ -7,15 +7,15 @@
     },
     {
       "path": "outputs/work/tasks/example/index.json",
-      "raw_sha256": "270198d69ea92c2092b89144b1d6f163d053fbff2206bc25af6e1d7e9e17e25e"
+      "raw_sha256": "4fce06e458b010f46e6347302e93daef01a5ab733c4277bb742067329ba9bbfe"
     },
     {
       "path": "outputs/work/tasks/example/tasks/TASK-001.json",
-      "raw_sha256": "af313241b49b13285fea19ee04397d79b189eeddd24cd327a31b24cdce85efc0"
+      "raw_sha256": "d2181e1030d6e844ccb93dbb3ffe05ede5d41cb647e1a86bf98f2ee28e17da3f"
     },
     {
       "path": "outputs/work/executions/example/index.json",
-      "raw_sha256": "65216b747d033e3934c8a8733245c90cf67b3227d017c524efea2552e49e98b5"
+      "raw_sha256": "b5f1a0a249019749b2d4838d9fc5f566229127b67b22d21bf0146680f9881622"
     }
   ],
   "candidates": [
@@ -150,20 +150,20 @@
             {
               "kind": "instruction",
               "logical_name": "task.general",
-              "canonical_sha256": "c043e87d4376797365a946a3295707814eac9f154e18894983a8b50ff049789d",
+              "canonical_sha256": "f718da96bc956849a1a6e5abaab491379c17b7f7487c2b76dff28b04a94851db",
               "compatibility_revision": 1
             },
             {
               "kind": "reference",
               "logical_name": "task.general.task-records",
-              "canonical_sha256": "1ea4931d886c33c5bac81602aead13f66feb77dd6d35a07175c5fecd1a92c98c",
+              "canonical_sha256": "9bd9dff5c693ea21064dc5bb9684078981ebb71836c8e6d4316c3cfef597aa0a",
               "compatibility_revision": 1
             }
           ],
           "references": [
             "task.general.task-records"
           ],
-          "instructions_sha256": "faaf4a324feca64f085cc67beb0220b21b61e46cba2f8046a6d17097b113adb6"
+          "instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a"
         },
         "execution_defaults": {
           "working_directory": ".",
@@ -174,7 +174,7 @@
           {
             "id": "TASK-001",
             "path": "tasks/TASK-001.json",
-            "canonical_sha256": "af313241b49b13285fea19ee04397d79b189eeddd24cd327a31b24cdce85efc0"
+            "canonical_sha256": "d2181e1030d6e844ccb93dbb3ffe05ede5d41cb647e1a86bf98f2ee28e17da3f"
           }
         ],
         "readiness": {
@@ -212,20 +212,20 @@
             {
               "kind": "instruction",
               "logical_name": "task.general",
-              "canonical_sha256": "c043e87d4376797365a946a3295707814eac9f154e18894983a8b50ff049789d",
+              "canonical_sha256": "f718da96bc956849a1a6e5abaab491379c17b7f7487c2b76dff28b04a94851db",
               "compatibility_revision": 1
             },
             {
               "kind": "reference",
               "logical_name": "task.general.task-records",
-              "canonical_sha256": "1ea4931d886c33c5bac81602aead13f66feb77dd6d35a07175c5fecd1a92c98c",
+              "canonical_sha256": "9bd9dff5c693ea21064dc5bb9684078981ebb71836c8e6d4316c3cfef597aa0a",
               "compatibility_revision": 1
             }
           ],
           "references": [
             "task.general.task-records"
           ],
-          "instructions_sha256": "faaf4a324feca64f085cc67beb0220b21b61e46cba2f8046a6d17097b113adb6"
+          "instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a"
         },
         "traceability": {
           "goal_ids": [

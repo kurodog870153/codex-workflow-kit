@@ -128,9 +128,9 @@ mod tests {
         let table: Value = serde_json::from_str(EFFECTS).unwrap();
         for (command, count) in [
             ("plan", 3),
-            ("task", 24),
+            ("task", 7),
             ("specification", 8),
-            ("migration", 9),
+            ("migration", 6),
             ("execute", 16),
             ("delegation", 2),
             ("progress", 4),
@@ -157,18 +157,19 @@ mod tests {
             "authorized_external_effect"
         );
         assert_eq!(
-            operation_effect("task", "draft-save")
+            operation_effect("task", "save")
                 .unwrap()
                 .side_effect_boundary(),
             "authorized_atomic_write"
         );
         assert_eq!(operation_effect("task", "unknown"), None);
+        assert_eq!(operation_effect("task", "draft-save"), None);
     }
 
     #[test]
     fn routing_identity_tracks_python_command_categories() {
         assert_eq!(
-            routing_identity("migration", "semantic-apply", None).unwrap(),
+            routing_identity("migration", "apply", None).unwrap(),
             OperationRouting {
                 mode: "specification",
                 next_action: "review_reconciliation",

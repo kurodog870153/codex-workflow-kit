@@ -566,7 +566,7 @@ mod macos {
         for missing in [
             "references/instruction-loading/invocation.md",
             "references/workflows/specification.md",
-            "references/workflows/task-drafts.md",
+            "references/workflows/task.md",
             "references/workflows/progress.md",
             "references/subagents/artifact-editor.md",
             "references/subagents/progress-saver.md",

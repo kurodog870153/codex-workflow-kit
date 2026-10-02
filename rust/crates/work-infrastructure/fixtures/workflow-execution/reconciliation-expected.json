@@ -8,7 +8,7 @@
     "plan": "outputs/work/plans/example.json",
     "task": "outputs/work/tasks/example/index.json"
   },
-  "command": "task reconciliation-prepare",
+  "command": "specification reconciliation-prepare",
   "details": {
     "overall_status": "completed",
     "pending_deviation_ids": [
@@ -58,7 +58,6 @@
     },
     "routing_status": "VALID",
     "schema": "work-instruction-selection-manifest/v1",
-    "selection_sha256": "a96306fc773889fcfff021c69f1b927f479e06998a7da36da3c1ba333f5ac1d7",
     "sources": [
       {
         "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
@@ -103,7 +102,7 @@
         "path": "references/workflows/specification/active-task-collection-revision-boundary.md"
       },
       {
-        "canonical_sha256": "1c07e3260148b1d9363375741769edc72adc37869d325f66695ceb0f2b8c42ef",
+        "canonical_sha256": "67d330c88bc947e8750af01456710ae48e64a60166fb27edf37c6c1763a0d1c6",
         "compatibility_revision": 2,
         "logical_name": "work.workflow.specification.prepare-and-review",
         "path": "references/workflows/specification/prepare-and-review.md"
@@ -120,9 +119,10 @@
         "logical_name": "work.workflow.specification.specification-verification",
         "path": "references/workflows/specification/specification-verification.md"
       }
-    ]
+    ],
+    "selection_sha256": "d81ccd18177466397cc3c6de99c5578d74254b2943ca2a41a3c751b1652ce2c4"
   },
-  "selection_sha256": "a96306fc773889fcfff021c69f1b927f479e06998a7da36da3c1ba333f5ac1d7",
+  "selection_sha256": "d81ccd18177466397cc3c6de99c5578d74254b2943ca2a41a3c751b1652ce2c4",
   "semantic_input_contract": "work-spec-reconciliation-prepare-request/v1",
   "source_order": [
     "work.instruction-loading",

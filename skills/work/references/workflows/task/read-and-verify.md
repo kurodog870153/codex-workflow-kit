@@ -1,0 +1,12 @@
+<!-- work-compatibility-revision: 1 -->
+# Read and verify
+
+
+Run `<work-cli> task status --requirement-id <requirement-id> --plan-path "<plan-path>" --user-config-root "<user-config-root>"` with confirmed `--skill-root` values first, adding `--task-id <task-id>` for an explicit choice. It verifies the committed index and selected historical discussion, returns boundaries and `next_action`, and checks live Plan, skill and instruction sources. Treat source drift as `review_required` before relying on saved decisions.
+
+1. Use `task status` for the current index and `task status --task-id <task-id>` for the selected historical discussion. The CLI follows `draft_ref`; the root-level TASK display copy is not resume evidence.
+2. Read only the selected TASK discussion and the index; do not preload every TASK, skill or transcript.
+3. Before relying on saved decisions or writing a checkpoint, run `<work-cli> plan validate --path "<plan-path>" --user-config-root "<user-config-root>"` with every confirmed source `--skill-root`. Compare the returned `plan_sha256`, `hierarchy_selection_sha256` and `skill_selection_sha256` with index `source`. Storage integrity alone does not verify live sources or authorize a write.
+4. Use `task status` with confirmed Plan path, user config root and skill roots before relying on a saved selection. A source drift or ambiguous legacy selection requires review and an explicit source update through `task prepare → save`; never infer a selection from notes.
+5. Load only the selected TASK's applicable instructions and one assigned full skill. Other TASKs contribute only necessary boundaries and dependency summaries; do not preload their full skills, drafts or session transcripts. Index skill IDs must remain in the validated Plan selection.
+6. For source drift, confirm a request containing `{"reason": <confirmed-reason>, "selections": {"TASK-001": {"selected_paths": [], "references": []}, ...}}`. Run `task prepare --input-file <request-path> --requirement-id <requirement-id> --plan-path <plan-path> --user-config-root <user-config-root>` with confirmed skill roots, review the candidate and affected TASKs, then pass the complete prepare result to `task save --input-file <candidate-path>` with the same requirement, Plan path, config root and skill roots, without `--expected-revision`. The candidate carries the revision. Changed sources invalidate the old approval; repeat the identical save request to recover an interrupted source update. Reconfirm affected discussions before formalization.

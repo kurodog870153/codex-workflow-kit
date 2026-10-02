@@ -110,3 +110,13 @@ sequenceDiagram
 3. `work-infrastructure` 以真實檔案、Git 或程序測 adapter、鎖、交易、失敗注入及復原；`work-cli` 測命令解析、組裝與程序邊界的輸出契約。
 4. `work-cli/tests/architecture_dependencies.rs` 讀取 Cargo 依賴圖，檢查上述六個 Work crate 之間的一般、build、dev 直接邊，逐一比對第 2 節的允許清單；未列出的邊使測試失敗，清單中的邊不必全部出現。
 5. 以 workspace 的格式檢查、Clippy、測試及架構依賴檢查驗收；不得以 macOS 測試結果宣稱 Windows 已實測。
+
+### 衍生資料的使用時機與完整測試前檢查
+
+`work-operations/src/derivation/` 是 Rust 模組，不是獨立的重算命令。當 Plan、TASK、Execution、Specification 的來源 bytes 或其衍生規則改變時，Feature／Infrastructure 應透過此模組的 API 計算或核對受影響的指紋、跨檔案綁定、交易資料與出版標記；不要在呼叫端另寫 hash 或手動填入指紋。`graph::reconcile_artifact_bindings` 處理目前 Plan → TASK → Execution 的綁定；`fingerprint` 提供各 artifact 的指紋入口。歷史核准與執行證據依既有 policy 驗證，不因目前來源變更而重新產生。
+
+最後一次 workspace 完整測試前，依下列順序檢查受變更影響的現行測試資料：
+
+1. Task 建立測試：以已保存草稿的實際 bytes 經 `fingerprint::raw` 核對 `draft_ref.sha256`；重新組裝草稿時，以 `fingerprint::task_draft_approval` 計算組裝結果的 `approval_sha256`。兩者的輸入與用途不同，應各自對照對應欄位，不直接比較彼此。若合成測試資料與保存後資料不一致，先修正測試資料的產生流程並重跑相關測試。
+2. Specification 測試：以現行 fixture 的 Plan、TASK index、Execution index 與 Task item 原始 bytes，經 `fingerprint::specification_baseline` 重算 `expected`，再核對測試請求。若來源檔已變更，透過現有產生流程更新現行 fixture 的相依指紋與預期結果；不要改寫歷史 fixture 或既有核准證據。
+3. 先執行受影響的 Task／Specification 測試，確認衍生值與資料契約一致；通過後再執行第 5 點所列的 workspace 完整驗證。僅修改文件且未影響 artifact 或指紋規則時，確認沒有需要重算的測試資料即可。

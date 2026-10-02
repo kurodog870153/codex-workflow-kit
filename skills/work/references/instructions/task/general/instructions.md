@@ -12,7 +12,7 @@ metadata:
 
 ## 1. 載入與所有權
 
-1. [強制] 建立、修改、審查或維護正式 TASK 時，只使用來源 Plan 已確認且未漂移的技能；不得在 Task 階段探索、推薦、新增、替換或移除技能。
+1. [強制] 初版正式 TASK 規劃與建立只使用來源 Plan 已確認且未漂移的技能；既有正式 TASK 的修訂交由 `$work revise`／Specification，不在 Task planning 直接發布。
 2. [強制] 正式 TASK、index、狀態、欄位或指令來源一律載入 `task.general.task-records`（`references/task-records.md`）。
 3. [強制] 出現 `external_state` OP 時載入 `task.general.external-operations`（`references/external-operations.md`）。
 4. [強制] Reference 只在觸發條件成立時載入；正式 TASK 只保存 globally unique logical name，不保存絕對路徑。
@@ -25,7 +25,7 @@ metadata:
 2. [強制] 每個 `TASK-*` 產生一個可獨立驗收的單一成果；可分割成果須拆分，不可分割多檔修改可保留在同一 TASK。
 3. [強制] Execute 所需的所有檔案、順序、`CMD-*`、`OP-*`、`VAL-*` 與授權邊界必須在 Task 階段確定。
 4. [強制] 新決策改變已確認內容、references 或副作用時，列出影響並重新取得使用者確認。
-5. [強制] 全部決策完成後，由草稿組裝工具驗證完整候選，向使用者展示成果、範圍、檔案操作、命令與驗證並提供完整契約供審閱；正式核准須綁定組裝指紋。既有正式規格修訂沿用完整候選 JSON 程序；使用者核准及 Work CLI 驗證前不得建立正式檔案。
+5. [強制] 全部決策完成後，使用 `task preview` 驗證並展示初版完整候選；正式核准綁定 `approval_sha256`，再使用 `task apply` 發布。既有正式規格修訂交由 `$work revise`／Specification。
 
 ## 3. 正式 TASK contract
 

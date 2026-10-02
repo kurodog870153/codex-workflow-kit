@@ -40,9 +40,8 @@ use work_flow::specification::{
     apply_reconciliation, prepare_reconciliation, preview_reconciliation,
 };
 use work_flow::task::{
-    DraftCreatePorts, ProjectAssemblyInput, TaskCollectionRepository, TaskCreateProjectInput,
-    assemble_task, create_from_drafts as create_draft_task, create_task,
-    validate_collection as validate_task_collection,
+    DraftCreatePorts, ProjectAssemblyInput, TaskCollectionRepository, assemble_task,
+    create_from_drafts as create_draft_task, validate_collection as validate_task_collection,
 };
 use work_flow::workflow::{
     OperationContextRequest, build_operation_context, validate_operation_context,
@@ -66,10 +65,11 @@ use work_infrastructure::skill_catalog::{LocalSkillCatalog, SkillRootConfig};
 use work_infrastructure::specification::artifact_migration::{
     analyze as analyze_artifact_migration, execute as execute_artifact_migration,
     prepare_request as prepare_artifact_migration, preview as preview_artifact_migration,
-    recover as recover_artifact_migration,
+    recover as recover_artifact_migration, verify as verify_artifact_migration,
 };
 use work_infrastructure::specification::migration::{prepare_revision_request, preview_migration};
 use work_infrastructure::specification::migration_publication::publish_migration;
+use work_infrastructure::specification::migration_verification::verify_semantic_migration;
 use work_infrastructure::specification::reconciliation_storage::{
     LocalReconciliationArtifacts, LocalSemanticReconciliation, publish_ledger_only,
     publish_with_migration,
@@ -85,7 +85,10 @@ use work_infrastructure::task::create_storage::LocalTaskCreation;
 use work_infrastructure::task::draft_storage::{
     LocalTaskDraftStorage, TaskSourceCheckRequest, TaskSourceUpdateProjectRequest,
 };
-use work_infrastructure::task::semantic_prepare::prepare_semantic_task_request;
+use work_infrastructure::task::semantic_prepare::{
+    prepare_semantic_task_request, save_prepared_initial_task, save_prepared_list_task,
+    save_prepared_source_task,
+};
 use work_infrastructure::task::storage::LocalTaskStorage;
 use work_infrastructure::workflow_storage::{WorkflowStateRequest, load_workflow_snapshot};
 
@@ -590,6 +593,23 @@ fn dispatch(
         ),
         ["migration", "prepare"] => {
             let request = input_json(input)?;
+            if request["schema"] == "work-spec-migration-prepare-request/v1" {
+                let raw = &required_input(input)?.raw;
+                let configs = skill_configs(&string_list(parsed, "skill_root"))?;
+                let output = parsed.arguments.get("output_file").and_then(Value::as_str);
+                return work_flow::task::migration_prepare(
+                    work_flow::task::MigrationPrepareInput {
+                        raw,
+                        request: &request,
+                        date: &local_date(),
+                        output,
+                    },
+                    |raw, date| prepare_revision_request(root, skill_root, &configs, raw, date),
+                    |raw| prepare_reconstruction_request(root, skill_root, &configs, raw),
+                    |prepared| preview_migration(root, skill_root, &configs, prepared),
+                    write_prepared_output,
+                );
+            }
             if request["schema"] != "work-artifact-migration-decisions/v1" {
                 return Err(WorkError::new(
                     ExitCode::Contract,
@@ -602,6 +622,22 @@ fn dispatch(
         }
         ["migration", "preview"] => {
             let configs = skill_configs(&string_list(parsed, "skill_root"))?;
+            if parsed.arguments.contains_key("input_file") {
+                if parsed.arguments.contains_key("request_path") {
+                    return Err(WorkError::new(
+                        ExitCode::CliUsage,
+                        "cli_usage_error",
+                        "Choose one migration input.",
+                        json!({}),
+                    ));
+                }
+                let request = input_json(input)?;
+                return work_flow::specification::migration(
+                    "semantic-preview",
+                    || preview_migration(root, skill_root, &configs, &request),
+                    |_| unreachable!(),
+                );
+            }
             preview_artifact_migration(
                 root,
                 skill_root,
@@ -612,6 +648,31 @@ fn dispatch(
         }
         ["migration", "apply"] => {
             let configs = skill_configs(&string_list(parsed, "skill_root"))?;
+            if parsed.arguments.contains_key("input_file") {
+                if parsed.arguments.contains_key("request_path") {
+                    return Err(WorkError::new(
+                        ExitCode::CliUsage,
+                        "cli_usage_error",
+                        "Choose one migration input.",
+                        json!({}),
+                    ));
+                }
+                let request = input_json(input)?;
+                return work_flow::specification::migration(
+                    "semantic-apply",
+                    || preview_migration(root, skill_root, &configs, &request),
+                    |operation| {
+                        publish_migration(
+                            root,
+                            skill_root,
+                            &configs,
+                            &request,
+                            operation,
+                            argument(parsed, "approved_sha256")?,
+                        )
+                    },
+                );
+            }
             execute_artifact_migration(
                 root,
                 skill_root,
@@ -622,6 +683,31 @@ fn dispatch(
         }
         ["migration", "recover"] => {
             let configs = skill_configs(&string_list(parsed, "skill_root"))?;
+            if parsed.arguments.contains_key("input_file") {
+                if parsed.arguments.contains_key("request_path") {
+                    return Err(WorkError::new(
+                        ExitCode::CliUsage,
+                        "cli_usage_error",
+                        "Choose one migration input.",
+                        json!({}),
+                    ));
+                }
+                let request = input_json(input)?;
+                return work_flow::specification::migration(
+                    "semantic-recover",
+                    || preview_migration(root, skill_root, &configs, &request),
+                    |operation| {
+                        publish_migration(
+                            root,
+                            skill_root,
+                            &configs,
+                            &request,
+                            operation,
+                            argument(parsed, "approved_sha256")?,
+                        )
+                    },
+                );
+            }
             recover_artifact_migration(
                 root,
                 skill_root,
@@ -629,6 +715,31 @@ fn dispatch(
                 argument(parsed, "request_path")?,
                 argument(parsed, "approved_sha256")?,
             )
+        }
+        ["migration", "verify"] => {
+            let configs = skill_configs(&string_list(parsed, "skill_root"))?;
+            let approved = argument(parsed, "approved_sha256")?;
+            match (
+                parsed.arguments.contains_key("input_file"),
+                parsed.arguments.get("request_path").and_then(Value::as_str),
+            ) {
+                (true, None) => verify_semantic_migration(
+                    root,
+                    skill_root,
+                    &configs,
+                    &input_json(input)?,
+                    approved,
+                ),
+                (false, Some(request_path)) => {
+                    verify_artifact_migration(root, skill_root, &configs, request_path, approved)
+                }
+                _ => Err(WorkError::new(
+                    ExitCode::CliUsage,
+                    "cli_usage_error",
+                    "Choose exactly one Migration request input.",
+                    json!({}),
+                )),
+            }
         }
         ["paths", "resolve"] => {
             let raw_id = argument(parsed, "requirement_id")?;
@@ -1101,7 +1212,7 @@ fn dispatch(
             &contract::EmbeddedRegistry,
             argument(parsed, "contract_id")?,
         ),
-        ["task", "draft-status" | "status"] => {
+        ["task", "status"] => {
             let storage = LocalTaskDraftStorage {
                 project_root: root.to_path_buf(),
             };
@@ -1111,7 +1222,7 @@ fn dispatch(
                     parsed.arguments.get("task_id").and_then(Value::as_str),
                 )
             })?;
-            if parsed.path[1] == "status" && result["status"] == "saved" {
+            if result["status"] == "saved" {
                 let configs = skill_configs(&string_list(parsed, "skill_root"))?;
                 let (plan_path, _) = resolve_project_path(root, argument(parsed, "plan_path")?)?;
                 let task_ids =
@@ -1150,8 +1261,38 @@ fn dispatch(
             }
             Ok(result)
         }
-        ["task", "semantic-prepare" | "prepare"] => {
+        ["task", "prepare"] => {
             let configs = skill_configs(&string_list(parsed, "skill_root"))?;
+            let request = input_json(input)?;
+            if request.get("selections").is_some() {
+                let (plan_path, _) = resolve_project_path(root, argument(parsed, "plan_path")?)?;
+                let storage = LocalTaskDraftStorage {
+                    project_root: root.to_path_buf(),
+                };
+                let revision = if parsed.arguments.contains_key("expected_revision") {
+                    unsigned_argument(parsed, "expected_revision")?
+                } else {
+                    storage.read_planning_index(argument(parsed, "requirement_id")?)?["revision"]
+                        .as_u64()
+                        .ok_or_else(|| {
+                            WorkError::new(
+                                ExitCode::Contract,
+                                "invalid_draft_revision",
+                                "Planning revision is missing.",
+                                json!({}),
+                            )
+                        })?
+                };
+                return storage.prepare_sources_from_project(TaskSourceUpdateProjectRequest {
+                    requirement_id: argument(parsed, "requirement_id")?,
+                    raw_request: &request,
+                    expected_revision: revision,
+                    plan_path: &plan_path,
+                    skill_root,
+                    skill_configs: &configs,
+                    recover: false,
+                });
+            }
             work_flow::draft::semantic_prepare(|| {
                 prepare_semantic_task_request(
                     root,
@@ -1161,96 +1302,60 @@ fn dispatch(
                     argument(parsed, "plan_path")?,
                     if parsed.arguments.contains_key("expected_revision") {
                         unsigned_argument(parsed, "expected_revision")?
-                    } else if parsed.path[1] == "prepare" {
+                    } else {
                         LocalTaskDraftStorage {
                             project_root: root.to_path_buf(),
                         }
                         .status(argument(parsed, "requirement_id")?, None)?["revision"]
                             .as_u64()
                             .unwrap_or(0)
-                    } else {
-                        0
                     },
-                    &input_json(input)?,
+                    &request,
                 )
             })
         }
-        ["task", "draft-read"] => {
-            let storage = LocalTaskDraftStorage {
-                project_root: root.to_path_buf(),
-            };
-            let requirement_id = argument(parsed, "requirement_id")?;
-            work_flow::draft::read(
-                parsed.arguments.get("task_id").and_then(Value::as_str),
-                || storage.read_planning_index(requirement_id),
-                |index, task_id| storage.read_draft(index, task_id),
-            )
-        }
-        ["task", "draft-init" | "draft-save" | "draft-recover"] => {
-            let revision = if parsed.path[1] == "draft-init" {
-                0
-            } else {
-                unsigned_argument(parsed, "expected_revision")?
-            };
+        ["task", "save"] => {
             let request = input_json(input)?;
-            let storage = LocalTaskDraftStorage {
-                project_root: root.to_path_buf(),
-            };
-            work_flow::draft::save(
-                &parsed.path[1],
-                &request,
-                revision,
-                |index, revision, draft| storage.save_planning(index, revision, draft),
-                |index, revision, draft| storage.recover_planning(index, revision, draft),
-            )
-        }
-        ["task", "draft-list-update" | "draft-list-recover"] => {
-            let revision = unsigned_argument(parsed, "expected_revision")?;
-            let request = input_json(input)?;
-            work_flow::draft::list_update(|| {
-                LocalTaskDraftStorage {
-                    project_root: root.to_path_buf(),
+            if request["schema"] == "work-task-draft-prepare/v1" {
+                if parsed.arguments.contains_key("task_id")
+                    || parsed.arguments.get("general_only") == Some(&json!(true))
+                    || parsed.arguments.contains_key("instruction_path")
+                    || parsed.arguments.contains_key("reference")
+                    || (parsed.arguments.contains_key("expected_revision")
+                        && unsigned_argument(parsed, "expected_revision")? != 0)
+                {
+                    return Err(WorkError::new(
+                        ExitCode::CliUsage,
+                        "invalid_initial_task_save_options",
+                        "Initial planning save accepts the prepared candidate without task selection or revision options.",
+                        json!({}),
+                    ));
                 }
-                .update_planning_list(
-                    &request["index"],
-                    revision,
-                    request["reason"].as_str().unwrap_or(""),
-                    parsed.path[1] == "draft-list-recover",
-                )
-            })
-        }
-        ["task", "draft-check"] => {
-            let explicit = parsed.arguments.get("general_only") == Some(&json!(true))
-                || parsed.arguments.contains_key("instruction_path");
-            work_flow::draft::with_source_selection(
-                explicit,
-                parsed.arguments.contains_key("reference"),
-                || {
-                    let selected = string_list(parsed, "instruction_path");
-                    let references = string_list(parsed, "reference");
-                    let configs = skill_configs(&string_list(parsed, "skill_root"))?;
-                    let (plan_path, _) =
-                        resolve_project_path(root, argument(parsed, "plan_path")?)?;
-                    LocalTaskDraftStorage {
-                        project_root: root.to_path_buf(),
-                    }
-                    .check_sources(&TaskSourceCheckRequest {
-                        requirement_id: argument(parsed, "requirement_id")?,
-                        task_id: argument(parsed, "task_id")?,
-                        expected_revision: unsigned_argument(parsed, "expected_revision")?,
-                        plan_path: &plan_path,
-                        skill_root,
-                        skill_configs: &configs,
-                        selected_paths: explicit.then_some(selected.as_slice()),
-                        reference_names: explicit.then_some(references.as_slice()),
-                    })
-                },
-            )
-        }
-        [
-            "task",
-            "draft-save-request" | "draft-recover-request" | "save",
-        ] => {
+                let configs = skill_configs(&string_list(parsed, "skill_root"))?;
+                let save = if request["request"]["selections"].is_object() {
+                    save_prepared_source_task
+                } else if request["index"]["revision"] == 1 {
+                    save_prepared_initial_task
+                } else {
+                    save_prepared_list_task
+                };
+                return save(
+                    root,
+                    skill_root,
+                    &configs,
+                    argument(parsed, "requirement_id")?,
+                    argument(parsed, "plan_path")?,
+                    &request,
+                );
+            }
+            if !parsed.arguments.contains_key("task_id") {
+                return Err(WorkError::new(
+                    ExitCode::CliUsage,
+                    "task_id_required",
+                    "--task-id is required when saving a TASK discussion.",
+                    json!({}),
+                ));
+            }
             let explicit = parsed.arguments.get("general_only") == Some(&json!(true))
                 || parsed.arguments.contains_key("instruction_path");
             work_flow::draft::with_source_selection(
@@ -1273,7 +1378,7 @@ fn dispatch(
                                 "invalid_draft_revision", "Planning revision is missing.", json!({})))?
                     };
                     storage.save_discussion_request(
-                        &input_json(input)?,
+                        &request,
                         &TaskSourceCheckRequest {
                             requirement_id: argument(parsed, "requirement_id")?,
                             task_id: argument(parsed, "task_id")?,
@@ -1284,28 +1389,10 @@ fn dispatch(
                             selected_paths: explicit.then_some(selected.as_slice()),
                             reference_names: explicit.then_some(references.as_slice()),
                         },
-                        parsed.path[1] == "draft-recover-request",
+                        false,
                     )
                 },
             )
-        }
-        ["task", "draft-source-update" | "draft-source-recover"] => {
-            work_flow::draft::source_update(|| {
-                let configs = skill_configs(&string_list(parsed, "skill_root"))?;
-                let (plan_path, _) = resolve_project_path(root, argument(parsed, "plan_path")?)?;
-                LocalTaskDraftStorage {
-                    project_root: root.to_path_buf(),
-                }
-                .update_sources_from_project(TaskSourceUpdateProjectRequest {
-                    requirement_id: argument(parsed, "requirement_id")?,
-                    raw_request: &input_json(input)?,
-                    expected_revision: unsigned_argument(parsed, "expected_revision")?,
-                    plan_path: &plan_path,
-                    skill_root,
-                    skill_configs: &configs,
-                    recover: parsed.path[1] == "draft-source-recover",
-                })
-            })
         }
         ["task", "validate"] => {
             let configs = skill_configs(&string_list(parsed, "skill_root"))?;
@@ -1369,10 +1456,7 @@ fn dispatch(
                 )
             }
         }
-        [
-            "task",
-            "draft-assemble" | "draft-create" | "preview" | "apply" | "recover",
-        ] => {
+        ["task", "preview" | "apply" | "recover"] => {
             let metadata = input_json(input)?;
             let configs = skill_configs(&string_list(parsed, "skill_root"))?;
             let (plan_path, _) = resolve_project_path(root, argument(parsed, "plan_path")?)?;
@@ -1411,10 +1495,7 @@ fn dispatch(
             let repository = LocalTaskAssembly {
                 project_root: root.to_path_buf(),
             };
-            if matches!(
-                parsed.path[1].as_str(),
-                "draft-create" | "apply" | "recover"
-            ) {
+            if matches!(parsed.path[1].as_str(), "apply" | "recover") {
                 create_draft_task(
                     DraftCreatePorts {
                         repository: &repository,
@@ -1433,39 +1514,6 @@ fn dispatch(
             } else {
                 assemble_task(&repository, &hierarchy, &skills, &paths, &roots, request)
             }
-        }
-        ["task", "create" | "recover-create"] => {
-            let configs = skill_configs(&string_list(parsed, "skill_root"))?;
-            let (plan_path, _) = resolve_project_path(root, argument(parsed, "plan_path")?)?;
-            let (task_path, _) = resolve_project_path(root, argument(parsed, "task_path")?)?;
-            let (execution_dir, _) =
-                resolve_project_path(root, argument(parsed, "execution_dir")?)?;
-            require_collection_path(&task_path)?;
-            let roots = skill_roots(&configs);
-            let hierarchy = LocalHierarchyCatalog {
-                skill_root: skill_root.to_path_buf(),
-            };
-            let skills = LocalSkillCatalog { roots: configs };
-            let paths = LocalPlanStorage {
-                project_root: root.to_path_buf(),
-            };
-            let storage = LocalTaskCreation {
-                project_root: root.to_path_buf(),
-            };
-            create_task(
-                &hierarchy,
-                &skills,
-                &paths,
-                &storage,
-                &roots,
-                TaskCreateProjectInput {
-                    raw: &required_input(input)?.raw,
-                    plan_path: &plan_path,
-                    task_path: &task_path,
-                    execution_dir: &execution_dir,
-                    recovery: parsed.path[1] == "recover-create",
-                },
-            )
         }
         ["specification", "preview" | "apply" | "recover"] => {
             let input = required_input(input)?;
@@ -1529,45 +1577,6 @@ fn dispatch(
             } else {
                 Ok(result)
             }
-        }
-        [
-            "migration",
-            "semantic-preview" | "semantic-apply" | "semantic-recover",
-        ] => {
-            let request = input_json(input)?;
-            let configs = skill_configs(&string_list(parsed, "skill_root"))?;
-            work_flow::specification::migration(
-                &parsed.path[1],
-                || preview_migration(root, skill_root, &configs, &request),
-                |operation| {
-                    publish_migration(
-                        root,
-                        skill_root,
-                        &configs,
-                        &request,
-                        operation,
-                        argument(parsed, "approved_sha256")?,
-                    )
-                },
-            )
-        }
-        ["migration", "semantic-prepare"] => {
-            let raw = &required_input(input)?.raw;
-            let request = input_json(input)?;
-            let configs = skill_configs(&string_list(parsed, "skill_root"))?;
-            let output = parsed.arguments.get("output_file").and_then(Value::as_str);
-            work_flow::task::migration_prepare(
-                work_flow::task::MigrationPrepareInput {
-                    raw,
-                    request: &request,
-                    date: &local_date(),
-                    output,
-                },
-                |raw, date| prepare_revision_request(root, skill_root, &configs, raw, date),
-                |raw| prepare_reconstruction_request(root, skill_root, &configs, raw),
-                |prepared| preview_migration(root, skill_root, &configs, prepared),
-                write_prepared_output,
-            )
         }
         [
             "specification",
@@ -2302,7 +2311,7 @@ mod tests {
     }
 
     #[test]
-    fn task_draft_commands_require_explicit_paths_for_references() {
+    fn task_save_requires_explicit_paths_for_references() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let root = std::env::temp_dir().join(format!(
             "work-cli-task-draft-reference-{}-{}",
@@ -2315,35 +2324,32 @@ mod tests {
         fs::create_dir_all(&root).unwrap();
         let input = root.join("request.json");
         fs::write(&input, "{}").unwrap();
-        for command in ["draft-check", "draft-save-request", "draft-recover-request"] {
-            let mut args = vec![
-                "--project-root".into(),
-                root.to_string_lossy().into_owned(),
-                "task".into(),
-                command.into(),
-                "--requirement-id".into(),
-                "example".into(),
-                "--task-id".into(),
-                "TASK-001".into(),
-                "--expected-revision".into(),
-                "1".into(),
-                "--plan-path".into(),
-                "outputs/work/plans/example.json".into(),
-                "--user-config-root".into(),
-                root.to_string_lossy().into_owned(),
-                "--reference".into(),
-                "task.general.task-records".into(),
-            ];
-            if command != "draft-check" {
-                args.extend(["--input-file".into(), input.to_string_lossy().into_owned()]);
-            }
-            let (exit, result) = run_with_skill_root(&args, &repo.join("../skills/work"));
-            assert_eq!(exit, ExitCode::CliUsage as i32, "{command}");
-            assert_eq!(
-                result.reason_code, "draft_selection_incomplete",
-                "{command}"
-            );
-        }
+        let command = "save";
+        let mut args = vec![
+            "--project-root".into(),
+            root.to_string_lossy().into_owned(),
+            "task".into(),
+            command.into(),
+            "--requirement-id".into(),
+            "example".into(),
+            "--task-id".into(),
+            "TASK-001".into(),
+            "--expected-revision".into(),
+            "1".into(),
+            "--plan-path".into(),
+            "outputs/work/plans/example.json".into(),
+            "--user-config-root".into(),
+            root.to_string_lossy().into_owned(),
+            "--reference".into(),
+            "task.general.task-records".into(),
+        ];
+        args.extend(["--input-file".into(), input.to_string_lossy().into_owned()]);
+        let (exit, result) = run_with_skill_root(&args, &repo.join("../skills/work"));
+        assert_eq!(exit, ExitCode::CliUsage as i32, "{command}");
+        assert_eq!(
+            result.reason_code, "draft_selection_incomplete",
+            "{command}"
+        );
     }
 
     #[test]
@@ -3589,7 +3595,7 @@ mod tests {
     }
 
     #[test]
-    fn task_draft_status_matches_python_reference() {
+    fn task_status_matches_saved_planning_reference() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo.join("crates/work-infrastructure/fixtures/task-draft-sources/valid");
         let index = fixture.join("outputs/work/tasks/example/drafts/index.json");
@@ -3602,9 +3608,13 @@ mod tests {
                 fixture.to_string_lossy().into_owned(),
                 "--verbose".into(),
                 "task".into(),
-                "draft-status".into(),
+                "status".into(),
                 "--requirement-id".into(),
                 "example".into(),
+                "--plan-path".into(),
+                "outputs/work/plans/example.json".into(),
+                "--user-config-root".into(),
+                ".".into(),
             ],
             &repo.join("../skills/work"),
         );
@@ -3614,18 +3624,22 @@ mod tests {
         assert_eq!(result.data["counts"]["planned"], 1);
         assert_eq!(
             result.data["tasks"][0]["instructions_sha256"],
-            "3b5a624904e992dd2a20d0bc4d91103f8f416a6d1b5100c74c439aa3c46b756c"
+            "e4fdfc5254dda6a8522ec33f92f91a788f8ba44d69c89fa62624d7365718eef3"
         );
         let (exit, selected) = run_with_skill_root(
             &[
                 "--project-root".into(),
                 fixture.to_string_lossy().into_owned(),
                 "task".into(),
-                "draft-status".into(),
+                "status".into(),
                 "--requirement-id".into(),
                 "example".into(),
                 "--task-id".into(),
                 "TASK-001".into(),
+                "--plan-path".into(),
+                "outputs/work/plans/example.json".into(),
+                "--user-config-root".into(),
+                ".".into(),
             ],
             &repo.join("../skills/work"),
         );
@@ -3637,7 +3651,7 @@ mod tests {
     }
 
     #[test]
-    fn task_draft_source_check_matches_python_reference() {
+    fn task_status_checks_saved_sources() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo.join("crates/work-infrastructure/fixtures/task-draft-sources/valid");
         let (exit, result) = run_with_skill_root(
@@ -3646,13 +3660,11 @@ mod tests {
                 fixture.to_string_lossy().into_owned(),
                 "--verbose".into(),
                 "task".into(),
-                "draft-check".into(),
+                "status".into(),
                 "--requirement-id".into(),
                 "example".into(),
                 "--task-id".into(),
                 "TASK-001".into(),
-                "--expected-revision".into(),
-                "1".into(),
                 "--plan-path".into(),
                 "outputs/work/plans/example.json".into(),
                 "--user-config-root".into(),
@@ -3661,14 +3673,10 @@ mod tests {
             &repo.join("../skills/work"),
         );
         assert_eq!(exit, 0, "{result:?}");
-        assert_eq!(result.data["status"], "valid");
+        assert_eq!(result.data["source_validation"], "valid");
         assert_eq!(
-            result.data["source"]["plan_sha256"],
-            "c1580aa54f48e015ee2efb9b0a5de74122f60839689cc8fd65bbfb16447f20bf"
-        );
-        assert_eq!(
-            result.data["instructions_sha256"],
-            "3b5a624904e992dd2a20d0bc4d91103f8f416a6d1b5100c74c439aa3c46b756c"
+            result.data["tasks"][0]["instructions_sha256"],
+            "e4fdfc5254dda6a8522ec33f92f91a788f8ba44d69c89fa62624d7365718eef3"
         );
     }
 
@@ -3694,7 +3702,7 @@ mod tests {
         assert_eq!(result.data["task_count"], 2);
         assert_eq!(
             result.data["task_collection_sha256"],
-            "5346817ac77d01a98881d30fb74a5a1d42104b17ae6185e09533fc7e909a5101"
+            "6ad141589d3445cd62715fe46db2d827c0673d0101b1797ace6980a22546139e"
         );
     }
 
@@ -3769,6 +3777,13 @@ mod tests {
             invoke([vec!["migration".into(), "apply".into()], arguments.clone()].concat());
         assert_eq!(exit, 0, "{applied:?}");
         assert_eq!(applied.data["status"], "completed", "{applied:?}");
+        let plan_before = fs::read(&plan_path).unwrap();
+        let (exit, verified) =
+            invoke([vec!["migration".into(), "verify".into()], arguments.clone()].concat());
+        assert_eq!(exit, 0, "{verified:?}");
+        assert_eq!(verified.data["status"], "valid");
+        assert_eq!(verified.data["mode"], "artifact");
+        assert_eq!(fs::read(&plan_path).unwrap(), plan_before);
         let (exit, recovered) =
             invoke([vec!["migration".into(), "recover".into()], arguments].concat());
         assert_eq!(exit, 0, "{recovered:?}");

@@ -6,8 +6,8 @@
       "deviation_id": "DEVIATION-001",
       "outcome": "incorporated",
       "target": "task_only",
-      "attempt_sha256": "c843c28d82e62ae5297f3a93db55590e347cec502cd98a2b02b0069b60a15572",
-      "reconciliation_fingerprint": "dd98d3f58f2b524974590181f3e2bad359e8d111cd458f3fa40bba8c2b79d8c7"
+      "attempt_sha256": "e4299875de1d7bb1d62f00f5f1e39938ae4b48be9907c7191a69942fdea08576",
+      "reconciliation_fingerprint": "01a07893053ab9f860467879b997c1da48bb64c5c2d06af0a27314e6ed5f590c"
     }
   ]
 }

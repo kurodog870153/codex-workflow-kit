@@ -380,7 +380,7 @@ mod tests {
 
     #[test]
     fn command_manifest_keeps_all_python_public_leaves() {
-        assert_eq!(leaves(&manifest().root), 112);
+        assert_eq!(leaves(&manifest().root), 92);
         command(&manifest().root).debug_assert();
     }
 
@@ -636,18 +636,7 @@ mod tests {
     }
 
     #[test]
-    fn task_parser_preserves_specification_and_create_arguments() {
-        let parse = |suffix: &[&str]| {
-            let tokens = [&["--project-root", "/project", "task"][..], suffix]
-                .concat()
-                .into_iter()
-                .map(str::to_owned)
-                .collect::<Vec<_>>();
-            let ParseOutcome::Command(parsed) = parse_tokens(&tokens).unwrap() else {
-                panic!("expected task command");
-            };
-            parsed
-        };
+    fn task_parser_preserves_specification_arguments() {
         let parse_spec = |suffix: &[&str]| {
             let tokens = [&["--project-root", "/project", "specification"][..], suffix]
                 .concat()
@@ -720,25 +709,12 @@ mod tests {
             "semantic-apply",
             "semantic-recover",
         ] {
-            let mut tokens = vec!["--project-root", "/project", "migration", command];
-            tokens.extend([
-                "--input-file",
-                "request.json",
-                "--user-config-root",
-                "/config",
-            ]);
-            if matches!(command, "semantic-apply" | "semantic-recover") {
-                tokens.extend([
-                    "--approved-sha256",
-                    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                ]);
-            }
-            let ParseOutcome::Command(parsed) =
-                parse_tokens(&tokens.into_iter().map(str::to_owned).collect::<Vec<_>>()).unwrap()
-            else {
-                panic!("expected migration command");
-            };
-            assert_eq!(parsed.path, ["migration", command]);
+            let tokens = ["--project-root", "/project", "migration", command].map(str::to_owned);
+            assert_eq!(
+                parse_tokens(&tokens).unwrap_err().reason_code,
+                "cli_usage_error",
+                "{command}"
+            );
         }
         for command in [
             "migration-prepare",
@@ -752,41 +728,6 @@ mod tests {
                 "cli_usage_error"
             );
         }
-        let create = parse(&[
-            "create",
-            "--user-config-root",
-            "/config",
-            "--skill-root",
-            "repo:.agents/skills=/skills",
-            "--input-file",
-            "request.json",
-            "--plan-path",
-            "outputs/work/plans/example.json",
-            "--task-path",
-            "outputs/work/tasks/example/task.json",
-            "--execution-dir",
-            "outputs/work/executions/example",
-        ]);
-        assert_eq!(create.path, ["task", "create"]);
-        assert_eq!(create.arguments["project_root"], "/project");
-        assert_eq!(create.arguments["user_config_root"], "/config");
-        assert_eq!(
-            create.arguments["skill_root"],
-            json!(["repo:.agents/skills=/skills"])
-        );
-        assert_eq!(create.arguments["input_file"], "request.json");
-        assert_eq!(
-            create.arguments["plan_path"],
-            "outputs/work/plans/example.json"
-        );
-        assert_eq!(
-            create.arguments["task_path"],
-            "outputs/work/tasks/example/task.json"
-        );
-        assert_eq!(
-            create.arguments["execution_dir"],
-            "outputs/work/executions/example"
-        );
         for command in [
             "layout-preflight",
             "layout-prepare",
@@ -910,141 +851,80 @@ mod tests {
     }
 
     #[test]
-    fn task_mutation_routes_preserve_request_paths_revisions_and_selection_flags() {
-        let parse = |suffix: &[&str]| {
-            let tokens = [&["--project-root", "/project", "task"][..], suffix]
-                .concat()
-                .into_iter()
-                .map(str::to_owned)
-                .collect::<Vec<_>>();
-            let ParseOutcome::Command(parsed) = parse_tokens(&tokens).unwrap() else {
-                panic!("expected task command");
-            };
-            parsed
-        };
-        for command in ["create", "recover-create"] {
-            let parsed = parse(&[
-                command,
-                "--user-config-root",
-                "/config",
-                "--input-file",
-                "request.json",
-                "--plan-path",
-                "outputs/work/plans/example.json",
-                "--task-path",
-                "outputs/work/tasks/example/index.json",
-                "--execution-dir",
-                "outputs/work/executions/example",
-            ]);
-            assert_eq!(parsed.path, ["task", command]);
-            assert_eq!(
-                parsed.arguments["task_path"],
-                "outputs/work/tasks/example/index.json"
-            );
-            assert_eq!(
-                parsed.arguments["plan_path"],
-                "outputs/work/plans/example.json"
-            );
-        }
-        for command in ["draft-list-update", "draft-list-recover"] {
-            let parsed = parse(&[
-                command,
-                "--input-file",
-                "request.json",
-                "--expected-revision",
-                "3",
-            ]);
-            assert_eq!(parsed.path, ["task", command]);
-            assert_eq!(parsed.arguments["expected_revision"], "3");
-        }
-        let approval = "a".repeat(64);
+    fn task_public_commands_are_exact_and_legacy_commands_are_rejected() {
+        let task = manifest()
+            .root
+            .children
+            .iter()
+            .find(|child| child.name == "task")
+            .unwrap();
+        let mut names = task
+            .children
+            .iter()
+            .map(|child| child.name.as_str())
+            .collect::<Vec<_>>();
+        names.sort_unstable();
+        assert_eq!(
+            names,
+            [
+                "apply", "prepare", "preview", "recover", "save", "status", "validate"
+            ]
+        );
         for command in [
+            "draft-init",
+            "semantic-prepare",
+            "draft-save",
+            "draft-recover",
+            "draft-read",
+            "draft-status",
+            "draft-check",
+            "draft-save-request",
+            "draft-recover-request",
+            "draft-list-update",
+            "draft-list-recover",
             "draft-source-update",
             "draft-source-recover",
             "draft-assemble",
             "draft-create",
+            "create",
+            "recover-create",
         ] {
-            let mut args = vec![
-                command,
-                "--input-file",
-                "request.json",
-                "--requirement-id",
-                "example",
-                "--expected-revision",
-                "2",
-                "--plan-path",
-                "outputs/work/plans/example.json",
-                "--user-config-root",
-                "/config",
-            ];
-            if command == "draft-create" {
-                args.extend(["--approved-sha256", approval.as_str()]);
-            }
-            let parsed = parse(&args);
-            assert_eq!(parsed.path, ["task", command]);
-            assert_eq!(parsed.arguments["requirement_id"], "example");
-            assert_eq!(parsed.arguments["expected_revision"], "2");
+            let tokens = ["--project-root", "/project", "task", command].map(str::to_owned);
             assert_eq!(
-                parsed.arguments["plan_path"],
-                "outputs/work/plans/example.json"
-            );
-            if command == "draft-create" {
-                assert_eq!(
-                    parsed.arguments["approved_sha256"].as_str().unwrap().len(),
-                    64
-                );
-            }
-        }
-        for command in ["draft-check", "draft-save-request", "draft-recover-request"] {
-            let mut args = vec![
-                command,
-                "--requirement-id",
-                "example",
-                "--task-id",
-                "TASK-001",
-                "--expected-revision",
-                "2",
-                "--plan-path",
-                "outputs/work/plans/example.json",
-                "--user-config-root",
-                "/config",
-            ];
-            if command != "draft-check" {
-                args.extend(["--input-file", "request.json"]);
-            }
-            let saved = parse(&args);
-            assert_eq!(saved.arguments["general_only"], false);
-            assert!(!saved.arguments.contains_key("instruction_path"));
-            assert!(!saved.arguments.contains_key("reference"));
-            args.extend(["--general-only", "--reference", "task.general.task-records"]);
-            let explicit = parse(&args);
-            assert_eq!(explicit.arguments["general_only"], true);
-            assert_eq!(
-                explicit.arguments["reference"],
-                json!(["task.general.task-records"])
-            );
-            let mut selected_args = args[..args.len() - 3].to_vec();
-            selected_args.extend([
-                "--instruction-path",
-                "web/backend",
-                "--reference",
-                "task.general.task-records",
-            ]);
-            let selected = parse(&selected_args);
-            assert_eq!(
-                selected.arguments["instruction_path"],
-                json!(["web/backend"])
+                parse_tokens(&tokens).unwrap_err().reason_code,
+                "cli_usage_error",
+                "{command}"
             );
         }
+        let tokens = [
+            "--project-root",
+            "/project",
+            "task",
+            "save",
+            "--requirement-id",
+            "example",
+            "--plan-path",
+            "outputs/work/plans/example.json",
+            "--user-config-root",
+            "/config",
+            "--input-file",
+            "request.json",
+        ]
+        .map(str::to_owned);
+        let ParseOutcome::Command(parsed) = parse_tokens(&tokens).unwrap() else {
+            panic!("expected task save");
+        };
+        assert_eq!(parsed.path, ["task", "save"]);
+        assert!(!parsed.arguments.contains_key("task_id"));
     }
-
     #[test]
     fn help_and_removed_stdin_match_public_contract() {
-        let help = ["task", "draft-check", "--help"].map(str::to_owned);
+        let help = ["task", "--help"].map(str::to_owned);
         let ParseOutcome::Help(content) = parse_tokens(&help).unwrap() else {
             panic!("expected help");
         };
-        assert!(content.starts_with("usage: work task draft-check"));
+        assert!(content.starts_with("usage: work task"));
+        assert!(!content.contains("draft-"));
         assert!(!content.contains("work.py"));
         for option in ["--stdin", "--stdin=true"] {
             let error = parse_tokens(&[option.into()]).unwrap_err();

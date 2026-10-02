@@ -24,8 +24,8 @@ fn production_source(text: &str) -> &str {
 
 fn contains_identifier(text: &str, name: &str) -> bool {
     text.match_indices(name).any(|(at, _)| {
-        let before = text[..at].as_bytes().last();
-        let after = text[at + name.len()..].as_bytes().first();
+        let before = text.as_bytes()[..at].last();
+        let after = text.as_bytes()[at + name.len()..].first();
         let identifier_byte = |byte: u8| byte.is_ascii_alphanumeric() || byte == b'_';
         !before.is_some_and(|byte| identifier_byte(*byte))
             && !after.is_some_and(|byte| identifier_byte(*byte))

@@ -968,6 +968,72 @@ pub fn recover(
         "request_sha256":approved_sha256,"items":statuses,"reconciliation":reconciliation}))
 }
 
+pub fn verify(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[crate::skill_catalog::SkillRootConfig],
+    relative: &str,
+    approved_sha256: &str,
+) -> Result<Value, WorkError> {
+    let request = read_request(root, relative, approved_sha256)?;
+    if !request.executable() {
+        return Err(fail(
+            "migration_verify_request_invalid",
+            "The artifact Migration request is not executable.",
+        ));
+    }
+    let id: RequirementId = request.requirement_id.parse().map_err(|_| {
+        fail(
+            "migration_requirement_id",
+            "The request requirement ID is invalid.",
+        )
+    })?;
+    let paths = default_artifact_paths(&id)
+        .into_iter()
+        .collect::<BTreeMap<_, _>>();
+    let execution = &paths["execution"];
+    let mut results = Vec::new();
+    for (position, decision) in request.decisions.iter().enumerate() {
+        if decision.action == ArtifactMigrationAction::Skip {
+            continue;
+        }
+        let journal = item_journal(execution, approved_sha256, position);
+        checked_journal(root, &journal, &request, approved_sha256, decision)?;
+        results.push(
+            crate::specification::migration_verification::verify_published_transaction(
+                root, &journal, None,
+            )?,
+        );
+    }
+    let reconciliation = work_operations::derivation::publication::journal_path(
+        execution,
+        work_operations::derivation::publication::JournalKind::SpecificationMigrationReconcile(
+            approved_sha256,
+        ),
+    );
+    if storage_path(root, &reconciliation)?.is_file() {
+        let expected = json!({"request_sha256":approved_sha256,"phase":"reconciliation"});
+        results.push(
+            crate::specification::migration_verification::verify_published_transaction(
+                root,
+                &reconciliation,
+                Some(&expected),
+            )?,
+        );
+    }
+    let chain = crate::specification::migration_reconciliation_publication::verify_final_chain(
+        root,
+        skill_root,
+        configs,
+        &request.requirement_id,
+    )?;
+    Ok(
+        json!({"schema":"work-spec-migration-verification/v1","status":"valid",
+        "mode":"artifact","fingerprint":approved_sha256,
+        "request_path":relative,"results":results,"final_chain":chain}),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

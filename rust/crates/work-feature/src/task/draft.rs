@@ -1144,10 +1144,10 @@ pub fn status(
     }
     if counts["refined"] == tasks.len() {
         result["next_action"] = json!("assemble_for_review");
-        result["required_checks"] = json!(["task draft-assemble"]);
+        result["required_checks"] = json!(["task preview"]);
     } else if selected.is_none() || selected.is_some_and(|entry| entry["status"] == "refined") {
         result["next_action"] = json!("choose_task");
-        result["required_checks"] = json!(["plan validate", "task draft-check"]);
+        result["required_checks"] = json!(["plan validate", "task status"]);
     } else {
         result["next_action"] = json!(match selected.expect("selected TASK")["status"].as_str() {
             Some("planned") => "confirm_start",
@@ -1155,7 +1155,7 @@ pub fn status(
             Some("needs_review") => "confirm_review",
             _ => unreachable!("validated planning status"),
         });
-        result["required_checks"] = json!(["plan validate", "task draft-check"]);
+        result["required_checks"] = json!(["plan validate", "task status"]);
     }
     Ok(result)
 }
@@ -1320,7 +1320,7 @@ mod tests {
             planned["required_checks"]
                 .as_array()
                 .unwrap()
-                .contains(&json!("task draft-check"))
+                .contains(&json!("task status"))
         );
         assert_eq!(planned["instruction_selection"], Value::Null);
         assert_eq!(planned["selection_confirmation_required"], true);
@@ -1394,7 +1394,7 @@ mod tests {
         index["tasks"][1]["status"] = json!("refined");
         let complete = status("example", Some(&index), None, Some(&discussion), false).unwrap();
         assert_eq!(complete["next_action"], "assemble_for_review");
-        assert_eq!(complete["required_checks"], json!(["task draft-assemble"]));
+        assert_eq!(complete["required_checks"], json!(["task preview"]));
         assert_eq!(complete["discussion"]["has_task_candidate"], false);
         assert_eq!(complete["assembly_validation"], "not_performed");
     }
