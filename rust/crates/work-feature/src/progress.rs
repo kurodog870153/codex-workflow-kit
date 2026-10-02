@@ -60,11 +60,11 @@ fn location(requirement_id: &str, mode: &str) -> Result<(String, String), WorkEr
             json!({}),
         )
     })?;
-    if !matches!(mode, "plan" | "task") {
+    if mode != "task" {
         return Err(failure(
             ExitCode::Contract,
             "invalid_progress_mode",
-            "Only Plan and Task discussions can be saved.",
+            "Only Task discussions can be saved.",
             json!({}),
         ));
     }

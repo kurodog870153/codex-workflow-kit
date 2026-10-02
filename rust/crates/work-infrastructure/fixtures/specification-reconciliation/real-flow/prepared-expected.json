@@ -1,35 +1,45 @@
 {
-  "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
-  "attempt_sha256": "e4299875de1d7bb1d62f00f5f1e39938ae4b48be9907c7191a69942fdea08576",
-  "choice": "retain_only",
-  "deviation_classifications": {
-    "DEVIATION-001": "retain_only"
-  },
-  "fingerprint": "efcb1cb8177ac8789072c093c2e26ba93b4199b17cb2ea44c90bc9985f0fb919",
-  "ledger": {
+  "output_file": null,
+  "preview": {
     "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
-    "entries": [
-      {
-        "attempt_sha256": "e4299875de1d7bb1d62f00f5f1e39938ae4b48be9907c7191a69942fdea08576",
-        "deviation_id": "DEVIATION-001",
-        "outcome": "retained",
-        "reconciliation_fingerprint": "efcb1cb8177ac8789072c093c2e26ba93b4199b17cb2ea44c90bc9985f0fb919",
-        "target": "retain_only"
-      }
+    "attempt_sha256": "2ae0e20ec5913132a1fe9b6e04ac9bc0c1adecbc1db250cdd3273324f82d80d8",
+    "choice": "retain_only",
+    "deviation_classifications": {
+      "DEVIATION-001": "retain_only"
+    },
+    "fingerprint": "51f75bd5b3187fda1d39b311da088085349fe1874c7f0994cb58b89d7f03f25b",
+    "ledger": {
+      "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
+      "entries": [
+        {
+          "attempt_sha256": "2ae0e20ec5913132a1fe9b6e04ac9bc0c1adecbc1db250cdd3273324f82d80d8",
+          "deviation_id": "DEVIATION-001",
+          "outcome": "retained",
+          "reconciliation_fingerprint": "51f75bd5b3187fda1d39b311da088085349fe1874c7f0994cb58b89d7f03f25b",
+          "target": "retain_only"
+        }
+      ],
+      "schema": "work-spec-reconciliation-ledger/v1"
+    },
+    "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
+    "migration_preview": null,
+    "pending_deviation_ids": [
+      "DEVIATION-001"
     ],
-    "schema": "work-spec-reconciliation-ledger/v1"
+    "publication_ready": true,
+    "publication_required": true,
+    "retained_deviation_ids": [
+      "DEVIATION-001"
+    ],
+    "schema": "work-spec-reconciliation-preview/v1",
+    "selected_deviation_ids": [],
+    "status": "ready"
   },
-  "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
-  "migration_preview": null,
-  "pending_deviation_ids": [
-    "DEVIATION-001"
-  ],
-  "publication_ready": true,
-  "publication_required": true,
-  "retained_deviation_ids": [
-    "DEVIATION-001"
-  ],
-  "schema": "work-spec-reconciliation-preview/v1",
-  "selected_deviation_ids": [],
-  "status": "ready"
+  "request": {
+    "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
+    "choice": "retain_only",
+    "deviation_ids": [],
+    "migration": null,
+    "schema": "work-spec-reconciliation-preview-request/v1"
+  }
 }

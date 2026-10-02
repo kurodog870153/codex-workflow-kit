@@ -1,0 +1,53 @@
+{
+  "schema": "work-attempt/v1",
+  "attempt_id": "ATTEMPT-002",
+  "task_spec_id": "TASK-SPEC-001",
+  "task_id": "TASK-001",
+  "skill_id": null,
+  "status": "stopped",
+  "task_collection_sha256": "0eae5243ba16af62f15d5524e6b6e2bdafeb627e9a8e6a34970cabc19e954cb0",
+  "task_index_sha256": "ea48a1345166fa95712c22514832461e69c21527fb29ae7f28ec729621105a55",
+  "task_item_sha256": "4163cece835cd731ccdf0186ee34e628a2fa1f35c4cd60c0578427f9044104c1",
+  "task_instructions_sha256": "b1d52e3219a13a4e70dbac355a6db5aeed775db321b6a2fa18a0b74b8866dd83",
+  "execute_instructions_sha256": "493a50f30e6531655cf042512891fd4553bd6dfbc73c66b9f442a42604ff7616",
+  "hierarchy_selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59",
+  "execute_skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
+  "authorization": {
+    "schema": "work-attempt-authorization/v1",
+    "task_id": "TASK-001",
+    "commands": [],
+    "validations": [],
+    "modifiable_files": [],
+    "working_directories": [],
+    "external_operations": [],
+    "allowed_deviations": [],
+    "reapproval_conditions": [
+      "scope_expansion",
+      "source_or_worktree_drift",
+      "failure_divergence",
+      "retry",
+      "recovery",
+      "unknown_result"
+    ],
+    "authorization_evidence": "User approved this exact Attempt scope."
+  },
+  "authorization_sha256": "30a8dd5343d43861e6a2f0846add3362ed674ca0be96dcdb4020d9004e6ff7aa",
+  "started_at": "2026-09-01T10:00+08:00",
+  "records": [],
+  "acceptance_results": [
+    {
+      "id": "ACCEPTANCE-001",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "TASK-001-ACCEPTANCE-001",
+      "status": "pending",
+      "evidence": []
+    }
+  ],
+  "final_type": "specification_defect",
+  "reason": "Missing specification detail",
+  "closing_authorization_evidence": "User approved this closure.",
+  "ended_at": "2026-09-01T10:05+08:00"
+}

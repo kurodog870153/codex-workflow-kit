@@ -4,9 +4,45 @@
   "revision": 1,
   "schema": "work-task-planning-index/v1",
   "source": {
-    "hierarchy_selection_sha256": "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404",
-    "plan_sha256": "c1580aa54f48e015ee2efb9b0a5de74122f60839689cc8fd65bbfb16447f20bf",
-    "skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"
+    "acceptance_criteria": [
+      {
+        "criterion": "Observable",
+        "id": "ACCEPTANCE-001"
+      }
+    ],
+    "artifacts": {
+      "execution": "outputs/work/executions/example",
+      "source": "outputs/work/sources/example",
+      "task": "outputs/work/tasks/example/index.json"
+    },
+    "hierarchy_selection": {
+      "catalog_sha256": "74977ff41dae925d76037c60fcbb6e5c6d950af73416308d5e21ca3b96ef5d54",
+      "decision": "general_only",
+      "entries": [],
+      "schema": "work-hierarchy-selection/v1",
+      "selected_paths": [],
+      "selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59"
+    },
+    "skill_selection": {
+      "decision": "base_only",
+      "schema": "work-skill-selection/v1",
+      "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
+      "skills": []
+    },
+    "snapshot": {
+      "captured_at": "2026-10-03T00:00:00Z",
+      "content": {
+        "path": "source.txt",
+        "sha256": "7207f68cff308aed428d6c1a6b51f48c9778d933fe34dceb8bf26193e4ef87b9",
+        "size": 687
+      },
+      "requirement_id": "example",
+      "schema": "work-source-snapshot/v1",
+      "source": {
+        "kind": "user_text"
+      },
+      "source_id": "SRC-001"
+    }
   },
   "tasks": [
     {
@@ -18,7 +54,7 @@
         "references": [],
         "selected_paths": []
       },
-      "instructions_sha256": "e4fdfc5254dda6a8522ec33f92f91a788f8ba44d69c89fa62624d7365718eef3",
+      "instructions_sha256": "48975c28f9dbc77acb7af7d733f6b3188b6ce22ba603f9f923abcf1af040af9d",
       "scope": [
         "Source"
       ],

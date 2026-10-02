@@ -215,7 +215,7 @@ mod tests {
     use serde_json::json;
 
     fn source(hash: &str, revision: Option<u64>) -> Value {
-        let mut source = json!({"kind":"workflow","logical_name":"work.workflow.plan",
+        let mut source = json!({"kind":"workflow","logical_name":"work.workflow.task",
             "canonical_sha256":hash});
         if let Some(revision) = revision {
             source["compatibility_revision"] = json!(revision);
@@ -230,7 +230,7 @@ mod tests {
             source_compatibility(&old, &[source("b", Some(1))]),
             (
                 Compatibility::Refreshable,
-                vec!["work.workflow.plan".into()]
+                vec!["work.workflow.task".into()]
             )
         );
         assert_eq!(
@@ -247,7 +247,7 @@ mod tests {
             Compatibility::ReviewRequired
         );
         let stored = json!({"router_compatibility_revision":3,"selection_sha256":"a",
-            "sources":[{"logical_name":"work.workflow.plan","compatibility_revision":2,
+            "sources":[{"logical_name":"work.workflow.task","compatibility_revision":2,
                 "canonical_sha256":"a"}]});
         let mut current = stored.clone();
         current["selection_sha256"] = json!("b");
@@ -256,7 +256,7 @@ mod tests {
             routing_compatibility(Some(&stored), &current),
             (
                 Compatibility::Refreshable,
-                vec!["work.workflow.plan".into()]
+                vec!["work.workflow.task".into()]
             )
         );
         current["router_compatibility_revision"] = json!(2);

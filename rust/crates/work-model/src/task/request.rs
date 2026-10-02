@@ -8,6 +8,39 @@ use super::draft::DraftInstructionSelection;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct SourceAcceptanceRemoval {
+    pub id: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SourceTaskReview {
+    pub outcome_decisions: String,
+    pub technical_decisions: String,
+    pub boundary: String,
+    pub acceptance: String,
+    pub skills: String,
+    pub hierarchy: String,
+    pub instructions: String,
+}
+
+/// The reviewed requirement set and Task impacts bind one exact replacement.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SourceReplacementConfirmation {
+    pub previous_planning_sha256: String,
+    pub new_source_sha256: String,
+    pub requirement_sha256: String,
+    pub complete_requirement_review: bool,
+    pub retained_acceptance_ids: Vec<String>,
+    pub removed_acceptance: Vec<SourceAcceptanceRemoval>,
+    pub added_acceptance_ids: Vec<String>,
+    pub task_reviews: std::collections::BTreeMap<String, SourceTaskReview>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SemanticTaskReference {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub existing_task_id: Option<String>,
@@ -33,6 +66,8 @@ pub struct SemanticTaskUpsert {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SemanticTaskRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<super::draft::PlanningSource>,
     pub upsert: Vec<SemanticTaskUpsert>,
     pub remove_task_ids: Vec<String>,
     #[serde(deserialize_with = "deserialize_required_nullable")]

@@ -23,10 +23,6 @@ use work_flow::instruction::{
 };
 use work_flow::invocation::parse as parse_invocation_flow;
 use work_flow::paths::resolve as resolve_artifact_paths;
-use work_flow::plan::{
-    create as create_plan_bytes, semantic_prepare as prepare_semantic,
-    validate_bytes as validate_plan_bytes, validate_file as validate_plan_file,
-};
 use work_flow::progress::{
     prepare as prepare_progress_raw, read as read_progress, save as save_progress_raw,
     validate as preview_progress_raw,
@@ -37,7 +33,7 @@ use work_flow::skill::{
     selection_validate as validate_skill_selection, snapshot as skill_snapshot,
 };
 use work_flow::specification::{
-    apply_reconciliation, prepare_reconciliation, preview_reconciliation,
+    apply_reconciliation, prepare_reconciliation, preview_reconciliation, recover_reconciliation,
 };
 use work_flow::task::{
     DraftCreatePorts, ProjectAssemblyInput, TaskCollectionRepository, assemble_task,
@@ -46,6 +42,7 @@ use work_flow::task::{
 use work_flow::workflow::{
     OperationContextRequest, build_operation_context, validate_operation_context,
 };
+use work_infrastructure::artifact_paths::LocalArtifactPaths;
 use work_infrastructure::clock_workspace::{LocalWorkspaceAllocator, local_date, local_timestamp};
 use work_infrastructure::codec::{canonical_json, decode_utf8, fingerprint, parse_json_contract};
 use work_infrastructure::delegation_storage::LocalDelegationStorage;
@@ -58,12 +55,12 @@ use work_infrastructure::instruction::refresh::{
     apply_source_refresh, apply_source_refresh_all, build_refresh, preview_source_refresh_all,
     source_impact,
 };
-use work_infrastructure::plan_storage::LocalPlanStorage;
 use work_infrastructure::progress_storage::LocalProgressStorage;
 use work_infrastructure::routing_sources::RoutingSourceSession;
 use work_infrastructure::skill_catalog::{LocalSkillCatalog, SkillRootConfig};
+use work_infrastructure::source_snapshot_storage::LocalSourceSnapshotStorage;
 use work_infrastructure::specification::artifact_migration::{
-    analyze as analyze_artifact_migration, execute as execute_artifact_migration,
+    analyze_with_evidence as analyze_artifact_migration, execute as execute_artifact_migration,
     prepare_request as prepare_artifact_migration, preview as preview_artifact_migration,
     recover as recover_artifact_migration, verify as verify_artifact_migration,
 };
@@ -72,7 +69,7 @@ use work_infrastructure::specification::migration_publication::publish_migration
 use work_infrastructure::specification::migration_verification::verify_semantic_migration;
 use work_infrastructure::specification::reconciliation_storage::{
     LocalReconciliationArtifacts, LocalSemanticReconciliation, publish_ledger_only,
-    publish_with_migration,
+    publish_with_migration, recover_ledger_only, recover_with_migration,
 };
 use work_infrastructure::specification::reconstruction::prepare_reconstruction_request;
 use work_infrastructure::specification::storage::require_no_spec_update;
@@ -203,7 +200,7 @@ fn operation_artifacts(
         if !(name.ends_with("_path") || name.ends_with("_file") || name.ends_with("_dir")) {
             continue;
         }
-        let path = if matches!(name.as_str(), "input_file" | "output_file") {
+        let path = if matches!(name.as_str(), "input_file" | "output_file" | "payload_file") {
             let candidate = Path::new(raw);
             let absolute = if candidate.is_absolute() {
                 candidate.to_path_buf()
@@ -267,7 +264,7 @@ fn dispatch_with_operation_context(
     };
     if !matches!(
         command,
-        "plan" | "task" | "execute" | "delegation" | "progress" | "handoff"
+        "source" | "task" | "execute" | "delegation" | "progress" | "handoff"
     ) {
         return dispatch(parsed, root, input, skill_root);
     }
@@ -586,10 +583,95 @@ fn dispatch(
         .collect::<Vec<_>>()
         .as_slice()
     {
+        ["source", operation @ ("read" | "validate")] => {
+            let repository = LocalSourceSnapshotStorage {
+                project_root: root.to_path_buf(),
+            };
+            let requirement_id = argument(parsed, "requirement_id")?;
+            let source_id = argument(parsed, "source_id")?;
+            if *operation == "read" {
+                Ok(
+                    serde_json::to_value(work_flow::source_snapshot::read_snapshot(
+                        &repository,
+                        requirement_id,
+                        source_id,
+                    )?)
+                    .expect("source read serializes"),
+                )
+            } else {
+                Ok(
+                    serde_json::to_value(work_flow::source_snapshot::validate_snapshot(
+                        &repository,
+                        requirement_id,
+                        source_id,
+                    )?)
+                    .expect("source validation serializes"),
+                )
+            }
+        }
+        ["source", "capture"] => {
+            let input = required_input(input)?;
+            let metadata: work_flow::source_snapshot::CaptureMetadata =
+                serde_json::from_value(input_json(Some(input))?).map_err(|_| {
+                    WorkError::new(
+                        ExitCode::Contract,
+                        "invalid_source_metadata",
+                        "Source capture metadata does not match its contract.",
+                        json!({}),
+                    )
+                })?;
+            let payload_path = argument(parsed, "payload_file")?;
+            let bytes = fs::read(payload_path).map_err(|_| {
+                WorkError::new(
+                    ExitCode::IoFailure,
+                    "source_payload_read_failed",
+                    "The original source payload could not be read.",
+                    json!({"path":payload_path}),
+                )
+            })?;
+            let artifacts = operation_artifacts(parsed, root, Some(input), false)?;
+            if artifacts["input_file"]["raw_sha256"] != input.source_raw_sha256
+                || artifacts["payload_file"]["raw_sha256"] != fingerprint::raw(&bytes)
+            {
+                return Err(WorkError::new(
+                    ExitCode::ArtifactIntegrity,
+                    "operation_artifact_drift",
+                    "Source input changed before capture.",
+                    json!({}),
+                ));
+            }
+            let approval = fingerprint::structured(&json!({
+                "operation":"source_capture", "project_root":root.to_string_lossy(),
+                "artifacts":artifacts,
+            }))
+            .expect("capture approval serializes");
+            if parsed
+                .arguments
+                .get("approved_sha256")
+                .and_then(Value::as_str)
+                != Some(&approval)
+            {
+                return Err(WorkError::new(
+                    ExitCode::WorkflowState,
+                    "source_capture_approval_required",
+                    "Approve the exact metadata and original payload before capture.",
+                    json!({"approval_sha256":approval,"artifacts":artifacts}),
+                ));
+            }
+            let snapshot = work_flow::source_snapshot::capture(
+                &LocalSourceSnapshotStorage {
+                    project_root: root.to_path_buf(),
+                },
+                &metadata,
+                &bytes,
+            )?;
+            Ok(serde_json::to_value(snapshot.manifest).expect("source manifest serializes"))
+        }
         ["migration", "analyze"] => analyze_artifact_migration(
             root,
             argument(parsed, "requirement_id")?,
             &string_list(parsed, "artifact"),
+            &string_list(parsed, "evidence_path"),
         ),
         ["migration", "prepare"] => {
             let request = input_json(input)?;
@@ -618,6 +700,15 @@ fn dispatch(
                     json!({}),
                 ));
             }
+            let _: work_model::specification::ArtifactMigrationDecisionInput =
+                serde_json::from_value(request.clone()).map_err(|_| {
+                    WorkError::new(
+                        ExitCode::Contract,
+                        "migration_decisions_contract",
+                        "The reviewed migration decision input has missing or unknown fields.",
+                        json!({}),
+                    )
+                })?;
             prepare_artifact_migration(root, &request["analysis"], &request["choices"])
         }
         ["migration", "preview"] => {
@@ -743,9 +834,13 @@ fn dispatch(
         }
         ["paths", "resolve"] => {
             let raw_id = argument(parsed, "requirement_id")?;
-            resolve_artifact_paths(raw_id, root, |relative| {
-                resolve_project_path(root, relative).map(|_| ())
-            })
+            resolve_artifact_paths(
+                raw_id,
+                root,
+                &LocalArtifactPaths {
+                    project_root: root.to_path_buf(),
+                },
+            )
         }
         ["fingerprint", "text"] => {
             let raw_path = argument(parsed, "path")?;
@@ -935,7 +1030,7 @@ fn dispatch(
                 skill_root,
                 skill_configs: &configs,
                 requirement_id: argument(parsed, "requirement_id")?,
-                plan_path: parsed.arguments.get("plan_path").and_then(Value::as_str),
+                task_path: parsed.arguments.get("task_path").and_then(Value::as_str),
             })?;
             let mut routing = RoutingSourceSession::new(skill_root.to_path_buf());
             let requirement_id = argument(parsed, "requirement_id")?;
@@ -1069,97 +1164,15 @@ fn dispatch(
                 ),
             }
         }
-        ["plan", "semantic-prepare"] => {
-            let request = input_json(input)?;
-            let configs = skill_configs(&string_list(parsed, "skill_root"))?;
-            let roots = skill_roots(&configs);
-            let hierarchy = LocalHierarchyCatalog {
-                skill_root: skill_root.to_path_buf(),
-            };
-            let skills = LocalSkillCatalog { roots: configs };
-            let paths = LocalPlanStorage {
-                project_root: root.to_path_buf(),
-            };
-            prepare_semantic(
-                &hierarchy,
-                &skills,
-                &paths,
-                &paths,
-                &roots,
-                &request,
-                parsed.arguments.get("output_file").and_then(Value::as_str),
-            )
-        }
-        ["plan", "validate"] => {
-            let configs = skill_configs(&string_list(parsed, "skill_root"))?;
-            let roots = skill_roots(&configs);
-            let hierarchy = LocalHierarchyCatalog {
-                skill_root: skill_root.to_path_buf(),
-            };
-            let skills = LocalSkillCatalog { roots: configs };
-            let paths = LocalPlanStorage {
-                project_root: root.to_path_buf(),
-            };
-            if let Some(input) = input {
-                let plan_path = parsed
-                    .arguments
-                    .get("plan_path")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| {
-                        WorkError::new(
-                            ExitCode::CliUsage,
-                            "plan_path_required",
-                            "--plan-path is required with --input-file.",
-                            json!({}),
-                        )
-                    })?;
-                let (plan_path, _) = resolve_project_path(root, plan_path)?;
-                validate_plan_bytes(&hierarchy, &skills, &paths, &roots, &input.raw, &plan_path)
-            } else {
-                if parsed.arguments.contains_key("plan_path") {
-                    return Err(WorkError::new(
-                        ExitCode::CliUsage,
-                        "unexpected_plan_path",
-                        "--plan-path is only valid with --input-file.",
-                        json!({}),
-                    ));
-                }
-                let (plan_path, _) = resolve_project_path(root, argument(parsed, "path")?)?;
-                validate_plan_file(&hierarchy, &skills, &paths, &roots, &plan_path)
-            }
-        }
-        ["plan", "create"] => {
-            let configs = skill_configs(&string_list(parsed, "skill_root"))?;
-            let roots = skill_roots(&configs);
-            let hierarchy = LocalHierarchyCatalog {
-                skill_root: skill_root.to_path_buf(),
-            };
-            let skills = LocalSkillCatalog { roots: configs };
-            let paths = LocalPlanStorage {
-                project_root: root.to_path_buf(),
-            };
-            let (plan_path, _) = resolve_project_path(root, argument(parsed, "plan_path")?)?;
-            create_plan_bytes(
-                &hierarchy,
-                &skills,
-                &paths,
-                &roots,
-                &required_input(input)?.raw,
-                &plan_path,
-            )
-        }
         ["delegation", "build" | "validate"] => {
             let request = input_json(input)?;
             let storage = LocalDelegationStorage {
                 project_root: root.to_path_buf(),
                 skill_root: skill_root.to_path_buf(),
-                skill_configs: vec![],
-            };
-            let paths = LocalPlanStorage {
-                project_root: root.to_path_buf(),
+                skill_configs: skill_configs(&string_list(parsed, "skill_root"))?,
             };
             if parsed.path[1] == "build" {
-                let result = build_delegation(&storage, &paths, &request)?;
+                let result = build_delegation(&storage, &request)?;
                 let _: work_model::delegation::DelegationBuildRequest =
                     serde_json::from_value(request)
                         .expect("built delegation request matches its model");
@@ -1167,7 +1180,6 @@ fn dispatch(
             } else {
                 validate_delegation(
                     &storage,
-                    &paths,
                     &request,
                     argument(parsed, "role")?,
                     argument(parsed, "sender")?,
@@ -1176,7 +1188,7 @@ fn dispatch(
         }
         ["handoff", command] => {
             let request = input_json(input)?;
-            let paths = LocalPlanStorage {
+            let paths = LocalArtifactPaths {
                 project_root: root.to_path_buf(),
             };
             work_flow::handoff::run(
@@ -1190,7 +1202,6 @@ fn dispatch(
                     })
                 },
                 work_flow::handoff::HandoffArgs {
-                    plan_path: parsed.arguments.get("plan_path").and_then(Value::as_str),
                     task_path: parsed.arguments.get("task_path").and_then(Value::as_str),
                     task_id: parsed.arguments.get("task_id").and_then(Value::as_str),
                     attempt_id: parsed.arguments.get("attempt_id").and_then(Value::as_str),
@@ -1199,6 +1210,7 @@ fn dispatch(
                 &request,
             )
         }
+        ["invocation", "confirm"] => work_flow::invocation::confirm(&required_input(input)?.raw),
         ["invocation", "parse"] => {
             let input = required_input(input)?;
             parse_invocation_flow(&input.raw)
@@ -1224,7 +1236,6 @@ fn dispatch(
             })?;
             if result["status"] == "saved" {
                 let configs = skill_configs(&string_list(parsed, "skill_root"))?;
-                let (plan_path, _) = resolve_project_path(root, argument(parsed, "plan_path")?)?;
                 let task_ids =
                     if let Some(id) = parsed.arguments.get("task_id").and_then(Value::as_str) {
                         vec![id.to_owned()]
@@ -1242,7 +1253,7 @@ fn dispatch(
                         requirement_id: argument(parsed, "requirement_id")?,
                         task_id: &task_id,
                         expected_revision: revision,
-                        plan_path: &plan_path,
+
                         skill_root,
                         skill_configs: &configs,
                         selected_paths: None,
@@ -1265,7 +1276,6 @@ fn dispatch(
             let configs = skill_configs(&string_list(parsed, "skill_root"))?;
             let request = input_json(input)?;
             if request.get("selections").is_some() {
-                let (plan_path, _) = resolve_project_path(root, argument(parsed, "plan_path")?)?;
                 let storage = LocalTaskDraftStorage {
                     project_root: root.to_path_buf(),
                 };
@@ -1287,7 +1297,7 @@ fn dispatch(
                     requirement_id: argument(parsed, "requirement_id")?,
                     raw_request: &request,
                     expected_revision: revision,
-                    plan_path: &plan_path,
+
                     skill_root,
                     skill_configs: &configs,
                     recover: false,
@@ -1299,7 +1309,6 @@ fn dispatch(
                     skill_root,
                     &configs,
                     argument(parsed, "requirement_id")?,
-                    argument(parsed, "plan_path")?,
                     if parsed.arguments.contains_key("expected_revision") {
                         unsigned_argument(parsed, "expected_revision")?
                     } else {
@@ -1344,7 +1353,6 @@ fn dispatch(
                     skill_root,
                     &configs,
                     argument(parsed, "requirement_id")?,
-                    argument(parsed, "plan_path")?,
                     &request,
                 );
             }
@@ -1365,8 +1373,6 @@ fn dispatch(
                     let selected = string_list(parsed, "instruction_path");
                     let references = string_list(parsed, "reference");
                     let configs = skill_configs(&string_list(parsed, "skill_root"))?;
-                    let (plan_path, _) =
-                        resolve_project_path(root, argument(parsed, "plan_path")?)?;
                     let storage = LocalTaskDraftStorage {
                         project_root: root.to_path_buf(),
                     };
@@ -1383,7 +1389,7 @@ fn dispatch(
                             requirement_id: argument(parsed, "requirement_id")?,
                             task_id: argument(parsed, "task_id")?,
                             expected_revision: revision,
-                            plan_path: &plan_path,
+
                             skill_root,
                             skill_configs: &configs,
                             selected_paths: explicit.then_some(selected.as_slice()),
@@ -1401,7 +1407,7 @@ fn dispatch(
                 skill_root: skill_root.to_path_buf(),
             };
             let skills = LocalSkillCatalog { roots: configs };
-            let paths = LocalPlanStorage {
+            let paths = LocalArtifactPaths {
                 project_root: root.to_path_buf(),
             };
             let raw_path = if input.is_some() {
@@ -1459,7 +1465,6 @@ fn dispatch(
         ["task", "preview" | "apply" | "recover"] => {
             let metadata = input_json(input)?;
             let configs = skill_configs(&string_list(parsed, "skill_root"))?;
-            let (plan_path, _) = resolve_project_path(root, argument(parsed, "plan_path")?)?;
             let request = ProjectAssemblyInput {
                 requirement_id: argument(parsed, "requirement_id")?,
                 metadata: &metadata,
@@ -1480,7 +1485,6 @@ fn dispatch(
                             )
                         })?
                 },
-                plan_path: &plan_path,
             };
             let hierarchy = LocalHierarchyCatalog {
                 skill_root: skill_root.to_path_buf(),
@@ -1488,7 +1492,7 @@ fn dispatch(
             let skills = LocalSkillCatalog {
                 roots: configs.clone(),
             };
-            let paths = LocalPlanStorage {
+            let paths = LocalArtifactPaths {
                 project_root: root.to_path_buf(),
             };
             let roots = skill_roots(&configs);
@@ -1519,7 +1523,11 @@ fn dispatch(
             let input = required_input(input)?;
             let request = input_json(Some(input))?;
             let configs = skill_configs(&string_list(parsed, "skill_root"))?;
-            require_collection_path(request["plan"]["artifacts"]["task"].as_str().unwrap_or(""))?;
+            require_collection_path(
+                request["task_index"]["artifacts"]["task"]
+                    .as_str()
+                    .unwrap_or(""),
+            )?;
             let operation = match parsed.path[1].as_str() {
                 "preview" => SpecOperation::Validate,
                 "apply" => SpecOperation::Apply,
@@ -1580,7 +1588,7 @@ fn dispatch(
         }
         [
             "specification",
-            "reconciliation-preview" | "reconciliation-apply",
+            "reconciliation-preview" | "reconciliation-apply" | "reconciliation-recover",
         ] => {
             let request = input_json(input)?;
             let configs = skill_configs(&string_list(parsed, "skill_root"))?;
@@ -1589,6 +1597,17 @@ fn dispatch(
                     &LocalReconciliationArtifacts { root },
                     &request,
                     |migration| preview_migration(root, skill_root, &configs, migration),
+                )
+            } else if parsed.path[1] == "reconciliation-recover" {
+                recover_reconciliation(
+                    &request,
+                    argument(parsed, "approved_sha256")?,
+                    |request, approval| {
+                        recover_ledger_only(root, skill_root, &configs, request, approval)
+                    },
+                    |request, approval| {
+                        recover_with_migration(root, skill_root, &configs, request, approval)
+                    },
                 )
             } else {
                 apply_reconciliation(
@@ -1661,7 +1680,7 @@ fn dispatch(
                 skill_root: skill_root.to_path_buf(),
             };
             let skills = LocalSkillCatalog { roots: configs };
-            let paths = LocalPlanStorage {
+            let paths = LocalArtifactPaths {
                 project_root: root.to_path_buf(),
             };
             let tasks = LocalTaskStorage {
@@ -1773,6 +1792,16 @@ fn brief_field(name: &str) -> bool {
 }
 
 fn brief(value: &Value) -> Value {
+    if matches!(
+        value["schema"].as_str(),
+        Some(
+            "work-source-read/v1"
+                | "work-source-validation/v1"
+                | "work-artifact-migration-analysis/v1"
+        )
+    ) {
+        return value.clone();
+    }
     let Some(object) = value.as_object() else {
         return value.clone();
     };
@@ -2032,8 +2061,8 @@ mod tests {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let project = repo.join("crates/work-infrastructure/fixtures/task-diagnostics");
         let skill_root = repo.join("../skills/work");
-        let plan = project.join("outputs/work/plans/example.json");
-        let before = fs::read(&plan).unwrap();
+        let source = project.join("outputs/work/sources/example/SRC-001/manifest.json");
+        let before = fs::read(&source).unwrap();
         let input = std::env::temp_dir().join(format!(
             "work-delegation-cli-{}-{}.json",
             std::process::id(),
@@ -2042,9 +2071,11 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let request = json!({"schema":"work-delegation-build-request/v1",
-            "role":"task-coordinator","request":"Coordinate the confirmed TASK work.",
-            "source_plan_path":"outputs/work/plans/example.json"});
+        let index: Value = serde_json::from_slice(
+            &fs::read(project.join("outputs/work/tasks/example/index.json")).unwrap(),
+        )
+        .unwrap();
+        let request = json!({"schema":"work-delegation-build-request/v1","role":"task-coordinator","request":"Coordinate the confirmed TASK work.","planning_source":{"snapshot":index["source"]["manifest"],"artifacts":index["artifacts"],"hierarchy_selection":index["hierarchy_selection"],"skill_selection":index["skill_selection"],"acceptance_criteria":index["acceptance_criteria"]}});
         fs::write(&input, serde_json::to_vec(&request).unwrap()).unwrap();
         let base = [
             "--project-root".to_owned(),
@@ -2068,8 +2099,8 @@ mod tests {
         assert_eq!(built.data["sender"], "parent");
         assert_eq!(built.data["marker"], "WORK_DELEGATION_V1");
         assert_eq!(
-            built.data["context"]["source_plan"],
-            serde_json::from_slice::<Value>(&before).unwrap()
+            built.data["context"]["task_source"]["source"],
+            index["source"]
         );
         assert!(built.data.get("authorized").is_none());
         fs::write(&input, serde_json::to_vec(&built.data).unwrap()).unwrap();
@@ -2098,7 +2129,7 @@ mod tests {
         let (wrong_exit, wrong) = validate("execute");
         assert_ne!(wrong_exit, 0);
         assert_eq!(wrong.reason_code, "delegation_boundary_mismatch");
-        assert_eq!(fs::read(plan).unwrap(), before);
+        assert_eq!(fs::read(source).unwrap(), before);
     }
 
     #[test]
@@ -2336,8 +2367,6 @@ mod tests {
             "TASK-001".into(),
             "--expected-revision".into(),
             "1".into(),
-            "--plan-path".into(),
-            "outputs/work/plans/example.json".into(),
             "--user-config-root".into(),
             root.to_string_lossy().into_owned(),
             "--reference".into(),
@@ -2549,7 +2578,7 @@ mod tests {
             .iter()
             .map(|entry| entry["id"].as_str().unwrap())
             .collect();
-        assert!(ids.contains(&"work-plan-semantic-request/v1"));
+        assert!(ids.contains(&"work-task-semantic-request/v1"));
         assert!(!ids.contains(&"work-plan-prepare-request/v1"));
         let (exit, description) = invoke(&["describe", "work-contract-catalog/v1"]);
         assert_eq!(exit, 0);
@@ -2579,17 +2608,6 @@ mod tests {
             generated.reason_code,
             "generated_request_not_caller_constructible"
         );
-        let (exit, plan) = invoke(&["scaffold", "work-plan-semantic-request/v1"]);
-        assert_eq!(exit, 0);
-        assert_eq!(
-            plan.data["scaffold"]["hierarchy_selection_request"],
-            json!({"decision":"instruction_paths","selections":[]})
-        );
-        assert_eq!(
-            plan.data["scaffold"]["skill_selection_request"],
-            json!({"decision":"external_skills","skills":[]})
-        );
-        assert!(plan.data["scaffold"].get("content").is_none());
         let correction = "work-command-correction-request/v1";
         let (exit, description) = invoke(&["describe", correction]);
         assert_eq!(exit, 0);
@@ -2676,7 +2694,7 @@ mod tests {
             "--input-file".into(),
             input.to_string_lossy().into_owned(),
         ];
-        fs::write(&input, "\u{feff} \t$work\tplan\n--\n需求").unwrap();
+        fs::write(&input, "\u{feff} \t$work\ttask\n--\n需求").unwrap();
         let (exit, result) = run_with_skill_root(&arguments, &repo.join("../skills/work"));
         assert_eq!(exit, 0);
         assert_eq!(result.data["request"], "\n需求");
@@ -2905,6 +2923,11 @@ mod tests {
         ]);
         assert_eq!(exit, 0);
         assert_eq!(
+            paths.data["paths"]["source"],
+            "outputs/work/sources/example"
+        );
+        assert!(paths.data["paths"].get("plan").is_none());
+        assert_eq!(
             paths.data["paths"]["task"],
             "outputs/work/tasks/example/index.json"
         );
@@ -3033,16 +3056,6 @@ mod tests {
             args.extend(arguments.iter().map(|value| (*value).to_owned()));
             run_with_skill_root(&args, &skill_root)
         };
-        let plan_paths = [
-            "general",
-            "programming-language",
-            "programming-language/java",
-            "programming-language/typescript",
-            "web",
-            "web/backend",
-            "web/frontend",
-            "web/frontend/css",
-        ];
         let task_paths = [
             "general",
             "programming-language",
@@ -3060,7 +3073,6 @@ mod tests {
             "web/frontend/css/tailwind",
         ];
         for (mode, paths) in [
-            ("plan", plan_paths.as_slice()),
             ("task", task_paths.as_slice()),
             ("execute", task_paths.as_slice()),
         ] {
@@ -3129,26 +3141,6 @@ mod tests {
             missing.data,
             json!({"mode":"task","parent":"programming-language/java/persistence","path":"programming-language/java/persistence/hibernate","valid_choices":["jpa","mybatis"]})
         );
-        let (exit, projected) = call(&[
-            "resolve",
-            "--mode",
-            "plan",
-            "programming-language/java/persistence/jpa",
-        ]);
-        assert_eq!(exit, 0);
-        assert_eq!(
-            projected.data["selected_paths"],
-            json!(["programming-language/java/persistence/jpa"])
-        );
-        assert_eq!(
-            projected.data["resolved_paths"],
-            json!([
-                "general",
-                "programming-language",
-                "programming-language/java"
-            ])
-        );
-
         let (exit, combined) = call(&[
             "load",
             "--mode",
@@ -3285,137 +3277,6 @@ mod tests {
     }
 
     #[test]
-    fn plan_validate_cli_requires_path_for_input_and_rejects_path_for_file() {
-        let root = std::env::temp_dir().join(format!(
-            "work-plan-cli-t25-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        std::fs::create_dir_all(&root).unwrap();
-        std::fs::write(root.join("request.json"), b"{}").unwrap();
-        let skill_root =
-            PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
-        let prefix = vec![
-            "--project-root".to_owned(),
-            root.to_string_lossy().into_owned(),
-            "plan".to_owned(),
-            "validate".to_owned(),
-            "--user-config-root".to_owned(),
-            root.to_string_lossy().into_owned(),
-        ];
-        let call = |suffix: &[&str]| {
-            let mut arguments = prefix.clone();
-            arguments.extend(suffix.iter().map(|value| (*value).to_owned()));
-            run_with_skill_root(&arguments, &skill_root)
-        };
-        let input = root.join("request.json");
-        let (exit, missing) = call(&["--input-file", input.to_str().unwrap()]);
-        assert_eq!(exit, 2);
-        assert_eq!(missing.reason_code, "plan_path_required");
-        let (exit, unexpected) = call(&[
-            "--path",
-            "outputs/work/plans/example.json",
-            "--plan-path",
-            "outputs/work/plans/other.json",
-        ]);
-        assert_eq!(exit, 2);
-        assert_eq!(unexpected.reason_code, "unexpected_plan_path");
-    }
-
-    #[test]
-    fn plan_semantic_prepare_cli_is_read_only_and_output_file_is_exclusive() {
-        let parent = std::env::temp_dir().join(format!(
-            "work-plan-semantic-cli-t25-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        let root = parent.join("project");
-        std::fs::create_dir_all(&root).unwrap();
-        let input = parent.join("request.json");
-        let request = json!({
-            "requirement_id":"example","title":"Plan result","summary":"Prepare a plan.",
-            "goals":["Deliver result."],"scope":["Implementation."],
-            "deliverables":["Result artifact."],"acceptance_criteria":["Result is verified."],
-            "hierarchy_selection_request":{"decision":"general_only","selections":[]},
-            "skill_selection_request":{"decision":"base_only","skills":[]},"references":[]
-        });
-        std::fs::write(&input, serde_json::to_vec(&request).unwrap()).unwrap();
-        let skill_root =
-            PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
-        let prefix = vec![
-            "--project-root".to_owned(),
-            root.to_string_lossy().into_owned(),
-            "--verbose".to_owned(),
-            "plan".to_owned(),
-            "semantic-prepare".to_owned(),
-            "--input-file".to_owned(),
-            input.to_string_lossy().into_owned(),
-            "--user-config-root".to_owned(),
-            root.to_string_lossy().into_owned(),
-        ];
-        let call = |suffix: &[&str]| {
-            let mut arguments = prefix.clone();
-            arguments.extend(suffix.iter().map(|value| (*value).to_owned()));
-            run_with_skill_root(&arguments, &skill_root)
-        };
-        let (exit, prepared) = call(&[]);
-        assert_eq!(exit, 0);
-        assert_eq!(prepared.data["schema"], "work-plan-prepare/v1");
-        let expected = prepare_semantic(
-            &LocalHierarchyCatalog {
-                skill_root: skill_root.clone(),
-            },
-            &LocalSkillCatalog { roots: vec![] },
-            &LocalPlanStorage {
-                project_root: root.clone(),
-            },
-            &LocalPlanStorage {
-                project_root: root.clone(),
-            },
-            &[],
-            &request,
-            None,
-        )
-        .unwrap();
-        assert_eq!(prepared.data["plan"], expected["plan"]);
-        assert_eq!(prepared.data["validation"], expected["validation"]);
-        assert_eq!(
-            prepared.data["plan"]["artifacts"]["task"],
-            "outputs/work/tasks/example/index.json"
-        );
-        assert_eq!(
-            prepared.data["validation"]["schema"],
-            "work-plan-validation/v1"
-        );
-        assert!(std::fs::read_dir(&root).unwrap().next().is_none());
-
-        let mut unicode = request;
-        unicode["title"] = json!("跨平台計畫");
-        std::fs::write(&input, serde_json::to_vec(&unicode).unwrap()).unwrap();
-        let output = root.join("transaction/plan-candidate.json");
-        std::fs::create_dir_all(output.parent().unwrap()).unwrap();
-        let (exit, saved) = call(&["--output-file", output.to_str().unwrap()]);
-        assert_eq!(exit, 0);
-        let raw = std::fs::read(&output).unwrap();
-        assert!(!raw.starts_with(&[0xef, 0xbb, 0xbf]));
-        assert!(!raw.windows(2).any(|pair| pair == b"\r\n"));
-        assert_eq!(
-            serde_json::from_slice::<Value>(&raw).unwrap(),
-            saved.data["plan"]
-        );
-        let (exit, repeated) = call(&["--output-file", output.to_str().unwrap()]);
-        assert_eq!(exit, 6);
-        assert_eq!(repeated.reason_code, "plan_prepare_output_exists");
-        assert_eq!(std::fs::read(&output).unwrap(), raw);
-    }
-
-    #[test]
     fn skill_catalog_and_workflow_entrypoints_match_python_reference() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let skill_root = repo.join("../skills/work");
@@ -3466,7 +3327,7 @@ mod tests {
             &skill_root,
         );
         assert_eq!(exit, 0);
-        assert_eq!(workflow.data["next_action"], "prepare_plan");
+        assert_eq!(workflow.data["next_action"], "capture_source");
         assert_eq!(
             workflow.data["selection_sha256"],
             workflow.data["selection_manifest"]["selection_sha256"]
@@ -3540,33 +3401,6 @@ mod tests {
     }
 
     #[test]
-    fn plan_file_validation_matches_python_reference() {
-        let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture_root =
-            repo.join("crates/work-infrastructure/fixtures/task-draft-sources/valid");
-        let (exit, result) = run_with_skill_root(
-            &[
-                "--project-root".into(),
-                fixture_root.to_string_lossy().into_owned(),
-                "--verbose".into(),
-                "plan".into(),
-                "validate".into(),
-                "--path".into(),
-                "outputs/work/plans/example.json".into(),
-                "--user-config-root".into(),
-                ".".into(),
-            ],
-            &repo.join("../skills/work"),
-        );
-        assert_eq!(exit, 0);
-        assert_eq!(result.data["schema"], "work-plan-validation/v1");
-        assert_eq!(
-            result.data["plan_sha256"],
-            "c1580aa54f48e015ee2efb9b0a5de74122f60839689cc8fd65bbfb16447f20bf"
-        );
-    }
-
-    #[test]
     fn handoff_validation_matches_python_reference() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo.join("crates/work-infrastructure/fixtures/handoff-closed/stopped");
@@ -3611,8 +3445,6 @@ mod tests {
                 "status".into(),
                 "--requirement-id".into(),
                 "example".into(),
-                "--plan-path".into(),
-                "outputs/work/plans/example.json".into(),
                 "--user-config-root".into(),
                 ".".into(),
             ],
@@ -3624,7 +3456,7 @@ mod tests {
         assert_eq!(result.data["counts"]["planned"], 1);
         assert_eq!(
             result.data["tasks"][0]["instructions_sha256"],
-            "e4fdfc5254dda6a8522ec33f92f91a788f8ba44d69c89fa62624d7365718eef3"
+            "48975c28f9dbc77acb7af7d733f6b3188b6ce22ba603f9f923abcf1af040af9d"
         );
         let (exit, selected) = run_with_skill_root(
             &[
@@ -3636,8 +3468,6 @@ mod tests {
                 "example".into(),
                 "--task-id".into(),
                 "TASK-001".into(),
-                "--plan-path".into(),
-                "outputs/work/plans/example.json".into(),
                 "--user-config-root".into(),
                 ".".into(),
             ],
@@ -3665,8 +3495,6 @@ mod tests {
                 "example".into(),
                 "--task-id".into(),
                 "TASK-001".into(),
-                "--plan-path".into(),
-                "outputs/work/plans/example.json".into(),
                 "--user-config-root".into(),
                 ".".into(),
             ],
@@ -3676,7 +3504,7 @@ mod tests {
         assert_eq!(result.data["source_validation"], "valid");
         assert_eq!(
             result.data["tasks"][0]["instructions_sha256"],
-            "e4fdfc5254dda6a8522ec33f92f91a788f8ba44d69c89fa62624d7365718eef3"
+            "48975c28f9dbc77acb7af7d733f6b3188b6ce22ba603f9f923abcf1af040af9d"
         );
     }
 
@@ -3702,7 +3530,7 @@ mod tests {
         assert_eq!(result.data["task_count"], 2);
         assert_eq!(
             result.data["task_collection_sha256"],
-            "6ad141589d3445cd62715fe46db2d827c0673d0101b1797ace6980a22546139e"
+            "14f480ef6582ca3359a8c284a4648214b8ccef2856841c4e1b4866318173c5d8"
         );
     }
 
@@ -3717,11 +3545,22 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let plan_path = root.join("outputs/work/plans/example.json");
+        let chain = repo.join("crates/work-infrastructure/fixtures/specification-update");
+        for relative in [
+            "outputs/work/tasks/example/index.json",
+            "outputs/work/tasks/example/tasks/TASK-001.json",
+            "outputs/work/executions/example/index.json",
+        ] {
+            let destination = root.join(relative);
+            fs::create_dir_all(destination.parent().unwrap()).unwrap();
+            fs::copy(chain.join(relative), destination).unwrap();
+        }
+        work_infrastructure::fixture_support::copy_fixture_sources(&chain, &root).unwrap();
+        let plan_path = root.join("outputs/work/tasks/example/index.json");
         fs::create_dir_all(plan_path.parent().unwrap()).unwrap();
-        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-migration/outputs/work/plans/example.json");
+        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-update/outputs/work/tasks/example/index.json");
         let mut legacy: Value = serde_json::from_slice(&fs::read(&fixture).unwrap()).unwrap();
-        legacy["schema"] = json!("work-plan/v0");
+        legacy["schema"] = json!("legacy/v0");
         fs::write(&plan_path, serde_json::to_vec_pretty(&legacy).unwrap()).unwrap();
         let base = [
             "--project-root".to_owned(),
@@ -3741,13 +3580,13 @@ mod tests {
             "--requirement-id".into(),
             "example".into(),
             "--artifact".into(),
-            "plan".into(),
+            "task".into(),
         ]);
         assert_eq!(exit, 0, "{analysis:?}");
         assert_eq!(analysis.data["items"].as_array().unwrap().len(), 1);
         let input = root.join("decisions.json");
         let choices = json!({"schema":"work-artifact-migration-decisions/v1",
-            "analysis":analysis.data,"choices":[{"id":analysis.data["items"][0]["id"],"action":"apply"}]});
+            "analysis":analysis.data,"choices":[{"id":analysis.data["items"][0]["id"],"action":"modify","content":serde_json::from_slice::<Value>(&fs::read(&fixture).unwrap()).unwrap()}]});
         fs::write(&input, serde_json::to_vec(&choices).unwrap()).unwrap();
         let (exit, prepared) = invoke(vec![
             "migration".into(),

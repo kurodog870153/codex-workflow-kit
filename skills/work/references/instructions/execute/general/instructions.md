@@ -12,7 +12,7 @@ metadata:
 
 ## 1. 載入與 Reference 路由
 
-1. [強制] 只執行正式且已核准的 `TASK-*`；外部技能只依目標 TASK 的 `skill_id` 從來源 Plan 選取一個，`null` 表示 base-only。不得探索、推薦、加入、替換、組合或呼叫其他技能。
+1. [強制] 只執行正式且已核准的 `TASK-*`；外部技能只依目標 TASK 的 `skill_id` 從已驗證 Formal TASK collection 的 `skill_selection` 選取一個，`null` 表示 base-only。不得探索、推薦、加入、替換、組合或呼叫其他技能。
 2. [強制] 建立、更新或解讀 index、Attempt、狀態、指紋與結果時，載入 `execute.general.execution-records`（`references/execution-records.md`）。
 3. [強制] 發現既有鎖、進行中紀錄、中斷、部分寫入、承接或 Correction 時，載入 `execute.general.execution-recovery`（`references/execution-recovery.md`）。
 4. [強制] Execute reference 只在需要其正文時載入模型；`EXECUTE-INSTRUCTIONS-SHA-256` 須由工具涵蓋目前觸發且實際適用的 reference，並在 reference 動態加入或移除時重算，即使正文不需載入模型也不得省略其位元組。
@@ -20,7 +20,7 @@ metadata:
 
 ## 2. 唯讀前置檢查
 
-1. [強制] 建立 Attempt 前須確認 TASK-SPEC；collection、formal index 與目標 item SHA；Plan `hierarchy_selection_sha256` 與 `skill_selection_sha256`；execution index 與目標 TASK 的 hierarchy、`skill_id`、技能 snapshot／bundle、Execute mode、Work instruction fingerprints、TASK 狀態、相依、必要輸入、檔案現況、工作區差異、路徑邊界與既有鎖均符合正式 TASK。
+1. [強制] 建立 Attempt 前須確認 TASK-SPEC；collection、formal index 與目標 item SHA；Task-owned `hierarchy_selection_sha256` 與 `skill_selection_sha256`，固定 Source path／raw bytes／SHA 與 `task_source` binding；execution index 與目標 TASK 的 hierarchy、`skill_id`、技能 snapshot／bundle、Execute mode、Work instruction fingerprints、TASK 狀態、相依、必要輸入、檔案現況、工作區差異、路徑邊界與既有鎖均符合正式 TASK。
 2. [強制] TASK 的目標、需求、驗收、交付成果、安全邊界、外部副作用、版本、Swagger 或其他適用契約有缺漏、矛盾、占位符或需由 Execute 推論時，視為規格缺陷並停止，不得自行補足。只有不改變上述語意邊界的必要命令、驗證、略過不適用紀錄或實作方式調整，才可依第 4 節分類為執行偏差。
 3. [強制] 目標 TASK 的 instruction sources 或內容與 index 該 TASK 的 `TASK-INSTRUCTIONS-SHA-256` 不同時，不得修改成果或未授權寫入紀錄；先唯讀回報預期值、觀察值、來源差異與影響，再取得使用者明確授權，才可只建立「已停止／指令已變更」Attempt、更新 index 為受阻並交回 Task 稽核。未授權時維持原狀。
 4. [強制] 既有差異只有在路徑與內容都可由核准 TASK、有效 Attempt／Correction 或本次已知前序成果逐項解釋時才能繼續；可能屬於使用者或無法判定時停止。
@@ -42,7 +42,7 @@ metadata:
 
 ## 4. 執行與局部修正
 
-1. [強制] 只能修改 Attempt 授權明列檔案並執行其涵蓋的精確 CMD／OP／VAL。執行時發現不足，只有需求、驗收、交付成果、安全邊界及外部副作用邊界全部不變時，才可分類為執行偏差；其範圍限必要命令或驗證、略過不適用紀錄、實作方式調整，以及同一工具、目標、範圍、副作用與通過判準完全不變的 shell 語法、引用、跳脫、參數格式或執行檔路徑修正。未被原 Attempt 授權精確涵蓋的偏差須先取得使用者決策並記錄提案、影響與授權證據；任何語意邊界改變都須回到 Plan／Task。
+1. [強制] 只能修改 Attempt 授權明列檔案並執行其涵蓋的精確 CMD／OP／VAL。執行時發現不足，只有需求、驗收、交付成果、安全邊界及外部副作用邊界全部不變時，才可分類為執行偏差；其範圍限必要命令或驗證、略過不適用紀錄、實作方式調整，以及同一工具、目標、範圍、副作用與通過判準完全不變的 shell 語法、引用、跳脫、參數格式或執行檔路徑修正。未被原 Attempt 授權精確涵蓋的偏差須先取得使用者決策並記錄提案、影響與授權證據；任何語意邊界改變都須回到 Task／Revise。
 2. [強制] 在正式執行偏差 contract 與交易尚未提供前，不得虛構 Attempt 欄位、record 或 CLI 行為。只能透過現有正式 TASK 與 contract 可表示的能力繼續；否則保存已確認決策，停止或不建立 Attempt，並回到規格修改流程。
 3. [強制] 每個 CMD、OP 與 VAL 完成後立即依實際順序記錄最小結果；已授權且結果確定的記錄不另行詢問，不得保存機密、完整外部回應或與驗收無關的大量輸出。
 4. [強制] 除命令修正須依第 1、2 項處理外，錯誤原因已確定且修正與重驗完全位於已授權檔案、操作、副作用與驗證範圍內時，須在同一 Attempt 自行修正並以原 ID 加序號重驗。
@@ -54,9 +54,9 @@ metadata:
 ## 5. 結案
 
 1. [強制] 完成、停止或受阻時，先完成 Attempt 最終紀錄，再以一次 index 更新同步最新 Attempt、TASK 與整體狀態並解除鎖；index 同步失敗時保留鎖並進入恢復流程。
-2. [強制] 回報須列出實際修改檔案、CMD／OP／VAL 結果、Attempt 與 TASK 狀態、部分成功或不確定結果、未解決事項及剩餘風險。
+2. [強制] 回報須列出實際修改檔案、CMD／OP／VAL 結果、主驗收與 TASK 驗收的工具推導狀態及實際 evidence、Attempt 與 TASK 狀態、部分成功或不確定結果、未解決事項及剩餘風險。
 3. [強制] 已關閉 Attempt 不得修改；需要更正紀錄時使用獨立 Correction，不得改寫歷史或偽造未執行證據。
-4. [強制] 結案時須彙整已接受的執行偏差，讓使用者一次決定全部回寫、選擇性回寫或只保留執行證據；回寫使用共用正式文件修訂程序，不得修改已關閉 Attempt。規格缺陷則依影響判定為只修改 TASK 或修改 Plan 與 TASK；交接須列出實際需求編號、三個路徑、目標 TASK、Attempt／前置檢查資訊、已確認做法、受影響 ID 與驗證要求，不得保留占位符或由後續流程推測。
-5. [強制] Attempt 已停止／受阻或前置檢查發現規格缺陷後，須詢問使用者後續方向並每次只確認一項；使用者明確不再處理時停止追問。同一對話已確認的規格修改回傳父 agent，由私人 artifact editor 接手，原 Execute 不改規格也不自行解除鎖；跨對話只影響檔案、CMD、OP、VAL 或執行細節時交接 `$work task -- <完整需求>`，影響 Plan 目標、範圍、成果、驗收或決策時交接 `$work plan -- <完整需求>`；不需修改規格時只列理由、解除條件與下次 Execute 授權，不產生規格交接指令。
-6. [強制] 規格交接使用 `execute_to_task` 或 `execute_to_plan`，須包含固定 marker、需求編號、實際路徑、TASK spec、目標 TASK、`skill_id`、`execute_skill_selection_sha256`、TASK 與 instructions SHA、Attempt／前置資訊、已確認做法、修改要求、保留範圍、受影響 ID 與驗證要求；不得保存 target hierarchy。
-7. [強制] 交接置於單一 JSON 程式碼區塊且只存在於對話；Execute 不得修改 Plan／TASK 或建立規格鎖，完成對應 Plan／Task 流程或已授權私人 artifact editor 交易並重新通過 Execute 檢查前，不得建立新 Attempt，交接本身也不授權任何寫入。
+4. [強制] 結案時須彙整已接受的執行偏差，讓使用者一次決定全部回寫、選擇性回寫或只保留執行證據；回寫使用共用正式文件修訂程序，不得修改已關閉 Attempt。規格缺陷則依影響判定為`task_only` 或 `task_and_execution`；交接須列出實際需求編號、TASK／Execution 路徑與固定 Source 身分、目標 TASK、Attempt／前置檢查資訊、已確認做法、受影響 ID 與驗證要求，不得保留占位符或由後續流程推測。
+5. [強制] Attempt 已停止／受阻或前置檢查發現規格缺陷後，須詢問使用者後續方向並每次只確認一項；使用者明確不再處理時停止追問。同一對話已確認的規格修改回傳父 agent，由私人 artifact editor 接手，原 Execute 不改規格也不自行解除鎖；跨對話規格缺陷只交接 `$work task -- <完整需求>`，已確認正式修訂依 `$work revise` 處理；不需修改規格時只列理由、解除條件與下次 Execute 授權，不產生規格交接指令。
+6. [強制] 規格交接使用 `execute_to_task`，須包含固定 marker、需求編號、實際路徑、TASK spec、目標 TASK、`skill_id`、`execute_skill_selection_sha256`、TASK 與 instructions SHA、Attempt／前置資訊、已確認做法、修改要求、保留範圍、受影響 ID 與驗證要求；不得保存 target hierarchy。
+7. [強制] 交接置於單一 JSON 程式碼區塊且只存在於對話；Execute 不得修改 Source／TASK 或建立規格鎖，完成對應 Task／Revise 流程或已授權私人 artifact editor 交易並重新通過 Execute 檢查前，不得建立新 Attempt，交接本身也不授權任何寫入。

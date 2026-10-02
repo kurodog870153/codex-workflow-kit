@@ -94,7 +94,7 @@ fn group_fields(group: &str) -> (&'static [&'static str], &'static [&'static str
                 "pass_condition",
                 "confirmer",
                 "criteria",
-                "acceptance_positions",
+                "acceptance_ids",
             ],
         ),
         _ => unreachable!(),
@@ -117,6 +117,50 @@ fn resolve(
     Ok(())
 }
 
+fn validate_known_acceptance(value: &Value, known: Option<&[String]>) -> Result<(), TaskIssue> {
+    let ids = value
+        .as_array()
+        .filter(|rows| !rows.is_empty())
+        .ok_or_else(|| {
+            issue(
+                "invalid_task_acceptance",
+                "Acceptance references must be a nonempty stable-ID array.",
+                json!({}),
+            )
+        })?;
+    let mut seen = HashSet::new();
+    for value in ids {
+        let id = value.as_str().filter(|id| !id.is_empty()).ok_or_else(|| {
+            issue(
+                "invalid_task_acceptance",
+                "Acceptance references must be stable IDs.",
+                json!({}),
+            )
+        })?;
+        let valid_main = crate::task::item::numbered(id, "ACCEPTANCE").is_some();
+        let valid_technical = id.split_once("-ACCEPTANCE-").is_some_and(|(task, number)| {
+            crate::task::item::numbered(task, "TASK").is_some()
+                && crate::task::item::numbered(&format!("ACCEPTANCE-{number}"), "ACCEPTANCE")
+                    .is_some()
+        });
+        if !valid_main && !valid_technical {
+            return Err(issue(
+                "invalid_task_acceptance",
+                "Acceptance references must use stable main or Task-prefixed IDs.",
+                json!({"id":id}),
+            ));
+        }
+        if !seen.insert(id) || known.is_some_and(|rows| !rows.iter().any(|row| row == id)) {
+            return Err(issue(
+                "unknown_acceptance",
+                "Acceptance IDs must be unique and known to the Task collection.",
+                json!({"id":id}),
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub fn validate_semantic_candidate(value: &Value, refined: bool) -> Result<(), TaskIssue> {
     let groups = [
         "inputs",
@@ -129,11 +173,74 @@ pub fn validate_semantic_candidate(value: &Value, refined: bool) -> Result<(), T
         "validations",
     ];
     let required: &[&str] = if refined {
-        &["steps", "validations"]
+        &[
+            "steps",
+            "validations",
+            "acceptance_ids",
+            "acceptance_criteria",
+        ]
     } else {
         &[]
     };
-    fields(value, "task_candidate", required, &groups)?;
+    let mut optional = groups.to_vec();
+    optional.extend(["acceptance_ids", "acceptance_criteria"]);
+    fields(value, "task_candidate", required, &optional)?;
+    if let Some(ids) = value.get("acceptance_ids") {
+        let rows = ids.as_array().ok_or_else(|| {
+            issue(
+                "invalid_task_acceptance",
+                "Responsibilities must be stable acceptance IDs.",
+                json!({}),
+            )
+        })?;
+        if !rows.is_empty() {
+            validate_known_acceptance(ids, None)?;
+        }
+    }
+    if let Some(criteria) = value.get("acceptance_criteria") {
+        let criteria: Vec<work_model::task::source::TaskAcceptance> =
+            serde_json::from_value(criteria.clone()).map_err(|_| {
+                issue(
+                    "invalid_task_acceptance",
+                    "Technical acceptance needs stable IDs and criteria.",
+                    json!({}),
+                )
+            })?;
+        if criteria.is_empty() {
+            return Err(issue(
+                "missing_task_acceptance",
+                "Technical acceptance definitions are required.",
+                json!({}),
+            ));
+        }
+        for criterion in &criteria {
+            let prefix = criterion
+                .id
+                .split_once("-ACCEPTANCE-")
+                .map(|(task, _)| format!("{task}-ACCEPTANCE-"))
+                .unwrap_or_default();
+            if criterion
+                .id
+                .split_once("-ACCEPTANCE-")
+                .is_none_or(|(task, _)| crate::task::item::numbered(task, "TASK").is_none())
+            {
+                return Err(issue(
+                    "invalid_task_acceptance",
+                    "Technical acceptance IDs must identify a Task.",
+                    json!({}),
+                ));
+            }
+            crate::task::source::validate_acceptance(std::slice::from_ref(criterion), &prefix)?;
+        }
+        let mut seen = HashSet::new();
+        if criteria.iter().any(|row| !seen.insert(&row.id)) {
+            return Err(issue(
+                "invalid_task_acceptance",
+                "Technical acceptance IDs must be unique.",
+                json!({}),
+            ));
+        }
+    }
     let mut keys = BTreeMap::new();
     for group in groups {
         let Some(rows) = value.get(group) else {
@@ -188,29 +295,8 @@ pub fn validate_semantic_candidate(value: &Value, refined: bool) -> Result<(), T
                         ));
                     }
                 }
-                if let Some(positions) = row.get("acceptance_positions") {
-                    let Some(positions) = positions
-                        .as_array()
-                        .filter(|positions| !positions.is_empty())
-                    else {
-                        return Err(issue(
-                            "invalid_semantic_position",
-                            "Acceptance positions must be unique positive integers.",
-                            json!({}),
-                        ));
-                    };
-                    let mut seen = HashSet::new();
-                    if positions.iter().any(|position| {
-                        position
-                            .as_u64()
-                            .is_none_or(|number| number < 1 || !seen.insert(number))
-                    }) {
-                        return Err(issue(
-                            "invalid_semantic_position",
-                            "Acceptance positions must be unique positive integers.",
-                            json!({}),
-                        ));
-                    }
+                if let Some(ids) = row.get("acceptance_ids") {
+                    validate_known_acceptance(ids, None)?;
                 }
             }
         }
@@ -250,6 +336,31 @@ pub fn build_semantic_candidate(
     dependency_files: &BTreeMap<String, BTreeMap<String, String>>,
 ) -> Result<Value, TaskIssue> {
     validate_semantic_candidate(value, true)?;
+    if !value["acceptance_ids"]
+        .as_array()
+        .expect("validated responsibilities")
+        .is_empty()
+    {
+        validate_known_acceptance(&value["acceptance_ids"], Some(acceptance_ids))?;
+    }
+    let mut validation_acceptance = value["acceptance_ids"]
+        .as_array()
+        .expect("validated responsibilities")
+        .iter()
+        .map(|id| id.as_str().expect("validated acceptance").to_owned())
+        .collect::<Vec<_>>();
+    validation_acceptance.extend(
+        value["acceptance_criteria"]
+            .as_array()
+            .expect("validated technical criteria")
+            .iter()
+            .map(|row| {
+                row["id"]
+                    .as_str()
+                    .expect("validated technical ID")
+                    .to_owned()
+            }),
+    );
     let groups = [
         "inputs",
         "decisions",
@@ -340,20 +451,8 @@ pub fn build_semantic_candidate(
                             .collect::<Result<Vec<_>, _>>()?;
                         row.insert("command_ids".into(), Value::Array(ids));
                     }
-                    if let Some(positions) = row.remove("acceptance_positions") {
-                        let mut ids = Vec::new();
-                        for item in positions.as_array().expect("validated positions") {
-                            let position = item.as_u64().ok_or_else(|| {
-                                issue(
-                                    "invalid_semantic_position",
-                                    "Positions must uniquely identify existing one-based items.",
-                                    json!({"location":"acceptance_positions"}),
-                                )
-                            })? as usize;
-                            let id = acceptance_ids.get(position.wrapping_sub(1)).ok_or_else(|| issue("invalid_semantic_position", "Positions must uniquely identify existing one-based items.", json!({"location":"acceptance_positions"})))?;
-                            ids.push(json!(id));
-                        }
-                        row.insert("acceptance_ids".into(), Value::Array(ids));
+                    if let Some(ids) = row.get("acceptance_ids") {
+                        validate_known_acceptance(ids, Some(&validation_acceptance))?;
                     }
                 }
                 "operations" => {
@@ -443,6 +542,14 @@ pub fn build_semantic_patch(
     dependency_ids: &[String],
     dependency_files: &BTreeMap<String, BTreeMap<String, String>>,
 ) -> Result<Value, TaskIssue> {
+    let mut allowed_acceptance = acceptance_ids.to_vec();
+    allowed_acceptance.extend(
+        current["acceptance_criteria"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|row| row["id"].as_str().map(str::to_owned)),
+    );
     let groups = [
         "inputs",
         "decisions",
@@ -616,15 +723,8 @@ pub fn build_semantic_patch(
                             .collect::<Result<Vec<_>, _>>()?;
                         formal.insert("command_ids".into(), Value::Array(ids));
                     }
-                    if let Some(positions) = formal.remove("acceptance_positions") {
-                        let ids = positions.as_array().ok_or_else(|| issue("invalid_semantic_position",
-                            "Positions must uniquely identify existing one-based items.", json!({})))?
-                            .iter().map(|position| position.as_u64().and_then(|n|
-                                acceptance_ids.get(n.wrapping_sub(1) as usize)).map(|id| json!(id))
-                                .ok_or_else(|| issue("invalid_semantic_position",
-                                    "Positions must uniquely identify existing one-based items.", json!({}))))
-                            .collect::<Result<Vec<_>, _>>()?;
-                        formal.insert("acceptance_ids".into(), Value::Array(ids));
+                    if let Some(ids) = formal.get("acceptance_ids") {
+                        validate_known_acceptance(ids, Some(&allowed_acceptance))?;
                     }
                 }
                 "operations" => {
@@ -702,7 +802,7 @@ mod tests {
             {"key":"old","existing_position":1,"mode":"argv","argv":["tool","old"]},
             {"key":"rerun","mode":"argv","argv":["tool","new"]}],
             "validations":[{"key":"verify","kind":"automated","command_keys":["rerun"],
-                "pass_condition":"Exit zero","acceptance_positions":[1]}]});
+                "pass_condition":"Exit zero","acceptance_ids":["ACCEPTANCE-001"]}]});
         let built = build_semantic_patch(
             &current,
             &replacements,
@@ -723,7 +823,7 @@ mod tests {
 
     #[test]
     fn semantic_keys_reject_unknown_references() {
-        let candidate = json!({"steps": [{"key": "start", "action": "Do it.", "references": [{"kind": "validations", "key": "verify"}]}], "validations": [{"key": "verify", "kind": "manual", "confirmer": "user", "criteria": "Done."}]});
+        let candidate = json!({"acceptance_ids":["ACCEPTANCE-001"],"acceptance_criteria":[{"id":"TASK-001-ACCEPTANCE-001","criterion":"Verified."}],"steps": [{"key": "start", "action": "Do it.", "references": [{"kind": "validations", "key": "verify"}]}], "validations": [{"key": "verify", "kind": "manual", "confirmer": "user", "criteria": "Done."}]});
         validate_semantic_candidate(&candidate, true).unwrap();
         let mut missing_steps = candidate.clone();
         missing_steps.as_object_mut().unwrap().remove("steps");
@@ -777,9 +877,10 @@ mod tests {
     #[test]
     fn candidate_build_resolves_local_keys_and_dependency_files() {
         let candidate = json!({
+            "acceptance_ids":["ACCEPTANCE-001"],"acceptance_criteria":[{"id":"TASK-002-ACCEPTANCE-001","criterion":"Verified."}],
             "inputs":[{"key":"source","kind":"task_output","precondition":"Ready.","dependency_position":1,"file_key":"result"}],
             "commands":[{"key":"check","mode":"argv","argv":["cargo","test"]}],
-            "validations":[{"key":"verify","kind":"automated","command_keys":["check"],"pass_condition":"Exit zero.","acceptance_positions":[1]}],
+            "validations":[{"key":"verify","kind":"automated","command_keys":["check"],"pass_condition":"Exit zero.","acceptance_ids":["ACCEPTANCE-001"]}],
             "steps":[{"key":"start","action":"Run check.","references":[{"kind":"inputs","key":"source"},{"kind":"validations","key":"verify"},{"kind":"commands","key":"check"}]}]
         });
         let files = BTreeMap::from([(
@@ -808,6 +909,7 @@ mod tests {
             "0c5d6dd7197651b224ab6b1c363e659c95d24ca8151020a9117af0af06631ee9"
         );
         let local = json!({
+            "acceptance_ids":[],"acceptance_criteria":[{"id":"TASK-001-ACCEPTANCE-001","criterion":"Verified."}],
             "files":[{"key":"report","action":"create","path":"report.txt"}],
             "validations":[{"key":"result","kind":"manual","confirmer":"User","criteria":"Result is observable."}],
             "steps":[{"key":"review","action":"Review result.","references":[

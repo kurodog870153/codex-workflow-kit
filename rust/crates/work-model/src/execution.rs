@@ -1,5 +1,6 @@
 //! Persisted execution artifacts and their fixed data shapes.
 
+pub mod acceptance;
 pub mod attempt;
 pub mod correction;
 pub mod deviation;

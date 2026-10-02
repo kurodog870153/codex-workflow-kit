@@ -1,49 +1,49 @@
 {
-  "schema": "work-handoff/v1",
-  "marker": "WORK-HANDOFF",
-  "direction": "execute_to_plan",
-  "requirement_id": "example",
-  "artifacts": {
-    "plan": "outputs/work/plans/example.json",
-    "task": "outputs/work/tasks/example/index.json",
-    "execution": "outputs/work/executions/example"
-  },
-  "source": {
-    "stage": "execute",
-    "task_spec_id": "TASK-SPEC-001",
-    "task_id": "TASK-001",
-    "task_collection_sha256": "6ad141589d3445cd62715fe46db2d827c0673d0101b1797ace6980a22546139e",
-    "task_index_sha256": "74436d348b5b635ec63667e36accb0ac7055149b515ef59528d34dbe105fc996",
-    "task_item_sha256": "89710b9eec06266a15363e5747e07552a7f81a28580a5e9de4d0d85eaf9093b4",
-    "task_instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a",
-    "skill_id": null,
-    "execute_skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
-    "execution_context": {
-      "attempt": {
-        "status": "blocked",
-        "id": "ATTEMPT-001"
-      },
-      "phase": "execution",
-      "issue_type": "specification_defect",
-      "reason": "Clarify specification"
-    },
-    "attempt_sha256": "1505df430ae2b1e3442bca5ac036420f9f2d021b72f08470774004b683c37337"
-  },
-  "target": {
-    "stage": "plan"
-  },
-  "summary": "調整已確認範圍",
-  "confirmed_approach": "保留既有介面",
-  "requested_changes": [
-    "新增驗收條件"
+  "affected_ids": [
+    "ACCEPTANCE-001",
+    "TASK-001"
   ],
+  "artifacts": {
+    "execution": "outputs/work/executions/example",
+    "source": "outputs/work/sources/example",
+    "task": "outputs/work/tasks/example/index.json"
+  },
+  "confirmed_approach": "保留既有介面",
+  "direction": "execute_to_plan",
+  "marker": "WORK-HANDOFF",
   "preserve": [
     "既有功能"
   ],
-  "affected_ids": [
-    "GOAL-001",
-    "TASK-001"
+  "requested_changes": [
+    "新增驗收條件"
   ],
+  "requirement_id": "example",
+  "schema": "work-handoff/v1",
+  "source": {
+    "attempt_sha256": "a6ff57185a5cac2d43e4eedf8c8a3df16c5280baff9f565b6913bafa4aaffeff",
+    "execute_skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
+    "execution_context": {
+      "attempt": {
+        "id": "ATTEMPT-001",
+        "status": "blocked"
+      },
+      "issue_type": "specification_defect",
+      "phase": "execution",
+      "reason": "Clarify specification"
+    },
+    "skill_id": null,
+    "stage": "execute",
+    "task_collection_sha256": "14f480ef6582ca3359a8c284a4648214b8ccef2856841c4e1b4866318173c5d8",
+    "task_id": "TASK-001",
+    "task_index_sha256": "0f23bcda95d41c7d908a5c5c1dfe058029d0f82f8bbb81a5bb6b43a41273bc31",
+    "task_instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+    "task_item_sha256": "4bedcceb18c974eabb4656f0586e078058f4d4eead9e349ffbdab729d413bed8",
+    "task_spec_id": "TASK-SPEC-001"
+  },
+  "summary": "調整已確認範圍",
+  "target": {
+    "stage": "plan"
+  },
   "validation_requirements": [
     "重新確認驗收條件"
   ]

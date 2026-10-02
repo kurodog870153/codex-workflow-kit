@@ -14,7 +14,6 @@ pub fn verified<T: serde::de::DeserializeOwned>(value: Value) -> Value {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum InstructionMode {
-    Plan,
     Task,
     Execute,
     All,

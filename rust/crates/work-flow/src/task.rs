@@ -1,9 +1,10 @@
 //! Task command flows.
 
 use serde_json::{Value, json};
+use work_feature::artifact_paths::ArtifactPathRepository;
 use work_feature::error::WorkError;
 use work_feature::instruction::InstructionSourceRepository;
-use work_feature::plan::PlanPathRepository;
+use work_feature::ports::SourceSnapshotReader;
 use work_feature::skill::{SkillRoot, SkillSnapshotRepository};
 pub use work_feature::task::TaskCollectionRepository;
 pub use work_feature::task::assembly::ProjectAssemblyInput;
@@ -24,7 +25,7 @@ pub fn create_task<H, S, P, T>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCreationRepository,
 {
     create_task_from_project(instructions, skills, paths, storage, skill_roots, request)
@@ -42,7 +43,7 @@ where
     R: TaskAssemblyRepository,
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
 {
     assemble_from_repository(
         repository,
@@ -73,7 +74,7 @@ where
     R: TaskAssemblyRepository,
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCreationRepository,
 {
     let assembled = assemble_task(
@@ -95,7 +96,7 @@ where
         ports.skill_roots,
         TaskCreateProjectInput {
             raw: &raw,
-            plan_path: artifacts["plan"].as_str().unwrap(),
+            source_root: artifacts["source"].as_str().unwrap(),
             task_path: artifacts["task"].as_str().unwrap(),
             execution_dir: artifacts["execution"].as_str().unwrap(),
             recovery,
@@ -116,7 +117,7 @@ pub fn validate_collection<H, S, P, R>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     R: work_feature::task::TaskCollectionRepository,
 {
     work_feature::task::load_collection_with_file_state(
@@ -144,6 +145,7 @@ pub fn migration_prepare(
     preview: impl FnOnce(&Value) -> Result<Value, WorkError>,
     write: impl FnOnce(&str, &Value) -> Result<(), WorkError>,
 ) -> Result<Value, WorkError> {
+    work_feature::specification::migration_prepare::validate_semantic_request(input.request)?;
     let prepared = if input.request["mode"] == "revision" {
         prepare_revision(input.raw, input.date)?
     } else {
@@ -167,10 +169,13 @@ mod migration_flow_tests {
     #[test]
     fn revision_previews_before_writing_and_skips_reconstruction() {
         let order = RefCell::new(Vec::new());
+        let request = json!({"schema":"work-spec-migration-prepare-request/v1", "mode":"revision",
+            "requirement_id":"example", "sources":[{"path":"legacy.bin","raw_sha256":"a".repeat(64)}],
+            "reason":"Reviewed revision", "edits":[], "semantic_decisions":[]});
         let result = migration_prepare(
             MigrationPrepareInput {
                 raw: b"request",
-                request: &json!({"mode":"revision"}),
+                request: &request,
                 date: "2026-09-27",
                 output: Some("draft.json"),
             },
@@ -196,5 +201,16 @@ mod migration_flow_tests {
         .unwrap();
         assert_eq!(*order.borrow(), ["prepare", "preview", "write"]);
         assert_eq!(result["preview"], json!({"ready":true}));
+    }
+    #[test]
+    fn unreviewed_migration_is_rejected_before_any_callback() {
+        let error = migration_prepare(
+            MigrationPrepareInput { raw:b"{}", request:&json!({"schema":"work-spec-migration-prepare-request/v1", "mode":"reconstruction", "plan":{}}), date:"2026-10-04", output:Some("candidate.json") },
+            |_, _| panic!("invalid request must not prepare"),
+            |_| panic!("invalid request must not reconstruct"),
+            |_| panic!("invalid request must not preview"),
+            |_, _| panic!("invalid request must not write"),
+        ).unwrap_err();
+        assert_eq!(error.reason_code, "invalid_contract_value");
     }
 }

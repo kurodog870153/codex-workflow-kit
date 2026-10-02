@@ -2,7 +2,7 @@
   "schema": "work-command-tree/v1",
   "root": {
     "name": "work",
-    "help": "usage: work [-h] --project-root PROJECT_ROOT [--verbose]\n               {contract,paths,hierarchy,instructions,fingerprint,skills,handoff,attempt,correction,plan,progress,task,specification,workflow,workspace,execute,invocation,migration,delegation} ...\n\npositional arguments:\n  {contract,paths,hierarchy,instructions,fingerprint,skills,handoff,attempt,correction,plan,progress,task,specification,workflow,workspace,execute,invocation,migration,delegation}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --project-root PROJECT_ROOT\n  --verbose             Return the complete canonical success payload instead\n                        of the brief projection.\n",
+    "help": "usage: work [-h] --project-root PROJECT_ROOT [--verbose]\n               {contract,paths,hierarchy,instructions,fingerprint,skills,handoff,attempt,correction,progress,task,specification,workflow,workspace,execute,invocation,migration,delegation,source} ...\n\npositional arguments:\n  {contract,paths,hierarchy,instructions,fingerprint,skills,handoff,attempt,correction,progress,task,specification,workflow,workspace,execute,invocation,migration,delegation,source}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --project-root PROJECT_ROOT\n  --verbose             Return the complete canonical success payload instead\n                        of the brief projection.\n",
     "arguments": [
       {
         "name": "project_root",
@@ -118,7 +118,7 @@
         "children": [
           {
             "name": "resolve",
-            "help": "usage: work hierarchy resolve [-h] --work-directory {plan,task,execute}\n                                 [paths ...]\n\npositional arguments:\n  paths\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --work-directory {plan,task,execute}\n",
+            "help": "usage: work hierarchy resolve [-h] --work-directory {task,execute}\n                                 [paths ...]\n\npositional arguments:\n  paths\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --work-directory {task,execute}\n",
             "arguments": [
               {
                 "name": "work_directory",
@@ -130,7 +130,6 @@
                 "append": false,
                 "boolean": false,
                 "choices": [
-                  "plan",
                   "task",
                   "execute"
                 ],
@@ -200,7 +199,7 @@
         "children": [
           {
             "name": "catalog",
-            "help": "usage: work instructions catalog [-h] --mode {plan,task,execute,all}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --mode {plan,task,execute,all}\n",
+            "help": "usage: work instructions catalog [-h] --mode {task,execute,all}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --mode {task,execute,all}\n",
             "arguments": [
               {
                 "name": "mode",
@@ -212,7 +211,6 @@
                 "append": false,
                 "boolean": false,
                 "choices": [
-                  "plan",
                   "task",
                   "execute",
                   "all"
@@ -225,7 +223,7 @@
           },
           {
             "name": "resolve",
-            "help": "usage: work instructions resolve [-h] --mode {plan,task,execute}\n                                    [paths ...]\n\npositional arguments:\n  paths\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --mode {plan,task,execute}\n",
+            "help": "usage: work instructions resolve [-h] --mode {task,execute}\n                                    [paths ...]\n\npositional arguments:\n  paths\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --mode {task,execute}\n",
             "arguments": [
               {
                 "name": "mode",
@@ -237,7 +235,6 @@
                 "append": false,
                 "boolean": false,
                 "choices": [
-                  "plan",
                   "task",
                   "execute"
                 ],
@@ -259,7 +256,7 @@
           },
           {
             "name": "load",
-            "help": "usage: work instructions load [-h] --mode {plan,task,execute}\n                                 [--reference REFERENCE]\n                                 [paths ...]\n\npositional arguments:\n  paths\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --mode {plan,task,execute}\n  --reference REFERENCE\n",
+            "help": "usage: work instructions load [-h] --mode {task,execute}\n                                 [--reference REFERENCE]\n                                 [paths ...]\n\npositional arguments:\n  paths\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --mode {task,execute}\n  --reference REFERENCE\n",
             "arguments": [
               {
                 "name": "mode",
@@ -271,7 +268,6 @@
                 "append": false,
                 "boolean": false,
                 "choices": [
-                  "plan",
                   "task",
                   "execute"
                 ],
@@ -305,7 +301,7 @@
           },
           {
             "name": "select",
-            "help": "usage: work instructions select [-h] --mode {plan,task,execute}\n                                   [--reference REFERENCE]\n                                   [paths ...]\n\npositional arguments:\n  paths\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --mode {plan,task,execute}\n  --reference REFERENCE\n",
+            "help": "usage: work instructions select [-h] --mode {task,execute}\n                                   [--reference REFERENCE]\n                                   [paths ...]\n\npositional arguments:\n  paths\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --mode {task,execute}\n  --reference REFERENCE\n",
             "arguments": [
               {
                 "name": "mode",
@@ -317,7 +313,6 @@
                 "append": false,
                 "boolean": false,
                 "choices": [
-                  "plan",
                   "task",
                   "execute"
                 ],
@@ -707,7 +702,7 @@
       },
       {
         "name": "handoff",
-        "help": "usage: work handoff [-h]\n                       {validate,render,build-discussion,verify-plan-to-task,verify-task-to-execute,build-plan-to-task,build-task-to-execute,build-task-to-plan,build-execute-to-task,build-execute-to-plan,verify-task-to-plan,verify-execute-to-plan,verify-execute-to-task} ...\n\npositional arguments:\n  {validate,render,build-discussion,verify-plan-to-task,verify-task-to-execute,build-plan-to-task,build-task-to-execute,build-task-to-plan,build-execute-to-task,build-execute-to-plan,verify-task-to-plan,verify-execute-to-plan,verify-execute-to-task}\n    build-discussion    Build an unverified handoff from unsaved semantic\n                        discussion.\n    verify-plan-to-task\n                        Verify incoming handoff identity against the selected\n                        current source.\n    verify-task-to-execute\n                        Verify incoming handoff identity against the selected\n                        current source.\n    build-plan-to-task  Build a handoff from a validated formal artifact and\n                        semantic input.\n    build-task-to-execute\n                        Build a handoff from a validated formal artifact and\n                        semantic input.\n    build-task-to-plan  Build a handoff from a validated formal artifact and\n                        semantic input.\n    build-execute-to-task\n                        Build a handoff from a validated formal artifact and\n                        semantic input.\n    build-execute-to-plan\n                        Build a handoff from a validated formal artifact and\n                        semantic input.\n\noptions:\n  -h, --help            Return command help in a JSON response.\n",
+        "help": "usage: work handoff [-h] {validate,render,build-discussion,verify-task-to-execute,build-task-to-execute,build-execute-to-task,verify-execute-to-task} ...\n\npositional arguments:\n  {validate,render,build-discussion,verify-task-to-execute,build-task-to-execute,build-execute-to-task,verify-execute-to-task}\n\noptions:\n  -h, --help Return command help in a JSON response.\n",
         "arguments": [],
         "exclusive_groups": [],
         "children": [
@@ -759,62 +754,6 @@
                 "name": "input_file",
                 "flags": [
                   "--input-file"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [],
-            "children": []
-          },
-          {
-            "name": "verify-plan-to-task",
-            "help": "usage: work handoff verify-plan-to-task [-h] --input-file INPUT_FILE\n                                           --user-config-root USER_CONFIG_ROOT\n                                           [--skill-root SKILL_ROOT]\n                                           --plan-path PLAN_PATH\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --plan-path PLAN_PATH\n",
-            "arguments": [
-              {
-                "name": "input_file",
-                "flags": [
-                  "--input-file"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "user_config_root",
-                "flags": [
-                  "--user-config-root"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "skill_root",
-                "flags": [
-                  "--skill-root"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": true,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "plan_path",
-                "flags": [
-                  "--plan-path"
                 ],
                 "required": true,
                 "nargs": null,
@@ -896,62 +835,6 @@
             "children": []
           },
           {
-            "name": "build-plan-to-task",
-            "help": "usage: work handoff build-plan-to-task [-h] --input-file INPUT_FILE\n                                          --user-config-root USER_CONFIG_ROOT\n                                          [--skill-root SKILL_ROOT]\n                                          --plan-path PLAN_PATH\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --plan-path PLAN_PATH\n",
-            "arguments": [
-              {
-                "name": "input_file",
-                "flags": [
-                  "--input-file"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "user_config_root",
-                "flags": [
-                  "--user-config-root"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "skill_root",
-                "flags": [
-                  "--skill-root"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": true,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "plan_path",
-                "flags": [
-                  "--plan-path"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [],
-            "children": []
-          },
-          {
             "name": "build-task-to-execute",
             "help": "usage: work handoff build-task-to-execute [-h] --input-file INPUT_FILE\n                                             --user-config-root USER_CONFIG_ROOT\n                                             [--skill-root SKILL_ROOT]\n                                             --task-path TASK_PATH\n                                             --task-id TASK_ID\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --task-path TASK_PATH\n  --task-id TASK_ID\n",
             "arguments": [
@@ -1009,74 +892,6 @@
                   "--task-id"
                 ],
                 "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [],
-            "children": []
-          },
-          {
-            "name": "build-task-to-plan",
-            "help": "usage: work handoff build-task-to-plan [-h] --input-file INPUT_FILE\n                                          --user-config-root USER_CONFIG_ROOT\n                                          [--skill-root SKILL_ROOT]\n                                          --task-path TASK_PATH\n                                          [--task-id TASK_ID]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --task-path TASK_PATH\n  --task-id TASK_ID\n",
-            "arguments": [
-              {
-                "name": "input_file",
-                "flags": [
-                  "--input-file"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "user_config_root",
-                "flags": [
-                  "--user-config-root"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "skill_root",
-                "flags": [
-                  "--skill-root"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": true,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "task_path",
-                "flags": [
-                  "--task-path"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "task_id",
-                "flags": [
-                  "--task-id"
-                ],
-                "required": false,
                 "nargs": null,
                 "append": false,
                 "boolean": false,
@@ -1188,317 +1003,13 @@
             "children": []
           },
           {
-            "name": "build-execute-to-plan",
-            "help": "usage: work handoff build-execute-to-plan [-h] --input-file INPUT_FILE\n                                             --user-config-root USER_CONFIG_ROOT\n                                             [--skill-root SKILL_ROOT]\n                                             --task-path TASK_PATH\n                                             --task-id TASK_ID\n                                             (--attempt-id ATTEMPT_ID |\n                                             --preflight)\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --task-path TASK_PATH\n  --task-id TASK_ID\n  --attempt-id ATTEMPT_ID\n  --preflight\n",
-            "arguments": [
-              {
-                "name": "input_file",
-                "flags": [
-                  "--input-file"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "user_config_root",
-                "flags": [
-                  "--user-config-root"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "skill_root",
-                "flags": [
-                  "--skill-root"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": true,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "task_path",
-                "flags": [
-                  "--task-path"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "task_id",
-                "flags": [
-                  "--task-id"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "attempt_id",
-                "flags": [
-                  "--attempt-id"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "preflight",
-                "flags": [
-                  "--preflight"
-                ],
-                "required": false,
-                "nargs": 0,
-                "append": false,
-                "boolean": true,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [
-              {
-                "required": true,
-                "members": [
-                  "attempt_id",
-                  "preflight"
-                ]
-              }
-            ],
-            "children": []
-          },
-          {
-            "name": "verify-task-to-plan",
-            "help": "usage: work handoff verify-task-to-plan [-h] --input-file INPUT_FILE\n                                           --plan-path PLAN_PATH\n                                           --task-path TASK_PATH\n                                           --user-config-root USER_CONFIG_ROOT\n                                           [--skill-root SKILL_ROOT]\n                                           [--task-id TASK_ID]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --plan-path PLAN_PATH\n  --task-path TASK_PATH\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --task-id TASK_ID\n",
-            "arguments": [
-              {
-                "name": "input_file",
-                "flags": [
-                  "--input-file"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "plan_path",
-                "flags": [
-                  "--plan-path"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "task_path",
-                "flags": [
-                  "--task-path"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "user_config_root",
-                "flags": [
-                  "--user-config-root"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "skill_root",
-                "flags": [
-                  "--skill-root"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": true,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "task_id",
-                "flags": [
-                  "--task-id"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [],
-            "children": []
-          },
-          {
-            "name": "verify-execute-to-plan",
-            "help": "usage: work handoff verify-execute-to-plan [-h] --input-file INPUT_FILE\n                                              --plan-path PLAN_PATH\n                                              --task-path TASK_PATH\n                                              --user-config-root USER_CONFIG_ROOT\n                                              [--skill-root SKILL_ROOT]\n                                              --task-id TASK_ID\n                                              (--attempt-id ATTEMPT_ID |\n                                              --preflight)\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --plan-path PLAN_PATH\n  --task-path TASK_PATH\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --task-id TASK_ID\n  --attempt-id ATTEMPT_ID\n  --preflight\n",
-            "arguments": [
-              {
-                "name": "input_file",
-                "flags": [
-                  "--input-file"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "plan_path",
-                "flags": [
-                  "--plan-path"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "task_path",
-                "flags": [
-                  "--task-path"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "user_config_root",
-                "flags": [
-                  "--user-config-root"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "skill_root",
-                "flags": [
-                  "--skill-root"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": true,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "task_id",
-                "flags": [
-                  "--task-id"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "attempt_id",
-                "flags": [
-                  "--attempt-id"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "preflight",
-                "flags": [
-                  "--preflight"
-                ],
-                "required": false,
-                "nargs": 0,
-                "append": false,
-                "boolean": true,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [
-              {
-                "required": true,
-                "members": [
-                  "attempt_id",
-                  "preflight"
-                ]
-              }
-            ],
-            "children": []
-          },
-          {
             "name": "verify-execute-to-task",
-            "help": "usage: work handoff verify-execute-to-task [-h] --input-file INPUT_FILE\n                                              --plan-path PLAN_PATH\n                                              --task-path TASK_PATH\n                                              --user-config-root USER_CONFIG_ROOT\n                                              [--skill-root SKILL_ROOT]\n                                              --task-id TASK_ID\n                                              (--attempt-id ATTEMPT_ID |\n                                              --preflight)\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --plan-path PLAN_PATH\n  --task-path TASK_PATH\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --task-id TASK_ID\n  --attempt-id ATTEMPT_ID\n  --preflight\n",
+            "help": "usage: work handoff verify-execute-to-task [-h] --input-file INPUT_FILE\n                                              --task-path TASK_PATH\n                                              --user-config-root USER_CONFIG_ROOT\n                                              [--skill-root SKILL_ROOT]\n                                              --task-id TASK_ID\n                                              (--attempt-id ATTEMPT_ID |\n                                              --preflight)\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --task-path TASK_PATH\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --task-id TASK_ID\n  --attempt-id ATTEMPT_ID\n  --preflight\n",
             "arguments": [
               {
                 "name": "input_file",
                 "flags": [
                   "--input-file"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "plan_path",
-                "flags": [
-                  "--plan-path"
                 ],
                 "required": true,
                 "nargs": null,
@@ -1730,202 +1241,6 @@
         ]
       },
       {
-        "name": "plan",
-        "help": "usage: work plan [-h] {semantic-prepare,validate,create} ...\n\npositional arguments:\n  {semantic-prepare,validate,create}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n",
-        "arguments": [],
-        "exclusive_groups": [],
-        "children": [
-          {
-            "name": "semantic-prepare",
-            "help": "usage: work plan semantic-prepare [-h] --input-file INPUT_FILE\n                                     --user-config-root USER_CONFIG_ROOT\n                                     [--skill-root SKILL_ROOT]\n                                     [--output-file OUTPUT_FILE]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --output-file OUTPUT_FILE\n",
-            "arguments": [
-              {
-                "name": "input_file",
-                "flags": [
-                  "--input-file"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "user_config_root",
-                "flags": [
-                  "--user-config-root"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "skill_root",
-                "flags": [
-                  "--skill-root"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": true,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "output_file",
-                "flags": [
-                  "--output-file"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [],
-            "children": []
-          },
-          {
-            "name": "validate",
-            "help": "usage: work plan validate [-h] --user-config-root USER_CONFIG_ROOT\n                             [--skill-root SKILL_ROOT] (--path PATH |\n                             --input-file INPUT_FILE) [--plan-path PLAN_PATH]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --path PATH\n  --input-file INPUT_FILE\n  --plan-path PLAN_PATH\n",
-            "arguments": [
-              {
-                "name": "user_config_root",
-                "flags": [
-                  "--user-config-root"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "skill_root",
-                "flags": [
-                  "--skill-root"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": true,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "path",
-                "flags": [
-                  "--path"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "input_file",
-                "flags": [
-                  "--input-file"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "plan_path",
-                "flags": [
-                  "--plan-path"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [
-              {
-                "required": true,
-                "members": [
-                  "path",
-                  "input_file"
-                ]
-              }
-            ],
-            "children": []
-          },
-          {
-            "name": "create",
-            "help": "usage: work plan create [-h] --user-config-root USER_CONFIG_ROOT\n                           [--skill-root SKILL_ROOT] --input-file INPUT_FILE\n                           --plan-path PLAN_PATH\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --input-file INPUT_FILE\n  --plan-path PLAN_PATH\n",
-            "arguments": [
-              {
-                "name": "user_config_root",
-                "flags": [
-                  "--user-config-root"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "skill_root",
-                "flags": [
-                  "--skill-root"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": true,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "input_file",
-                "flags": [
-                  "--input-file"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "plan_path",
-                "flags": [
-                  "--plan-path"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [],
-            "children": []
-          }
-        ]
-      },
-      {
         "name": "progress",
         "help": "usage: work progress [-h] {read,prepare,validate,save} ...\n\npositional arguments:\n  {read,prepare,validate,save}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n",
         "arguments": [],
@@ -1933,7 +1248,7 @@
         "children": [
           {
             "name": "read",
-            "help": "usage: work progress read [-h] --requirement-id REQUIREMENT_ID\n                             --mode {plan,task}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n  --mode {plan,task}\n",
+            "help": "usage: work progress read [-h] --requirement-id REQUIREMENT_ID\n                             --mode {task}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n  --mode {task}\n",
             "arguments": [
               {
                 "name": "requirement_id",
@@ -1957,7 +1272,6 @@
                 "append": false,
                 "boolean": false,
                 "choices": [
-                  "plan",
                   "task"
                 ],
                 "help": null
@@ -1968,7 +1282,7 @@
           },
           {
             "name": "prepare",
-            "help": "usage: work progress prepare [-h] --input-file INPUT_FILE\n                                --expected-revision EXPECTED_REVISION\n                                --requirement-id REQUIREMENT_ID\n                                --mode {plan,task}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --expected-revision EXPECTED_REVISION\n  --requirement-id REQUIREMENT_ID\n  --mode {plan,task}\n",
+            "help": "usage: work progress prepare [-h] --input-file INPUT_FILE\n                                --expected-revision EXPECTED_REVISION\n                                --requirement-id REQUIREMENT_ID\n                                --mode {task}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --expected-revision EXPECTED_REVISION\n  --requirement-id REQUIREMENT_ID\n  --mode {task}\n",
             "arguments": [
               {
                 "name": "input_file",
@@ -2016,7 +1330,6 @@
                 "append": false,
                 "boolean": false,
                 "choices": [
-                  "plan",
                   "task"
                 ],
                 "help": null
@@ -2111,7 +1424,7 @@
         "children": [
           {
             "name": "preview",
-            "help": "usage: work task preview [-h] --input-file INPUT_FILE\n                                   --requirement-id REQUIREMENT_ID\n                                   [--expected-revision EXPECTED_REVISION]\n                                   --plan-path PLAN_PATH\n                                   --user-config-root USER_CONFIG_ROOT\n                                   [--skill-root SKILL_ROOT]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --requirement-id REQUIREMENT_ID\n  [--expected-revision EXPECTED_REVISION]\n  --plan-path PLAN_PATH\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n",
+            "help": "usage: work task preview [-h] --input-file INPUT_FILE\n                                   --requirement-id REQUIREMENT_ID\n                                   [--expected-revision EXPECTED_REVISION]\n                                   --user-config-root USER_CONFIG_ROOT\n                                   [--skill-root SKILL_ROOT]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --requirement-id REQUIREMENT_ID\n  [--expected-revision EXPECTED_REVISION]\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n",
             "arguments": [
               {
                 "name": "input_file",
@@ -2143,18 +1456,6 @@
                   "--expected-revision"
                 ],
                 "required": false,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "plan_path",
-                "flags": [
-                  "--plan-path"
-                ],
-                "required": true,
                 "nargs": null,
                 "append": false,
                 "boolean": false,
@@ -2191,7 +1492,7 @@
           },
           {
             "name": "apply",
-            "help": "usage: work task apply [-h] --input-file INPUT_FILE\n                                 --requirement-id REQUIREMENT_ID\n                                 [--expected-revision EXPECTED_REVISION]\n                                 --plan-path PLAN_PATH\n                                 --user-config-root USER_CONFIG_ROOT\n                                 [--skill-root SKILL_ROOT]\n                                 --approved-sha256 APPROVED_SHA256\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --requirement-id REQUIREMENT_ID\n  [--expected-revision EXPECTED_REVISION]\n  --plan-path PLAN_PATH\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --approved-sha256 APPROVED_SHA256\n",
+            "help": "usage: work task apply [-h] --input-file INPUT_FILE\n                                 --requirement-id REQUIREMENT_ID\n                                 [--expected-revision EXPECTED_REVISION]\n                                 --user-config-root USER_CONFIG_ROOT\n                                 [--skill-root SKILL_ROOT]\n                                 --approved-sha256 APPROVED_SHA256\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --requirement-id REQUIREMENT_ID\n  [--expected-revision EXPECTED_REVISION]\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --approved-sha256 APPROVED_SHA256\n",
             "arguments": [
               {
                 "name": "input_file",
@@ -2223,18 +1524,6 @@
                   "--expected-revision"
                 ],
                 "required": false,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "plan_path",
-                "flags": [
-                  "--plan-path"
-                ],
-                "required": true,
                 "nargs": null,
                 "append": false,
                 "boolean": false,
@@ -2283,7 +1572,7 @@
           },
           {
             "name": "recover",
-            "help": "usage: work task recover [-h] --input-file INPUT_FILE\n                                 --requirement-id REQUIREMENT_ID\n                                 [--expected-revision EXPECTED_REVISION]\n                                 --plan-path PLAN_PATH\n                                 --user-config-root USER_CONFIG_ROOT\n                                 [--skill-root SKILL_ROOT]\n                                 --approved-sha256 APPROVED_SHA256\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --requirement-id REQUIREMENT_ID\n  [--expected-revision EXPECTED_REVISION]\n  --plan-path PLAN_PATH\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --approved-sha256 APPROVED_SHA256\n",
+            "help": "usage: work task recover [-h] --input-file INPUT_FILE\n                                 --requirement-id REQUIREMENT_ID\n                                 [--expected-revision EXPECTED_REVISION]\n                                 --user-config-root USER_CONFIG_ROOT\n                                 [--skill-root SKILL_ROOT]\n                                 --approved-sha256 APPROVED_SHA256\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --requirement-id REQUIREMENT_ID\n  [--expected-revision EXPECTED_REVISION]\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --approved-sha256 APPROVED_SHA256\n",
             "arguments": [
               {
                 "name": "input_file",
@@ -2315,18 +1604,6 @@
                   "--expected-revision"
                 ],
                 "required": false,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "plan_path",
-                "flags": [
-                  "--plan-path"
-                ],
-                "required": true,
                 "nargs": null,
                 "append": false,
                 "boolean": false,
@@ -2375,7 +1652,7 @@
           },
           {
             "name": "prepare",
-            "help": "usage: work task prepare [-h] --input-file INPUT_FILE\n                                     --requirement-id REQUIREMENT_ID\n                                     --plan-path PLAN_PATH\n                                     --user-config-root USER_CONFIG_ROOT\n                                     [--skill-root SKILL_ROOT]\n                                     [--expected-revision EXPECTED_REVISION]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --requirement-id REQUIREMENT_ID\n  --plan-path PLAN_PATH\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --expected-revision EXPECTED_REVISION\n",
+            "help": "usage: work task prepare [-h] --input-file INPUT_FILE\n                                     --requirement-id REQUIREMENT_ID\n                                     --user-config-root USER_CONFIG_ROOT\n                                     [--skill-root SKILL_ROOT]\n                                     [--expected-revision EXPECTED_REVISION]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --requirement-id REQUIREMENT_ID\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --expected-revision EXPECTED_REVISION\n",
             "arguments": [
               {
                 "name": "input_file",
@@ -2393,18 +1670,6 @@
                 "name": "requirement_id",
                 "flags": [
                   "--requirement-id"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "plan_path",
-                "flags": [
-                  "--plan-path"
                 ],
                 "required": true,
                 "nargs": null,
@@ -2455,7 +1720,7 @@
           },
           {
             "name": "status",
-            "help": "usage: work task status --requirement-id REQUIREMENT_ID --plan-path PLAN_PATH --user-config-root USER_CONFIG_ROOT [--task-id TASK_ID] [--skill-root SKILL_ROOT]\n",
+            "help": "usage: work task status --requirement-id REQUIREMENT_ID --user-config-root USER_CONFIG_ROOT [--task-id TASK_ID] [--skill-root SKILL_ROOT]\n",
             "arguments": [
               {
                 "name": "requirement_id",
@@ -2475,18 +1740,6 @@
                   "--task-id"
                 ],
                 "required": false,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "plan_path",
-                "flags": [
-                  "--plan-path"
-                ],
-                "required": true,
                 "nargs": null,
                 "append": false,
                 "boolean": false,
@@ -2523,7 +1776,7 @@
           },
           {
             "name": "save",
-            "help": "usage: work task save [-h] --requirement-id REQUIREMENT_ID\n                                       [--task-id TASK_ID]\n                                       [--expected-revision EXPECTED_REVISION]\n                                       --plan-path PLAN_PATH\n                                       --user-config-root USER_CONFIG_ROOT\n                                       [--skill-root SKILL_ROOT]\n                                       [--general-only |\n                                       --instruction-path INSTRUCTION_PATH]\n                                       [--reference REFERENCE]\n                                       --input-file INPUT_FILE\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n  --task-id TASK_ID\n  [--expected-revision EXPECTED_REVISION]\n  --plan-path PLAN_PATH\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --general-only\n  --instruction-path INSTRUCTION_PATH\n  --reference REFERENCE\n  --input-file INPUT_FILE\n",
+            "help": "usage: work task save [-h] --requirement-id REQUIREMENT_ID\n                                       [--task-id TASK_ID]\n                                       [--expected-revision EXPECTED_REVISION]\n                                       --user-config-root USER_CONFIG_ROOT\n                                       [--skill-root SKILL_ROOT]\n                                       [--general-only |\n                                       --instruction-path INSTRUCTION_PATH]\n                                       [--reference REFERENCE]\n                                       --input-file INPUT_FILE\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n  --task-id TASK_ID\n  [--expected-revision EXPECTED_REVISION]\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --general-only\n  --instruction-path INSTRUCTION_PATH\n  --reference REFERENCE\n  --input-file INPUT_FILE\n",
             "arguments": [
               {
                 "name": "requirement_id",
@@ -2555,18 +1808,6 @@
                   "--expected-revision"
                 ],
                 "required": false,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "plan_path",
-                "flags": [
-                  "--plan-path"
-                ],
-                "required": true,
                 "nargs": null,
                 "append": false,
                 "boolean": false,
@@ -2657,12 +1898,7 @@
             ],
             "children": []
           },
-
-
-
-
-
-{
+          {
             "name": "validate",
             "help": "usage: work task validate [-h] --user-config-root USER_CONFIG_ROOT\n                             [--skill-root SKILL_ROOT] (--path PATH |\n                             --input-file INPUT_FILE) [--task-path TASK_PATH]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --path PATH\n  --input-file INPUT_FILE\n  --task-path TASK_PATH\n",
             "arguments": [
@@ -2742,11 +1978,11 @@
       },
       {
         "name": "specification",
-        "help": "usage: work specification [-h] {prepare,preview,apply,verify,recover,reconciliation-prepare,reconciliation-preview,reconciliation-apply} ...\n\npositional arguments:\n  {prepare,preview,apply,verify,recover,reconciliation-prepare,reconciliation-preview,reconciliation-apply}\n    prepare             Prepare a semantic specification revision.\n    preview             Validate and review a prepared revision.\n    apply               Publish an approved revision.\n    verify              Verify a published revision.\n    recover             Recover an interrupted approved revision.\n    reconciliation-prepare\n                        Prepare execution deviation reconciliation.\n    reconciliation-preview\n                        Review execution deviation reconciliation.\n    reconciliation-apply\n                        Publish approved execution deviation reconciliation.\n\noptions:\n  -h, --help            Return command help in a JSON response.\n",
+        "help": "usage: work specification [-h] {prepare,preview,apply,verify,recover,reconciliation-prepare,reconciliation-preview,reconciliation-apply,reconciliation-recover} ...\n\npositional arguments:\n  {prepare,preview,apply,verify,recover,reconciliation-prepare,reconciliation-preview,reconciliation-apply,reconciliation-recover}\n    prepare             Prepare a semantic specification revision.\n    preview             Validate and review a prepared revision.\n    apply               Publish an approved revision.\n    verify              Verify a published revision.\n    recover             Recover an interrupted approved revision.\n    reconciliation-prepare\n                        Prepare execution deviation reconciliation.\n    reconciliation-preview\n                        Review execution deviation reconciliation.\n    reconciliation-apply\n                        Publish approved execution deviation reconciliation.\n    reconciliation-recover\n                        Recover approved execution deviation reconciliation.\n\noptions:\n  -h, --help            Return command help in a JSON response.\n",
         "arguments": [],
         "exclusive_groups": [],
         "children": [
-{
+          {
             "name": "prepare",
             "help": "usage: work specification prepare [-h] --input-file INPUT_FILE\n                                 --user-config-root USER_CONFIG_ROOT\n                                 [--skill-root SKILL_ROOT]\n                                 [--output-file OUTPUT_FILE] [--summary]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --output-file OUTPUT_FILE\n  --summary\n",
             "arguments": [
@@ -2814,7 +2050,7 @@
             "exclusive_groups": [],
             "children": []
           },
-{
+          {
             "name": "preview",
             "help": "usage: work specification preview [-h] --input-file INPUT_FILE\n                                  --user-config-root USER_CONFIG_ROOT\n                                  [--skill-root SKILL_ROOT] [--summary]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --summary\n",
             "arguments": [
@@ -2870,7 +2106,7 @@
             "exclusive_groups": [],
             "children": []
           },
-{
+          {
             "name": "apply",
             "help": "usage: work specification apply [-h] --input-file INPUT_FILE\n                                --user-config-root USER_CONFIG_ROOT\n                                [--skill-root SKILL_ROOT]\n                                --approved-sha256 APPROVED_SHA256 [--summary]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --approved-sha256 APPROVED_SHA256\n  --summary\n",
             "arguments": [
@@ -2938,7 +2174,7 @@
             "exclusive_groups": [],
             "children": []
           },
-{
+          {
             "name": "recover",
             "help": "usage: work specification recover [-h] --input-file INPUT_FILE\n                                 --user-config-root USER_CONFIG_ROOT\n                                 [--skill-root SKILL_ROOT]\n                                 --approved-sha256 APPROVED_SHA256\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --approved-sha256 APPROVED_SHA256\n",
             "arguments": [
@@ -2994,7 +2230,7 @@
             "exclusive_groups": [],
             "children": []
           },
-{
+          {
             "name": "verify",
             "help": "usage: work specification verify [-h] --input-file INPUT_FILE\n                                --user-config-root USER_CONFIG_ROOT\n                                [--skill-root SKILL_ROOT]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n",
             "arguments": [
@@ -3038,7 +2274,7 @@
             "exclusive_groups": [],
             "children": []
           },
-{
+          {
             "name": "reconciliation-preview",
             "help": "usage: work specification reconciliation-preview [-h] --input-file INPUT_FILE\n                                           --user-config-root USER_CONFIG_ROOT\n                                           [--skill-root SKILL_ROOT]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n",
             "arguments": [
@@ -3082,7 +2318,7 @@
             "exclusive_groups": [],
             "children": []
           },
-{
+          {
             "name": "reconciliation-prepare",
             "help": "usage: work specification reconciliation-prepare [-h] --input-file INPUT_FILE\n                                           --user-config-root USER_CONFIG_ROOT\n                                           [--skill-root SKILL_ROOT]\n                                           [--output-file OUTPUT_FILE]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --output-file OUTPUT_FILE\n",
             "arguments": [
@@ -3138,9 +2374,65 @@
             "exclusive_groups": [],
             "children": []
           },
-{
+          {
             "name": "reconciliation-apply",
             "help": "usage: work specification reconciliation-apply [-h] --input-file INPUT_FILE\n                                         --user-config-root USER_CONFIG_ROOT\n                                         [--skill-root SKILL_ROOT]\n                                         --approved-sha256 APPROVED_SHA256\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --approved-sha256 APPROVED_SHA256\n",
+            "arguments": [
+              {
+                "name": "input_file",
+                "flags": [
+                  "--input-file"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "user_config_root",
+                "flags": [
+                  "--user-config-root"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "skill_root",
+                "flags": [
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "approved_sha256",
+                "flags": [
+                  "--approved-sha256"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
+            ],
+            "exclusive_groups": [],
+            "children": []
+          },
+          {
+            "name": "reconciliation-recover",
+            "help": "usage: work specification reconciliation-recover [-h] --input-file INPUT_FILE\n                                         --user-config-root USER_CONFIG_ROOT\n                                         [--skill-root SKILL_ROOT]\n                                         --approved-sha256 APPROVED_SHA256\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --approved-sha256 APPROVED_SHA256\n",
             "arguments": [
               {
                 "name": "input_file",
@@ -3204,7 +2496,7 @@
         "children": [
           {
             "name": "status",
-            "help": "usage: work workflow status [-h] --requirement-id REQUIREMENT_ID\n                               [--plan-path PLAN_PATH]\n                               --user-config-root USER_CONFIG_ROOT\n                               [--skill-root SKILL_ROOT]\n                               [--instruction-maintenance]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n  --plan-path PLAN_PATH\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --instruction-maintenance\n",
+            "help": "usage: work workflow status [-h] --requirement-id REQUIREMENT_ID\n                               [--task-path TASK_PATH]\n                               --user-config-root USER_CONFIG_ROOT\n                               [--skill-root SKILL_ROOT]\n                               [--instruction-maintenance]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n  --task-path TASK_PATH\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --instruction-maintenance\n",
             "arguments": [
               {
                 "name": "requirement_id",
@@ -3219,9 +2511,9 @@
                 "help": null
               },
               {
-                "name": "plan_path",
+                "name": "task_path",
                 "flags": [
-                  "--plan-path"
+                  "--task-path"
                 ],
                 "required": false,
                 "nargs": null,
@@ -3272,7 +2564,7 @@
           },
           {
             "name": "next",
-            "help": "usage: work workflow next [-h] --requirement-id REQUIREMENT_ID\n                             [--plan-path PLAN_PATH]\n                             --user-config-root USER_CONFIG_ROOT\n                             [--skill-root SKILL_ROOT]\n                             [--instruction-maintenance]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n  --plan-path PLAN_PATH\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --instruction-maintenance\n",
+            "help": "usage: work workflow next [-h] --requirement-id REQUIREMENT_ID\n                             [--task-path TASK_PATH]\n                             --user-config-root USER_CONFIG_ROOT\n                             [--skill-root SKILL_ROOT]\n                             [--instruction-maintenance]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n  --task-path TASK_PATH\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --instruction-maintenance\n",
             "arguments": [
               {
                 "name": "requirement_id",
@@ -3287,9 +2579,9 @@
                 "help": null
               },
               {
-                "name": "plan_path",
+                "name": "task_path",
                 "flags": [
-                  "--plan-path"
+                  "--task-path"
                 ],
                 "required": false,
                 "nargs": null,
@@ -4754,13 +4046,33 @@
       },
       {
         "name": "invocation",
-        "help": "usage: work invocation [-h] {parse} ...\n\npositional arguments:\n  {parse}\n    parse     Parse an explicit Work invocation from a UTF-8 text file.\n\noptions:\n  -h, --help  Return command help in a JSON response.\n",
+        "help": "usage: work invocation [-h] {parse,confirm} ...\n\npositional arguments:\n  {parse,confirm}\n    parse     Parse an explicit Work invocation from a UTF-8 text file.\n    confirm   Validate user confirmation of an implicit Work invocation.\n\noptions:\n  -h, --help  Return command help in a JSON response.\n",
         "arguments": [],
         "exclusive_groups": [],
         "children": [
           {
             "name": "parse",
             "help": "usage: work invocation parse [-h] --input-file INPUT_FILE\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n",
+            "arguments": [
+              {
+                "name": "input_file",
+                "flags": [
+                  "--input-file"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
+            ],
+            "exclusive_groups": [],
+            "children": []
+          },
+          {
+            "name": "confirm",
+            "help": "usage: work invocation confirm [-h] --input-file INPUT_FILE\n\nConfirm an implicit Work invocation using exact mode/request user evidence.\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n",
             "arguments": [
               {
                 "name": "input_file",
@@ -4788,10 +4100,48 @@
         "children": [
           {
             "name": "analyze",
-            "help": "usage: work migration analyze --requirement-id ID [--artifact {plan,task,execute}]\n",
+            "help": "usage: work migration analyze --requirement-id ID [--artifact {source,task,execute}] [--evidence-path PATH]\n",
             "arguments": [
-              {"name":"requirement_id","flags":["--requirement-id"],"required":true,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
-              {"name":"artifact","flags":["--artifact"],"required":false,"nargs":null,"append":true,"boolean":false,"choices":["plan","task","execute"],"help":null}
+              {
+                "name": "requirement_id",
+                "flags": [
+                  "--requirement-id"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "artifact",
+                "flags": [
+                  "--artifact"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": [
+                  "source",
+                  "task",
+                  "execute"
+                ],
+                "help": null
+              },
+              {
+                "name": "evidence_path",
+                "flags": [
+                  "--evidence-path"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": null,
+                "help": "Preserve a project-relative file as opaque migration evidence."
+              }
             ],
             "exclusive_groups": [],
             "children": []
@@ -4800,10 +4150,54 @@
             "name": "prepare",
             "help": "usage: work migration prepare --input-file INPUT_FILE [--user-config-root ROOT] [--skill-root ROOT] [--output-file FILE]\n",
             "arguments": [
-              {"name":"input_file","flags":["--input-file"],"required":true,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
-              {"name":"user_config_root","flags":["--user-config-root"],"required":false,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
-              {"name":"skill_root","flags":["--skill-root"],"required":false,"nargs":null,"append":true,"boolean":false,"choices":null,"help":null},
-              {"name":"output_file","flags":["--output-file"],"required":false,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null}
+              {
+                "name": "input_file",
+                "flags": [
+                  "--input-file"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "user_config_root",
+                "flags": [
+                  "--user-config-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "skill_root",
+                "flags": [
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "output_file",
+                "flags": [
+                  "--output-file"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
             ],
             "exclusive_groups": [],
             "children": []
@@ -4812,11 +4206,66 @@
             "name": "preview",
             "help": "usage: work migration preview (--request-path PATH | --input-file FILE) [--approved-sha256 SHA256] [--user-config-root ROOT] [--skill-root ROOT]\n",
             "arguments": [
-              {"name":"request_path","flags":["--request-path"],"required":false,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
-              {"name":"input_file","flags":["--input-file"],"required":false,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
-              {"name":"user_config_root","flags":["--user-config-root"],"required":false,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
-              {"name":"approved_sha256","flags":["--approved-sha256"],"required":false,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
-              {"name":"skill_root","flags":["--skill-root"],"required":false,"nargs":null,"append":true,"boolean":false,"choices":null,"help":null}
+              {
+                "name": "request_path",
+                "flags": [
+                  "--request-path"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "input_file",
+                "flags": [
+                  "--input-file"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "user_config_root",
+                "flags": [
+                  "--user-config-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "approved_sha256",
+                "flags": [
+                  "--approved-sha256"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "skill_root",
+                "flags": [
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
             ],
             "exclusive_groups": [],
             "children": []
@@ -4825,11 +4274,66 @@
             "name": "apply",
             "help": "usage: work migration apply (--request-path PATH | --input-file FILE) --approved-sha256 SHA256 [--user-config-root ROOT] [--skill-root ROOT]\n",
             "arguments": [
-              {"name":"request_path","flags":["--request-path"],"required":false,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
-              {"name":"input_file","flags":["--input-file"],"required":false,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
-              {"name":"user_config_root","flags":["--user-config-root"],"required":false,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
-              {"name":"approved_sha256","flags":["--approved-sha256"],"required":true,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
-              {"name":"skill_root","flags":["--skill-root"],"required":false,"nargs":null,"append":true,"boolean":false,"choices":null,"help":null}
+              {
+                "name": "request_path",
+                "flags": [
+                  "--request-path"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "input_file",
+                "flags": [
+                  "--input-file"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "user_config_root",
+                "flags": [
+                  "--user-config-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "approved_sha256",
+                "flags": [
+                  "--approved-sha256"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "skill_root",
+                "flags": [
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
             ],
             "exclusive_groups": [],
             "children": []
@@ -4838,11 +4342,66 @@
             "name": "recover",
             "help": "usage: work migration recover (--request-path PATH | --input-file FILE) --approved-sha256 SHA256 [--user-config-root ROOT] [--skill-root ROOT]\n",
             "arguments": [
-              {"name":"request_path","flags":["--request-path"],"required":false,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
-              {"name":"input_file","flags":["--input-file"],"required":false,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
-              {"name":"user_config_root","flags":["--user-config-root"],"required":false,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
-              {"name":"approved_sha256","flags":["--approved-sha256"],"required":true,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
-              {"name":"skill_root","flags":["--skill-root"],"required":false,"nargs":null,"append":true,"boolean":false,"choices":null,"help":null}
+              {
+                "name": "request_path",
+                "flags": [
+                  "--request-path"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "input_file",
+                "flags": [
+                  "--input-file"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "user_config_root",
+                "flags": [
+                  "--user-config-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "approved_sha256",
+                "flags": [
+                  "--approved-sha256"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "skill_root",
+                "flags": [
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
             ],
             "exclusive_groups": [],
             "children": []
@@ -4851,11 +4410,66 @@
             "name": "verify",
             "help": "usage: work migration verify (--input-file FILE | --request-path PATH) --approved-sha256 SHA256 [--user-config-root ROOT] [--skill-root ROOT]\n",
             "arguments": [
-              {"name":"input_file","flags":["--input-file"],"required":false,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
-              {"name":"request_path","flags":["--request-path"],"required":false,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
-              {"name":"approved_sha256","flags":["--approved-sha256"],"required":true,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
-              {"name":"user_config_root","flags":["--user-config-root"],"required":false,"nargs":null,"append":false,"boolean":false,"choices":null,"help":null},
-              {"name":"skill_root","flags":["--skill-root"],"required":false,"nargs":null,"append":true,"boolean":false,"choices":null,"help":null}
+              {
+                "name": "input_file",
+                "flags": [
+                  "--input-file"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "request_path",
+                "flags": [
+                  "--request-path"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "approved_sha256",
+                "flags": [
+                  "--approved-sha256"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "user_config_root",
+                "flags": [
+                  "--user-config-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "skill_root",
+                "flags": [
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
             ],
             "exclusive_groups": [],
             "children": []
@@ -4870,7 +4484,7 @@
         "children": [
           {
             "name": "validate",
-            "help": "usage: work delegation validate [-h] --input-file INPUT_FILE\n                                   --role {plan,task-coordinator,execute,task-skill,artifact-editor,progress-saver}\n                                   --sender {parent,task-coordinator}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --role {plan,task-coordinator,execute,task-skill,artifact-editor,progress-saver}\n  --sender {parent,task-coordinator}\n",
+            "help": "usage: work delegation validate [-h] --input-file INPUT_FILE\n                                   --role {task-coordinator,execute,task-skill,artifact-editor,progress-saver}\n                                   --sender {parent,task-coordinator}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --role {task-coordinator,execute,task-skill,artifact-editor,progress-saver}\n  --sender {parent,task-coordinator}\n",
             "arguments": [
               {
                 "name": "input_file",
@@ -4894,7 +4508,6 @@
                 "append": false,
                 "boolean": false,
                 "choices": [
-                  "plan",
                   "task-coordinator",
                   "execute",
                   "task-skill",
@@ -4924,12 +4537,140 @@
           },
           {
             "name": "build",
-            "help": "usage: work delegation build [-h] --input-file INPUT_FILE\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n",
+            "help": "usage: work delegation build [-h] --input-file INPUT_FILE [--skill-root SKILL_ROOT]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --skill-root SKILL_ROOT\n",
             "arguments": [
               {
                 "name": "input_file",
                 "flags": [
                   "--input-file"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "skill_root",
+                "flags": [
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
+            ],
+            "exclusive_groups": [],
+            "children": []
+          }
+        ]
+      },
+      {
+        "name": "source",
+        "help": "usage: work source [-h] {capture,read,validate} ...\n\npositional arguments:\n  {capture,read,validate}\n\noptions:\n  -h, --help  Return command help in a JSON response.\n",
+        "arguments": [],
+        "exclusive_groups": [],
+        "children": [
+          {
+            "name": "capture",
+            "help": "usage: work source capture [-h] --input-file INPUT_FILE --payload-file PAYLOAD_FILE [--approved-sha256 APPROVED_SHA256]\n\noptions:\n  -h, --help  Return command help in a JSON response.\n  --input-file INPUT_FILE  Host-provided capture metadata JSON.\n  --payload-file PAYLOAD_FILE  Original source bytes.\n  --approved-sha256 APPROVED_SHA256  Approve the exact metadata, payload and project root.\n",
+            "arguments": [
+              {
+                "name": "input_file",
+                "flags": [
+                  "--input-file"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "payload_file",
+                "flags": [
+                  "--payload-file"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "approved_sha256",
+                "flags": [
+                  "--approved-sha256"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
+            ],
+            "exclusive_groups": [],
+            "children": []
+          },
+          {
+            "name": "read",
+            "help": "usage: work source read [-h] --requirement-id REQUIREMENT_ID --source-id SOURCE_ID\n\noptions:\n  -h, --help  Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n  --source-id SOURCE_ID\n",
+            "arguments": [
+              {
+                "name": "requirement_id",
+                "flags": [
+                  "--requirement-id"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "source_id",
+                "flags": [
+                  "--source-id"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
+            ],
+            "exclusive_groups": [],
+            "children": []
+          },
+          {
+            "name": "validate",
+            "help": "usage: work source validate [-h] --requirement-id REQUIREMENT_ID --source-id SOURCE_ID\n\noptions:\n  -h, --help  Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n  --source-id SOURCE_ID\n",
+            "arguments": [
+              {
+                "name": "requirement_id",
+                "flags": [
+                  "--requirement-id"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "source_id",
+                "flags": [
+                  "--source-id"
                 ],
                 "required": true,
                 "nargs": null,

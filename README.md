@@ -4,60 +4,51 @@ Codex Workflow Kit 透過 `$work` 協助你規劃需求、拆分任務並執行�
 
 ## 功能
 
-1. 使用同一個入口處理 Plan、Task、Revise、Migration 與 Execute。
-2. Plan 會依需求推薦適合的工作類型與技能，並說明推薦原因。
-3. 推薦內容由你確認後才會使用。
-4. Plan 可組合多個技能，例如 UI、frontend 與 backend。
-5. Task 以 prepare、status、save、preview、apply、recover 規劃並建立第一版正式 TASK collection；Execute 只使用目標任務需要的技能。
-6. Revise 透過內部 Specification 流程修改有效的正式 Plan、TASK 與 Execution，預覽完整變更並在核准後以同一交易發布。
-7. Migration 診斷損壞或不相容的既有文件，必要時重建相關 Plan、TASK 與 Execution；選擇性遷移後會核對最終指紋。
+1. 使用 task、revise、migration、execute 四種模式，從原始需求規劃並驗證工作。
+2. Task 先捕捉一次不可變 Source，獨立推薦並確認工作類型與外部技能；你可以接受、調整或選擇基本能力。
+3. Task 保存需求層與子任務驗收，規劃相依、步驟及 VAL，預覽後以核准指紋建立正式 TASK collection 與 Execution index。
+4. Execute 只使用指定 TASK 的指令與技能，先驗證來源、工作區與授權，再保存不可改寫的 Attempt／Correction 證據。
+5. Revise 透過 Specification 流程修訂有效的 Source／TASK／Execution 集合，審查整體及下游影響，核准後發布或復原同一交易。
+6. Migration 診斷既有不相容或損壞文件，比較原始 bytes 與目前契約，保留歷史證據，經核准後重建並驗證完整 Task／Execution 綁定；必要時可明確核准無 Source 的 migration provenance。
 
 ## 使用方式
-
-### 語法
 
 ```text
 $work <mode> -- <request>
 ```
 
-可用 `<mode>` 模式：
-
-1. `plan`：規劃需求並推薦技能。
-2. `task`：依已確認的 Plan 討論任務，建立第一版正式 TASK collection。
-3. `revise`：依確認的語意變更，修訂有效的正式 Plan、TASK 與 Execution。
-4. `migration`：分析、遷移或重建損壞及不相容的既有文件。
-5. `execute`：執行指定任務。
-
-### 範例
+1. `task`：捕捉需求 Source、確認技能與驗收，規劃並建立第一版 TASK collection。
+2. `revise`：修訂已驗證的正式規格與相關 Execution 狀態。
+3. `migration`：診斷並遷移或重建不相容的既有證據。
+4. `execute`：在驗證與授權後執行指定正式 TASK。
 
 ```text
-$work plan -- 建立一個包含 UI、frontend 與 backend 的網站
-$work task -- 依已確認 Plan 拆分網站任務
+$work task -- 建立一個包含 UI、frontend 與 backend 的網站
 $work revise -- 調整 example 的 TASK-001 驗收條件並檢查下游影響
-$work migration -- 分析 example 的既有 Plan、TASK 與 Execution，重建損壞的關聯
-$work execute -- 執行正式 TASK-001
+$work migration -- 分析 example 的既有文件，重建損壞的 Task 與 Execution 關聯
+$work execute -- 執行 example 的正式 TASK-001
 ```
 
-Plan 推薦技能後，你可以接受、加入、移除或取消。若沒有合適技能，也可以確認只使用 Work 的基本能力。
+一般流程是 Source → Task → Revise（需要修改正式規格時）→ Execute。Task 只捕捉一次原始需求；後續討論、進度及草稿沿用同一 Source 和已確認選擇。第一版正式集合經 preview／apply 建立，既有有效規格使用 Revise；無法建立可信基線時，先使用 Migration analyze。中斷只能由該領域的 recover 恢復同一核准集合，不能手寫 JSON 或改寫歷史。
 
-一般流程是 Plan → Task → Revise（需要修改正式規格時）→ Execute。Task 的第一版正式文件須先預覽，再以核准的指紋發布；已有有效正式文件的修改使用 Revise。若現有文件無法構成可信的正式基線，先使用 Migration analyze 診斷，確認重建內容後再執行。交易中斷時，只能用該領域的 recover 恢復相同且已核准的變更。
+一般對話也可以收到 Work 使用建議。只有你確認精確模式與需求後，才會透過 confirmed 入口啟動；系統保留 implicit_confirmed 證據，不偽造明示指令。啟動 Work 本身不授權檔案寫入或執行。
 
 ### 保存討論進度
 
-1. 在 Plan 或 Task 討論中說「先保存目前進度」，確認保存內容後即可暫停，不必先完成所有討論。
-2. 已確認事項、尚未決定的方案、待回答問題與下次討論位置都會保留。初次保存時，若尚無需求編號，會請你指定。
-3. 在同一或新的對話中，使用以下指令繼續討論，將 `example` 換成保存時的需求編號。
+1. 在 Task 討論中要求保存進度，核對保存內容與核准指紋後即可暫停，不必先完成全部決策。
+2. 已確認事項、未決方案、問題與續談位置，以及同一 Source 與選擇 context 都會保留。
+3. 用下列指令恢復；進度僅為歷史討論，不代表正式驗證或執行授權。
 
 ```text
-$work plan -- resume example
 $work task -- resume example
 ```
 
-保存進度不代表討論已完成，也不會開始執行任務。
-
 ## 文件位置
 
-規劃文件、討論進度與執行紀錄預設放在專案的 `outputs/work/` 目錄。保存完成後會提供文件位置。
+1. Source：`outputs/work/sources/<requirement-id>/SRC-NNN/`，包含 manifest、完成標記與精確原始內容。 File capture metadata 的 `source` 必須包含 `kind: file`、原始 `path` 及 host 提供的 `media_type`（如 `application/pdf`；僅 type/subtype，不含參數），原樣保存且不從副檔名猜測；capture time 保存於 `captured_at`。
+2. 正式 TASK：`outputs/work/tasks/<requirement-id>/index.json` 與 `tasks/TASK-NNN.json`，保存主驗收及各 TASK 子驗收。
+3. Execution：`outputs/work/executions/<requirement-id>/`，保存 index、不可變 Attempt／Correction 及衍生交易紀錄。
+4. 討論進度與 draft 不替代正式 TASK；自訂路徑需完整確認並通過跨平台安全檢查。
 
 ## 必要環境
 

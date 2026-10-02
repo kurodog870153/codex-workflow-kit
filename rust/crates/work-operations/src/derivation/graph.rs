@@ -12,11 +12,10 @@ use crate::task::ordering::{TaskDocumentKind, render_task};
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ArtifactNode {
     InstructionSource(String),
-    PlanInstructionSelection,
     TaskIndexInstructionSelection,
     TaskInstructionSelection(String),
-    PlanBytes,
-    PlanFingerprint,
+    TaskSourceContext,
+    TaskSourceFingerprint,
     TaskItemBytes(String),
     TaskItemFingerprint(String),
     TaskIndexBytes,
@@ -69,9 +68,8 @@ impl ArtifactBindingIssue {
     }
 }
 
-/// Reconcile the current Plan → TASK → Execute bindings for any changed artifact roots.
+/// Reconcile the current Source → TASK → Execute bindings for any changed artifact roots.
 pub fn reconcile_artifact_bindings(
-    plan_raw: &[u8],
     index: &mut Value,
     items: &BTreeMap<String, Vec<u8>>,
     execution: Option<&mut Value>,
@@ -92,7 +90,7 @@ pub fn reconcile_artifact_bindings(
     let index_raw = if affected.contains(&ArtifactNode::TaskIndexBytes)
         || changed_roots.contains(&ArtifactNode::TaskIndexBytes)
     {
-        rebind_task_index(plan_raw, index, items)?
+        rebind_task_index(index, items)?
     } else {
         render_task(index, TaskDocumentKind::Index).map_err(|_| ArtifactBindingIssue::Render)?
     };
@@ -106,13 +104,16 @@ pub fn reconcile_artifact_bindings(
     Ok(index_raw)
 }
 
-/// Rebuild the current TASK index bindings from the actual Plan and item bytes.
+/// Rebuild current TASK bindings without altering immutable provenance.
 pub fn rebind_task_index(
-    plan_raw: &[u8],
     index: &mut Value,
     items: &BTreeMap<String, Vec<u8>>,
 ) -> Result<Vec<u8>, ArtifactBindingIssue> {
-    bind_plan_source(plan_raw, index)?;
+    let requirement = index["requirement_id"]
+        .as_str()
+        .ok_or(ArtifactBindingIssue::InvalidTaskIndex)?;
+    crate::task::source::validate_formal_context(index, requirement)
+        .map_err(|_| ArtifactBindingIssue::InvalidTaskIndex)?;
     let references = index["tasks"]
         .as_array_mut()
         .ok_or(ArtifactBindingIssue::InvalidTaskIndex)?;
@@ -127,16 +128,6 @@ pub fn rebind_task_index(
             json!(fingerprint::canonical(raw).map_err(|_| ArtifactBindingIssue::InvalidUtf8)?);
     }
     render_task(index, TaskDocumentKind::Index).map_err(|_| ArtifactBindingIssue::Render)
-}
-
-/// Bind the current Plan bytes before a caller records the source change.
-pub fn bind_plan_source(plan_raw: &[u8], index: &mut Value) -> Result<(), ArtifactBindingIssue> {
-    let plan = parse_json_contract(plan_raw).map_err(|_| ArtifactBindingIssue::InvalidUtf8)?;
-    index["source_plan"]["canonical_sha256"] =
-        json!(fingerprint::canonical(plan_raw).map_err(|_| ArtifactBindingIssue::InvalidUtf8)?);
-    index["source_plan"]["hierarchy_selection_sha256"] =
-        plan["hierarchy_selection"]["selection_sha256"].clone();
-    Ok(())
 }
 
 /// Rebuild current Execute bindings from the newly rendered TASK index and items.
@@ -267,9 +258,8 @@ impl DerivationGraph {
 
         let mut graph = Self::new();
         for node in [
-            N::PlanInstructionSelection,
-            N::PlanBytes,
-            N::PlanFingerprint,
+            N::TaskSourceContext,
+            N::TaskSourceFingerprint,
             N::TaskIndexInstructionSelection,
             N::TaskIndexBytes,
             N::TaskIndexFingerprint,
@@ -279,9 +269,8 @@ impl DerivationGraph {
             graph.add_node(node, Recompute);
         }
         for (source, dependent) in [
-            (N::PlanInstructionSelection, N::PlanBytes),
-            (N::PlanBytes, N::PlanFingerprint),
-            (N::PlanFingerprint, N::TaskIndexBytes),
+            (N::TaskSourceContext, N::TaskSourceFingerprint),
+            (N::TaskSourceFingerprint, N::TaskIndexBytes),
             (N::TaskIndexInstructionSelection, N::TaskIndexBytes),
             (N::TaskIndexBytes, N::TaskIndexFingerprint),
             (N::TaskIndexFingerprint, N::TaskCollectionFingerprint),
@@ -309,9 +298,6 @@ impl DerivationGraph {
         for source_name in instruction_sources {
             let source = N::InstructionSource(source_name.clone());
             graph.add_node(source.clone(), Recompute);
-            graph
-                .add_edge(source.clone(), N::PlanInstructionSelection)
-                .expect("artifact DAG");
             graph
                 .add_edge(source.clone(), N::TaskIndexInstructionSelection)
                 .expect("artifact DAG");
@@ -435,37 +421,25 @@ mod tests {
     }
 
     #[test]
-    fn concrete_plan_item_and_instruction_changes_reach_fixed_point() {
-        let plan_raw = serde_json::to_vec(&json!({
-            "hierarchy_selection":{"selection_sha256":"a".repeat(64)}
-        }))
-        .unwrap();
+    fn concrete_source_item_and_instruction_changes_reach_fixed_point() {
+        let context = crate::task::source::fixture_context();
         let item_raw = serde_json::to_vec(&json!({
             "instruction_selection":{"instructions_sha256":"b".repeat(64)}
         }))
         .unwrap();
         let items = BTreeMap::from([("TASK-001".into(), item_raw.clone())]);
-        let mut index = json!({"source_plan":{},
+        let mut index = json!({"requirement_id":"example","artifacts":context["artifacts"],"source":{"kind":"snapshot","manifest":context["snapshot"]},"hierarchy_selection":context["hierarchy_selection"],"skill_selection":context["skill_selection"],"acceptance_criteria":context["acceptance_criteria"],
             "instruction_selection":{"instructions_sha256":"c".repeat(64)},
             "tasks":[{"id":"TASK-001","path":"tasks/TASK-001.json"}]});
         let mut execution = json!({"tasks":[{"id":"TASK-001"}]});
         let changed = BTreeSet::from([
-            ArtifactNode::PlanBytes,
+            ArtifactNode::TaskSourceContext,
             ArtifactNode::TaskItemBytes("TASK-001".into()),
             ArtifactNode::InstructionSource("task.general".into()),
         ]);
-        let first = reconcile_artifact_bindings(
-            &plan_raw,
-            &mut index,
-            &items,
-            Some(&mut execution),
-            &changed,
-        )
-        .unwrap();
-        assert_eq!(
-            index["source_plan"]["canonical_sha256"],
-            fingerprint::canonical(&plan_raw).unwrap()
-        );
+        let first = reconcile_artifact_bindings(&mut index, &items, Some(&mut execution), &changed)
+            .unwrap();
+        assert_eq!(index["source"]["manifest"], context["snapshot"]);
         assert_eq!(
             index["tasks"][0]["canonical_sha256"],
             fingerprint::canonical(&item_raw).unwrap()
@@ -473,14 +447,9 @@ mod tests {
         assert_eq!(execution["task_index_sha256"], fingerprint::raw(&first));
         assert_eq!(execution["tasks"][0]["instructions_sha256"], "b".repeat(64));
         let previous = execution.clone();
-        let second = reconcile_artifact_bindings(
-            &plan_raw,
-            &mut index,
-            &items,
-            Some(&mut execution),
-            &changed,
-        )
-        .unwrap();
+        let second =
+            reconcile_artifact_bindings(&mut index, &items, Some(&mut execution), &changed)
+                .unwrap();
         assert_eq!(first, second);
         assert_eq!(execution, previous);
     }
@@ -488,11 +457,12 @@ mod tests {
     #[test]
     fn artifact_graph_propagates_in_topological_order_and_reaches_fixed_point() {
         let graph = DerivationGraph::artifact(&[], &[]);
-        let mut state = BTreeMap::from([(ArtifactNode::PlanBytes, b"plan".to_vec())]);
+        let mut state =
+            BTreeMap::from([(ArtifactNode::TaskSourceContext, b"source context".to_vec())]);
         let derive = |node: &ArtifactNode, state: &BTreeMap<ArtifactNode, Vec<u8>>| {
             let source = match node {
-                ArtifactNode::PlanFingerprint => &ArtifactNode::PlanBytes,
-                ArtifactNode::TaskIndexBytes => &ArtifactNode::PlanFingerprint,
+                ArtifactNode::TaskSourceFingerprint => &ArtifactNode::TaskSourceContext,
+                ArtifactNode::TaskIndexBytes => &ArtifactNode::TaskSourceFingerprint,
                 ArtifactNode::TaskIndexFingerprint => &ArtifactNode::TaskIndexBytes,
                 ArtifactNode::TaskCollectionFingerprint => &ArtifactNode::TaskIndexFingerprint,
                 ArtifactNode::ExecutionIndexBytes => &ArtifactNode::TaskCollectionFingerprint,
@@ -501,7 +471,7 @@ mod tests {
             Ok(crate::derivation::fingerprint::raw(&state[source]).into_bytes())
         };
         let first = graph
-            .reconcile(&mut state, &roots(ArtifactNode::PlanBytes), derive)
+            .reconcile(&mut state, &roots(ArtifactNode::TaskSourceContext), derive)
             .unwrap();
         assert!(first.contains(&ArtifactNode::TaskIndexBytes));
         assert!(first.contains(&ArtifactNode::ExecutionIndexBytes));
@@ -514,14 +484,14 @@ mod tests {
                     .position(|node| *node == ArtifactNode::ExecutionIndexBytes)
         );
         let second = graph
-            .reconcile(&mut state, &roots(ArtifactNode::PlanBytes), derive)
+            .reconcile(&mut state, &roots(ArtifactNode::TaskSourceContext), derive)
             .unwrap();
         assert!(second.is_empty());
         let previous = state[&ArtifactNode::ExecutionIndexBytes].clone();
-        state.insert(ArtifactNode::PlanBytes, b"changed plan".to_vec());
+        state.insert(ArtifactNode::TaskSourceContext, b"changed context".to_vec());
         assert!(
             !graph
-                .reconcile(&mut state, &roots(ArtifactNode::PlanBytes), derive)
+                .reconcile(&mut state, &roots(ArtifactNode::TaskSourceContext), derive)
                 .unwrap()
                 .is_empty()
         );
@@ -546,7 +516,10 @@ mod tests {
     fn graph_rejects_cycles_without_changing_edges() {
         let mut graph = DerivationGraph::artifact(&[], &[]);
         assert_eq!(
-            graph.add_edge(ArtifactNode::ExecutionIndexBytes, ArtifactNode::PlanBytes),
+            graph.add_edge(
+                ArtifactNode::ExecutionIndexBytes,
+                ArtifactNode::TaskSourceContext
+            ),
             Err(DerivationIssue::Cycle)
         );
         assert!(graph.topological_order().is_ok());

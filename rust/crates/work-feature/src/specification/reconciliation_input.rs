@@ -44,6 +44,7 @@ pub fn validate_semantic_fields(semantic: &Value) -> Result<(), WorkError> {
         "reason",
         "edits",
         "semantic_decisions",
+        "sources",
     ];
     let mut missing = required
         .iter()
@@ -109,7 +110,7 @@ pub fn validate_semantic_fields(semantic: &Value) -> Result<(), WorkError> {
     {
         return Err(contract_value("reason", "string_type"));
     }
-    for key in ["edits", "semantic_decisions"] {
+    for key in ["edits", "semantic_decisions", "sources"] {
         if semantic.get(key).is_some_and(|value| !value.is_array()) {
             return Err(contract_value(key, "list_type"));
         }
@@ -195,6 +196,14 @@ pub fn validate_preview_fields(request: &Value) -> Result<(), WorkError> {
     if !request["migration"].is_null() && !request["migration"].is_object() {
         return Err(contract_value("migration", "model_type"));
     }
+    if !request["migration"].is_null() {
+        if request["migration"]["schema"] != "work-spec-migration-preview-request/v1" {
+            return Err(contract_value("migration.schema", "literal_error"));
+        }
+        let _: work_model::specification::SpecMigrationPreviewRequest =
+            serde_json::from_value(request["migration"].clone())
+                .map_err(|_| contract_value("migration", "value_error"))?;
+    }
     let ids_sorted = ids
         .windows(2)
         .all(|pair| pair[0].as_str() < pair[1].as_str());
@@ -242,7 +251,10 @@ pub fn validate_ledger_entries(ledger: &Value) -> Result<(), WorkError> {
         }
         for (field, choices) in [
             ("outcome", &["incorporated", "retained", "declined"][..]),
-            ("target", &["task_only", "plan_and_task", "retain_only"][..]),
+            (
+                "target",
+                &["task_only", "task_and_execution", "retain_only"][..],
+            ),
         ] {
             if entry[field]
                 .as_str()
@@ -270,6 +282,8 @@ pub fn validate_ledger_entries(ledger: &Value) -> Result<(), WorkError> {
         }
         previous = Some(id);
     }
+    work_operations::specification::reconciliation_ledger::validate_ledger(ledger)
+        .map_err(|_| contract_value("contract", "value_error"))?;
     Ok(())
 }
 

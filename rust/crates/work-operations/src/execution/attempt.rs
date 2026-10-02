@@ -35,6 +35,7 @@ const ROOT: &[&str] = &[
     "modified_files",
     "execution_deviations",
     "records",
+    "acceptance_results",
     "overall_result",
     "final_type",
     "reason",
@@ -59,6 +60,7 @@ const REQUIRED: &[&str] = &[
     "authorization_sha256",
     "started_at",
     "records",
+    "acceptance_results",
 ];
 const AUTHORIZATION: &[&str] = &[
     "schema",
@@ -717,6 +719,21 @@ pub fn validate_attempt_identity(value: &Value) -> Result<(), ExecutionIssue> {
         .filter(|field| !REQUIRED.contains(field))
         .collect();
     strict(value, "attempt", REQUIRED, &optional)?;
+    crate::execution::acceptance::validate(
+        &value["acceptance_results"],
+        &std::collections::BTreeMap::from([(
+            value["task_id"].as_str().unwrap_or("").to_owned(),
+            (
+                value["task_item_sha256"].as_str().unwrap_or("").to_owned(),
+                value["task_instructions_sha256"]
+                    .as_str()
+                    .unwrap_or("")
+                    .to_owned(),
+            ),
+        )]),
+        value["attempt_id"].as_str(),
+        value["task_id"].as_str(),
+    )?;
     identifier(&value["attempt_id"], ATTEMPT_ID_PREFIX, 3, "attempt_id")?;
     identifier(&value["task_spec_id"], "TASK-SPEC-", 3, "task_spec_id")?;
     identifier(&value["task_id"], TASK_ID_PREFIX, 3, "task_id")?;
@@ -778,6 +795,7 @@ pub fn validate_attempt_identity(value: &Value) -> Result<(), ExecutionIssue> {
         carried_retries = validate_carried_records(carried, source)?;
     }
     let operations = validate_records(&value["records"], &carried_retries)?;
+    crate::execution::acceptance::require_recorded_evidence(value)?;
     if let Some(files) = value.get("modified_files") {
         validate_modified_files(files)?;
     }
@@ -921,6 +939,9 @@ struct Ordered<'a> {
     path: Vec<String>,
 }
 fn order(path: &[String]) -> &'static [&'static str] {
+    if let Some(order) = crate::execution::acceptance::field_order(path) {
+        return order;
+    }
     if path.is_empty() {
         ROOT
     } else if path == ["authorization"] {
@@ -1106,6 +1127,45 @@ mod tests {
     use crate::canonical::sha256_hex;
 
     #[test]
+    fn acceptance_completion_requires_an_actual_authorized_val_record() {
+        let mut attempt =
+            work_model::contract_data::registry_value()["items"]["work-attempt/v1"]["description"]
+                ["example"]
+                .clone();
+        attempt["authorization"]["validations"] = json!([{"id":"VAL-001","kind":"manual","confirmer":"user","criteria":"Verified.","acceptance_ids":["ACCEPTANCE-001"]}]);
+        attempt["authorization_sha256"] =
+            json!(canonical_json_sha256(&attempt["authorization"]).unwrap());
+        attempt["acceptance_results"] = json!([{"id":"ACCEPTANCE-001","status":"completed","evidence":[{"task_id":attempt["task_id"],"attempt_id":attempt["attempt_id"],"validation_id":"VAL-001","record_id":"VAL-001","outcome":"passed","evidence":"Actual result verified.","task_item_sha256":attempt["task_item_sha256"],"task_instructions_sha256":attempt["task_instructions_sha256"]}]}]);
+        assert_eq!(
+            validate_attempt_identity(&attempt).unwrap_err().reason_code,
+            "acceptance_evidence_not_recorded"
+        );
+        attempt["records"] = json!([{"id":"VAL-001","kind":"validation","outcome":"passed","evidence":"Actual result verified."}]);
+        let rendered = render_attempt(&attempt).unwrap();
+        let typed: work_model::execution::attempt::Attempt =
+            serde_json::from_slice(&rendered).unwrap();
+        assert_eq!(serde_json::to_value(typed).unwrap(), attempt);
+        let mut missing = attempt.clone();
+        missing
+            .as_object_mut()
+            .unwrap()
+            .remove("acceptance_results");
+        assert!(validate_attempt_identity(&missing).is_err());
+        for field in ["outcome", "evidence"] {
+            let mut forged = attempt.clone();
+            forged["records"][0][field] = json!(if field == "outcome" {
+                "failed"
+            } else {
+                "Different result."
+            });
+            assert_eq!(
+                validate_attempt_identity(&forged).unwrap_err().reason_code,
+                "acceptance_evidence_not_recorded"
+            );
+        }
+    }
+
+    #[test]
     fn attempt_file_path_binds_task_and_attempt_directory() {
         let attempt = json!({"task_id":"TASK-001","attempt_id":"ATTEMPT-001"});
         validate_attempt_file_path("execution/TASK-001/ATTEMPT-001/attempt.json", &attempt)
@@ -1162,7 +1222,7 @@ mod tests {
             "commands":[],"validations":[],"modifiable_files":[],"working_directories":[],
             "external_operations":[],"allowed_deviations":[],"reapproval_conditions":REAPPROVAL,
             "authorization_evidence":"User approved this exact Attempt scope."});
-        let mut attempt = json!({"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
+        let mut attempt = json!({"acceptance_results":[],"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
             "task_spec_id":"TASK-SPEC-001","task_id":"TASK-001","skill_id":null,
             "status":"in_progress","task_collection_sha256":"a".repeat(64),
             "task_index_sha256":"1".repeat(64),"task_item_sha256":"2".repeat(64),
@@ -1259,7 +1319,7 @@ mod tests {
                 "preview_sha256":"c".repeat(64),"action":action,
                 "modifiable_files":[],"authorization_evidence":"Approved"},
             "decision":{"outcome":"approved","evidence":"Approved"},"reconciliation_status":"pending"});
-        let mut attempt = json!({"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
+        let mut attempt = json!({"acceptance_results":[],"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
             "task_spec_id":"TASK-SPEC-001","task_id":"TASK-001","skill_id":null,
             "status":"in_progress","task_collection_sha256":"a".repeat(64),
             "task_index_sha256":"1".repeat(64),"task_item_sha256":"2".repeat(64),
@@ -1283,7 +1343,7 @@ mod tests {
     }
 
     #[test]
-    fn python_attempt_example_has_identical_bytes() {
+    fn attempt_contract_example_has_identical_bytes() {
         let authorization = json!({"schema":"work-attempt-authorization/v1","task_id":"TASK-001",
             "commands":[],"validations":[],"modifiable_files":[],"working_directories":[],
             "external_operations":[],"allowed_deviations":[],"reapproval_conditions":REAPPROVAL,
@@ -1292,7 +1352,7 @@ mod tests {
             canonical_json_sha256(&authorization).unwrap(),
             "30a8dd5343d43861e6a2f0846add3362ed674ca0be96dcdb4020d9004e6ff7aa"
         );
-        let attempt = json!({"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001","task_spec_id":"TASK-SPEC-001",
+        let attempt = json!({"acceptance_results":[],"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001","task_spec_id":"TASK-SPEC-001",
             "task_id":"TASK-001","skill_id":null,"status":"in_progress","task_collection_sha256":"a".repeat(64),
             "task_index_sha256":"b".repeat(64),"task_item_sha256":"c".repeat(64),
             "task_instructions_sha256":"d".repeat(64),"execute_instructions_sha256":"e".repeat(64),
@@ -1302,7 +1362,7 @@ mod tests {
         let raw = render_attempt(&attempt).unwrap();
         assert_eq!(
             sha256_hex(&raw),
-            "7d3a31c951f64355b8b0d5ba460c75a93caedeb39c579d9efb40c2ad9b359bff"
+            "e91a80d77c25b5373efa29f283dbc03829918d5058dc4368ae3172bd0f9f8fe3"
         );
         assert_eq!(
             validate_attempt_bytes(&attempt, &raw).unwrap(),
@@ -1317,7 +1377,7 @@ mod tests {
             json!({"status":"complete_success","effective":["OP-001"]});
         assert_eq!(
             sha256_hex(&render_attempt(&with_operation).unwrap()),
-            "a8033a70fc7ae6473006eb90c57edd99af213631d48d5113da34cb1cd59e4d88"
+            "e9b5ea1d9bc919cfeef8f968cdfe5ec24d063abb3beb6767403a5ce7be5eb86a"
         );
         with_operation["records"][0]["id"] = json!("OP-001#2");
         assert_eq!(
@@ -1332,14 +1392,14 @@ mod tests {
             "exit_code":0,"result":"ok"}]);
         assert_eq!(
             sha256_hex(&render_attempt(&corrected_command).unwrap()),
-            "c4c547a1f5e4e8940031c2bcea7deb7f20e375ccde03d810dcc81a6e7fdec0b8"
+            "46877a0a8606bc3384f603018c6981b3d83d03fbf3f35e44411d4fca3decb9de"
         );
         let mut completed = attempt.clone();
         completed["status"] = json!("completed");
         completed["ended_at"] = json!("2026-09-01T10:05+08:00");
         assert_eq!(
             sha256_hex(&render_attempt(&completed).unwrap()),
-            "0f8051fbba68c32bec88da0706e0f1554befc7d0eec29761553b98b8e5f70bc5"
+            "8d3800e6b85046cb8b66e9014522684bdc63b451599441a511605612c7a7b350"
         );
         completed["ended_at"] = json!("2026-08-31T23:00+08:00");
         assert_eq!(

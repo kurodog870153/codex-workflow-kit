@@ -23,10 +23,27 @@ fn issue(reason_code: &'static str, message: &'static str) -> TaskIssue {
     }
 }
 
+fn append_target(bytes: &mut Vec<u8>, path: &str, raw: &[u8]) {
+    bytes.extend_from_slice(format!("{}:", path.len()).as_bytes());
+    bytes.extend_from_slice(path.as_bytes());
+    bytes.extend_from_slice(format!("{}:", raw.len()).as_bytes());
+    bytes.extend_from_slice(raw);
+}
+
+pub fn approval_with_execution(
+    collection: &[u8],
+    execution_path: &str,
+    execution_raw: &[u8],
+) -> Vec<u8> {
+    let mut bytes = collection.to_vec();
+    append_target(&mut bytes, execution_path, execution_raw);
+    bytes
+}
+
 pub fn prepare_collection(
     projection: &Value,
     index_path: &str,
-    plan_path: &str,
+    source_root: &str,
 ) -> Result<PreparedCollection, TaskIssue> {
     if projection["schema"] != "work-task-collection-projection/v1" {
         return Err(issue(
@@ -34,7 +51,8 @@ pub fn prepare_collection(
             "TASK create input must be a complete work-task-collection-projection/v1 contract.",
         ));
     }
-    if projection["artifacts"]["task"] != index_path || projection["artifacts"]["plan"] != plan_path
+    if projection["artifacts"]["task"] != index_path
+        || projection["artifacts"]["source"] != source_root
     {
         return Err(issue(
             "task_create_path_mismatch",
@@ -105,10 +123,7 @@ pub fn prepare_collection(
             )
         },
     )) {
-        approval_bytes.extend_from_slice(format!("{}:", path.len()).as_bytes());
-        approval_bytes.extend_from_slice(path.as_bytes());
-        approval_bytes.extend_from_slice(format!("{}:", raw.len()).as_bytes());
-        approval_bytes.extend_from_slice(raw);
+        append_target(&mut approval_bytes, &path, raw);
     }
     Ok(PreparedCollection {
         index,
@@ -116,4 +131,26 @@ pub fn prepare_collection(
         items,
         approval_bytes,
     })
+}
+
+#[cfg(test)]
+mod approval_tests {
+    use super::*;
+    #[test]
+    fn approval_binds_exact_execution_path_and_bytes_to_collection() {
+        let actual = approval_with_execution(b"collection", "execution/index.json", b"pending\n");
+        assert_eq!(actual, b"collection20:execution/index.json8:pending\n");
+        assert_ne!(
+            actual,
+            approval_with_execution(b"collection", "other/index.json", b"pending\n")
+        );
+        assert_ne!(
+            actual,
+            approval_with_execution(b"collection", "execution/index.json", b"pending \n")
+        );
+        assert_ne!(
+            actual,
+            approval_with_execution(b"other", "execution/index.json", b"pending\n")
+        );
+    }
 }

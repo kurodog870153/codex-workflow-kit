@@ -11,11 +11,14 @@ use work_operations::canonical::parse_json_contract;
 use work_operations::derivation::graph::{rebind_execution_index, rebind_task_index};
 use work_operations::execution::index::{render_execution_index, validate_execution_index};
 use work_operations::identifiers::RequirementId;
-use work_operations::plan::render_plan_value;
 use work_operations::task::ordering::{TaskDocumentKind, render_task};
 
 pub trait MigrationSnapshotRepository {
-    fn default_paths(&self, id: &RequirementId) -> Vec<(String, String)>;
+    fn artifact_paths(
+        &self,
+        id: &RequirementId,
+    ) -> Result<work_model::task::source::TaskArtifactPaths, WorkError>;
+    fn source_evidence(&self, index: &Value) -> Result<BTreeMap<String, Vec<u8>>, WorkError>;
     fn exists(&self, relative: &str) -> Result<bool, WorkError>;
     fn read(&self, relative: &str) -> Result<Vec<u8>, WorkError>;
 }
@@ -25,6 +28,7 @@ pub struct MigrationCandidate {
     pub before: BTreeMap<String, Vec<u8>>,
     pub after: BTreeMap<String, Vec<u8>>,
     pub artifacts: Value,
+    pub source_evidence: BTreeMap<String, Vec<u8>>,
 }
 
 fn failure(reason: &str, message: &str) -> WorkError {
@@ -47,7 +51,6 @@ fn read(
 
 fn render(value: &Value, kind: &str) -> Result<Vec<u8>, WorkError> {
     let bytes = match kind {
-        "plan" => render_plan_value(value),
         "item" => render_task(value, TaskDocumentKind::Item),
         "index" => render_task(value, TaskDocumentKind::Index),
         "execution" => render_execution_index(value),
@@ -76,37 +79,25 @@ pub fn build_migration(
 ) -> Result<MigrationCandidate, WorkError> {
     let id = RequirementId::from_str(requirement_id)
         .map_err(|_| failure("invalid_requirement_id", "The requirement ID is invalid."))?;
-    let paths = repository.default_paths(&id);
-    let artifacts = json!({"plan":paths[0].1,"task":paths[1].1,"execution":paths[2].1});
-    let plan_relative = paths[0].1.as_str();
-    let task_relative = paths[1].1.as_str();
-    let execution_relative = format!("{}/index.json", paths[2].1);
-    if !repository.exists(plan_relative)? {
+    let paths = repository.artifact_paths(&id)?;
+    let artifacts = serde_json::to_value(&paths).expect("typed artifact paths");
+    let task_relative = paths.task.as_str();
+    let execution_relative = format!("{}/index.json", paths.execution);
+    if !repository.exists(task_relative)? {
         return Err(failure(
-            "instruction_migration_plan_missing",
-            "The requirement Plan does not exist.",
+            "instruction_migration_task_missing",
+            "The requirement Task does not exist.",
         ));
     }
+    let (index_raw, mut index) = read(repository, task_relative)?;
+    let source_evidence = repository.source_evidence(&index)?;
     let mut before = BTreeMap::new();
     let mut after = BTreeMap::new();
     let mut excluded = Vec::new();
-    let mut counts = json!({"plans":0,"task_items":0,"task_indexes":0,"execution_indexes":0});
+    let mut counts = json!({"task_items":0,"task_indexes":0,"execution_indexes":0});
     let mut item_bytes = BTreeMap::new();
 
-    let (plan_raw, mut plan) = read(repository, plan_relative)?;
-    let manifest = migration_manifest(routing, "plan", "plan_confirmed", "prepare_plan", &plan)?;
-    if set_manifest(&mut plan, "work_instruction_selection", manifest) {
-        before.insert(plan_relative.to_owned(), plan_raw.clone());
-        after.insert(plan_relative.to_owned(), render(&plan, "plan")?);
-        counts["plans"] = json!(1);
-    }
-    let effective_plan = after
-        .get(plan_relative)
-        .cloned()
-        .unwrap_or_else(|| plan_raw.clone());
-
-    if repository.exists(task_relative)? {
-        let (index_raw, mut index) = read(repository, task_relative)?;
+    {
         let base = task_relative.rsplit_once('/').map_or("", |(base, _)| base);
         let references = index["tasks"]
             .as_array()
@@ -141,14 +132,11 @@ pub fn build_migration(
         }
         let manifest =
             migration_manifest(routing, "task", "task_confirmed", "confirm_review", &index)?;
-        if set_manifest(&mut index, "instruction_selection", manifest)
-            || counts["plans"] != 0
-            || counts["task_items"] != 0
+        if set_manifest(&mut index, "instruction_selection", manifest) || counts["task_items"] != 0
         {
-            let index_bytes =
-                rebind_task_index(&effective_plan, &mut index, &item_bytes).map_err(|issue| {
-                    failure(issue.reason_code(), "TASK bindings cannot be derived.")
-                })?;
+            let index_bytes = rebind_task_index(&mut index, &item_bytes).map_err(|issue| {
+                failure(issue.reason_code(), "TASK bindings cannot be derived.")
+            })?;
             before.insert(task_relative.to_owned(), index_raw.clone());
             after.insert(task_relative.to_owned(), index_bytes);
             counts["task_indexes"] = json!(1);
@@ -194,12 +182,28 @@ pub fn build_migration(
             }
         }
     }
-    let decision = decide_migration(requirement_id, before, after, excluded, counts)?;
+    for (path, expected) in &source_evidence {
+        if repository.read(path)? != *expected {
+            return Err(failure(
+                "instruction_migration_source_changed",
+                "The immutable Source proof changed while preparing migration.",
+            ));
+        }
+    }
+    let decision = decide_migration(
+        requirement_id,
+        before,
+        after,
+        excluded,
+        counts,
+        &source_evidence,
+    )?;
     Ok(MigrationCandidate {
         preview: decision.preview,
         before: decision.before,
         after: decision.after,
         artifacts,
+        source_evidence,
     })
 }
 
@@ -208,24 +212,26 @@ mod tests {
     use super::*;
     use work_operations::routing::RoutingRequest;
 
-    struct MissingPlan;
+    struct MissingTask;
 
-    impl MigrationSnapshotRepository for MissingPlan {
-        fn default_paths(&self, _: &RequirementId) -> Vec<(String, String)> {
-            vec![
-                ("plan".into(), "plan.json".into()),
-                ("task".into(), "task/index.json".into()),
-                ("execution".into(), "execution".into()),
-            ]
+    impl MigrationSnapshotRepository for MissingTask {
+        fn artifact_paths(
+            &self,
+            id: &RequirementId,
+        ) -> Result<work_model::task::source::TaskArtifactPaths, WorkError> {
+            Ok(crate::artifact_paths::default_artifact_paths(id))
+        }
+        fn source_evidence(&self, _: &Value) -> Result<BTreeMap<String, Vec<u8>>, WorkError> {
+            panic!("missing Task must stop before Source reads")
         }
 
         fn exists(&self, relative: &str) -> Result<bool, WorkError> {
-            assert_eq!(relative, "plan.json");
+            assert_eq!(relative, "outputs/work/tasks/example/index.json");
             Ok(false)
         }
 
         fn read(&self, _: &str) -> Result<Vec<u8>, WorkError> {
-            panic!("missing Plan must stop before any artifact read")
+            panic!("missing Task must stop before any artifact read")
         }
     }
 
@@ -233,15 +239,15 @@ mod tests {
 
     impl WorkflowRoutingRepository for UnusedRouting {
         fn route(&mut self, _: &RoutingRequest<'_>) -> Result<Value, WorkError> {
-            panic!("missing Plan must stop before routing")
+            panic!("missing Task must stop before routing")
         }
     }
 
     #[test]
-    fn missing_plan_stops_before_read_or_routing_ports() {
-        let error = build_migration(&MissingPlan, &mut UnusedRouting, "example")
+    fn missing_task_stops_before_read_or_routing_ports() {
+        let error = build_migration(&MissingTask, &mut UnusedRouting, "example")
             .err()
-            .expect("missing Plan must fail");
-        assert_eq!(error.reason_code, "instruction_migration_plan_missing");
+            .expect("missing Task must fail");
+        assert_eq!(error.reason_code, "instruction_migration_task_missing");
     }
 }

@@ -19,7 +19,36 @@ struct LedgerEntry<'a> {
     reconciliation_fingerprint: &'a str,
 }
 
+pub fn validate_ledger(ledger: &Value) -> Result<(), &'static str> {
+    let typed: work_model::specification::ReconciliationLedger =
+        serde_json::from_value(ledger.clone())
+            .map_err(|_| "The reconciliation ledger is invalid.")?;
+    if typed.schema != "work-spec-reconciliation-ledger/v1" || typed.attempt_path.is_empty() {
+        return Err("The reconciliation ledger identity is invalid.");
+    }
+    let mut previous: Option<&str> = None;
+    for entry in &typed.entries {
+        let id = entry.deviation_id.as_str();
+        let suffix = id.strip_prefix("DEVIATION-").unwrap_or("");
+        if suffix.len() != 3
+            || !suffix.bytes().all(|b| b.is_ascii_digit())
+            || previous.is_some_and(|p| p >= id)
+            || !matches!(
+                entry.outcome.as_str(),
+                "incorporated" | "retained" | "declined"
+            )
+            || !crate::protocol::valid_sha256(&entry.attempt_sha256)
+            || !crate::protocol::valid_sha256(&entry.reconciliation_fingerprint)
+        {
+            return Err("A reconciliation ledger entry is invalid.");
+        }
+        previous = Some(id);
+    }
+    Ok(())
+}
+
 pub fn render_ledger(ledger: &Value) -> Result<Vec<u8>, &'static str> {
+    validate_ledger(ledger)?;
     let mut entries = Vec::new();
     for entry in ledger["entries"]
         .as_array()
@@ -62,8 +91,26 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn ledger_rejects_plan_targets_duplicates_and_invalid_proofs() {
+        let mut ledger = json!({"schema":"work-spec-reconciliation-ledger/v1","attempt_path":"execution/TASK-001/ATTEMPT-001/attempt.json","entries":[{"deviation_id":"DEVIATION-001","outcome":"incorporated","target":"task_and_execution","attempt_sha256":"a".repeat(64),"reconciliation_fingerprint":"b".repeat(64)}]});
+        render_ledger(&ledger).unwrap();
+        ledger["entries"][0]["target"] = json!("plan_and_task");
+        assert!(render_ledger(&ledger).is_err());
+        ledger["entries"][0]["target"] = json!("task_and_execution");
+        ledger["entries"][0]["attempt_sha256"] = json!("invalid");
+        assert!(render_ledger(&ledger).is_err());
+        ledger["entries"][0]["attempt_sha256"] = json!("a".repeat(64));
+        let duplicate = ledger["entries"][0].clone();
+        ledger["entries"].as_array_mut().unwrap().push(duplicate);
+        assert!(render_ledger(&ledger).is_err());
+    }
+
+    #[test]
     fn ledger_rendering_preserves_field_order_and_newline() {
-        let raw = render_ledger(&json!({"attempt_path":"a","entries":[]})).unwrap();
+        let raw = render_ledger(
+            &json!({"schema":"work-spec-reconciliation-ledger/v1","attempt_path":"a","entries":[]}),
+        )
+        .unwrap();
         assert!(raw.starts_with(b"{\n  \"schema\": \"work-spec-reconciliation-ledger/v1\","));
         assert!(raw.ends_with(b"\n"));
     }

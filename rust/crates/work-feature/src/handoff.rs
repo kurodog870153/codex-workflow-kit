@@ -5,26 +5,15 @@ use std::collections::BTreeSet;
 use serde_json::{Value, json};
 
 pub enum HandoffStorageAction<'a> {
-    PlanToTask {
-        verify: bool,
-        plan_path: &'a str,
-    },
     TaskToExecute {
         verify: bool,
         task_path: &'a str,
         task_id: &'a str,
     },
-    TaskToPlan {
-        verify: bool,
-        plan_path: Option<&'a str>,
-        task_path: &'a str,
-        task_id: Option<&'a str>,
-    },
     ExecuteReturn {
         verify: bool,
         preflight: bool,
         direction: &'a str,
-        plan_path: Option<&'a str>,
         task_path: &'a str,
         task_id: &'a str,
         attempt_id: Option<&'a str>,
@@ -44,8 +33,8 @@ use work_operations::handoff::{
 };
 use work_operations::identifiers::RequirementId;
 
+use crate::artifact_paths::ArtifactPathRepository;
 use crate::error::{ExitCode, WorkError};
-use crate::plan::PlanPathRepository;
 
 fn domain(error: HandoffIssue) -> WorkError {
     WorkError::new(
@@ -61,30 +50,12 @@ pub fn validate_return_direction(
     direction: &str,
     execute_return: bool,
 ) -> Result<(), WorkError> {
-    if (execute_return && !matches!(direction, "execute_to_task" | "execute_to_plan"))
-        || incoming["direction"] != direction
-    {
+    if (execute_return && direction != "execute_to_task") || incoming["direction"] != direction {
         return Err(WorkError::new(
             ExitCode::Contract,
             "handoff_direction_mismatch",
             "The incoming return direction does not match this receiver.",
             json!({}),
-        ));
-    }
-    Ok(())
-}
-
-pub fn validate_return_paths(
-    incoming: &Value,
-    plan_path: &str,
-    task_path: &str,
-) -> Result<(), WorkError> {
-    if incoming["artifacts"]["plan"] != plan_path || incoming["artifacts"]["task"] != task_path {
-        return Err(WorkError::new(
-            ExitCode::ArtifactIntegrity,
-            "handoff_source_mismatch",
-            "The return does not match the receiver's confirmed artifact paths.",
-            json!({"fields":["artifacts"]}),
         ));
     }
     Ok(())
@@ -183,122 +154,6 @@ pub fn build_discussion(request: &Value) -> Result<Value, WorkError> {
     build_discussion_handoff(request).map_err(domain)
 }
 
-pub fn validate_plan_to_task_request(request: &Value) -> Result<(), WorkError> {
-    let fields = request.as_object().ok_or_else(|| {
-        WorkError::new(
-            ExitCode::Contract,
-            "expected_object",
-            "A JSON object is required.",
-            json!({"location":"handoff_request"}),
-        )
-    })?;
-    let required = ["summary", "affected_ids"];
-    let missing: Vec<_> = required
-        .iter()
-        .filter(|field| !fields.contains_key(**field))
-        .collect();
-    let unknown: Vec<_> = fields
-        .keys()
-        .filter(|field| !required.contains(&field.as_str()))
-        .collect();
-    if !missing.is_empty() || !unknown.is_empty() {
-        return Err(WorkError::new(
-            ExitCode::Contract,
-            "invalid_object_fields",
-            "The JSON object has missing or unknown fields.",
-            json!({"location":"handoff_request","missing":missing,"unknown":unknown}),
-        ));
-    }
-    Ok(())
-}
-
-pub fn build_plan_to_task(
-    repo: &impl PlanPathRepository,
-    plan: &Value,
-    validation: &Value,
-    request: &Value,
-) -> Result<Value, WorkError> {
-    validate_plan_to_task_request(request)?;
-    let requirement_id = validation["requirement_id"]
-        .as_str()
-        .expect("validated Plan requirement");
-    let handoff = build_formal(
-        repo,
-        "plan_to_task",
-        requirement_id,
-        &plan["artifacts"],
-        &json!({"plan_sha256":validation["plan_sha256"],
-            "skill_selection_sha256":validation["skill_selection_sha256"]}),
-        request,
-    )?;
-    let known: BTreeSet<String> = [
-        "goals",
-        "scope",
-        "constraints",
-        "dependencies",
-        "risks",
-        "milestones",
-        "deliverables",
-        "acceptance_criteria",
-        "decisions",
-        "changes",
-    ]
-    .into_iter()
-    .flat_map(|group| {
-        plan[group]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(|row| row["id"].as_str().map(str::to_owned))
-    })
-    .collect();
-    let affected: Vec<String> = handoff["affected_ids"]
-        .as_array()
-        .expect("validated affected IDs")
-        .iter()
-        .map(|value| value.as_str().expect("validated ID").to_owned())
-        .collect();
-    require_known_affected_ids(&affected, &known, "handoff_unknown_plan_ids").map_err(domain)?;
-    Ok(handoff)
-}
-
-pub fn verify_plan_to_task(
-    repo: &impl PlanPathRepository,
-    plan: &Value,
-    validation: &Value,
-    incoming: &Value,
-) -> Result<Value, WorkError> {
-    let mut result = validate_handoff(repo, incoming)?;
-    if incoming["direction"] != "plan_to_task" {
-        return Err(WorkError::new(
-            ExitCode::Contract,
-            "handoff_direction_mismatch",
-            "This receiver requires a Plan-to-Task handoff.",
-            json!({}),
-        ));
-    }
-    let expected = build_plan_to_task(
-        repo,
-        plan,
-        validation,
-        &json!({"summary":incoming["summary"],"affected_ids":incoming["affected_ids"]}),
-    )?;
-    require_matching_source(incoming, &expected).map_err(|issue| {
-        WorkError::new(
-            ExitCode::ArtifactIntegrity,
-            issue.reason_code,
-            issue.message,
-            issue.details,
-        )
-    })?;
-    result["schema"] = json!("work-handoff-source-validation/v1");
-    result["plan_path"] = expected["artifacts"]["plan"].clone();
-    result["source"] = expected["source"].clone();
-    let _: work_model::handoff::HandoffSourceValidation = serde_json::from_value(result.clone())
-        .expect("handoff source validation matches its model");
-    Ok(result)
-}
-
 pub fn validate_task_to_execute_request(request: &Value) -> Result<(), WorkError> {
     let fields = request.as_object().ok_or_else(|| {
         WorkError::new(
@@ -328,7 +183,7 @@ pub fn validate_task_to_execute_request(request: &Value) -> Result<(), WorkError
 }
 
 pub fn build_task_to_execute(
-    repo: &impl PlanPathRepository,
+    repo: &impl ArtifactPathRepository,
     validation: &Value,
     task_id: &str,
     request: &Value,
@@ -343,7 +198,7 @@ pub fn build_task_to_execute(
         )
     })?;
     let collection = &validation["collection_contract"];
-    build_formal(
+    build_task_formal(
         repo,
         "task_to_execute",
         validation["requirement_id"]
@@ -361,12 +216,12 @@ pub fn build_task_to_execute(
 }
 
 pub fn verify_task_to_execute(
-    repo: &impl PlanPathRepository,
+    repo: &impl ArtifactPathRepository,
     validation: &Value,
     task_id: &str,
     incoming: &Value,
 ) -> Result<Value, WorkError> {
-    let mut result = validate_handoff(repo, incoming)?;
+    let mut result = validate_task_handoff(repo, incoming)?;
     if incoming["direction"] != "task_to_execute" {
         return Err(WorkError::new(
             ExitCode::Contract,
@@ -397,188 +252,11 @@ pub fn verify_task_to_execute(
     Ok(result)
 }
 
-pub fn validate_task_to_plan_request(request: &Value) -> Result<(), WorkError> {
-    let fields = request.as_object().ok_or_else(|| {
-        WorkError::new(
-            ExitCode::Contract,
-            "expected_object",
-            "A JSON object is required.",
-            json!({"location":"handoff_request"}),
-        )
-    })?;
-    let required = [
-        "summary",
-        "confirmed_approach",
-        "requested_changes",
-        "preserve",
-        "affected_ids",
-        "validation_requirements",
-    ];
-    let missing: Vec<_> = required
-        .iter()
-        .filter(|field| !fields.contains_key(**field))
-        .collect();
-    let unknown: Vec<_> = fields
-        .keys()
-        .filter(|field| !required.contains(&field.as_str()))
-        .collect();
-    if !missing.is_empty() || !unknown.is_empty() {
-        return Err(WorkError::new(
-            ExitCode::Contract,
-            "invalid_object_fields",
-            "The JSON object has missing or unknown fields.",
-            json!({"location":"handoff_request","missing":missing,"unknown":unknown}),
-        ));
-    }
-    Ok(())
-}
-
-pub fn build_task_to_plan(
-    repo: &impl PlanPathRepository,
-    validation: &Value,
-    plan: &Value,
-    task_id: Option<&str>,
-    request: &Value,
-) -> Result<Value, WorkError> {
-    validate_task_to_plan_request(request)?;
-    let skill_id = if let Some(id) = task_id {
-        Some(validation["task_skill_ids"].get(id).ok_or_else(|| {
-            WorkError::new(
-                ExitCode::Contract,
-                "handoff_task_not_found",
-                "The explicitly selected TASK does not exist in the formal specification.",
-                json!({"task_id":id}),
-            )
-        })?)
-    } else {
-        None
-    };
-    let collection = &validation["collection_contract"];
-    let mut source = json!({"plan_sha256":validation["source_plan_sha256"],
-        "task_spec_id":validation["spec_id"],
-        "task_collection_sha256":validation["task_collection_sha256"],
-        "task_index_sha256":validation["task_index_sha256"],
-        "skill_selection_sha256":validation["skill_selection_sha256"]});
-    if let Some(id) = task_id {
-        source["task_id"] = json!(id);
-        source["task_item_sha256"] = validation["task_item_sha256"][id].clone();
-        source["skill_id"] = skill_id.expect("selected TASK skill exists").clone();
-    }
-    let handoff = build_formal(
-        repo,
-        "task_to_plan",
-        validation["requirement_id"]
-            .as_str()
-            .expect("validated requirement"),
-        &collection["artifacts"],
-        &source,
-        request,
-    )?;
-    let mut known: BTreeSet<String> = [
-        "goals",
-        "scope",
-        "constraints",
-        "dependencies",
-        "risks",
-        "milestones",
-        "deliverables",
-        "acceptance_criteria",
-        "decisions",
-        "changes",
-    ]
-    .into_iter()
-    .flat_map(|group| {
-        plan[group]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(|row| row["id"].as_str().map(str::to_owned))
-    })
-    .collect();
-    for row in collection["tasks"]
-        .as_array()
-        .expect("validated TASK collection")
-    {
-        known.insert(row["id"].as_str().expect("validated TASK ID").into());
-        if task_id == row["id"].as_str() {
-            for group in [
-                "steps",
-                "validations",
-                "commands",
-                "operations",
-                "files",
-                "inputs",
-                "decisions",
-                "risks",
-            ] {
-                for item in row[group].as_array().into_iter().flatten() {
-                    if let Some(id) = item["id"].as_str() {
-                        known.insert(id.into());
-                    }
-                }
-            }
-        }
-    }
-    for row in collection["decisions"].as_array().into_iter().flatten() {
-        if let Some(id) = row["id"].as_str() {
-            known.insert(id.into());
-        }
-    }
-    let affected: Vec<String> = handoff["affected_ids"]
-        .as_array()
-        .expect("validated affected IDs")
-        .iter()
-        .map(|value| value.as_str().expect("validated ID").to_owned())
-        .collect();
-    require_known_affected_ids(&affected, &known, "handoff_unknown_affected_ids")
-        .map_err(domain)?;
-    Ok(handoff)
-}
-
-pub fn verify_task_to_plan(
-    repo: &impl PlanPathRepository,
-    validation: &Value,
-    plan: &Value,
-    task_id: Option<&str>,
-    incoming: &Value,
-) -> Result<Value, WorkError> {
-    let mut result = validate_handoff(repo, incoming)?;
-    if incoming["direction"] != "task_to_plan" {
-        return Err(WorkError::new(
-            ExitCode::Contract,
-            "handoff_direction_mismatch",
-            "The incoming return direction does not match this receiver.",
-            json!({}),
-        ));
-    }
-    let request = json!({"summary":incoming["summary"],
-        "confirmed_approach":incoming["confirmed_approach"],
-        "requested_changes":incoming["requested_changes"],"preserve":incoming["preserve"],
-        "affected_ids":incoming["affected_ids"],
-        "validation_requirements":incoming["validation_requirements"]});
-    let expected = build_task_to_plan(repo, validation, plan, task_id, &request)?;
-    require_matching_source(incoming, &expected).map_err(|issue| {
-        WorkError::new(
-            ExitCode::ArtifactIntegrity,
-            issue.reason_code,
-            issue.message,
-            issue.details,
-        )
-    })?;
-    result["schema"] = json!("work-handoff-source-validation/v1");
-    result["plan_path"] = expected["artifacts"]["plan"].clone();
-    result["task_path"] = expected["artifacts"]["task"].clone();
-    result["source"] = expected["source"].clone();
-    let _: work_model::handoff::HandoffSourceValidation = serde_json::from_value(result.clone())
-        .expect("handoff source validation matches its model");
-    Ok(result)
-}
-
 pub fn validate_preflight_return_request(
     request: &Value,
     direction: &str,
 ) -> Result<(), WorkError> {
-    if !matches!(direction, "execute_to_task" | "execute_to_plan") {
+    if direction != "execute_to_task" {
         return Err(WorkError::new(
             ExitCode::Contract,
             "invalid_handoff_direction",
@@ -623,9 +301,8 @@ pub fn validate_preflight_return_request(
 }
 
 pub fn build_preflight_return(
-    repo: &impl PlanPathRepository,
+    repo: &impl ArtifactPathRepository,
     validation: &Value,
-    plan: &Value,
     index: &Value,
     direction: &str,
     task_id: &str,
@@ -727,7 +404,7 @@ pub fn build_preflight_return(
             json!({}),
         ));
     }
-    let skills: Vec<Value> = plan["skill_selection"]["skills"]
+    let skills: Vec<Value> = collection["skill_selection"]["skills"]
         .as_array()
         .expect("validated Plan skills")
         .iter()
@@ -747,7 +424,7 @@ pub fn build_preflight_return(
         "requested_changes":request["requested_changes"],"preserve":request["preserve"],
         "affected_ids":request["affected_ids"],
         "validation_requirements":request["validation_requirements"]});
-    let handoff = build_formal(
+    let handoff = build_task_formal(
         repo,
         direction,
         validation["requirement_id"]
@@ -778,7 +455,7 @@ pub fn build_preflight_return(
     ]
     .into_iter()
     .flat_map(|group| {
-        plan[group]
+        collection[group]
             .as_array()
             .into_iter()
             .flatten()
@@ -797,6 +474,7 @@ pub fn build_preflight_return(
                 "inputs",
                 "decisions",
                 "risks",
+                "acceptance_criteria",
             ] {
                 for item in task[group].as_array().into_iter().flatten() {
                     if let Some(id) = item["id"].as_str() {
@@ -824,7 +502,6 @@ pub fn build_preflight_return(
 
 pub struct ClosedReturnInput<'a> {
     pub validation: &'a Value,
-    pub plan: &'a Value,
     pub index: &'a Value,
     pub attempt: &'a Value,
     pub attempt_raw: &'a [u8],
@@ -836,7 +513,7 @@ pub struct ClosedReturnInput<'a> {
 }
 
 pub fn build_closed_return(
-    repo: &impl PlanPathRepository,
+    repo: &impl ArtifactPathRepository,
     input: &ClosedReturnInput<'_>,
 ) -> Result<Value, WorkError> {
     validate_preflight_return_request(input.request, input.direction)?;
@@ -993,7 +670,7 @@ pub fn build_closed_return(
                 "actual":current["instructions_sha256"]}),
         ));
     }
-    let skills: Vec<Value> = input.plan["skill_selection"]["skills"]
+    let skills: Vec<Value> = validation["collection_contract"]["skill_selection"]["skills"]
         .as_array()
         .expect("validated skills")
         .iter()
@@ -1027,7 +704,7 @@ pub fn build_closed_return(
         "requested_changes":request["requested_changes"],"preserve":request["preserve"],
         "affected_ids":request["affected_ids"],
         "validation_requirements":request["validation_requirements"]});
-    let handoff = build_formal(
+    let handoff = build_task_formal(
         repo,
         input.direction,
         validation["requirement_id"]
@@ -1059,7 +736,7 @@ pub fn build_closed_return(
     ]
     .into_iter()
     .flat_map(|group| {
-        input.plan[group]
+        collection[group]
             .as_array()
             .into_iter()
             .flatten()
@@ -1078,6 +755,7 @@ pub fn build_closed_return(
                 "inputs",
                 "decisions",
                 "risks",
+                "acceptance_criteria",
             ] {
                 for item in task[group].as_array().into_iter().flatten() {
                     if let Some(id) = item["id"].as_str() {
@@ -1104,17 +782,13 @@ pub fn build_closed_return(
 }
 
 pub fn verify_return_against_expected(
-    repo: &impl PlanPathRepository,
+    repo: &impl ArtifactPathRepository,
     incoming: &Value,
     expected: &Value,
     direction: &str,
 ) -> Result<Value, WorkError> {
-    let mut result = validate_handoff(repo, incoming)?;
-    if !matches!(
-        direction,
-        "task_to_plan" | "execute_to_plan" | "execute_to_task"
-    ) || incoming["direction"] != direction
-    {
+    let mut result = validate_task_handoff(repo, incoming)?;
+    if direction != "execute_to_task" || incoming["direction"] != direction {
         return Err(WorkError::new(
             ExitCode::Contract,
             "handoff_direction_mismatch",
@@ -1131,7 +805,6 @@ pub fn verify_return_against_expected(
         )
     })?;
     result["schema"] = json!("work-handoff-source-validation/v1");
-    result["plan_path"] = expected["artifacts"]["plan"].clone();
     result["task_path"] = expected["artifacts"]["task"].clone();
     result["source"] = expected["source"].clone();
     let _: work_model::handoff::HandoffSourceValidation = serde_json::from_value(result.clone())
@@ -1139,78 +812,66 @@ pub fn verify_return_against_expected(
     Ok(result)
 }
 
-pub fn build_formal(
-    repo: &impl PlanPathRepository,
+fn build_task_formal(
+    repo: &impl ArtifactPathRepository,
     direction: &str,
-    requirement_id: &str,
+    requirement: &str,
     artifacts: &Value,
     source: &Value,
     payload: &Value,
 ) -> Result<Value, WorkError> {
-    let handoff = build_formal_handoff(direction, requirement_id, artifacts, source, payload)
-        .map_err(domain)?;
-    validate_handoff(repo, &handoff)?;
+    let handoff =
+        build_formal_handoff(direction, requirement, artifacts, source, payload).map_err(domain)?;
+    validate_task_handoff(repo, &handoff)?;
     Ok(handoff)
 }
-
-pub fn validate_handoff(
-    repo: &impl PlanPathRepository,
+pub fn validate_task_handoff(
+    repo: &impl ArtifactPathRepository,
     contract: &Value,
 ) -> Result<Value, WorkError> {
     let result = validate_handoff_structure(contract).map_err(domain)?;
-    let requirement_id = contract["requirement_id"]
+    for field in ["source", "task", "execution"] {
+        if let Some(path) = contract["artifacts"][field].as_str() {
+            if path.is_empty()
+                || path.starts_with('/')
+                || path.contains('\\')
+                || path.split('/').any(|part| matches!(part, "" | "." | ".."))
+            {
+                return Err(WorkError::new(
+                    ExitCode::Contract,
+                    "noncanonical_artifact_paths",
+                    "Handoff artifact paths must use their normalized project-relative form.",
+                    json!({"field":field}),
+                ));
+            }
+        }
+    }
+    let requirement = contract["requirement_id"]
         .as_str()
-        .expect("validated requirement ID");
-    let parsed = requirement_id
-        .parse::<RequirementId>()
-        .expect("validated requirement ID");
-    let artifacts = contract["artifacts"].as_object().ok_or_else(|| {
+        .expect("validated requirement");
+    let artifacts = serde_json::from_value(contract["artifacts"].clone()).map_err(|_| {
         WorkError::new(
             ExitCode::Contract,
             "invalid_artifact_paths",
-            "Artifacts must contain exactly plan, task, and execution paths.",
+            "Task handoffs require Source, Task and Execution roots.",
             json!({}),
         )
     })?;
-    if artifacts.len() != 3
-        || ["plan", "task", "execution"]
-            .iter()
-            .any(|field| !artifacts.contains_key(*field))
-    {
-        return Err(WorkError::new(
-            ExitCode::Contract,
-            "invalid_artifact_paths",
-            "Artifacts must contain exactly plan, task, and execution paths.",
-            json!({}),
-        ));
-    }
-    for field in ["plan", "task", "execution"] {
-        let path = artifacts[field].as_str().ok_or_else(|| {
+    work_operations::task::source::validate_artifacts(&artifacts, requirement).map_err(
+        |error| {
             WorkError::new(
                 ExitCode::Contract,
-                "invalid_artifact_path",
-                "Each artifact path must be a string.",
-                json!({"field":field}),
+                error.reason_code,
+                error.message,
+                error.details,
             )
-        })?;
-        if path.is_empty()
-            || path.starts_with('/')
-            || path.contains('\\')
-            || path.split('/').any(|part| matches!(part, "" | "." | ".."))
-        {
-            return Err(WorkError::new(
-                ExitCode::Contract,
-                "noncanonical_artifact_paths",
-                "Handoff artifact paths must use their normalized project-relative form.",
-                json!({}),
-            ));
-        }
-    }
+        },
+    )?;
     repo.validate_paths(
-        &parsed,
-        &contract["artifacts"],
-        artifacts["plan"].as_str().expect("checked path"),
-        true,
+        &requirement
+            .parse::<RequirementId>()
+            .expect("validated requirement"),
+        &artifacts,
     )?;
     Ok(result)
 }

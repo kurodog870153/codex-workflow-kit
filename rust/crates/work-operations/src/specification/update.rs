@@ -68,15 +68,8 @@ fn fields(
 pub fn validate_update_request(value: &Value) -> Result<(), UpdateIssue> {
     fields(
         value,
-        &[
-            "schema",
-            "reason",
-            "expected",
-            "plan",
-            "task_index",
-            "task_items",
-        ],
-        &[],
+        &["schema", "reason", "expected", "task_index", "task_items"],
+        &["source_confirmation"],
         "spec__update_collection",
     )?;
     if value["schema"] != "work-spec-update-request/v1" {
@@ -98,7 +91,7 @@ pub fn validate_update_request(value: &Value) -> Result<(), UpdateIssue> {
     fields(
         &value["expected"],
         &[
-            "plan_sha256",
+            "source_sha256",
             "task_index_sha256",
             "execution_index_sha256",
             "task_item_sha256",
@@ -106,7 +99,11 @@ pub fn validate_update_request(value: &Value) -> Result<(), UpdateIssue> {
         &[],
         "expected",
     )?;
-    for key in ["plan_sha256", "task_index_sha256", "execution_index_sha256"] {
+    for key in [
+        "source_sha256",
+        "task_index_sha256",
+        "execution_index_sha256",
+    ] {
         if !value["expected"][key].as_str().is_some_and(valid_sha256) {
             return Err(issue(
                 "spec_update_source_changed",
@@ -129,44 +126,27 @@ pub fn validate_update_request(value: &Value) -> Result<(), UpdateIssue> {
             true,
         ));
     }
-    if !value["plan"].is_object()
-        || !value["task_index"].is_object()
-        || !value["task_items"].is_object()
-    {
+    if !value["task_index"].is_object() || !value["task_items"].is_object() {
         return Err(issue(
             "spec_update_candidate",
-            "A complete Plan, TASK index and item map are required.",
+            "A complete TASK index and item map are required.",
             json!({}),
             true,
         ));
     }
-    fields(
-        &value["plan"],
-        &[
-            "schema",
-            "requirement_id",
-            "status",
-            "title",
-            "summary",
-            "artifacts",
-            "hierarchy_selection",
-            "work_instruction_selection",
-            "skill_selection",
-            "goals",
-            "scope",
-            "deliverables",
-            "acceptance_criteria",
-        ],
-        &[
-            "constraints",
-            "dependencies",
-            "risks",
-            "milestones",
-            "decisions",
-            "changes",
-        ],
-        "plan",
-    )?;
+    if let Some(confirmation) = value.get("source_confirmation") {
+        serde_json::from_value::<work_model::task::request::SourceReplacementConfirmation>(
+            confirmation.clone(),
+        )
+        .map_err(|_| {
+            issue(
+                "source_confirmation_required",
+                "A complete Source impact confirmation is required.",
+                json!({}),
+                false,
+            )
+        })?;
+    }
     fields(
         &value["task_index"],
         &[
@@ -177,7 +157,10 @@ pub fn validate_update_request(value: &Value) -> Result<(), UpdateIssue> {
             "title",
             "summary",
             "artifacts",
-            "source_plan",
+            "source",
+            "hierarchy_selection",
+            "skill_selection",
+            "acceptance_criteria",
             "instruction_selection",
             "tasks",
             "readiness",
@@ -195,6 +178,7 @@ pub fn validate_update_request(value: &Value) -> Result<(), UpdateIssue> {
                 "skill_id",
                 "instruction_selection",
                 "traceability",
+                "acceptance_criteria",
                 "goal",
                 "steps",
                 "validations",
@@ -211,6 +195,21 @@ pub fn validate_update_request(value: &Value) -> Result<(), UpdateIssue> {
             &format!("task_items.{task_id}"),
         )?;
     }
+    crate::task::source::validate_formal_context(
+        &value["task_index"],
+        value["task_index"]["requirement_id"].as_str().unwrap_or(""),
+    )
+    .map_err(|e| issue(e.reason_code, e.message, e.details, true))?;
+    serde_json::from_value::<work_model::specification::SpecUpdateRequest>(value.clone()).map_err(
+        |_| {
+            issue(
+                "spec_update_candidate",
+                "The complete candidate must match its strict model.",
+                json!({}),
+                false,
+            )
+        },
+    )?;
     Ok(())
 }
 
@@ -240,10 +239,32 @@ pub fn rebuild_execution_index(
     for fresh in rows.iter_mut() {
         let id = fresh["id"].as_str().unwrap_or("").to_owned();
         if let Some(mut prior) = old_rows.get(&id).cloned() {
+            let binding_changed = prior["task_item_sha256"] != fresh["task_item_sha256"]
+                || prior["instructions_sha256"] != fresh["instructions_sha256"];
+            if affected.contains(&id) || binding_changed {
+                prior["acceptance_results"] = fresh["acceptance_results"].clone();
+            } else {
+                let existing = prior["acceptance_results"]
+                    .as_array()
+                    .cloned()
+                    .unwrap_or_default();
+                prior["acceptance_results"] = json!(
+                    fresh["acceptance_results"]
+                        .as_array()
+                        .expect("initial progress")
+                        .iter()
+                        .map(|row| existing
+                            .iter()
+                            .find(|old| old["id"] == row["id"])
+                            .unwrap_or(row)
+                            .clone())
+                        .collect::<Vec<_>>()
+                );
+            }
             for field in ["skill_id", "task_item_sha256", "instructions_sha256"] {
                 prior[field] = fresh[field].clone();
             }
-            if affected.contains(&id) && prior["status"] != "pending" {
+            if (affected.contains(&id) || binding_changed) && prior["status"] != "pending" {
                 if prior["status"] == "cancelled" {
                     return Err(ExecutionIssue {
                         reason_code: "spec_update_cancelled_task",
@@ -266,7 +287,7 @@ pub fn rebuild_execution_index(
         .map(|row| row["status"].as_str().unwrap_or("pending"))
         .collect::<Vec<_>>();
     result["overall_status"] = json!(derive_overall_status(&statuses));
-    Ok(result)
+    crate::execution::acceptance::aggregate_index_progress(&result)
 }
 
 #[cfg(test)]
@@ -331,6 +352,40 @@ mod tests {
             "invalid_object_fields"
         );
     }
+    #[test]
+    fn plan_candidate_and_baseline_are_rejected_by_model_and_validator() {
+        let registry = example();
+        let value =
+            registry["items"]["work-spec-update-request/v1"]["description"]["example"].clone();
+        let _: work_model::specification::SpecUpdateRequest =
+            serde_json::from_value(value.clone()).unwrap();
+        let mut plan = value.clone();
+        plan["plan"] = json!({"schema":"work-plan/v1"});
+        assert!(validate_update_request(&plan).is_err());
+        assert!(
+            serde_json::from_value::<work_model::specification::SpecUpdateRequest>(plan).is_err()
+        );
+        let mut baseline = value.clone();
+        baseline["expected"]["plan_sha256"] = baseline["expected"]
+            .as_object_mut()
+            .unwrap()
+            .remove("source_sha256")
+            .unwrap();
+        assert!(validate_update_request(&baseline).is_err());
+        assert!(
+            serde_json::from_value::<work_model::specification::SpecUpdateRequest>(baseline)
+                .is_err()
+        );
+        let candidate = json!({"task_index":value["task_index"], "task_items":value["task_items"]});
+        let _: work_model::specification::SpecCandidate =
+            serde_json::from_value(candidate.clone()).unwrap();
+        let mut legacy = candidate;
+        legacy["plan"] = json!({});
+        assert!(
+            serde_json::from_value::<work_model::specification::SpecCandidate>(legacy).is_err()
+        );
+    }
+
     #[test]
     fn rebuild_preserves_history_and_requires_cancelled_decision() {
         let collection = json!({"requirement_id":"example","spec_id":"TASK-SPEC-001",

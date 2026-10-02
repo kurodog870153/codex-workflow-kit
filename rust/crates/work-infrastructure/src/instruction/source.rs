@@ -334,18 +334,76 @@ mod tests {
     }
 
     #[test]
+    fn task_owned_selection_checks_confirmed_hierarchy_and_current_sources() {
+        let repository = LocalHierarchyCatalog {
+            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
+        };
+        let confirmed = work_feature::hierarchy::build_selection(
+            &repository,
+            &json!({"decision":"instruction_paths","selections":[
+                {"path":"web/backend","recommendation_reason":"Backend requirement."}]}),
+        )
+        .unwrap();
+        let paths = ["web/backend".into()];
+        let references = ["task.general.task-records".into()];
+        let selected =
+            work_feature::instruction::select_task(&repository, &confirmed, &paths, &references)
+                .unwrap();
+        assert_eq!(
+            work_feature::instruction::validate_task_selection(&repository, &confirmed, &selected)
+                .unwrap()
+                .mode,
+            "task"
+        );
+        assert_eq!(
+            work_feature::instruction::select_task(
+                &repository,
+                &confirmed,
+                &["web/frontend".into()],
+                &[],
+            )
+            .unwrap_err()
+            .reason_code,
+            "task_hierarchy_path_not_authorized"
+        );
+        let mut stale = selected.clone();
+        stale.sources[0].canonical_sha256 = "0".repeat(64);
+        assert_eq!(
+            work_feature::instruction::validate_task_selection(&repository, &confirmed, &stale)
+                .unwrap_err()
+                .reason_code,
+            "instruction_selection_sources_mismatch"
+        );
+        {
+            let mode = "execute";
+            let mut foreign = load(&repository, mode, &[], &[]).unwrap();
+            assert_eq!(
+                task_document_selection(&[foreign.clone()])
+                    .unwrap_err()
+                    .reason_code,
+                "task_instruction_source_mode_mismatch"
+            );
+            foreign.mode = "task".into();
+            assert_eq!(
+                task_document_selection(&[foreign]).unwrap_err().reason_code,
+                "task_instruction_source_mode_mismatch"
+            );
+        }
+    }
+
+    #[test]
     fn work_instruction_selection_validates_topology_and_fingerprint() {
         let repository = LocalHierarchyCatalog {
             skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
         };
-        let selected = select(&repository, "plan", &[], &[]).unwrap();
+        let selected = select(&repository, "task", &[], &[]).unwrap();
         let value = serde_json::to_value(&selected).unwrap();
         assert_eq!(value["selected_paths"], json!([]));
         assert_eq!(value["resolved_paths"], json!(["general"]));
         assert_eq!(
             validate_work_selection_value(
                 &repository,
-                "plan",
+                "task",
                 &value,
                 &[],
                 "instruction_selection"
@@ -359,7 +417,7 @@ mod tests {
         assert_eq!(
             validate_work_selection_value(
                 &repository,
-                "plan",
+                "task",
                 &wrong_paths,
                 &[],
                 "instruction_selection"
@@ -373,7 +431,7 @@ mod tests {
         assert_eq!(
             validate_work_selection_value(
                 &repository,
-                "plan",
+                "task",
                 &stale,
                 &[],
                 "instruction_selection"
@@ -527,7 +585,7 @@ mod tests {
         };
         let metadata = "---\nname: Test\ndescription: Test instructions.\nmetadata:\n  work-tags:\n    - test-tag\n---\n\nBody.\n";
         write("references/instruction-loading.md", "loading\n");
-        for mode in ["plan", "task", "execute"] {
+        for mode in ["task", "execute"] {
             write(&format!("references/workflows/{mode}.md"), "workflow\n");
             for path in [
                 "general",
@@ -598,18 +656,6 @@ mod tests {
                 .count(),
             1
         );
-        let plan = load(&repository, "plan", &paths, &[]).unwrap();
-        assert_eq!(
-            plan.hierarchy.resolved_paths,
-            [
-                "general",
-                "web",
-                "web/backend",
-                "programming-language",
-                "programming-language/java"
-            ]
-        );
-        assert_eq!(plan.hierarchy.selected_paths, paths);
         let execute = load(&repository, "execute", &paths, &[]).unwrap();
         assert_eq!(
             execute.hierarchy.resolved_paths,
@@ -759,7 +805,8 @@ mod tests {
                 metadata,
             );
         }
-        for mode in ["plan", "execute"] {
+        {
+            let mode = "execute";
             write(
                 &format!("references/instructions/{mode}/general/instructions.md"),
                 metadata,
@@ -890,21 +937,23 @@ mod tests {
         );
 
         write(
-            "references/instructions/plan/general/instructions.md",
+            "references/instructions/execute/general/instructions.md",
             metadata,
         );
-        let missing = load(&repository, "plan", &[], &[]).unwrap_err();
+        let missing = load(&repository, "execute", &[], &[]).unwrap_err();
         assert_eq!(missing.reason_code, "instruction_source_missing");
-        assert_eq!(missing.details["logical_name"], "work.workflow.plan");
+        assert_eq!(missing.details["logical_name"], "work.workflow.execute");
         write(
-            "references/workflows/plan.md",
+            "references/workflows/execute.md",
             b"<!-- work-compatibility-revision: 3 -->\nworkflow\n",
         );
-        let plan = load(&repository, "plan", &[], &[]).unwrap();
+        let plan = load(&repository, "execute", &[], &[]).unwrap();
         assert_eq!(plan.sources[1].summary.compatibility_revision, 3);
-        write("references/workflows/plan.md", b"\xff");
+        write("references/workflows/execute.md", b"\xff");
         assert_eq!(
-            load(&repository, "plan", &[], &[]).unwrap_err().reason_code,
+            load(&repository, "execute", &[], &[])
+                .unwrap_err()
+                .reason_code,
             "invalid_utf8"
         );
     }

@@ -1,21 +1,20 @@
 {
   "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
-  "attempt_sha256": "e4299875de1d7bb1d62f00f5f1e39938ae4b48be9907c7191a69942fdea08576",
+  "attempt_sha256": "2ae0e20ec5913132a1fe9b6e04ac9bc0c1adecbc1db250cdd3273324f82d80d8",
   "deviation_classifications": {
     "DEVIATION-001": "task_only"
   },
   "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
-  "ledger_sha256": "5671b5ac1d39b601c758b5b0bc3676e212e0593dce2a05c046c5b7b55e6018e0",
+  "ledger_sha256": "d324a0b6de317090209c0fec56d89f9c3e83ba900707f94586a51042fb20b42d",
   "publication": {
-    "completion_marker": "outputs/work/executions/example/.work-spec-migration-B5F737B48B77.json.done",
+    "completion_marker": "outputs/work/executions/example/.work-spec-migration-98EA34979D74.json.done",
     "documents": [
       "outputs/work/executions/example/index.json",
-      "outputs/work/plans/example.json",
       "outputs/work/tasks/example/index.json",
       "outputs/work/tasks/example/tasks/TASK-001.json"
     ],
-    "fingerprint": "b5f737b48b77d84a136cc1a1bc9006677fd96729f99177600166e04430eafd67",
-    "journal": "outputs/work/executions/example/.work-spec-migration-B5F737B48B77.json",
+    "fingerprint": "98ea34979d7422dcc23a0a8ef5605c1c9cb833a1c82299b23a520b0cd3829204",
+    "journal": "outputs/work/executions/example/.work-spec-migration-98EA34979D74.json",
     "publication_status": "published",
     "relationship_results": [
       {
@@ -33,12 +32,8 @@
     ],
     "schema": "work-spec-migration-publication/v1",
     "status": "updated",
-    "transaction_approval_sha256": "fef41767f05a040d8f6ad5f0cb0286a0b4105d3738e48f0580fb0220d4834539",
+    "transaction_approval_sha256": "28bc813e897221fec187d583731bb3056019f7a77a250409260bac6d879b1a3f",
     "validator_results": [
-      {
-        "name": "plan",
-        "status": "passed"
-      },
       {
         "name": "task_collection",
         "status": "passed"
@@ -49,7 +44,7 @@
       }
     ]
   },
-  "reconciliation_fingerprint": "01a07893053ab9f860467879b997c1da48bb64c5c2d06af0a27314e6ed5f590c",
+  "reconciliation_fingerprint": "548a4fc87d13029587fe5a011b7447ff513cb67c6764253840c493cd30615983",
   "retained_deviation_ids": [],
   "schema": "work-spec-reconciliation-publication/v1",
   "selected_deviation_ids": [

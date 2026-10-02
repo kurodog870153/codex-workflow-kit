@@ -25,7 +25,7 @@ jobs:
           $paths = @(
             'README.md',
             'skills/work/SKILL.md',
-            'rust/crates/work-infrastructure/fixtures/task-draft-sources/valid/outputs/work/plans/example.json'
+            'rust/crates/work-infrastructure/fixtures/task-draft-sources/valid/outputs/work/sources/example/SRC-001/source.txt'
           )
           foreach ($path in $paths) {
             $entry = git ls-files --eol -- $path
@@ -47,14 +47,23 @@ jobs:
       - name: Install Rust 1.85 components
         run: |
           rustup toolchain install 1.85.0
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           rustup component add clippy rustfmt --toolchain 1.85.0
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Record runner environment
         run: |
           "Runner: $env:RUNNER_OS / $env:RUNNER_ARCH" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          $commit = git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "Checkout commit: $commit" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
           rustc --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Check Rust formatting
         run: cargo fmt --all -- --check
+      - name: Check all Rust targets
+        run: cargo check --workspace --all-targets --locked
       - name: Check Rust lints
         run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - name: Test Rust workspace

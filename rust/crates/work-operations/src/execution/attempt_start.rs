@@ -232,7 +232,7 @@ pub fn build_attempt_candidate(
         "authorization":request["authorization"],
         "authorization_sha256":canonical_json_sha256(&request["authorization"])
             .expect("JSON authorization serializes"),
-        "started_at":started_at,"records":[],
+        "started_at":started_at,"records":[],"acceptance_results":crate::execution::acceptance::reset(&row["acceptance_results"])?
     });
     let expected = match status {
         "pending" => {
@@ -493,7 +493,7 @@ mod tests {
             "task_index_sha256":"b".repeat(64),"task_item_sha256":"c".repeat(64),
             "task_instructions_sha256":"d".repeat(64),
             "execute_instructions_sha256":"e".repeat(64)});
-        let index = json!({"tasks":[{"id":"TASK-001","status":"pending"}],
+        let index = json!({"tasks":[{"id":"TASK-001","status":"pending","acceptance_results":[{"id":"ACCEPTANCE-001","status":"pending","evidence":[]}]}],
             "hierarchy_selection_sha256":"f".repeat(64),"skill_selection_sha256":"0".repeat(64)});
         let initial = build_attempt_candidate(
             &preflight,

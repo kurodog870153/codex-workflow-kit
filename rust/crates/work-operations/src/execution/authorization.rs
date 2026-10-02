@@ -54,7 +54,7 @@ pub fn supplemental_authorizations(
                 json!({"deviation_id":deviation["deviation_id"]}),
             ));
         }
-        if deviation_reconciliation_target(proposal) == "plan_and_task" {
+        if deviation_reconciliation_target(proposal) == "task_and_execution" {
             return Err(issue(
                 "execution_authorization_blocking_deviation",
                 "A blocking deviation cannot extend the active Attempt authorization.",

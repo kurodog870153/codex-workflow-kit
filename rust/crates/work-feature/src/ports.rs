@@ -5,6 +5,37 @@ use std::time::Duration;
 
 use crate::error::WorkError;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SnapshotBytes {
+    pub manifest: work_model::source_snapshot::SourceSnapshot,
+    pub bytes: Vec<u8>,
+}
+
+pub trait SourceSnapshotWriter {
+    fn capture(
+        &self,
+        requirement_id: &work_model::identifiers::RequirementId,
+        source: &work_model::source_snapshot::SnapshotSource,
+        content_path: &work_model::source_snapshot::SourceContentPath,
+        bytes: &[u8],
+        captured_at: &str,
+    ) -> Result<SnapshotBytes, WorkError>;
+}
+
+pub trait SourceSnapshotReader {
+    fn read_snapshot_at(
+        &self,
+        requirement_id: &work_model::identifiers::RequirementId,
+        source_id: &work_model::identifiers::SourceId,
+        source_root: &str,
+    ) -> Result<SnapshotBytes, WorkError>;
+    fn read_snapshot(
+        &self,
+        requirement_id: &work_model::identifiers::RequirementId,
+        source_id: &work_model::identifiers::SourceId,
+    ) -> Result<SnapshotBytes, WorkError>;
+}
+
 pub trait ArtifactStore {
     fn read_raw(&self, path: &Path) -> Result<Vec<u8>, WorkError>;
     fn create_new(&self, path: &Path, bytes: &[u8]) -> Result<(), WorkError>;

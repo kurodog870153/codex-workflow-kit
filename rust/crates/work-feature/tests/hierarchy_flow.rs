@@ -23,13 +23,14 @@ impl HierarchyCatalogRepository for FakeCatalog {
             ]),
             metadata: BTreeMap::from([(
                 "web".into(),
-                json!({"mode_support": ["plan", "task", "execute"], "modes": {}}),
+                json!({"mode_support": ["task", "execute"], "modes": {}}),
             )]),
             catalog_sha256: self.digest.clone(),
         })
     }
 
-    fn mode_paths(&self, _mode: &str) -> Result<Vec<String>, WorkError> {
+    fn mode_paths(&self, mode: &str) -> Result<Vec<String>, WorkError> {
+        assert!(matches!(mode, "task" | "execute"));
         Ok(vec!["general".into(), "web".into()])
     }
 }
@@ -118,12 +119,12 @@ impl HierarchyCatalogRepository for BranchCatalog {
                 let modes = if path.ends_with("/astro") {
                     json!({"task":{"name":"Astro"},"execute":{"name":"Astro"}})
                 } else {
-                    json!({"plan":{"name":"Test"},"task":{"name":"Test"},"execute":{"name":"Test"}})
+                    json!({"task":{"name":"Test"},"task":{"name":"Test"},"execute":{"name":"Test"}})
                 };
                 let support = if path.ends_with("/astro") {
                     json!(["task", "execute"])
                 } else {
-                    json!(["plan", "task", "execute"])
+                    json!(["task", "task", "execute"])
                 };
                 (path.clone(), json!({"mode_support":support,"modes":modes}))
             })
@@ -265,5 +266,25 @@ fn task_path_authorization_checks_ancestors_siblings_and_both_modes() {
             .reason_code,
             "instruction_hierarchy_path_missing"
         );
+    }
+}
+
+#[test]
+fn task_selection_requires_both_task_and_execute_paths() {
+    let request = json!({"decision":"instruction_paths","selections":[
+        {"path":"web/frontend/component/astro","recommendation_reason":"Uses Astro."}]});
+    let valid = BranchCatalog { missing_mode: None };
+    let confirmed = build_selection(&valid, &request).unwrap();
+    for mode in ["task", "execute"] {
+        let missing = BranchCatalog {
+            missing_mode: Some(mode),
+        };
+        for error in [
+            build_selection(&missing, &request).unwrap_err(),
+            validate_selection(&missing, &confirmed).unwrap_err(),
+        ] {
+            assert_eq!(error.reason_code, "instruction_hierarchy_path_missing");
+            assert_eq!(error.details["mode"], mode);
+        }
     }
 }

@@ -3,19 +3,38 @@
   "requirement_id": "example",
   "title": "Execution",
   "task_spec_id": "TASK-SPEC-001",
-  "task_collection_sha256": "845980f442face84f720dfdc8ff7a17ad7eb49cfa3ad40b3e81ecf12b3c63b05",
-  "task_index_sha256": "4fce06e458b010f46e6347302e93daef01a5ab733c4277bb742067329ba9bbfe",
-  "task_instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a",
-  "hierarchy_selection_sha256": "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404",
+  "task_collection_sha256": "ea9aea1bbcfbb9810cb609190e13a375c632ef49817b95343e6011a367adb697",
+  "task_index_sha256": "05d25d7ab362f18b5be4a4cd9990bab6460c8fa7dad9c092f9e0572faefe9982",
+  "task_instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+  "hierarchy_selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59",
   "skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
   "overall_status": "pending",
+  "acceptance_results": [
+    {
+      "id": "ACCEPTANCE-001",
+      "status": "pending",
+      "evidence": []
+    }
+  ],
   "tasks": [
     {
       "id": "TASK-001",
       "status": "pending",
       "skill_id": null,
-      "task_item_sha256": "d2181e1030d6e844ccb93dbb3ffe05ede5d41cb647e1a86bf98f2ee28e17da3f",
-      "instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a"
+      "task_item_sha256": "38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca",
+      "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+      "acceptance_results": [
+        {
+          "id": "ACCEPTANCE-001",
+          "status": "pending",
+          "evidence": []
+        },
+        {
+          "id": "TASK-001-ACCEPTANCE-001",
+          "status": "pending",
+          "evidence": []
+        }
+      ]
     }
   ]
 }

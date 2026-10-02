@@ -97,10 +97,10 @@ validate_base_sources() {
     require_file "references/instruction-loading/invocation.md" || return 1
 
     local mode
-    for mode in plan task execute specification progress; do
+    for mode in task execute specification progress; do
         require_file "references/workflows/$mode.md" || return 1
     done
-    for mode in plan task-coordinator task-skill execute artifact-editor progress-saver; do
+    for mode in task-coordinator task-skill execute artifact-editor progress-saver; do
         require_file "references/subagents/$mode.md" || return 1
     done
 
@@ -170,27 +170,27 @@ include_hierarchy() {
 
 validate_selected_instructions() {
     local mode
-    for mode in plan task execute; do
+    for mode in task execute; do
         require_instruction "$mode" general || return 1
     done
 
     if (( include_web )); then
-        for mode in plan task execute; do
+        for mode in task execute; do
             require_instruction "$mode" web || return 1
         done
     fi
     if (( include_backend )); then
-        for mode in plan task execute; do
+        for mode in task execute; do
             require_instruction "$mode" web/backend || return 1
         done
     fi
     if (( include_java || include_typescript )); then
-        for mode in plan task execute; do
+        for mode in task execute; do
             require_instruction "$mode" programming-language || return 1
         done
     fi
     if (( include_java )); then
-        for mode in plan task execute; do
+        for mode in task execute; do
             require_instruction "$mode" programming-language/java || return 1
         done
     fi
@@ -215,12 +215,12 @@ validate_selected_instructions() {
         done
     fi
     if (( include_frontend )); then
-        for mode in plan task execute; do
+        for mode in task execute; do
             require_instruction "$mode" web/frontend || return 1
         done
     fi
     if (( include_typescript )); then
-        for mode in plan task execute; do
+        for mode in task execute; do
             require_instruction "$mode" programming-language/typescript || return 1
         done
     fi
@@ -230,7 +230,7 @@ validate_selected_instructions() {
         done
     fi
     if (( include_css )); then
-        for mode in plan task execute; do
+        for mode in task execute; do
             require_instruction "$mode" web/frontend/css || return 1
         done
     fi
@@ -292,27 +292,27 @@ install_binary() {
 
 install_selected_instructions() {
     local mode
-    for mode in plan task execute; do
+    for mode in task execute; do
         copy_instruction "$mode" general || return 1
     done
 
     if (( include_web )); then
-        for mode in plan task execute; do
+        for mode in task execute; do
             copy_instruction "$mode" web || return 1
         done
     fi
     if (( include_backend )); then
-        for mode in plan task execute; do
+        for mode in task execute; do
             copy_instruction "$mode" web/backend || return 1
         done
     fi
     if (( include_java || include_typescript )); then
-        for mode in plan task execute; do
+        for mode in task execute; do
             copy_instruction "$mode" programming-language || return 1
         done
     fi
     if (( include_java )); then
-        for mode in plan task execute; do
+        for mode in task execute; do
             copy_instruction "$mode" programming-language/java || return 1
         done
     fi
@@ -337,12 +337,12 @@ install_selected_instructions() {
         done
     fi
     if (( include_frontend )); then
-        for mode in plan task execute; do
+        for mode in task execute; do
             copy_instruction "$mode" web/frontend || return 1
         done
     fi
     if (( include_typescript )); then
-        for mode in plan task execute; do
+        for mode in task execute; do
             copy_instruction "$mode" programming-language/typescript || return 1
         done
     fi
@@ -352,7 +352,7 @@ install_selected_instructions() {
         done
     fi
     if (( include_css )); then
-        for mode in plan task execute; do
+        for mode in task execute; do
             copy_instruction "$mode" web/frontend/css || return 1
         done
     fi
@@ -391,7 +391,10 @@ while true; do
     printf 'Installation location:\n'
     printf '  1. Default installation directory: "%s/.agents"\n' "$HOME"
     printf '  2. Custom installation directory\n'
-    read -r -p 'Select an installation location [1]: ' home_choice
+    if ! read -r -p 'Select an installation location [1]: ' home_choice; then
+        printf 'Error: installation input ended before a selection was completed.\n' >&2
+        exit 1
+    fi
     home_choice="${home_choice:-1}"
 
     if [[ "$home_choice" == "1" ]]; then
@@ -404,7 +407,10 @@ while true; do
     fi
 
     while true; do
-        read -r -p 'Enter the installation directory: ' install_home
+        if ! read -r -p 'Enter the installation directory: ' install_home; then
+            printf 'Error: installation input ended before a selection was completed.\n' >&2
+            exit 1
+        fi
         if [[ "$install_home" == "~" ]]; then
             install_home="$HOME"
         elif [[ "$install_home" == "~/"* ]]; then
@@ -444,7 +450,10 @@ while true; do
     printf '  12. spring-boot\n'
     printf 'Select multiple branches with spaces. Parent branches are included automatically.\n'
     printf 'Previously installed branches and stale files will be kept, even with general only.\n'
-    read -r -p 'Select hierarchy numbers, enter "all", or press Enter for general only: ' hierarchy_selection
+    if ! read -r -p 'Select hierarchy numbers, enter "all", or press Enter for general only: ' hierarchy_selection; then
+        printf 'Error: installation input ended before a selection was completed.\n' >&2
+        exit 1
+    fi
     hierarchy_selection="${hierarchy_selection:-1}"
 
     if [[ "$hierarchy_selection" == "all" ]]; then
@@ -485,14 +494,40 @@ if ! build_work; then
     exit 1
 fi
 
-if ! mkdir -p -- "$target_work"; then
-    printf 'Error: failed to create the Work skill directory: "%s".\n' "$target_work" >&2
-    exit 1
+final_work="$target_work"
+parent_work="${final_work%/*}"
+mkdir -p -- "$parent_work" || exit 1
+transaction_directory="$(mktemp -d "$parent_work/.work-install.XXXXXX")" || exit 1
+target_work="$transaction_directory/prepared"
+mkdir -- "$target_work" || exit 1
+if [[ -e "$final_work" ]]; then
+    if ! cp -R -p -- "$final_work/." "$target_work/"; then
+        printf 'Error: failed to stage existing Work files; installation was not changed. Recovery directory: "%s".\n' "$transaction_directory" >&2
+        exit 1
+    fi
 fi
 if ! install_base || ! refresh_existing_instructions || ! install_selected_instructions || ! install_binary; then
-    printf 'Error: failed to install the Work skill in "%s".\n' "$target_work" >&2
+    printf 'Error: failed to prepare Work; installation was not changed. Recovery directory: "%s".\n' "$transaction_directory" >&2
     exit 1
 fi
+if [[ -e "$final_work" ]]; then
+    if ! mv -- "$final_work" "$transaction_directory/previous"; then
+        printf 'Error: failed to back up Work; installation was not changed.\n' >&2
+        exit 1
+    fi
+fi
+if ! mv -- "$target_work" "$final_work"; then
+    if [[ -e "$transaction_directory/previous" ]]; then
+        if ! mv -- "$transaction_directory/previous" "$final_work"; then
+            printf 'Error: restore failed; previous installation is preserved in "%s/previous".\n' "$transaction_directory" >&2
+            exit 1
+        fi
+    fi
+    printf 'Error: failed to publish Work; previous installation was restored. Recovery directory: "%s".\n' "$transaction_directory" >&2
+    exit 1
+fi
+target_work="$final_work"
+printf 'Installation recovery directory: "%s".\n' "$transaction_directory"
 
 printf 'Work skill installed in "%s".\n' "$target_work"
 printf 'Existing matching files were overwritten. Stale files were not removed.\n'

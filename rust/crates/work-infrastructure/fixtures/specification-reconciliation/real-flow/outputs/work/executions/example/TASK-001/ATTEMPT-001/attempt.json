@@ -5,10 +5,10 @@
   "task_id": "TASK-001",
   "skill_id": null,
   "status": "completed",
-  "task_collection_sha256": "845980f442face84f720dfdc8ff7a17ad7eb49cfa3ad40b3e81ecf12b3c63b05",
+  "task_collection_sha256": "fa3041e72bb33271ebbb99ced5959ab0dd4f325ef1199b63e596607e8e2685a3",
   "task_index_sha256": "8754fc3b1c2600c29f8bdc58fc3c86b79b70a77f99dbf775fcb2817f085cca85",
-  "task_item_sha256": "d2181e1030d6e844ccb93dbb3ffe05ede5d41cb647e1a86bf98f2ee28e17da3f",
-  "task_instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a",
+  "task_item_sha256": "8dab83f1866be59af7ff55e54ab13f122c8855a5a51a1cdcd93c00e096ffbec1",
+  "task_instructions_sha256": "b1d52e3219a13a4e70dbac355a6db5aeed775db321b6a2fa18a0b74b8866dd83",
   "execute_instructions_sha256": "493a50f30e6531655cf042512891fd4553bd6dfbc73c66b9f442a42604ff7616",
   "hierarchy_selection_sha256": "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404",
   "execute_skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
@@ -102,6 +102,18 @@
       "status": "skipped",
       "reason": "Retain the failed runtime evidence for the retry decision.",
       "deviation_id": "DEVIATION-001"
+    }
+  ],
+  "acceptance_results": [
+    {
+      "id": "ACCEPTANCE-001",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "TASK-001-ACCEPTANCE-001",
+      "status": "pending",
+      "evidence": []
     }
   ],
   "ended_at": "2026-09-26T10:00+08:00"

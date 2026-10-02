@@ -1,5 +1,5 @@
 {
-  "catalog_sha256": "c39e2ade6cf58b16dd4e76a0606c7693792d3b57f5d5319392346a5ed9c456aa",
+  "catalog_sha256": "74977ff41dae925d76037c60fcbb6e5c6d950af73416308d5e21ca3b96ef5d54",
   "decision": "instruction_paths",
   "entries": [
     {
@@ -33,5 +33,5 @@
   "selected_paths": [
     "programming-language/java/persistence/jpa"
   ],
-  "selection_sha256": "4906aa41c3d1314e5d1d7b4c0601e7d59057dafe8e48123078102002eebe5443"
+  "selection_sha256": "4fa69b9cab7def44cd2074409359e9ad8195e4df8431bc384ea8108e9ae241a5"
 }

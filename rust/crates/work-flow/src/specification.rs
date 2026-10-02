@@ -31,6 +31,20 @@ pub fn apply_reconciliation(
     }
 }
 
+pub fn recover_reconciliation(
+    request: &Value,
+    approved_sha256: &str,
+    recover_ledger: impl FnOnce(&Value, &str) -> Result<Value, WorkError>,
+    recover_migration: impl FnOnce(&Value, &str) -> Result<Value, WorkError>,
+) -> Result<Value, WorkError> {
+    work_feature::specification::reconciliation_input::validate_preview_fields(request)?;
+    if requires_migration(request) {
+        recover_migration(request, approved_sha256)
+    } else {
+        recover_ledger(request, approved_sha256)
+    }
+}
+
 pub fn prepare_reconciliation(
     repository: &impl ReconciliationSemanticRepository,
     semantic: &Value,
@@ -44,7 +58,7 @@ pub fn prepare_reconciliation(
     } else {
         let request = json!({"schema":"work-spec-migration-prepare-request/v1",
             "mode":"revision","requirement_id":selection.requirement,
-            "reason":selection.reason,"edits":selection.edits,
+            "reason":selection.reason,"edits":selection.edits,"sources":semantic["sources"],
             "semantic_decisions":selection.decisions});
         prepare_revision(
             &serde_json::to_vec(&request).map_err(|_| {

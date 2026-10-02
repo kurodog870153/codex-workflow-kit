@@ -19,7 +19,7 @@ fn issue(message: &'static str) -> DelegationIssue {
 
 pub fn role_marker(role: &str) -> Option<&'static str> {
     match role {
-        "plan" | "task-coordinator" | "execute" => Some("WORK_DELEGATION_V1"),
+        "task-coordinator" | "execute" => Some("WORK_DELEGATION_V1"),
         "task-skill" => Some("WORK_TASK_SKILL_V1"),
         "artifact-editor" => Some("WORK_ARTIFACT_EDIT_V1"),
         "progress-saver" => Some("WORK_PROGRESS_SAVE_V1"),
@@ -39,11 +39,10 @@ pub fn sender_for_role(role: &str) -> Option<&'static str> {
 
 fn mode_allowed(role: &str, mode: &str) -> bool {
     match role {
-        "plan" => mode == "plan",
         "task-coordinator" | "task-skill" => mode == "task",
         "execute" => mode == "execute",
-        "progress-saver" => matches!(mode, "plan" | "task"),
-        "artifact-editor" => matches!(mode, "plan" | "task" | "execute"),
+        "progress-saver" => mode == "task",
+        "artifact-editor" => matches!(mode, "task" | "execute"),
         _ => false,
     }
 }
@@ -101,7 +100,7 @@ pub fn validate_envelope(
                     object["sender"].as_str(),
                     Some("parent" | "task-coordinator")
                 )
-                && matches!(object["mode"].as_str(), Some("plan" | "task" | "execute"))
+                && matches!(object["mode"].as_str(), Some("task" | "execute"))
                 && object["project_root"].is_string()
                 && object["skill_root"].is_string()
                 && object["request"].is_string()
@@ -219,9 +218,31 @@ mod tests {
     fn role_sender_mode_and_resume_boundaries() {
         let (project_root, skill_root) = absolute_roots();
         let context = json!({"saved_progress":{"revision":1}});
+        assert!(
+            build_envelope(
+                "plan",
+                "plan",
+                "Removed role",
+                project_root,
+                skill_root,
+                &context
+            )
+            .is_err()
+        );
+        assert!(
+            build_envelope(
+                "progress-saver",
+                "plan",
+                "Save",
+                project_root,
+                skill_root,
+                &context
+            )
+            .is_err()
+        );
         let envelope = build_envelope(
             "progress-saver",
-            "plan",
+            "task",
             "Continue",
             project_root,
             skill_root,
@@ -240,7 +261,7 @@ mod tests {
             .3
         );
         assert_eq!(
-            validation_result("progress-saver", "plan", true)["scope"],
+            validation_result("progress-saver", "task", true)["scope"],
             "discussion_restoration"
         );
         assert_eq!(
@@ -286,18 +307,24 @@ mod tests {
     fn python_envelope_literal_errors_precede_receiver_mismatch() {
         let (project_root, skill_root) = absolute_roots();
         let envelope = build_envelope(
-            "plan",
-            "plan",
+            "task-coordinator",
+            "task",
             "Confirmed role request",
             project_root,
             skill_root,
             &json!({"hierarchy_selection":{}}),
         )
         .unwrap();
-        let (request, mode, context, resume) =
-            validate_envelope(&envelope, "plan", "parent", project_root, skill_root).unwrap();
+        let (request, mode, context, resume) = validate_envelope(
+            &envelope,
+            "task-coordinator",
+            "parent",
+            project_root,
+            skill_root,
+        )
+        .unwrap();
         assert_eq!(request, "Confirmed role request");
-        assert_eq!(mode, "plan");
+        assert_eq!(mode, "task");
         assert_eq!(context, envelope["context"]);
         assert!(!resume);
         for (field, changed) in [
@@ -308,9 +335,15 @@ mod tests {
             let mut invalid = envelope.clone();
             invalid[field] = changed;
             assert_eq!(
-                validate_envelope(&invalid, "plan", "parent", project_root, skill_root)
-                    .unwrap_err()
-                    .message,
+                validate_envelope(
+                    &invalid,
+                    "task-coordinator",
+                    "parent",
+                    project_root,
+                    skill_root
+                )
+                .unwrap_err()
+                .message,
                 "The delegation envelope structure is invalid.",
                 "{field}"
             );
@@ -325,7 +358,14 @@ mod tests {
             let mut invalid = envelope.clone();
             invalid[field] = changed;
             assert!(
-                validate_envelope(&invalid, "plan", "parent", project_root, skill_root).is_err(),
+                validate_envelope(
+                    &invalid,
+                    "task-coordinator",
+                    "parent",
+                    project_root,
+                    skill_root
+                )
+                .is_err(),
                 "{field}"
             );
         }
@@ -335,21 +375,27 @@ mod tests {
         let mut wrong_marker = envelope;
         wrong_marker["marker"] = json!("WORK_PROGRESS_SAVE_V1");
         assert_eq!(
-            validate_envelope(&wrong_marker, "plan", "parent", project_root, skill_root)
-                .unwrap_err()
-                .message,
+            validate_envelope(
+                &wrong_marker,
+                "task-coordinator",
+                "parent",
+                project_root,
+                skill_root
+            )
+            .unwrap_err()
+            .message,
             "Envelope marker, skill, role or sender differs from the receiving context."
         );
     }
 
     #[test]
     fn python_envelope_example_has_exact_canonical_bytes() {
-        let example = json!({"schema":"work-delegation-envelope/v1","marker":"WORK_DELEGATION_V1","skill":"$work","role":"plan","sender":"parent","mode":"plan","project_root":"C:/project","skill_root":"C:/work","request":"Confirmed role request.","context":{}});
+        let example = json!({"schema":"work-delegation-envelope/v1","marker":"WORK_DELEGATION_V1","skill":"$work","role":"task-coordinator","sender":"parent","mode":"task","project_root":"/project","skill_root":"/work","request":"Confirmed role request.","context":{"task_source":{}}});
         let mut raw = serde_json::to_vec_pretty(&OrderedEnvelope(&example)).unwrap();
         raw.push(b'\n');
         assert_eq!(
             crate::canonical::sha256_hex(&raw),
-            "867e69c6f52b39233b546d82f3c174c56ab612ee1ce577c23f13ed15880a54d6"
+            "2ae6e350dfd39569555d3bf230bf7b21aa768ed3c11e18a4371becb32e3f46a2"
         );
     }
 }

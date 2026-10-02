@@ -1,7 +1,7 @@
 <!-- work-compatibility-revision: 1 -->
-# Independent discussion progress
+# Independent Task discussion progress
 
-
-1. A user-requested Plan or Task discussion save, or explicit `resume <requirement-id>`, follows discussion progress. The parent alone invokes the private progress saver with its model and reasoning effort, or performs the same role under its fallback. It only faithfully organizes and saves the originating role's supplied content; Plan and Task own decisions and continued discussion.
-2. A formal validation, source-drift stop does not prohibit independent progress saving or restoration. This narrow exception preserves the observed stop, unfinished decisions and continuation point without changing or validating formal artifacts. Progress path, integrity, revision and write-authorization checks still apply. The saver cannot repair the blocked operation or grant readiness.
-3. Restore progress before normal formal-source gates can prevent reading it. Apply current-source checks before relying on restored decisions; unresolved specification decisions may be discussed without publishing partial formal artifacts. Saving or reading progress is neither a new Work mode nor a formal cross-mode handoff. Reject direct `$work progress-saver` invocation.
+1. Task alone owns discussion progress. An explicit save or `$work task -- resume <requirement-id>` uses the private progress-saver under the main flow's actual runtime ownership, or the same role's fallback. The saver faithfully preserves supplied content; it does not choose requirements, skills or decisions.
+2. Progress uses Task mode and the fixed `context.planning_source`: captured Source snapshot, artifact routes, independently confirmed hierarchy/skill selections and main acceptance criteria. Save does not fetch requirement sources again or silently replace this context. Revision, path, canonical integrity and concrete save approval remain mandatory.
+3. Read progress before formal-source failures can prevent restoration. Preserve the observed failure, unfinished decisions and continuation point as historical context. Revalidate the original Source and current choices/instructions before source-dependent decisions; a successful read grants no formal readiness or write approval.
+4. Progress is neither a public mode, formal TASK candidate nor cross-mode handoff. Reject direct private-role activation and any legacy mode. A saver cannot repair invalid artifacts, overwrite history, merge conflicting drafts or continue execution.

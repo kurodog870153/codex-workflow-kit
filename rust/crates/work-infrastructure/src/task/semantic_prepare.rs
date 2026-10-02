@@ -11,13 +11,9 @@ use work_feature::task::semantic_prepare::{
 };
 use work_model::schema::PublicSchema;
 use work_model::task::response::TaskDraftPrepare;
-#[cfg(test)]
-use work_operations::canonical::parse_json_contract;
 use work_operations::task::draft::validate_planning_index;
 
-use crate::files::resolve_project_path;
 use crate::hierarchy_catalog::LocalHierarchyCatalog;
-use crate::plan_storage::LocalPlanStorage;
 use crate::skill_catalog::{LocalSkillCatalog, SkillRootConfig};
 use crate::task::draft_storage::{LocalTaskDraftStorage, TaskSourceUpdateProjectRequest};
 
@@ -28,9 +24,6 @@ impl SemanticTaskRepository for LocalTaskDraftStorage {
     fn read_planning_index(&self, requirement_id: &str) -> Result<Value, WorkError> {
         LocalTaskDraftStorage::read_planning_index(self, requirement_id)
     }
-    fn normalize_plan_path(&self, plan_path: &str) -> Result<String, WorkError> {
-        Ok(resolve_project_path(&self.project_root, plan_path)?.0)
-    }
 }
 
 pub fn prepare_semantic_task_request(
@@ -38,14 +31,13 @@ pub fn prepare_semantic_task_request(
     skill_root: &Path,
     configs: &[SkillRootConfig],
     requirement_id: &str,
-    plan_path: &str,
     expected_revision: u64,
     semantic: &Value,
 ) -> Result<Value, WorkError> {
     let storage = LocalTaskDraftStorage {
         project_root: root.to_path_buf(),
     };
-    let paths = LocalPlanStorage {
+    let paths = crate::artifact_paths::LocalArtifactPaths {
         project_root: root.to_path_buf(),
     };
     let instructions = LocalHierarchyCatalog {
@@ -69,13 +61,52 @@ pub fn prepare_semantic_task_request(
         &roots,
         SemanticTaskRequest {
             requirement_id,
-            plan_path,
             expected_revision,
             semantic,
         },
     )
 }
 
+fn verify_prepared_source(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[SkillRootConfig],
+    index: &Value,
+) -> Result<(), WorkError> {
+    let paths = crate::artifact_paths::LocalArtifactPaths {
+        project_root: root.to_path_buf(),
+    };
+    let hierarchy = LocalHierarchyCatalog {
+        skill_root: skill_root.to_path_buf(),
+    };
+    let skills = LocalSkillCatalog {
+        roots: configs.to_vec(),
+    };
+    let roots = configs
+        .iter()
+        .map(|config| SkillRoot {
+            scope: config.scope.clone(),
+            locator: config.locator.clone(),
+        })
+        .collect::<Vec<_>>();
+    work_feature::task::source::validate_context(
+        &paths,
+        &hierarchy,
+        &skills,
+        &paths,
+        &roots,
+        index["requirement_id"].as_str().ok_or_else(|| {
+            WorkError::new(
+                ExitCode::Contract,
+                "invalid_requirement_id",
+                "Prepared Task requires an explicit requirement.",
+                json!({}),
+            )
+        })?,
+        &index["source"],
+    )?;
+    Ok(())
+}
 /// Commit the exact initial candidate returned by `task prepare` after checking
 /// that the planning sources still produce the same candidate.
 pub fn save_prepared_initial_task(
@@ -83,7 +114,6 @@ pub fn save_prepared_initial_task(
     skill_root: &Path,
     configs: &[SkillRootConfig],
     requirement_id: &str,
-    plan_path: &str,
     candidate: &Value,
 ) -> Result<Value, WorkError> {
     let prepared: TaskDraftPrepare = serde_json::from_value(candidate.clone()).map_err(|_| {
@@ -116,6 +146,7 @@ pub fn save_prepared_initial_task(
             json!({}),
         )
     })?;
+    verify_prepared_source(root, skill_root, configs, index)?;
     let tasks = index["tasks"].as_array().expect("typed planning tasks");
     let positions = tasks
         .iter()
@@ -141,19 +172,11 @@ pub fn save_prepared_initial_task(
         .map(|id| json!({"upsert_position":positions[id]}))
         .unwrap_or(Value::Null);
     let semantic = json!({"upsert":upsert,"remove_task_ids":[],
-        "current_task":current,"reason":null});
+        "current_task":current,"reason":null,"source":index["source"]});
     let storage = LocalTaskDraftStorage {
         project_root: root.to_path_buf(),
     };
-    match prepare_semantic_task_request(
-        root,
-        skill_root,
-        configs,
-        requirement_id,
-        plan_path,
-        0,
-        &semantic,
-    ) {
+    match prepare_semantic_task_request(root, skill_root, configs, requirement_id, 0, &semantic) {
         Ok(fresh) => {
             if fresh["index"] != *index
                 || fresh["affected_task_ids"] != candidate["affected_task_ids"]
@@ -181,7 +204,6 @@ pub fn save_prepared_list_task(
     skill_root: &Path,
     configs: &[SkillRootConfig],
     requirement_id: &str,
-    plan_path: &str,
     candidate: &Value,
 ) -> Result<Value, WorkError> {
     let prepared: TaskDraftPrepare = serde_json::from_value(candidate.clone()).map_err(|_| {
@@ -221,6 +243,7 @@ pub fn save_prepared_list_task(
             json!({}),
         )
     })?;
+    verify_prepared_source(root, skill_root, configs, proposed)?;
     let expected = revision - 1;
     let reason = candidate["request"]["reason"].as_str().ok_or_else(|| {
         WorkError::new(
@@ -301,13 +324,12 @@ pub fn save_prepared_list_task(
         })
         .unwrap_or(Value::Null);
     let semantic = json!({"upsert":upsert,"remove_task_ids":removed,
-        "current_task":selected,"reason":reason});
+        "current_task":selected,"reason":reason,"source":proposed["source"]});
     let fresh = prepare_semantic_task_request(
         root,
         skill_root,
         configs,
         requirement_id,
-        plan_path,
         expected,
         &semantic,
     )?;
@@ -332,7 +354,6 @@ pub fn save_prepared_source_task(
     skill_root: &Path,
     configs: &[SkillRootConfig],
     requirement_id: &str,
-    plan_path: &str,
     candidate: &Value,
 ) -> Result<Value, WorkError> {
     let prepared: TaskDraftPrepare = serde_json::from_value(candidate.clone()).map_err(|_| {
@@ -363,6 +384,7 @@ pub fn save_prepared_source_task(
             json!({}),
         ));
     }
+    verify_prepared_source(root, skill_root, configs, &candidate["index"])?;
     let storage = LocalTaskDraftStorage {
         project_root: root.to_path_buf(),
     };
@@ -384,12 +406,10 @@ pub fn save_prepared_source_task(
             json!({}),
         ));
     }
-    let (plan_path, _) = resolve_project_path(root, plan_path)?;
     let update = |recover| TaskSourceUpdateProjectRequest {
         requirement_id,
         raw_request: &candidate["request"],
         expected_revision: expected,
-        plan_path: &plan_path,
         skill_root,
         skill_configs: configs,
         recover,
@@ -420,16 +440,175 @@ mod tests {
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    struct ChangingSource {
+        storage: LocalTaskDraftStorage,
+        reads: std::cell::Cell<usize>,
+        metadata_drift: bool,
+    }
+
+    impl work_feature::ports::SourceSnapshotReader for ChangingSource {
+        fn read_snapshot(
+            &self,
+            id: &work_model::identifiers::RequirementId,
+            source_id: &work_model::identifiers::SourceId,
+        ) -> Result<work_feature::ports::SnapshotBytes, WorkError> {
+            self.read_snapshot_at(
+                id,
+                source_id,
+                &format!("outputs/work/sources/{}", id.as_str()),
+            )
+        }
+
+        fn read_snapshot_at(
+            &self,
+            id: &work_model::identifiers::RequirementId,
+            source_id: &work_model::identifiers::SourceId,
+            root: &str,
+        ) -> Result<work_feature::ports::SnapshotBytes, WorkError> {
+            let mut snapshot = work_feature::ports::SourceSnapshotReader::read_snapshot_at(
+                &self.storage,
+                id,
+                source_id,
+                root,
+            )?;
+            let reads = self.reads.get() + 1;
+            self.reads.set(reads);
+            if reads == 2 {
+                if self.metadata_drift {
+                    snapshot.manifest.captured_at = "2026-10-04T00:00:00Z".into();
+                } else {
+                    snapshot.bytes[0] ^= 1;
+                }
+            }
+            Ok(snapshot)
+        }
+    }
+
+    impl work_feature::task::draft::TaskDraftHistoryRepository for ChangingSource {
+        fn read_historical_draft(
+            &self,
+            requirement: &str,
+            revision: u64,
+            task: &str,
+        ) -> Result<Vec<u8>, WorkError> {
+            work_feature::task::draft::TaskDraftHistoryRepository::read_historical_draft(
+                &self.storage,
+                requirement,
+                revision,
+                task,
+            )
+        }
+    }
+
+    impl SemanticTaskRepository for ChangingSource {
+        fn require_initial_storage_free(&self, requirement: &str) -> Result<(), WorkError> {
+            self.storage.require_initial_storage_free(requirement)
+        }
+        fn read_planning_index(&self, requirement: &str) -> Result<Value, WorkError> {
+            self.storage.read_planning_index(requirement)
+        }
+    }
+
+    #[test]
+    fn initial_and_list_reject_second_source_read_drift_without_publication() {
+        let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+        let fixture = repo.join("crates/work-infrastructure/fixtures/task-draft-sources/valid");
+        for list in [false, true] {
+            for metadata_drift in [false, true] {
+                let root = std::env::temp_dir().join(format!(
+                    "work-task-second-source-read-{}-{}-{list}-{metadata_drift}",
+                    std::process::id(),
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_nanos()
+                ));
+                crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
+                let index_path = root.join("outputs/work/tasks/example/drafts/index.json");
+                if list {
+                    for path in [
+                        "outputs/work/tasks/example/drafts/index.json",
+                        "outputs/work/tasks/example/drafts/history/1/index.json",
+                    ] {
+                        let target = root.join(path);
+                        fs::create_dir_all(target.parent().unwrap()).unwrap();
+                        fs::copy(fixture.join(path), target).unwrap();
+                    }
+                }
+                let index_before = fs::read(&index_path).ok();
+                let source_path = root.join("outputs/work/sources/example/SRC-001/source.txt");
+                let source_before = fs::read(&source_path).unwrap();
+                let mut upsert = json!({"title":"Task","goal":"Updated result","scope":["Source"],"skill_id":null,"dependencies":[]});
+                if list {
+                    upsert["existing_task_id"] = json!("TASK-001");
+                } else {
+                    upsert["instruction_selection"] = json!({"selected_paths":[],"references":[]});
+                }
+                let mut semantic = json!({"upsert":[upsert],"remove_task_ids":[],"current_task":{"upsert_position":1},"reason":if list {json!("Review boundary.")}else{Value::Null}});
+                if !list {
+                    semantic["source"] = fixture_source(&fixture);
+                }
+                let repository = ChangingSource {
+                    storage: LocalTaskDraftStorage {
+                        project_root: root.clone(),
+                    },
+                    reads: std::cell::Cell::new(0),
+                    metadata_drift,
+                };
+                let error = prepare_feature(
+                    &repository,
+                    &LocalHierarchyCatalog {
+                        skill_root: repo.join("../skills/work"),
+                    },
+                    &LocalSkillCatalog { roots: vec![] },
+                    &crate::artifact_paths::LocalArtifactPaths {
+                        project_root: root.clone(),
+                    },
+                    &[],
+                    SemanticTaskRequest {
+                        requirement_id: "example",
+                        expected_revision: u64::from(list),
+                        semantic: &semantic,
+                    },
+                )
+                .unwrap_err();
+                assert_eq!(repository.reads.get(), 2);
+                assert_eq!(
+                    error.reason_code,
+                    if metadata_drift {
+                        "source_snapshot_mismatch"
+                    } else {
+                        "source_hash_mismatch"
+                    }
+                );
+                assert_eq!(fs::read(&index_path).ok(), index_before);
+                assert_eq!(fs::read(&source_path).unwrap(), source_before);
+                assert!(!root.join("outputs/work/plans").exists());
+                assert!(
+                    !root
+                        .join("outputs/work/tasks/example/drafts/history/2")
+                        .exists()
+                );
+            }
+        }
+    }
+
+    fn fixture_source(fixture: &Path) -> Value {
+        let index: Value = serde_json::from_slice(
+            &std::fs::read(fixture.join("outputs/work/tasks/example/drafts/index.json")).unwrap(),
+        )
+        .unwrap();
+        index["source"].clone()
+    }
     #[test]
     fn prepared_initial_save_is_repeatable_and_recovers_matching_history() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo.join("crates/work-infrastructure/fixtures/task-draft-sources/valid");
         let skill = repo.join("../skills/work");
-        let plan_path = "outputs/work/plans/example.json";
         let semantic = json!({"upsert":[{"title":"Task","goal":"Result","scope":["Source"],
             "skill_id":null,"instruction_selection":{"selected_paths":[],"references":[]},
             "dependencies":[]}],"remove_task_ids":[],
-            "current_task":{"upsert_position":1},"reason":null});
+            "current_task":{"upsert_position":1},"reason":null,"source":fixture_source(&fixture)});
         for interrupted in [false, true] {
             let root = std::env::temp_dir().join(format!(
                 "work-task-facade-initial-{}-{}-{}",
@@ -440,26 +619,9 @@ mod tests {
                     .as_nanos(),
                 interrupted
             ));
-            let destination = root.join(plan_path);
-            fs::create_dir_all(destination.parent().unwrap()).unwrap();
-            fs::copy(fixture.join(plan_path), &destination).unwrap();
-            let mut plan = parse_json_contract(&fs::read(&destination).unwrap()).unwrap();
-            plan["artifacts"]["task"] = json!("outputs/work/tasks/example/index.json");
-            fs::write(
-                &destination,
-                work_operations::plan::render_plan_value(&plan).unwrap(),
-            )
-            .unwrap();
-            let candidate = prepare_semantic_task_request(
-                &root,
-                &skill,
-                &[],
-                "example",
-                plan_path,
-                0,
-                &semantic,
-            )
-            .unwrap();
+            crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
+            let candidate =
+                prepare_semantic_task_request(&root, &skill, &[], "example", 0, &semantic).unwrap();
             let storage = LocalTaskDraftStorage {
                 project_root: root.clone(),
             };
@@ -471,8 +633,7 @@ mod tests {
                 fs::write(history.join("index-current.tmp"), &raw).unwrap();
             }
             let saved =
-                save_prepared_initial_task(&root, &skill, &[], "example", plan_path, &candidate)
-                    .unwrap();
+                save_prepared_initial_task(&root, &skill, &[], "example", &candidate).unwrap();
             assert_eq!(
                 saved["status"],
                 if interrupted { "recovered" } else { "saved" }
@@ -482,8 +643,7 @@ mod tests {
                 candidate["index"]
             );
             assert_eq!(
-                save_prepared_initial_task(&root, &skill, &[], "example", plan_path, &candidate)
-                    .unwrap()["status"],
+                save_prepared_initial_task(&root, &skill, &[], "example", &candidate).unwrap()["status"],
                 "already_completed"
             );
         }
@@ -501,30 +661,14 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let plan_path = "outputs/work/plans/example.json";
-        let destination = root.join(plan_path);
-        fs::create_dir_all(destination.parent().unwrap()).unwrap();
-        fs::copy(fixture.join(plan_path), destination).unwrap();
-        let plan_raw = fs::read(root.join(plan_path)).unwrap();
-        let mut plan = parse_json_contract(&plan_raw).unwrap();
-        plan["artifacts"]["task"] = json!("outputs/work/tasks/example/index.json");
-        fs::write(
-            root.join(plan_path),
-            work_operations::plan::render_plan_value(&plan).unwrap(),
-        )
-        .unwrap();
-        assert_eq!(
-            plan["artifacts"]["task"],
-            "outputs/work/tasks/example/index.json"
-        );
+        crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         let request = json!({"upsert":[{"title":"Task","goal":"Result","scope":["Source"],
             "skill_id":null,"instruction_selection":{"selected_paths":[],"references":[]},
             "dependencies":[]}],"remove_task_ids":[],
-            "current_task":{"upsert_position":1},"reason":null});
+            "current_task":{"upsert_position":1},"reason":null,"source":fixture_source(&fixture)});
         let skill = repo.join("../skills/work");
         let prepared =
-            prepare_semantic_task_request(&root, &skill, &[], "example", plan_path, 0, &request)
-                .unwrap();
+            prepare_semantic_task_request(&root, &skill, &[], "example", 0, &request).unwrap();
         let index = &prepared["index"];
         assert_eq!(index["requirement_id"], "example");
         assert_eq!(index["revision"], 1);
@@ -562,16 +706,7 @@ mod tests {
                 _ => unreachable!(),
             }
             assert!(
-                prepare_semantic_task_request(
-                    &root,
-                    &skill,
-                    &[],
-                    "example",
-                    plan_path,
-                    0,
-                    &invalid
-                )
-                .is_err(),
+                prepare_semantic_task_request(&root, &skill, &[], "example", 0, &invalid).is_err(),
                 "{defect}"
             );
             assert!(!draft_dir.exists(), "{defect} created planning storage");
@@ -591,20 +726,12 @@ mod tests {
                 .join("outputs/work/tasks/example/drafts/index.json")
                 .exists()
         );
-        assert!(
-            !root
-                .join(plan["artifacts"]["task"].as_str().unwrap())
-                .exists()
-        );
-        assert!(
-            !root
-                .join(plan["artifacts"]["execution"].as_str().unwrap())
-                .exists()
-        );
+        assert!(!root.join("outputs/work/tasks/example/index.json").exists());
+        assert!(!root.join("outputs/work/executions/example").exists());
         storage.save_planning(index, 0, None).unwrap();
         assert_eq!(storage.read_planning_index("example").unwrap(), *index);
         assert_eq!(
-            prepare_semantic_task_request(&root, &skill, &[], "example", plan_path, 0, &request)
+            prepare_semantic_task_request(&root, &skill, &[], "example", 0, &request)
                 .unwrap_err()
                 .reason_code,
             "draft_initial_storage_exists"
@@ -616,16 +743,8 @@ mod tests {
                 .reason_code,
             "draft_initial_storage_exists"
         );
-        assert!(
-            !root
-                .join(plan["artifacts"]["task"].as_str().unwrap())
-                .exists()
-        );
-        assert!(
-            !root
-                .join(plan["artifacts"]["execution"].as_str().unwrap())
-                .exists()
-        );
+        assert!(!root.join("outputs/work/tasks/example/index.json").exists());
+        assert!(!root.join("outputs/work/executions/example").exists());
         let reserved = std::env::temp_dir().join(format!(
             "work-task-semantic-reserved-{}-{}",
             std::process::id(),
@@ -634,25 +753,15 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let reserved_plan = reserved.join(plan_path);
-        fs::create_dir_all(reserved_plan.parent().unwrap()).unwrap();
-        fs::copy(root.join(plan_path), reserved_plan).unwrap();
+        crate::fixture_support::copy_fixture_sources(&fixture, &reserved).unwrap();
         fs::create_dir_all(reserved.join("outputs/work/tasks/example/drafts/history/1")).unwrap();
         let reserved_storage = LocalTaskDraftStorage {
             project_root: reserved.clone(),
         };
         assert_eq!(
-            prepare_semantic_task_request(
-                &reserved,
-                &skill,
-                &[],
-                "example",
-                plan_path,
-                0,
-                &request
-            )
-            .unwrap_err()
-            .reason_code,
+            prepare_semantic_task_request(&reserved, &skill, &[], "example", 0, &request)
+                .unwrap_err()
+                .reason_code,
             "draft_initial_storage_exists"
         );
         assert_eq!(
@@ -681,15 +790,14 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let plan_path = "outputs/work/plans/example.json";
         for relative in [
-            plan_path,
             "outputs/work/tasks/example/drafts/index.json",
             "outputs/work/tasks/example/drafts/history/1/index.json",
         ] {
             let destination = root.join(relative);
             fs::create_dir_all(destination.parent().unwrap()).unwrap();
             fs::copy(fixture.join(relative), destination).unwrap();
+            crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         }
         let skill = repo.join("../skills/work");
         let original_index =
@@ -702,8 +810,7 @@ mod tests {
         let split = json!({"upsert":[boundary,dependent],"remove_task_ids":["TASK-001"],
             "current_task":{"upsert_position":1},"reason":"Confirmed split"});
         let prepared =
-            prepare_semantic_task_request(&root, &skill, &[], "example", plan_path, 1, &split)
-                .unwrap();
+            prepare_semantic_task_request(&root, &skill, &[], "example", 1, &split).unwrap();
         assert_eq!(prepared["index"]["tasks"][0]["id"], "TASK-002");
         assert_eq!(prepared["index"]["tasks"][1]["id"], "TASK-003");
         assert_eq!(
@@ -717,7 +824,7 @@ mod tests {
         );
         let old_shape = json!({"tasks":[],"current_task":1});
         assert_eq!(
-            prepare_semantic_task_request(&root, &skill, &[], "example", plan_path, 1, &old_shape)
+            prepare_semantic_task_request(&root, &skill, &[], "example", 1, &old_shape)
                 .unwrap_err()
                 .reason_code,
             "invalid_object_fields"
@@ -728,21 +835,13 @@ mod tests {
             "dependencies":[{"existing_task_id":"TASK-001"}]}],
             "remove_task_ids":["TASK-001"],"current_task":null,"reason":"Replace"});
         assert_eq!(
-            prepare_semantic_task_request(
-                &root,
-                &skill,
-                &[],
-                "example",
-                plan_path,
-                1,
-                &removed_dependency
-            )
-            .unwrap_err()
-            .reason_code,
+            prepare_semantic_task_request(&root, &skill, &[], "example", 1, &removed_dependency)
+                .unwrap_err()
+                .reason_code,
             "invalid_semantic_task_reference"
         );
         assert_eq!(
-            prepare_semantic_task_request(&root, &skill, &[], "example", plan_path, 2, &split)
+            prepare_semantic_task_request(&root, &skill, &[], "example", 2, &split)
                 .unwrap_err()
                 .reason_code,
             "draft_revision_conflict"
@@ -752,34 +851,23 @@ mod tests {
             "instruction_selection":{"selected_paths":[],"references":["task.general.task-records"]},
             "dependencies":[]}],"remove_task_ids":[],"current_task":null,"reason":"Review"});
         assert_eq!(
-            prepare_semantic_task_request(
-                &root,
-                &skill,
-                &[],
-                "example",
-                plan_path,
-                1,
-                &selection_change
-            )
-            .unwrap_err()
-            .reason_code,
-            "draft_selection_mismatch"
-        );
-        let original_plan = fs::read(root.join(plan_path)).unwrap();
-        let mut changed_plan = parse_json_contract(&original_plan).unwrap();
-        changed_plan["summary"] = json!("Changed Plan");
-        fs::write(
-            root.join(plan_path),
-            work_operations::plan::render_plan_value(&changed_plan).unwrap(),
-        )
-        .unwrap();
-        assert_eq!(
-            prepare_semantic_task_request(&root, &skill, &[], "example", plan_path, 1, &split)
+            prepare_semantic_task_request(&root, &skill, &[], "example", 1, &selection_change)
                 .unwrap_err()
                 .reason_code,
-            "draft_source_drift"
+            "draft_selection_mismatch"
         );
-        fs::write(root.join(plan_path), original_plan).unwrap();
+        let source_path = root.join("outputs/work/sources/example/SRC-001/source.txt");
+        let original_source = fs::read(&source_path).unwrap();
+        let mut changed_source = original_source.clone();
+        changed_source[0] ^= 1;
+        fs::write(&source_path, &changed_source).unwrap();
+        assert_eq!(
+            prepare_semantic_task_request(&root, &skill, &[], "example", 1, &split)
+                .unwrap_err()
+                .reason_code,
+            "source_hash_mismatch"
+        );
+        fs::write(&source_path, original_source).unwrap();
         let storage = LocalTaskDraftStorage {
             project_root: root.clone(),
         };
@@ -797,7 +885,7 @@ mod tests {
             fs::write(history.join(name), raw).unwrap();
         }
         assert_eq!(
-            save_prepared_list_task(&root, &skill, &[], "example", plan_path, &prepared).unwrap()["status"],
+            save_prepared_list_task(&root, &skill, &[], "example", &prepared).unwrap()["status"],
             "recovered"
         );
         assert_eq!(
@@ -805,20 +893,12 @@ mod tests {
             prepared["index"]
         );
         assert_eq!(
-            save_prepared_list_task(&root, &skill, &[], "example", plan_path, &prepared).unwrap()["status"],
+            save_prepared_list_task(&root, &skill, &[], "example", &prepared).unwrap()["status"],
             "already_completed"
         );
         assert!(
-            prepare_semantic_task_request(
-                &root,
-                &skill,
-                &[],
-                "example",
-                plan_path,
-                2,
-                &selection_change
-            )
-            .is_err()
+            prepare_semantic_task_request(&root, &skill, &[], "example", 2, &selection_change)
+                .is_err()
         );
     }
 
@@ -834,15 +914,14 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let plan_path = "outputs/work/plans/example.json";
         for relative in [
-            plan_path,
             "outputs/work/tasks/example/drafts/index.json",
             "outputs/work/tasks/example/drafts/history/1/index.json",
         ] {
             let destination = root.join(relative);
             fs::create_dir_all(destination.parent().unwrap()).unwrap();
             fs::copy(fixture.join(relative), destination).unwrap();
+            crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         }
         let storage = LocalTaskDraftStorage {
             project_root: root.clone(),
@@ -861,8 +940,7 @@ mod tests {
             "current_task":{"existing_task_id":"TASK-002"},"reason":"Confirmed merge"});
         let skill = repo.join("../skills/work");
         let prepared =
-            prepare_semantic_task_request(&root, &skill, &[], "example", plan_path, 2, &semantic)
-                .unwrap();
+            prepare_semantic_task_request(&root, &skill, &[], "example", 2, &semantic).unwrap();
         assert_eq!(prepared["index"]["tasks"].as_array().unwrap().len(), 1);
         assert_eq!(prepared["index"]["tasks"][0]["id"], "TASK-002");
         assert_eq!(prepared["index"]["tasks"][0]["goal"], "Merged outcome");
@@ -872,12 +950,12 @@ mod tests {
             2
         );
         assert_eq!(
-            prepare_semantic_task_request(&root, &skill, &[], "example", plan_path, 3, &semantic)
+            prepare_semantic_task_request(&root, &skill, &[], "example", 3, &semantic)
                 .unwrap_err()
                 .reason_code,
             "draft_revision_conflict"
         );
-        save_prepared_list_task(&root, &skill, &[], "example", plan_path, &prepared).unwrap();
+        save_prepared_list_task(&root, &skill, &[], "example", &prepared).unwrap();
         assert_eq!(
             storage.read_planning_index("example").unwrap(),
             prepared["index"]

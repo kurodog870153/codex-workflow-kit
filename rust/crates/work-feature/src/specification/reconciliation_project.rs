@@ -62,6 +62,16 @@ pub fn load_sources(
             "The execution index is not valid JSON.",
         )
     })?;
+    work_operations::execution::index::validate_execution_index(&index, &index_raw).map_err(
+        |issue| {
+            WorkError::new(
+                ExitCode::ArtifactIntegrity,
+                issue.reason_code,
+                issue.message,
+                issue.details,
+            )
+        },
+    )?;
     let ledger_path = attempt_path
         .strip_suffix("attempt.json")
         .ok_or_else(|| {
@@ -152,5 +162,15 @@ mod tests {
         })
         .expect_err("request must fail");
         assert_eq!(error.reason_code, "invalid_object_fields");
+    }
+    #[test]
+    fn legacy_migration_candidate_stops_before_attempt_and_preview_ports() {
+        let request = json!({"schema":"work-spec-reconciliation-preview-request/v1", "attempt_path":"outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json", "choice":"all", "deviation_ids":[],
+            "migration":{"schema":"work-spec-migration-preview-request/v1","sources":[],"semantic_decisions":[],"candidates":[{"path":"old.json","kind":"plan","content":{}}]}});
+        let error = preview_from_repository(&UnusedRepository, &request, |_| {
+            panic!("legacy migration must stop before callback")
+        })
+        .unwrap_err();
+        assert_eq!(error.reason_code, "invalid_contract_value");
     }
 }

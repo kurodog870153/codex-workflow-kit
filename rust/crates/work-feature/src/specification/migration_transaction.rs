@@ -8,7 +8,6 @@ use work_operations::derivation::transaction::{
     PublicationOrder, TransactionDeriver, TransactionInput, TransactionKind,
 };
 use work_operations::execution::index::render_execution_index;
-use work_operations::plan::render_plan_value;
 use work_operations::task::ordering::{TaskDocumentKind, render_task};
 
 pub trait MigrationTransactionRepository {
@@ -23,7 +22,6 @@ fn fail(reason: &str, message: &str) -> WorkError {
 
 fn candidate_bytes(row: &Value) -> Result<Vec<u8>, WorkError> {
     match row["kind"].as_str() {
-        Some("plan") => render_plan_value(&row["content"]),
         Some("task_index") => render_task(&row["content"], TaskDocumentKind::Index),
         Some("task_item") => render_task(&row["content"], TaskDocumentKind::Item),
         Some("execution_index") => render_execution_index(&row["content"]),
@@ -102,7 +100,7 @@ pub fn migration_transaction_with_additional(
                 "A migration candidate path is missing.",
             )
         })?;
-        if row["kind"] == "plan" {
+        if row["kind"] == "task_index" {
             artifacts = Some(row["content"]["artifacts"].clone());
         }
         if row["kind"] == "task_item" {
@@ -128,6 +126,12 @@ pub fn migration_transaction_with_additional(
             ));
         }
     }
+    // Reviewed raw evidence is retained verbatim unless an active artifact is replaced.
+    for (path, raw) in &sources {
+        candidates
+            .entry(path.clone())
+            .or_insert_with(|| raw.clone());
+    }
     for (path, raw) in additional {
         if candidates.contains_key(path) {
             return Err(fail(
@@ -144,7 +148,7 @@ pub fn migration_transaction_with_additional(
     let artifacts = artifacts.ok_or_else(|| {
         fail(
             "migration_candidate_set_incomplete",
-            "A migration Plan is missing.",
+            "A migration Task index is missing.",
         )
     })?;
     let execution = artifacts["execution"].as_str().ok_or_else(|| {

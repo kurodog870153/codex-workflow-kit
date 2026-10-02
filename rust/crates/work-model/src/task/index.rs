@@ -18,20 +18,7 @@ pub enum TaskReadinessStatus {
     Passed,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct TaskArtifactPaths {
-    pub plan: String,
-    pub task: String,
-    pub execution: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct TaskSourcePlan {
-    pub canonical_sha256: String,
-    pub hierarchy_selection_sha256: String,
-}
+pub use super::source::TaskArtifactPaths;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -49,6 +36,8 @@ pub struct TaskDocumentInstructionSelection {
     pub sources: Vec<TaskInstructionSource>,
     pub references: Vec<String>,
     pub instructions_sha256: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub routing_manifest: Option<crate::instruction::InstructionSelectionManifest>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -124,8 +113,6 @@ pub struct TaskIndexChange {
     pub reason: String,
     pub affected_ids: Vec<String>,
     pub edits: Vec<TaskChangeEdit>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub plan_change_ids: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -145,7 +132,10 @@ pub struct TaskIndex {
     pub title: String,
     pub summary: String,
     pub artifacts: TaskArtifactPaths,
-    pub source_plan: TaskSourcePlan,
+    pub source: super::source::TaskProvenance,
+    pub hierarchy_selection: crate::hierarchy::HierarchySelection,
+    pub skill_selection: crate::skill::SkillSelection,
+    pub acceptance_criteria: Vec<super::source::TaskAcceptance>,
     pub instruction_selection: TaskDocumentInstructionSelection,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution_defaults: Option<TaskExecutionDefaults>,

@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::common::{Nullable, deserialize_optional_nullable, deserialize_required_nullable};
-use crate::plan::PlanArtifact;
 use crate::schema::PublicSchema;
 use crate::task::{index::TaskIndex, item::TaskItem};
 
@@ -19,7 +18,7 @@ pub fn verified<T: serde::de::DeserializeOwned>(value: Value) -> Value {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ArtifactPaths {
-    pub plan: String,
+    pub source: String,
     pub task: String,
     pub execution: String,
 }
@@ -31,18 +30,25 @@ pub struct SourceFingerprint {
     pub raw_sha256: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MigrationCandidateKind {
+    TaskIndex,
+    TaskItem,
+    ExecutionIndex,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CandidateDocument {
     pub path: String,
-    pub kind: String,
+    pub kind: MigrationCandidateKind,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub task_id: Option<String>,
     pub content: Value,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct SemanticDecision {
     pub id: String,
     #[serde(
@@ -58,9 +64,16 @@ pub struct SemanticDecision {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EditTarget {
-    pub artifact: String,
+    pub artifact: SpecificationEditArtifact,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub task_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpecificationEditArtifact {
+    TaskIndex,
+    TaskItem,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -89,6 +102,16 @@ pub struct SpecPrepareRequest {
     pub requirement_id: String,
     pub reason: String,
     pub edits: Vec<SpecificationEdit>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_update: Option<SpecificationSourceUpdate>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SpecificationSourceUpdate {
+    pub source: crate::task::draft::PlanningSource,
+    pub selections: BTreeMap<String, crate::task::draft::DraftInstructionSelection>,
+    pub source_confirmation: crate::task::request::SourceReplacementConfirmation,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -96,12 +119,8 @@ pub struct SpecPrepareRequest {
 pub struct SpecMigrationPrepareRequest {
     pub schema: PublicSchema,
     pub mode: String,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_nullable",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub requirement_id: Option<Nullable<String>>,
+    pub requirement_id: String,
+    pub sources: Vec<SourceFingerprint>,
     #[serde(
         default,
         deserialize_with = "deserialize_optional_nullable",
@@ -114,12 +133,8 @@ pub struct SpecMigrationPrepareRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub edits: Option<Nullable<Vec<SpecificationEdit>>>,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_nullable",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub plan: Option<Nullable<crate::plan::PlanSemanticRequest>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_context: Option<MigrationTaskContext>,
     #[serde(
         default,
         deserialize_with = "deserialize_optional_nullable",
@@ -143,9 +158,32 @@ pub struct SpecMigrationPrepareRequest {
         deserialize_with = "deserialize_optional_nullable",
         skip_serializing_if = "Option::is_none"
     )]
-    pub tasks: Option<Nullable<Vec<Value>>>,
+    pub tasks: Option<Nullable<Vec<MigrationSemanticTask>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub semantic_decisions: Option<Vec<SemanticDecision>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MigrationTaskContext {
+    pub artifacts: crate::task::source::TaskArtifactPaths,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<crate::task::source::TaskProvenance>,
+    pub hierarchy_selection: crate::hierarchy::HierarchySelection,
+    pub skill_selection: crate::skill::SkillSelection,
+    pub acceptance_criteria: Vec<crate::task::source::TaskAcceptance>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MigrationSemanticTask {
+    pub title: String,
+    pub goal: String,
+    pub skill_id: Option<String>,
+    pub selected_paths: Vec<String>,
+    pub references: Vec<String>,
+    pub dependency_positions: Vec<u64>,
+    pub candidate: crate::task::draft::SemanticTaskCandidate,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -215,6 +253,8 @@ pub struct ArtifactMigrationItem {
     pub target_schema: String,
     pub required: bool,
     pub source_sha256: String,
+    pub source_size: u64,
+    pub raw: Vec<u8>,
     pub issue: String,
     pub resolution_status: ArtifactMigrationItemStatus,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -259,6 +299,26 @@ pub struct ArtifactMigrationDecision {
     pub reason: Option<String>,
 }
 
+/// Explicit AI-reviewed replacement content; raw evidence is supplied unchanged.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactMigrationChoice {
+    pub id: String,
+    pub action: ArtifactMigrationAction,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactMigrationDecisionInput {
+    pub schema: String,
+    pub analysis: ArtifactMigrationAnalysis,
+    pub choices: Vec<ArtifactMigrationChoice>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ArtifactMigrationRequest {
@@ -288,7 +348,7 @@ impl ArtifactMigrationRequest {
                 || item.issue.is_empty()
                 || item.target_schema
                     != match item.kind.as_str() {
-                        "plan" => "work-plan/v1",
+                        "source" => "work-source-snapshot/v1",
                         "task_index" => "work-task-index/v1",
                         "task_item" => "work-task-item/v1",
                         "execution_index" => "work-execution-index/v1",
@@ -298,8 +358,9 @@ impl ArtifactMigrationRequest {
                     != item.proposed_content.is_some()
                 || !matches!(
                     item.kind.as_str(),
-                    "plan" | "task_index" | "task_item" | "execution_index"
+                    "source" | "task_index" | "task_item" | "execution_index"
                 )
+                || item.source_size != item.raw.len() as u64
                 || !valid_migration_hash(&item.source_sha256)
                 || !ids.insert(&item.id)
                 || !paths.insert(&item.path)
@@ -398,7 +459,7 @@ pub struct SpecTransaction {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SpecUpdateExpected {
-    pub plan_sha256: String,
+    pub source_sha256: String,
     pub task_index_sha256: String,
     pub execution_index_sha256: String,
     pub task_item_sha256: BTreeMap<String, String>,
@@ -407,7 +468,6 @@ pub struct SpecUpdateExpected {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SpecCandidate {
-    pub plan: PlanArtifact,
     pub task_index: TaskIndex,
     pub task_items: BTreeMap<String, TaskItem>,
 }
@@ -418,7 +478,8 @@ pub struct SpecUpdateRequest {
     pub schema: PublicSchema,
     pub reason: String,
     pub expected: SpecUpdateExpected,
-    pub plan: PlanArtifact,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_confirmation: Option<crate::task::request::SourceReplacementConfirmation>,
     pub task_index: TaskIndex,
     pub task_items: BTreeMap<String, TaskItem>,
 }
@@ -552,6 +613,8 @@ pub struct SpecReconciliationPrepareRequest {
     pub task_position: u64,
     pub attempt_position: u64,
     pub choice: ReconciliationChoice,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sources: Option<Vec<SourceFingerprint>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deviation_positions: Option<Vec<u64>>,
     #[serde(
@@ -581,7 +644,7 @@ pub struct SpecReconciliationPreviewRequest {
 #[serde(rename_all = "snake_case")]
 pub enum DeviationTarget {
     TaskOnly,
-    PlanAndTask,
+    TaskAndExecution,
     RetainOnly,
 }
 
@@ -647,15 +710,17 @@ mod tests {
     #[test]
     fn artifact_migration_decisions_validate_and_round_trip() {
         let item = ArtifactMigrationItem {
-            id: "PLAN-001".into(),
-            path: "outputs/work/plans/example.json".into(),
-            kind: "plan".into(),
-            target_schema: "work-plan/v1".into(),
+            id: "MIGRATION-task-index".into(),
+            path: "outputs/work/tasks/example/index.json".into(),
+            kind: "task_index".into(),
+            target_schema: "work-task-index/v1".into(),
             required: true,
             source_sha256: "a".repeat(64),
+            source_size: 3,
+            raw: b"old".to_vec(),
             issue: "legacy schema".into(),
             resolution_status: ArtifactMigrationItemStatus::Proposed,
-            proposed_content: Some(serde_json::json!({"schema":"work-plan/v1"})),
+            proposed_content: Some(serde_json::json!({"schema":"work-task-index/v1"})),
         };
         let mut request = ArtifactMigrationRequest {
             schema: PublicSchema::WorkArtifactMigrationRequestV1,
@@ -668,6 +733,20 @@ mod tests {
                 reason: None,
             }],
         };
+        let serialized = serde_json::to_value(&request).unwrap();
+        let mut missing = serialized.clone();
+        missing["decisions"][0]["item"]
+            .as_object_mut()
+            .unwrap()
+            .remove("raw");
+        assert!(serde_json::from_value::<ArtifactMigrationRequest>(missing).is_err());
+        let mut legacy = request.clone();
+        legacy.decisions[0].item.kind = "plan".into();
+        legacy.decisions[0].item.target_schema = "work-plan/v1".into();
+        assert_eq!(legacy.validate(), Err("invalid_migration_item"));
+        let mut wrong_size = request.clone();
+        wrong_size.decisions[0].item.source_size += 1;
+        assert_eq!(wrong_size.validate(), Err("invalid_migration_item"));
         assert_eq!(request.validate(), Ok(()));
         assert!(request.executable());
         let value = serde_json::to_value(&request).unwrap();
@@ -684,9 +763,9 @@ mod tests {
         request.decisions.pop();
         request.decisions[0].item.required = false;
         assert!(request.executable());
-        request.decisions[0].item.target_schema = "work-plan/v0".into();
+        request.decisions[0].item.target_schema = "work-task-index/v0".into();
         assert_eq!(request.validate(), Err("invalid_migration_item"));
-        request.decisions[0].item.target_schema = "work-plan/v1".into();
+        request.decisions[0].item.target_schema = "work-task-index/v1".into();
         request.decisions[0].item.resolution_status = ArtifactMigrationItemStatus::NeedsReview;
         assert_eq!(request.validate(), Err("invalid_migration_item"));
         request.decisions[0].item.resolution_status = ArtifactMigrationItemStatus::Proposed;

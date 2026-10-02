@@ -8,7 +8,7 @@ use crate::schema::PublicSchema;
 
 use super::index::{
     FormalTaskStatus, TaskArtifactPaths, TaskChangeOperation, TaskDocumentInstructionSelection,
-    TaskExecutionDefaults, TaskIndexDecision, TaskReadiness, TaskSourcePlan,
+    TaskExecutionDefaults, TaskIndexDecision, TaskReadiness,
 };
 use super::item::{
     TaskCommand, TaskDecision, TaskFile, TaskInput, TaskItemInstructionSelection, TaskOperation,
@@ -24,6 +24,7 @@ pub struct TaskProjectionItem {
     pub skill_id: Nullable<String>,
     pub instruction_selection: TaskItemInstructionSelection,
     pub traceability: TaskTraceability,
+    pub acceptance_criteria: Vec<super::source::TaskAcceptance>,
     pub goal: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dependencies: Option<Vec<String>>,
@@ -73,8 +74,6 @@ pub struct TaskProjectionChange {
     pub reason: String,
     pub affected_ids: Vec<String>,
     pub edits: Vec<TaskProjectionChangeEdit>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub plan_change_ids: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -87,7 +86,10 @@ pub struct TaskCollectionProjection {
     pub title: String,
     pub summary: String,
     pub artifacts: TaskArtifactPaths,
-    pub source_plan: TaskSourcePlan,
+    pub source: super::source::TaskProvenance,
+    pub hierarchy_selection: crate::hierarchy::HierarchySelection,
+    pub skill_selection: crate::skill::SkillSelection,
+    pub acceptance_criteria: Vec<super::source::TaskAcceptance>,
     pub instruction_selection: TaskDocumentInstructionSelection,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution_defaults: Option<TaskExecutionDefaults>,

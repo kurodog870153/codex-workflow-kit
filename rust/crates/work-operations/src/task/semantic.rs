@@ -1,4 +1,4 @@
-//! Pure cross-document TASK rules that require the confirmed source Plan.
+//! Pure Task-owned acceptance, dependency and execution boundary rules.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -24,8 +24,8 @@ fn string_set(value: &Value) -> BTreeSet<String> {
         .collect()
 }
 
-fn plan_ids(plan: &Value, group: &str) -> BTreeSet<String> {
-    plan[group]
+fn defined_ids(contract: &Value, group: &str) -> BTreeSet<String> {
+    contract[group]
         .as_array()
         .into_iter()
         .flatten()
@@ -98,18 +98,9 @@ pub fn validate_task_file_state(
     Ok(())
 }
 
-/// Validate links between a structurally checked TASK projection and Plan.
+/// Validate a structurally checked Task projection and its owned responsibilities.
 /// Source bytes, filesystem paths and current instruction contents belong to Application.
-pub fn validate_task_plan_semantics(contract: &Value, plan: &Value) -> Result<Value, TaskIssue> {
-    if contract["requirement_id"] != plan["requirement_id"]
-        || contract["artifacts"] != plan["artifacts"]
-    {
-        return Err(issue(
-            "source_plan_identity_mismatch",
-            "The TASK identity or artifact paths do not match the source Plan.",
-            json!({}),
-        ));
-    }
+pub fn validate_task_semantics(contract: &Value) -> Result<Value, TaskIssue> {
     let tasks = contract["tasks"]
         .as_array()
         .filter(|tasks| !tasks.is_empty())
@@ -126,12 +117,9 @@ pub fn validate_task_plan_semantics(contract: &Value, plan: &Value) -> Result<Va
         ));
     }
     let mut dependencies = BTreeMap::new();
-    let mut coverage: BTreeMap<&str, BTreeSet<String>> =
-        ["goals", "deliverables", "acceptance_criteria", "milestones"]
-            .into_iter()
-            .map(|group| (group, BTreeSet::new()))
-            .collect();
-    let selected_skills: BTreeMap<&str, &Value> = plan["skill_selection"]["skills"]
+    let main_acceptance = defined_ids(contract, "acceptance_criteria");
+    let mut coverage = BTreeSet::new();
+    let selected_skills: BTreeMap<&str, &Value> = contract["skill_selection"]["skills"]
         .as_array()
         .into_iter()
         .flatten()
@@ -145,8 +133,8 @@ pub fn validate_task_plan_semantics(contract: &Value, plan: &Value) -> Result<Va
         if let Some(skill_id) = task["skill_id"].as_str() {
             let selected = selected_skills.get(skill_id).ok_or_else(|| {
                 issue(
-                    "task_skill_not_selected_in_plan",
-                    "A TASK skill must be selected by its source Plan.",
+                    "task_skill_not_selected",
+                    "A TASK skill must be independently selected in Task planning.",
                     json!({"task_id": task_id, "skill_id": skill_id}),
                 )
             })?;
@@ -189,40 +177,45 @@ pub fn validate_task_plan_semantics(contract: &Value, plan: &Value) -> Result<Va
             ));
         }
         dependencies.insert(task_id.into(), direct);
-        for (field, group) in [
-            ("goal_ids", "goals"),
-            ("deliverable_ids", "deliverables"),
-            ("acceptance_ids", "acceptance_criteria"),
-            ("milestone_ids", "milestones"),
-        ] {
-            if task["traceability"].get(field).is_none() {
-                continue;
-            }
-            let valid = plan_ids(plan, group);
-            let traced = string_set(&task["traceability"][field]);
-            if traced.is_empty() || !traced.is_subset(&valid) {
-                return Err(issue(
-                    "invalid_reference",
-                    "A referenced Plan ID does not exist or has the wrong type.",
-                    json!({"location": format!("{task_id}.traceability.{field}")}),
-                ));
-            }
-            coverage
-                .get_mut(group)
-                .expect("known coverage group")
-                .extend(traced);
+        let responsible = string_set(&task["traceability"]["acceptance_ids"]);
+        if !responsible.is_subset(&main_acceptance) {
+            return Err(issue(
+                "invalid_reference",
+                "Main acceptance responsibilities must exist in the Task collection.",
+                json!({"task_id":task_id}),
+            ));
         }
-        let covered: BTreeSet<String> = task["validations"]
+        coverage.extend(responsible.iter().cloned());
+        let technical = defined_ids(task, "acceptance_criteria");
+        if technical.is_empty() {
+            return Err(issue(
+                "missing_task_acceptance",
+                "Every Task needs technical acceptance definitions.",
+                json!({"task_id":task_id}),
+            ));
+        }
+        let allowed = responsible
+            .union(&technical)
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        let covered = task["validations"]
             .as_array()
             .into_iter()
             .flatten()
-            .flat_map(|validation| string_set(&validation["acceptance_ids"]))
-            .collect();
-        if !string_set(&task["traceability"]["acceptance_ids"]).is_subset(&covered) {
+            .flat_map(|row| string_set(&row["acceptance_ids"]))
+            .collect::<BTreeSet<_>>();
+        if !covered.is_subset(&allowed) {
+            return Err(issue(
+                "invalid_reference",
+                "Validation references must belong to the responsible Task's main or technical acceptance.",
+                json!({"task_id":task_id}),
+            ));
+        }
+        if !allowed.is_subset(&covered) {
             return Err(issue(
                 "acceptance_without_validation",
-                "Every traced Acceptance must be covered by a final VAL.",
-                json!({}),
+                "Every responsible main and technical acceptance needs a final VAL in that Task.",
+                json!({"task_id":task_id}),
             ));
         }
         if task.get("commands").is_some() {
@@ -259,15 +252,12 @@ pub fn validate_task_plan_semantics(contract: &Value, plan: &Value) -> Result<Va
             ));
         }
     }
-    for (group, covered) in &coverage {
-        let valid = plan_ids(plan, group);
-        if *covered != valid {
-            return Err(issue(
-                "incomplete_plan_coverage",
-                "The TASK collection does not fully cover the source Plan.",
-                json!({"type": group, "missing_ids": valid.difference(covered).collect::<Vec<_>>()}),
-            ));
-        }
+    if coverage != main_acceptance {
+        return Err(issue(
+            "incomplete_task_acceptance_coverage",
+            "Every main acceptance must have responsible Tasks.",
+            json!({"missing_ids":main_acceptance.difference(&coverage).collect::<Vec<_>>() }),
+        ));
     }
     if has_commands != contract.get("execution_defaults").is_some() {
         return Err(issue(
@@ -286,24 +276,45 @@ mod tests {
     use super::*;
 
     #[test]
-    fn plan_links_require_validation_coverage_and_instruction_reference() {
-        let plan = json!({"requirement_id": "example", "artifacts": {"plan":"p","task":"t","execution":"e"}, "goals":[{"id":"GOAL-001"}], "deliverables":[{"id":"DELIVERABLE-001"}], "acceptance_criteria":[{"id":"ACCEPTANCE-001"}], "skill_selection":{"skills":[]}});
-        let mut task = json!({"requirement_id":"example", "spec_id":"TASK-SPEC-001", "artifacts":plan["artifacts"], "tasks":[{"id":"TASK-001","skill_id":null,"instruction_selection":{"references":["task.general.task-records"],"instructions_sha256":"a".repeat(64)},"traceability":{"goal_ids":["GOAL-001"],"deliverable_ids":["DELIVERABLE-001"],"acceptance_ids":["ACCEPTANCE-001"]},"validations":[{"acceptance_ids":["ACCEPTANCE-001"]}]}]});
+    fn task_acceptance_requires_validation_coverage_and_instruction_reference() {
+        let mut task = json!({"requirement_id":"example", "spec_id":"TASK-SPEC-001",
+            "skill_selection":{"skills":[]},"acceptance_criteria":[{"id":"ACCEPTANCE-001","criterion":"Result verified."}],
+            "tasks":[{"id":"TASK-001","skill_id":null,"instruction_selection":{"references":["task.general.task-records"],"instructions_sha256":"a".repeat(64)},
+                "traceability":{"acceptance_ids":["ACCEPTANCE-001"]},"acceptance_criteria":[{"id":"TASK-001-ACCEPTANCE-001","criterion":"Technical result verified."}],
+                "validations":[{"acceptance_ids":["ACCEPTANCE-001","TASK-001-ACCEPTANCE-001"]}]}]});
         assert_eq!(
-            validate_task_plan_semantics(&task, &plan).unwrap()["task_order"],
+            validate_task_semantics(&task).unwrap()["task_order"],
             json!(["TASK-001"])
         );
+        let mut uncovered = task.clone();
+        uncovered["tasks"][0]["traceability"]["acceptance_ids"] = json!([]);
+        uncovered["tasks"][0]["validations"][0]["acceptance_ids"] =
+            json!(["TASK-001-ACCEPTANCE-001"]);
+        assert_eq!(
+            validate_task_semantics(&uncovered).unwrap_err().reason_code,
+            "incomplete_task_acceptance_coverage"
+        );
+        for missing in ["ACCEPTANCE-001", "TASK-001-ACCEPTANCE-001"] {
+            let mut no_val = task.clone();
+            no_val["tasks"][0]["validations"][0]["acceptance_ids"]
+                .as_array_mut()
+                .unwrap()
+                .retain(|id| id != missing);
+            assert_eq!(
+                validate_task_semantics(&no_val).unwrap_err().reason_code,
+                "acceptance_without_validation",
+                "{missing}"
+            );
+        }
         let mut unknown_skill = task.clone();
         unknown_skill["tasks"][0]["skill_id"] = json!("missing");
-        let error = validate_task_plan_semantics(&unknown_skill, &plan).unwrap_err();
-        assert_eq!(error.reason_code, "task_skill_not_selected_in_plan");
+        let error = validate_task_semantics(&unknown_skill).unwrap_err();
+        assert_eq!(error.reason_code, "task_skill_not_selected");
         assert_eq!(error.details["task_id"], "TASK-001");
         assert_eq!(error.details["skill_id"], "missing");
         task["tasks"][0]["validations"][0]["acceptance_ids"] = json!([]);
         assert_eq!(
-            validate_task_plan_semantics(&task, &plan)
-                .unwrap_err()
-                .reason_code,
+            validate_task_semantics(&task).unwrap_err().reason_code,
             "acceptance_without_validation"
         );
     }

@@ -97,7 +97,7 @@ pub fn start_index(
         .filter_map(|row| row["status"].as_str())
         .collect();
     result["overall_status"] = json!(derive_overall_status(&statuses));
-    Ok(result)
+    acceptance::invalidate(&result, &[task_id.to_owned()])
 }
 
 pub fn close_index(
@@ -364,7 +364,7 @@ pub fn corrected_index(
     if let Some(object) = result.as_object_mut() {
         object.remove("lock");
     }
-    Ok(result)
+    acceptance::invalidate(&result, affected_ids)
 }
 
 pub fn validate_authorization_scope(
@@ -487,6 +487,7 @@ pub fn validate_preflight_identity(
             json!({"expected":expected_ids,"observed":observed_ids}),
         ));
     }
+    acceptance::require_collection(index, task)?;
     let mut mismatches = serde_json::Map::new();
     for row in index["tasks"].as_array().into_iter().flatten() {
         let Some(id) = row["id"].as_str() else {
@@ -579,6 +580,16 @@ pub fn validate_execution_identity(
             json!({"expected":expected_attempt,"actual":actual_attempt}),
         ));
     }
+    acceptance::require_collection(index, collection)?;
+    acceptance::require_ids(
+        &attempt["acceptance_results"],
+        &row["acceptance_results"]
+            .as_array()
+            .expect("validated results")
+            .iter()
+            .map(|result| result["id"].as_str().expect("validated ID").to_owned())
+            .collect(),
+    )?;
     Ok(row.clone())
 }
 
@@ -772,7 +783,7 @@ pub fn deviation_reconciliation_target(proposal: &Value) -> &'static str {
     .iter()
     .any(|field| impact[*field] == true)
     {
-        "plan_and_task"
+        "task_and_execution"
     } else {
         "task_only"
     }
@@ -942,8 +953,8 @@ mod tests {
 
     #[test]
     fn index_transitions_and_correction_impact_match_python() {
-        let index = json!({"overall_status":"pending","tasks":[
-            {"id":"TASK-001","status":"pending"},{"id":"TASK-002","status":"completed"}]});
+        let index = json!({"acceptance_results":[],"overall_status":"pending","tasks":[
+            {"id":"TASK-001","status":"pending","acceptance_results":[]},{"id":"TASK-002","status":"completed","acceptance_results":[]}]});
         let started = start_index(&index, "TASK-001", "ATTEMPT-001").unwrap();
         assert_eq!(started["overall_status"], "in_progress");
         let closed = close_index(&started, "TASK-001", "ATTEMPT-001", "completed").unwrap();
@@ -975,14 +986,16 @@ mod tests {
         );
         let validation = json!({"task_collection_sha256":"a","task_index_sha256":"b","instructions_sha256":"c",
             "hierarchy_selection_sha256":"d","task_ids":["TASK-001"],"task_instructions_sha256":{"TASK-001":"e"}});
-        let index = json!({"requirement_id":"example","task_spec_id":"TASK-SPEC-001","task_collection_sha256":"a",
+        let index = json!({"acceptance_results":[],"requirement_id":"example","task_spec_id":"TASK-SPEC-001","task_collection_sha256":"a",
             "task_index_sha256":"b","task_instructions_sha256":"c","hierarchy_selection_sha256":"d",
-            "tasks":[{"id":"TASK-001","instructions_sha256":"e"}]});
-        assert!(validate_preflight_identity(&index, &task, &validation).is_ok());
+            "tasks":[{"id":"TASK-001","instructions_sha256":"e","acceptance_results":[]}]});
+        let mut collection = task.clone();
+        collection["tasks"] = json!([task.clone()]);
+        assert!(validate_preflight_identity(&index, &collection, &validation).is_ok());
         let mut stale_document = index.clone();
         stale_document["task_instructions_sha256"] = json!("stale");
         assert_eq!(
-            validate_preflight_identity(&stale_document, &task, &validation)
+            validate_preflight_identity(&stale_document, &collection, &validation)
                 .unwrap_err()
                 .reason_code,
             "execute_preflight_index_identity_mismatch"
@@ -990,7 +1003,7 @@ mod tests {
         let mut stale = index.clone();
         stale["tasks"][0]["instructions_sha256"] = json!("stale");
         assert_eq!(
-            validate_preflight_identity(&stale, &task, &validation)
+            validate_preflight_identity(&stale, &collection, &validation)
                 .unwrap_err()
                 .reason_code,
             "execute_preflight_task_instructions_mismatch"
@@ -1040,7 +1053,10 @@ mod tests {
         );
         let proposal = json!({"impact":{"scope_changed":true},"anchor_record_id":"OP-001","task_basis":["OP-001"],
             "action":{"kind":"adjust_operation","operation":{"id":"OP-001"}}});
-        assert_eq!(deviation_reconciliation_target(&proposal), "plan_and_task");
+        assert_eq!(
+            deviation_reconciliation_target(&proposal),
+            "task_and_execution"
+        );
         assert!(validate_deviation_action(&proposal, &task, "operation").is_ok());
     }
 
@@ -1216,16 +1232,16 @@ mod tests {
 
     #[test]
     fn record_identity_fingerprints_and_drift_match_python_cases() {
-        let collection = json!({"requirement_id":"example","spec_id":"TASK-SPEC-001"});
+        let collection = json!({"requirement_id":"example","spec_id":"TASK-SPEC-001","tasks":[{"id":"TASK-001"}]});
         let validation = json!({"task_ids":["TASK-001"],"task_collection_sha256":"a".repeat(64),
             "task_index_sha256":"1".repeat(64),"task_item_sha256":{"TASK-001":"2".repeat(64)},
             "instructions_sha256":"b".repeat(64),"task_instructions_sha256":{"TASK-001":"c".repeat(64)},
             "hierarchy_selection_sha256":"f".repeat(64)});
-        let index = json!({"requirement_id":"example","task_spec_id":"TASK-SPEC-001",
+        let index = json!({"acceptance_results":[],"requirement_id":"example","task_spec_id":"TASK-SPEC-001",
             "task_collection_sha256":"a".repeat(64),"task_index_sha256":"1".repeat(64),
             "task_instructions_sha256":"b".repeat(64),"hierarchy_selection_sha256":"f".repeat(64),
-            "tasks":[{"id":"TASK-001","instructions_sha256":"c".repeat(64)}]});
-        let attempt = json!({"task_spec_id":"TASK-SPEC-001","task_id":"TASK-001",
+            "tasks":[{"id":"TASK-001","instructions_sha256":"c".repeat(64),"acceptance_results":[]}]});
+        let attempt = json!({"acceptance_results":[],"task_spec_id":"TASK-SPEC-001","task_id":"TASK-001",
             "task_collection_sha256":"a".repeat(64),"task_index_sha256":"1".repeat(64),
             "task_item_sha256":"2".repeat(64),"task_instructions_sha256":"c".repeat(64),
             "hierarchy_selection_sha256":"f".repeat(64)});
@@ -1274,6 +1290,7 @@ mod tests {
     }
 }
 
+pub mod acceptance;
 pub mod attempt;
 pub mod attempt_close;
 pub mod attempt_prepare;

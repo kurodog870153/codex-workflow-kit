@@ -148,7 +148,7 @@ pub fn build_selection(
     let _: work_model::hierarchy::HierarchySelectionRequest =
         serde_json::from_value(Value::Object(request.clone()))
             .expect("validated hierarchy request matches its model");
-    build_hierarchy("plan", &paths).map_err(domain_error)?;
+    build_hierarchy("task", &paths).map_err(domain_error)?;
     let catalog = repository.cross_mode_catalog()?;
     let mut entries = Vec::new();
     for (path, reason) in paths.iter().zip(reasons) {
@@ -180,6 +180,7 @@ pub fn build_selection(
         "catalog_sha256": catalog.catalog_sha256,
         "selection_sha256": hash,
     });
+    validate_task_paths(repository, &paths, &result, "hierarchy_selection")?;
     let _: work_model::hierarchy::HierarchySelection = serde_json::from_value(result.clone())
         .expect("built hierarchy selection matches its model");
     Ok(result)
@@ -252,7 +253,7 @@ pub fn validate_selection(
         return Err(WorkError::new(
             ExitCode::ArtifactIntegrity,
             "instruction_catalog_snapshot_mismatch",
-            "The instruction catalog no longer matches its confirmed snapshot; return to Plan.",
+            "The instruction catalog no longer matches its confirmed snapshot; return to Task planning.",
             json!({}),
         ));
     }
@@ -293,7 +294,7 @@ pub fn validate_selection(
             return Err(WorkError::new(
                 ExitCode::ArtifactIntegrity,
                 "hierarchy_selection_metadata_mismatch",
-                "A selected hierarchy path no longer matches its confirmed metadata; return to Plan.",
+                "A selected hierarchy path no longer matches its confirmed metadata; return to Task planning.",
                 json!({"path": path}),
             ));
         }
@@ -303,7 +304,7 @@ pub fn validate_selection(
         .iter()
         .map(|path| path.as_str().unwrap().to_owned())
         .collect();
-    build_hierarchy("plan", &selected_paths).map_err(domain_error)?;
+    build_hierarchy("task", &selected_paths).map_err(domain_error)?;
     let stored = valid_sha256(
         &selection["selection_sha256"],
         "hierarchy_selection.selection_sha256",
@@ -323,6 +324,7 @@ pub fn validate_selection(
             json!({}),
         ));
     }
+    validate_task_paths(repository, &selected_paths, value, "hierarchy_selection")?;
     let result = json!({"schema": "work-hierarchy-selection-validation/v1", "status": "valid", "hierarchy_selection": value});
     let _: work_model::hierarchy::HierarchySelectionValidation =
         serde_json::from_value(result.clone())
@@ -344,7 +346,7 @@ pub fn validate_task_paths(
         .ok_or_else(|| {
             contract(
                 "invalid_confirmed_hierarchy_selection",
-                "The source Plan hierarchy selection is invalid.",
+                "The confirmed Task hierarchy selection is invalid.",
                 json!({}),
             )
         })?;

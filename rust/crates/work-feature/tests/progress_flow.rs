@@ -50,7 +50,7 @@ impl ProgressRepository for MemoryProgress {
 fn progress(revision: u64, note: &str) -> Value {
     json!({
         "schema": "work-discussion-progress/v1", "requirement_id": "example",
-        "mode": "plan", "revision": revision, "status": "discussion_only",
+        "mode": "task", "revision": revision, "status": "discussion_only",
         "title": "Example", "request": "Example request.", "current_task_id": null,
         "context": {}, "source_status": [], "notes": [note],
         "confirmed_decisions": [], "tentative": [], "open_questions": [],
@@ -94,7 +94,7 @@ fn first_prepare_validates_before_repository_access_and_does_not_read_history() 
 
     let repo = FirstRevisionRepository::default();
     assert_eq!(
-        prepare_progress(&repo, &json!({"unknown": true}), "example", "plan", 0)
+        prepare_progress(&repo, &json!({"unknown": true}), "example", "task", 0)
             .unwrap_err()
             .reason_code,
         "invalid_object_fields"
@@ -106,7 +106,7 @@ fn first_prepare_validates_before_repository_access_and_does_not_read_history() 
     for field in ["schema", "requirement_id", "mode", "revision", "status"] {
         semantic.remove(field);
     }
-    let prepared = prepare_progress(&repo, &Value::Object(semantic), "example", "plan", 0).unwrap();
+    let prepared = prepare_progress(&repo, &Value::Object(semantic), "example", "task", 0).unwrap();
     assert_eq!(prepared["schema"], "work-progress-prepare/v1");
     assert_eq!(prepared["progress"]["revision"], 1);
     assert_eq!(
@@ -119,7 +119,7 @@ fn first_prepare_validates_before_repository_access_and_does_not_read_history() 
 fn preview_save_and_read_keep_revision_and_approval_boundaries() {
     let repo = MemoryProgress::default();
     assert_eq!(
-        read_progress(&repo, "example", "plan")
+        read_progress(&repo, "example", "task")
             .unwrap_err()
             .reason_code,
         "progress_not_saved"
@@ -131,7 +131,7 @@ fn preview_save_and_read_keep_revision_and_approval_boundaries() {
     let saved = save_progress(&repo, &first, 0, approved).unwrap();
     assert_eq!(saved["progress"], first);
     assert_eq!(
-        read_progress(&repo, "example", "plan").unwrap()["progress"],
+        read_progress(&repo, "example", "task").unwrap()["progress"],
         first
     );
 
@@ -148,7 +148,7 @@ fn preview_save_and_read_keep_revision_and_approval_boundaries() {
     let saved = save_progress(&repo, &second, 1, approved).unwrap();
     assert_eq!(saved["progress"], second);
     assert_eq!(
-        read_progress(&repo, "example", "plan").unwrap()["progress"],
+        read_progress(&repo, "example", "task").unwrap()["progress"],
         second
     );
     assert_eq!(repo.files.borrow().len(), 3);
@@ -170,14 +170,14 @@ fn semantic_prepare_preserves_content_and_merges_only_requested_fields() {
         &repo,
         &Value::Object(semantic.clone()),
         "example",
-        "plan",
+        "task",
         0,
     )
     .unwrap();
     assert_eq!(prepared["progress"], first);
     assert_eq!(
         prepared["path"],
-        "outputs/work/progress/example/plan/progress.json"
+        "outputs/work/progress/example/task/progress.json"
     );
     assert_eq!(
         prepared["approved_sha256"],
@@ -196,14 +196,14 @@ fn semantic_prepare_preserves_content_and_merges_only_requested_fields() {
     .unwrap();
 
     let changes = json!({"notes": ["Second discussion."], "open_questions": []});
-    let second = prepare_progress(&repo, &changes, "example", "plan", 1).unwrap();
+    let second = prepare_progress(&repo, &changes, "example", "task", 1).unwrap();
     assert_eq!(second["progress"]["revision"], 2);
     assert_eq!(second["progress"]["notes"], changes["notes"]);
     assert_eq!(second["progress"]["title"], first["title"]);
     assert_eq!(second["progress"]["context"], first["context"]);
     assert_eq!(second["evidence_trust"], "historical_context_only");
     let previous_history =
-        repo.files.borrow()["outputs/work/progress/example/plan/history/1/progress.json"].clone();
+        repo.files.borrow()["outputs/work/progress/example/task/history/1/progress.json"].clone();
     save_progress(
         &repo,
         &second["progress"],
@@ -212,15 +212,15 @@ fn semantic_prepare_preserves_content_and_merges_only_requested_fields() {
     )
     .unwrap();
     assert_eq!(
-        read_progress(&repo, "example", "plan").unwrap()["progress"],
+        read_progress(&repo, "example", "task").unwrap()["progress"],
         second["progress"]
     );
     assert_eq!(
-        repo.files.borrow()["outputs/work/progress/example/plan/history/1/progress.json"],
+        repo.files.borrow()["outputs/work/progress/example/task/history/1/progress.json"],
         previous_history
     );
     assert_eq!(
-        prepare_progress(&repo, &json!({}), "example", "plan", 1)
+        prepare_progress(&repo, &json!({}), "example", "task", 1)
             .unwrap_err()
             .reason_code,
         "progress_prepare_empty_change"
@@ -239,7 +239,7 @@ fn prepare_rejects_machine_fields_missing_content_and_reserved_history() {
         let mut invalid = semantic.clone();
         invalid.insert(field.to_owned(), first[field].clone());
         assert_eq!(
-            prepare_progress(&repo, &Value::Object(invalid), "example", "plan", 0)
+            prepare_progress(&repo, &Value::Object(invalid), "example", "task", 0)
                 .unwrap_err()
                 .reason_code,
             "invalid_object_fields"
@@ -248,21 +248,21 @@ fn prepare_rejects_machine_fields_missing_content_and_reserved_history() {
     let mut missing = semantic.clone();
     missing.remove("tentative");
     assert_eq!(
-        prepare_progress(&repo, &Value::Object(missing), "example", "plan", 0)
+        prepare_progress(&repo, &Value::Object(missing), "example", "task", 0)
             .unwrap_err()
             .reason_code,
         "invalid_object_fields"
     );
     let mut wrong_identity = semantic.clone();
-    wrong_identity.insert("current_task_id".into(), json!("TASK-001"));
+    wrong_identity.insert("current_task_id".into(), json!("TASK-1"));
     assert_eq!(
-        prepare_progress(&repo, &Value::Object(wrong_identity), "example", "plan", 0)
+        prepare_progress(&repo, &Value::Object(wrong_identity), "example", "task", 0)
             .unwrap_err()
             .reason_code,
         "invalid_progress_task"
     );
     repo.files.borrow_mut().insert(
-        "outputs/work/progress/example/plan/history/1".into(),
+        "outputs/work/progress/example/task/history/1".into(),
         Vec::new(),
     );
     assert_eq!(
@@ -272,7 +272,7 @@ fn prepare_rejects_machine_fields_missing_content_and_reserved_history() {
     assert!(
         repo.files
             .borrow()
-            .get("outputs/work/progress/example/plan/progress.json")
+            .get("outputs/work/progress/example/task/progress.json")
             .is_none()
     );
 }
@@ -286,14 +286,14 @@ fn read_rejects_changed_history_and_preserves_current_bytes() {
         .unwrap()
         .to_owned();
     save_progress(&repo, &first, 0, &approved).unwrap();
-    let current_path = "outputs/work/progress/example/plan/progress.json";
+    let current_path = "outputs/work/progress/example/task/progress.json";
     let current = repo.files.borrow().get(current_path).unwrap().clone();
     repo.files.borrow_mut().insert(
-        "outputs/work/progress/example/plan/history/1/progress.json".into(),
+        "outputs/work/progress/example/task/history/1/progress.json".into(),
         b"changed evidence".to_vec(),
     );
     assert_eq!(
-        read_progress(&repo, "example", "plan")
+        read_progress(&repo, "example", "task")
             .unwrap_err()
             .reason_code,
         "progress_history_mismatch"
@@ -354,7 +354,7 @@ fn interrupted_publication_keeps_previous_commit_and_blocks_retry() {
         .unwrap()
         .to_owned();
     save_progress(&repo, &first, 0, &first_approval).unwrap();
-    let previous = read_progress(&repo, "example", "plan").unwrap();
+    let previous = read_progress(&repo, "example", "task").unwrap();
     let mut second = first.clone();
     second["revision"] = json!(2);
     second["notes"] = json!(["Updated discussion."]);
@@ -366,7 +366,7 @@ fn interrupted_publication_keeps_previous_commit_and_blocks_retry() {
     let error = save_progress(&repo, &second, 1, &second_approval).unwrap_err();
     assert_eq!(error.exit_code, ExitCode::IoFailure);
     assert_eq!(error.reason_code, "progress_save_interrupted");
-    assert_eq!(read_progress(&repo, "example", "plan").unwrap(), previous);
+    assert_eq!(read_progress(&repo, "example", "task").unwrap(), previous);
     let before = repo.base.files.borrow().clone();
     let error = save_progress(&repo, &second, 1, &second_approval).unwrap_err();
     assert_eq!(error.exit_code, ExitCode::WorkflowState);
@@ -383,15 +383,46 @@ fn prepare_rejects_corrupt_current_without_replacing_it() {
         .unwrap()
         .to_owned();
     save_progress(&repo, &first, 0, &approved).unwrap();
-    let current_path = "outputs/work/progress/example/plan/progress.json";
+    let current_path = "outputs/work/progress/example/task/progress.json";
     repo.files
         .borrow_mut()
         .insert(current_path.into(), b"corrupt".to_vec());
     assert_eq!(
-        prepare_progress(&repo, &json!({"notes": ["Changed"]}), "example", "plan", 1)
+        prepare_progress(&repo, &json!({"notes": ["Changed"]}), "example", "task", 1)
             .unwrap_err()
             .reason_code,
         "invalid_json"
     );
     assert_eq!(repo.files.borrow()[current_path], b"corrupt");
+}
+
+#[test]
+fn plan_progress_is_rejected_without_publication() {
+    let repo = MemoryProgress::default();
+    let mut legacy = progress(1, "Historical discussion");
+    legacy["mode"] = json!("plan");
+    assert_eq!(
+        read_progress(&repo, "example", "plan")
+            .unwrap_err()
+            .reason_code,
+        "invalid_progress_mode"
+    );
+    assert_eq!(
+        prepare_progress(&repo, &json!({}), "example", "plan", 0)
+            .unwrap_err()
+            .reason_code,
+        "invalid_progress_mode"
+    );
+    assert_eq!(
+        preview_progress(&repo, &legacy, 0).unwrap_err().reason_code,
+        "invalid_progress_mode"
+    );
+    assert_eq!(
+        save_progress(&repo, &legacy, 0, &"0".repeat(64))
+            .unwrap_err()
+            .reason_code,
+        "invalid_progress_mode"
+    );
+    assert!(repo.files.borrow().is_empty());
+    assert!(serde_json::from_value::<work_model::progress::DiscussionProgress>(legacy).is_err());
 }

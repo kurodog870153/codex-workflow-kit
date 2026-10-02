@@ -34,8 +34,14 @@ pub fn prepare_semantic_selection(
 ) -> Result<SemanticSelection, WorkError> {
     validate_semantic_fields(semantic)?;
     let _: work_model::specification::SpecReconciliationPrepareRequest =
-        serde_json::from_value(semantic.clone())
-            .expect("validated reconciliation request matches its model");
+        serde_json::from_value(semantic.clone()).map_err(|cause| {
+            WorkError::new(
+                ExitCode::Contract,
+                "invalid_contract_value",
+                "Reconciliation semantic fields must match their contract.",
+                json!({"cause":cause.to_string()}),
+            )
+        })?;
     let requirement = semantic["requirement_id"].as_str().ok_or_else(|| {
         fail(
             "reconciliation_execution_source_ambiguous",
@@ -102,6 +108,20 @@ pub fn prepare_semantic_selection(
     {
         return Err(contract_value("contract", "value_error"));
     }
+    if choice == "retain_only" {
+        if semantic
+            .get("sources")
+            .is_some_and(|sources| sources.as_array().is_none_or(|rows| !rows.is_empty()))
+        {
+            return Err(contract_value("sources", "value_error"));
+        }
+    } else {
+        crate::specification::migration_prepare::validate_semantic_request(&json!({
+            "schema":"work-spec-migration-prepare-request/v1", "mode":"revision",
+            "requirement_id":requirement,"reason":reason,"edits":edits,
+            "semantic_decisions":decisions,"sources":semantic["sources"],
+        }))?;
+    }
     let execution_dir = repository.execution_source(requirement)?;
     let index_path = format!("{execution_dir}/index.json");
     let index = parse_json_contract(&repository.read(&index_path)?).map_err(|_| {
@@ -110,6 +130,13 @@ pub fn prepare_semantic_selection(
             "The execution index is invalid.",
         )
     })?;
+    let _: work_model::execution::index::ExecutionIndex = serde_json::from_value(index.clone())
+        .map_err(|_| {
+            fail(
+                "reconciliation_execution_source_ambiguous",
+                "The execution index must match its current contract.",
+            )
+        })?;
     let row = index["tasks"]
         .as_array()
         .and_then(|rows| rows.get(task_position - 1))
@@ -155,6 +182,16 @@ pub fn prepare_semantic_selection(
             "The selected Attempt is unreadable.",
         )
     })?;
+    work_operations::execution::attempt::validate_attempt_bytes(&attempt, &raw).map_err(
+        |issue| {
+            WorkError::new(
+                ExitCode::ArtifactIntegrity,
+                issue.reason_code,
+                issue.message,
+                issue.details,
+            )
+        },
+    )?;
     if attempt["task_id"] != task_id
         || attempt["attempt_id"] != attempt_id
         || attempt["status"] == "in_progress"
@@ -232,6 +269,18 @@ mod tests {
         assert_eq!(
             error.reason_code,
             "reconciliation_execution_source_ambiguous"
+        );
+    }
+    #[test]
+    fn incorporation_requires_reviewed_evidence_before_execution_discovery() {
+        let request = json!({"schema":"work-spec-reconciliation-prepare-request/v1","requirement_id":"example","task_position":1,"attempt_position":1,"choice":"all","reason":"Reviewed change",
+            "edits":[{"target":{"artifact":"task_item","task_id":"TASK-001"},"field":"goal","after":"Reviewed goal"}],"semantic_decisions":[]});
+        assert_eq!(
+            prepare_semantic_selection(&MissingExecution, &request)
+                .err()
+                .unwrap()
+                .reason_code,
+            "invalid_contract_value"
         );
     }
 }

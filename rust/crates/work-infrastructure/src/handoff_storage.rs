@@ -1,4 +1,4 @@
-//! Read-only Handoff construction from a validated formal Plan.
+//! Read-only Handoff construction from validated Task and Execution artifacts.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -7,15 +7,12 @@ use std::path::PathBuf;
 use serde_json::{Value, json};
 use work_feature::error::{ExitCode, WorkError};
 use work_feature::handoff::{
-    ClosedReturnInput, build_closed_return, build_plan_to_task, build_preflight_return,
-    build_task_to_execute, build_task_to_plan, validate_handoff, validate_plan_to_task_request,
+    ClosedReturnInput, build_closed_return, build_preflight_return, build_task_to_execute,
     validate_preflight_return_request, validate_task_to_execute_request,
-    validate_task_to_plan_request, verify_plan_to_task, verify_return_against_expected,
-    verify_task_to_execute, verify_task_to_plan,
+    verify_return_against_expected, verify_task_to_execute,
 };
 use work_feature::handoff::{HandoffCommandRepository, HandoffStorageAction};
 use work_feature::instruction::select;
-use work_feature::plan::{PlanPathRepository, validate_plan_bytes};
 use work_feature::ports::ArtifactStore;
 use work_feature::skill::SkillRoot;
 use work_feature::task::{TaskCollectionRepository, load_collection};
@@ -25,10 +22,11 @@ use work_operations::execution::index::validate_execution_index;
 
 use crate::files::{LocalFiles, resolve_project_path};
 use crate::hierarchy_catalog::LocalHierarchyCatalog;
-use crate::plan_storage::LocalPlanStorage;
 use crate::skill_catalog::{LocalSkillCatalog, SkillRootConfig};
 use crate::specification::storage::require_no_spec_update;
 use crate::task::storage::LocalTaskStorage;
+
+type TaskSourceSnapshot = BTreeMap<String, (PathBuf, Vec<u8>)>;
 
 #[derive(Debug, Clone)]
 pub struct LocalHandoffStorage {
@@ -44,13 +42,6 @@ impl HandoffCommandRepository for LocalHandoffStorage {
         request: &Value,
     ) -> Result<Value, WorkError> {
         match action {
-            HandoffStorageAction::PlanToTask { verify, plan_path } => {
-                if verify {
-                    self.verify_plan_to_task(plan_path, request)
-                } else {
-                    self.build_plan_to_task(plan_path, request)
-                }
-            }
             HandoffStorageAction::TaskToExecute {
                 verify,
                 task_path,
@@ -62,42 +53,20 @@ impl HandoffCommandRepository for LocalHandoffStorage {
                     self.build_task_to_execute(task_path, task_id, request)
                 }
             }
-            HandoffStorageAction::TaskToPlan {
-                verify,
-                plan_path,
-                task_path,
-                task_id,
-            } => {
-                if verify {
-                    self.verify_task_to_plan(
-                        plan_path.expect("verify requires plan"),
-                        task_path,
-                        task_id,
-                        request,
-                    )
-                } else {
-                    self.build_task_to_plan(task_path, task_id, request)
-                }
-            }
             HandoffStorageAction::ExecuteReturn {
                 verify,
                 preflight,
                 direction,
-                plan_path,
                 task_path,
                 task_id,
                 attempt_id,
             } => {
                 if verify {
-                    let plan_path = plan_path.expect("verify requires plan");
                     if preflight {
-                        self.verify_preflight_return(
-                            direction, plan_path, task_path, task_id, request,
-                        )
+                        self.verify_preflight_return(direction, task_path, task_id, request)
                     } else {
                         self.verify_closed_return(
                             direction,
-                            plan_path,
                             task_path,
                             task_id,
                             attempt_id.expect("closed return requires attempt"),
@@ -186,10 +155,7 @@ impl LocalHandoffStorage {
         Ok(())
     }
 
-    fn task_snapshot(
-        &self,
-        task_path: &str,
-    ) -> Result<(Value, BTreeMap<String, Vec<u8>>), WorkError> {
+    fn task_snapshot(&self, task_path: &str) -> Result<(Value, TaskSourceSnapshot), WorkError> {
         let (normalized, _) = resolve_project_path(&self.project_root, task_path)?;
         let instructions = LocalHierarchyCatalog {
             skill_root: self.skill_root.clone(),
@@ -205,7 +171,7 @@ impl LocalHandoffStorage {
                 locator: config.locator.clone(),
             })
             .collect();
-        let paths = LocalPlanStorage {
+        let paths = crate::artifact_paths::LocalArtifactPaths {
             project_root: self.project_root.clone(),
         };
         let repository = LocalTaskStorage {
@@ -234,7 +200,16 @@ impl LocalHandoffStorage {
         {
             return Err(Self::source_changed("task_path"));
         }
-        snapshot.insert(normalized.clone(), index_raw);
+        snapshot.insert(
+            normalized.clone(),
+            (
+                resolve_project_path(&self.project_root, &normalized)?
+                    .1
+                    .canonicalize()
+                    .map_err(|_| Self::source_changed("task_path"))?,
+                index_raw,
+            ),
+        );
         let directory = normalized.rsplit_once('/').map_or("", |(parent, _)| parent);
         for reference in contract["tasks"].as_array().expect("validated TASK items") {
             let id = reference["id"].as_str().expect("validated ID");
@@ -245,18 +220,39 @@ impl LocalHandoffStorage {
             {
                 return Err(Self::source_changed("task_path"));
             }
-            snapshot.insert(relative, raw);
+            snapshot.insert(
+                relative.clone(),
+                (
+                    resolve_project_path(&self.project_root, &relative)?
+                        .1
+                        .canonicalize()
+                        .map_err(|_| Self::source_changed("task_path"))?,
+                    raw,
+                ),
+            );
         }
-        let plan_path = contract["artifacts"]["plan"]
-            .as_str()
-            .expect("validated Plan path");
-        let plan_raw = paths.read(plan_path)?;
-        if work_operations::derivation::fingerprint::raw(&plan_raw)
-            != validation["source_plan_sha256"]
-        {
-            return Err(Self::source_changed("plan_path"));
+        for relative in work_feature::task::source::evidence_paths(contract)? {
+            let (_, path) = resolve_project_path(&self.project_root, &relative)?;
+            snapshot.insert(
+                relative,
+                (
+                    path.canonicalize()
+                        .map_err(|_| Self::source_changed("source"))?,
+                    LocalFiles.read_raw(&path)?,
+                ),
+            );
         }
-        snapshot.insert(plan_path.into(), plan_raw);
+        let current = load_collection(
+            &instructions,
+            &skills,
+            &paths,
+            &repository,
+            &roots,
+            &normalized,
+        )?;
+        if current != validation {
+            return Err(Self::source_changed("source"));
+        }
         Ok((validation, snapshot))
     }
 
@@ -280,17 +276,25 @@ impl LocalHandoffStorage {
     fn recheck_task(
         &self,
         validation: &Value,
-        snapshot: &BTreeMap<String, Vec<u8>>,
+        snapshot: &TaskSourceSnapshot,
     ) -> Result<(), WorkError> {
         let repository = LocalTaskStorage {
             project_root: self.project_root.clone(),
         };
-        for (path, raw) in snapshot {
-            if repository.read_task_file(path).ok().as_deref() != Some(raw.as_slice()) {
-                let field = if validation["collection_contract"]["artifacts"]["plan"].as_str()
-                    == Some(path.as_str())
+        for (path, (canonical, raw)) in snapshot {
+            let current = resolve_project_path(&self.project_root, path)
+                .ok()
+                .and_then(|(_, path)| path.canonicalize().ok());
+            if current.as_ref() != Some(canonical)
+                || repository.read_task_file(path).ok().as_deref() != Some(raw.as_slice())
+            {
+                let field = if work_feature::task::source::evidence_paths(
+                    &validation["collection_contract"],
+                )?
+                .iter()
+                .any(|source| source == path)
                 {
-                    "plan_path"
+                    "source"
                 } else {
                     "task_path"
                 };
@@ -306,110 +310,6 @@ impl LocalHandoffStorage {
         )
     }
 
-    fn validated_plan(
-        &self,
-        plan_path: &str,
-    ) -> Result<(Value, Value, PathBuf, Vec<u8>), WorkError> {
-        let (normalized, resolved) = resolve_project_path(&self.project_root, plan_path)?;
-        let paths = LocalPlanStorage {
-            project_root: self.project_root.clone(),
-        };
-        let raw = paths.read(&normalized)?;
-        let instructions = LocalHierarchyCatalog {
-            skill_root: self.skill_root.clone(),
-        };
-        let skills = LocalSkillCatalog {
-            roots: self.skill_configs.clone(),
-        };
-        let roots: Vec<SkillRoot> = self
-            .skill_configs
-            .iter()
-            .map(|config| SkillRoot {
-                scope: config.scope.clone(),
-                locator: config.locator.clone(),
-            })
-            .collect();
-        let validation =
-            validate_plan_bytes(&instructions, &skills, &paths, &roots, &raw, &normalized)?;
-        let plan = parse_json_contract(&raw).map_err(|_| {
-            WorkError::new(
-                ExitCode::InputFormat,
-                "invalid_json_contract",
-                "The Plan JSON is invalid.",
-                json!({}),
-            )
-        })?;
-        require_no_spec_update(
-            &self.project_root,
-            plan["artifacts"]["execution"]
-                .as_str()
-                .expect("validated execution path"),
-            None,
-        )?;
-        let resolved = resolved
-            .canonicalize()
-            .map_err(|_| Self::source_changed("plan_path"))?;
-        Ok((plan, validation, resolved, raw))
-    }
-
-    fn recheck_plan(
-        &self,
-        plan_path: &str,
-        resolved: &PathBuf,
-        raw: &[u8],
-        plan: &Value,
-    ) -> Result<(), WorkError> {
-        let (_, current) = resolve_project_path(&self.project_root, plan_path)
-            .map_err(|_| Self::source_changed("plan_path"))?;
-        let current = current
-            .canonicalize()
-            .map_err(|_| Self::source_changed("plan_path"))?;
-        let paths = LocalPlanStorage {
-            project_root: self.project_root.clone(),
-        };
-        if current != *resolved || paths.read(plan_path).ok().as_deref() != Some(raw) {
-            return Err(WorkError::new(
-                ExitCode::ArtifactIntegrity,
-                "handoff_source_changed",
-                "A source artifact changed during handoff construction.",
-                json!({"field":"plan_path"}),
-            ));
-        }
-        require_no_spec_update(
-            &self.project_root,
-            plan["artifacts"]["execution"]
-                .as_str()
-                .expect("validated execution path"),
-            None,
-        )
-    }
-
-    pub fn build_plan_to_task(&self, plan_path: &str, request: &Value) -> Result<Value, WorkError> {
-        validate_plan_to_task_request(request)?;
-        let (plan, validation, resolved, raw) = self.validated_plan(plan_path)?;
-        let paths = LocalPlanStorage {
-            project_root: self.project_root.clone(),
-        };
-        let result = build_plan_to_task(&paths, &plan, &validation, request)?;
-        self.recheck_plan(plan_path, &resolved, &raw, &plan)?;
-        Ok(result)
-    }
-
-    pub fn verify_plan_to_task(
-        &self,
-        plan_path: &str,
-        incoming: &Value,
-    ) -> Result<Value, WorkError> {
-        let paths = LocalPlanStorage {
-            project_root: self.project_root.clone(),
-        };
-        validate_handoff(&paths, incoming)?;
-        let (plan, validation, resolved, raw) = self.validated_plan(plan_path)?;
-        let result = verify_plan_to_task(&paths, &plan, &validation, incoming)?;
-        self.recheck_plan(plan_path, &resolved, &raw, &plan)?;
-        Ok(result)
-    }
-
     pub fn build_task_to_execute(
         &self,
         task_path: &str,
@@ -418,7 +318,7 @@ impl LocalHandoffStorage {
     ) -> Result<Value, WorkError> {
         validate_task_to_execute_request(request)?;
         let (validation, snapshot) = self.task_snapshot(task_path)?;
-        let paths = LocalPlanStorage {
+        let paths = crate::artifact_paths::LocalArtifactPaths {
             project_root: self.project_root.clone(),
         };
         let result = build_task_to_execute(&paths, &validation, task_id, request)?;
@@ -432,62 +332,15 @@ impl LocalHandoffStorage {
         task_id: &str,
         incoming: &Value,
     ) -> Result<Value, WorkError> {
-        let paths = LocalPlanStorage {
+        let paths = crate::artifact_paths::LocalArtifactPaths {
             project_root: self.project_root.clone(),
         };
-        validate_handoff(&paths, incoming)?;
+        work_operations::handoff::validate_handoff_structure(incoming)
+            .map_err(|e| WorkError::new(ExitCode::Contract, e.reason_code, e.message, e.details))?;
+        work_feature::handoff::validate_return_direction(incoming, "task_to_execute", false)?;
+        work_feature::handoff::validate_task_handoff(&paths, incoming)?;
         let (validation, snapshot) = self.task_snapshot(task_path)?;
         let result = verify_task_to_execute(&paths, &validation, task_id, incoming)?;
-        self.recheck_task(&validation, &snapshot)?;
-        Ok(result)
-    }
-
-    pub fn build_task_to_plan(
-        &self,
-        task_path: &str,
-        task_id: Option<&str>,
-        request: &Value,
-    ) -> Result<Value, WorkError> {
-        validate_task_to_plan_request(request)?;
-        let (validation, snapshot) = self.task_snapshot(task_path)?;
-        let plan_path = validation["collection_contract"]["artifacts"]["plan"]
-            .as_str()
-            .expect("validated Plan path");
-        let plan = parse_json_contract(&snapshot[plan_path]).expect("validated Plan bytes");
-        let paths = LocalPlanStorage {
-            project_root: self.project_root.clone(),
-        };
-        let result = build_task_to_plan(&paths, &validation, &plan, task_id, request)?;
-        self.recheck_task(&validation, &snapshot)?;
-        Ok(result)
-    }
-
-    pub fn verify_task_to_plan(
-        &self,
-        plan_path: &str,
-        task_path: &str,
-        task_id: Option<&str>,
-        incoming: &Value,
-    ) -> Result<Value, WorkError> {
-        let paths = LocalPlanStorage {
-            project_root: self.project_root.clone(),
-        };
-        validate_handoff(&paths, incoming)?;
-        work_feature::handoff::validate_return_direction(incoming, "task_to_plan", false)?;
-        let normalized_plan = resolve_project_path(&self.project_root, plan_path)?.0;
-        let normalized_task = resolve_project_path(&self.project_root, task_path)?.0;
-        work_feature::handoff::validate_return_paths(incoming, &normalized_plan, &normalized_task)?;
-        let (validation, snapshot) = self.task_snapshot(&normalized_task)?;
-        let plan_raw = snapshot.get(&normalized_plan).ok_or_else(|| {
-            WorkError::new(
-                ExitCode::ArtifactIntegrity,
-                "handoff_source_mismatch",
-                "The return does not match the receiver's confirmed artifact paths.",
-                json!({"fields":["artifacts"]}),
-            )
-        })?;
-        let plan = parse_json_contract(plan_raw).expect("validated Plan bytes");
-        let result = verify_task_to_plan(&paths, &validation, &plan, task_id, incoming)?;
         self.recheck_task(&validation, &snapshot)?;
         Ok(result)
     }
@@ -501,10 +354,6 @@ impl LocalHandoffStorage {
     ) -> Result<Value, WorkError> {
         validate_preflight_return_request(request, direction)?;
         let (validation, snapshot) = self.task_snapshot(task_path)?;
-        let plan_path = validation["collection_contract"]["artifacts"]["plan"]
-            .as_str()
-            .expect("validated Plan path");
-        let plan = parse_json_contract(&snapshot[plan_path]).expect("validated Plan bytes");
         let execution = validation["collection_contract"]["artifacts"]["execution"]
             .as_str()
             .expect("validated execution path");
@@ -528,18 +377,11 @@ impl LocalHandoffStorage {
                 issue.details,
             )
         })?;
-        let paths = LocalPlanStorage {
+        let paths = crate::artifact_paths::LocalArtifactPaths {
             project_root: self.project_root.clone(),
         };
-        let result = build_preflight_return(
-            &paths,
-            &validation,
-            &plan,
-            &index,
-            direction,
-            task_id,
-            request,
-        )?;
+        let result =
+            build_preflight_return(&paths, &validation, &index, direction, task_id, request)?;
         self.require_unstarted_task_directory(execution, task_id)?;
         self.recheck_task(&validation, &snapshot)?;
         Self::recheck_file(&index_absolute, &index_raw, "execution_index")?;
@@ -551,19 +393,19 @@ impl LocalHandoffStorage {
     pub fn verify_preflight_return(
         &self,
         direction: &str,
-        plan_path: &str,
         task_path: &str,
         task_id: &str,
         incoming: &Value,
     ) -> Result<Value, WorkError> {
-        let paths = LocalPlanStorage {
+        let paths = crate::artifact_paths::LocalArtifactPaths {
             project_root: self.project_root.clone(),
         };
-        validate_handoff(&paths, incoming)?;
+        work_feature::handoff::validate_task_handoff(&paths, incoming)?;
         work_feature::handoff::validate_return_direction(incoming, direction, true)?;
-        let normalized_plan = resolve_project_path(&self.project_root, plan_path)?.0;
         let normalized_task = resolve_project_path(&self.project_root, task_path)?.0;
-        work_feature::handoff::validate_return_paths(incoming, &normalized_plan, &normalized_task)?;
+        if incoming["artifacts"]["task"] != normalized_task {
+            return Err(Self::source_changed("task_path"));
+        }
         let request = work_feature::handoff::return_request(incoming);
         let expected =
             self.build_preflight_return(direction, &normalized_task, task_id, &request)?;
@@ -580,10 +422,6 @@ impl LocalHandoffStorage {
     ) -> Result<Value, WorkError> {
         validate_preflight_return_request(request, direction)?;
         let (validation, snapshot) = self.task_snapshot(task_path)?;
-        let plan_path = validation["collection_contract"]["artifacts"]["plan"]
-            .as_str()
-            .expect("validated Plan path");
-        let plan = parse_json_contract(&snapshot[plan_path]).expect("validated Plan bytes");
         let execution = validation["collection_contract"]["artifacts"]["execution"]
             .as_str()
             .expect("validated execution path");
@@ -644,14 +482,13 @@ impl LocalHandoffStorage {
             &references,
         )?)
         .expect("instruction selection serializes");
-        let paths = LocalPlanStorage {
+        let paths = crate::artifact_paths::LocalArtifactPaths {
             project_root: self.project_root.clone(),
         };
         let result = build_closed_return(
             &paths,
             &ClosedReturnInput {
                 validation: &validation,
-                plan: &plan,
                 index: &index,
                 attempt: &attempt,
                 attempt_raw: &attempt_raw,
@@ -676,20 +513,20 @@ impl LocalHandoffStorage {
     pub fn verify_closed_return(
         &self,
         direction: &str,
-        plan_path: &str,
         task_path: &str,
         task_id: &str,
         attempt_id: &str,
         incoming: &Value,
     ) -> Result<Value, WorkError> {
-        let paths = LocalPlanStorage {
+        let paths = crate::artifact_paths::LocalArtifactPaths {
             project_root: self.project_root.clone(),
         };
-        validate_handoff(&paths, incoming)?;
+        work_feature::handoff::validate_task_handoff(&paths, incoming)?;
         work_feature::handoff::validate_return_direction(incoming, direction, true)?;
-        let normalized_plan = resolve_project_path(&self.project_root, plan_path)?.0;
         let normalized_task = resolve_project_path(&self.project_root, task_path)?.0;
-        work_feature::handoff::validate_return_paths(incoming, &normalized_plan, &normalized_task)?;
+        if incoming["artifacts"]["task"] != normalized_task {
+            return Err(Self::source_changed("task_path"));
+        }
         let request = work_feature::handoff::return_request(incoming);
         let expected =
             self.build_closed_return(direction, &normalized_task, task_id, attempt_id, &request)?;
@@ -702,11 +539,8 @@ mod tests {
     use super::*;
     use std::fs;
 
-    use work_feature::plan::prepare_semantic;
-    use work_operations::plan::render_plan_value;
-
     #[test]
-    fn task_handoff_rejects_stale_plan_revised_task_and_noncanonical_index() {
+    fn task_handoff_ignores_legacy_plan_and_rejects_source_task_drift_and_aliases() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo.join("crates/work-infrastructure/fixtures/task-diagnostics");
         let root = std::env::temp_dir().join(format!(
@@ -719,14 +553,11 @@ mod tests {
         ));
         let plan_path = "outputs/work/plans/example.json";
         let task_path = "outputs/work/tasks/example/index.json";
-        for relative in [
-            plan_path,
-            task_path,
-            "outputs/work/tasks/example/tasks/TASK-001.json",
-        ] {
+        for relative in [task_path, "outputs/work/tasks/example/tasks/TASK-001.json"] {
             let target = root.join(relative);
             fs::create_dir_all(target.parent().unwrap()).unwrap();
             fs::copy(fixture.join(relative), target).unwrap();
+            crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         }
         let storage = LocalHandoffStorage {
             project_root: root.clone(),
@@ -737,54 +568,8 @@ mod tests {
         let handoff = storage
             .build_task_to_execute(task_path, "TASK-001", &request)
             .unwrap();
-        let return_request = json!({"summary":"Review specification.",
-            "confirmed_approach":"Retain the interface.",
-            "requested_changes":["Clarify scope."],"preserve":["Current behavior."],
-            "affected_ids":["TASK-001"],"validation_requirements":["Review criteria."]});
-        let return_handoff = storage
-            .build_task_to_plan(task_path, None, &return_request)
-            .unwrap();
-        let mut wrong_direction = return_handoff.clone();
-        wrong_direction["direction"] = json!("execute_to_plan");
-        assert!(
-            storage
-                .verify_task_to_plan(plan_path, task_path, None, &wrong_direction)
-                .is_err()
-        );
-        assert!(
-            storage
-                .verify_task_to_plan(
-                    "custom/plans/example.json",
-                    task_path,
-                    None,
-                    &return_handoff
-                )
-                .is_err()
-        );
-        let mut unknown_affected = return_handoff.clone();
-        unknown_affected["affected_ids"] = json!(["GOAL-999"]);
-        assert!(
-            storage
-                .verify_task_to_plan(plan_path, task_path, None, &unknown_affected)
-                .is_err()
-        );
-        let mut missing_collection = return_handoff.clone();
-        missing_collection["source"]
-            .as_object_mut()
-            .unwrap()
-            .remove("task_collection_sha256");
-        assert!(
-            storage
-                .verify_task_to_plan(plan_path, task_path, None, &missing_collection)
-                .is_err()
-        );
         let (validation, snapshot) = storage.task_snapshot(task_path).unwrap();
         storage.recheck_task(&validation, &snapshot).unwrap();
-        let (formal_plan, _, resolved_plan, checked_plan_raw) =
-            storage.validated_plan(plan_path).unwrap();
-        storage
-            .recheck_plan(plan_path, &resolved_plan, &checked_plan_raw, &formal_plan)
-            .unwrap();
         let index_raw = fs::read(root.join(task_path)).unwrap();
         let mut index = parse_json_contract(&index_raw).unwrap();
         index["summary"] = json!("Revised summary");
@@ -811,16 +596,25 @@ mod tests {
                 .reason_code,
             "handoff_source_mismatch"
         );
-        assert!(
-            storage
-                .verify_task_to_plan(plan_path, task_path, None, &return_handoff)
-                .is_err()
-        );
         fs::write(root.join(task_path), &index_raw).unwrap();
-        let plan_raw = fs::read(root.join(plan_path)).unwrap();
-        let mut plan = parse_json_contract(&plan_raw).unwrap();
-        plan["summary"] = json!("Revised Plan");
-        fs::write(root.join(plan_path), render_plan_value(&plan).unwrap()).unwrap();
+        fs::create_dir_all(root.join("outputs/work/plans")).unwrap();
+        let plan_raw =
+            serde_json::to_vec(&json!({"schema":"work-plan/v1","summary":"Original Plan"}))
+                .unwrap();
+        let plan = json!({"schema":"work-plan/v1","summary":"Revised Plan"});
+        fs::write(root.join(plan_path), serde_json::to_vec(&plan).unwrap()).unwrap();
+        storage.recheck_task(&validation, &snapshot).unwrap();
+        storage
+            .build_task_to_execute(task_path, "TASK-001", &request)
+            .unwrap();
+        storage
+            .verify_task_to_execute(task_path, "TASK-001", &handoff)
+            .unwrap();
+        let source_path = root.join("outputs/work/sources/example/SRC-001/source.txt");
+        let source_raw = fs::read(&source_path).unwrap();
+        let mut changed = source_raw.clone();
+        changed[0] ^= 1;
+        fs::write(&source_path, &changed).unwrap();
         assert_eq!(
             storage
                 .recheck_task(&validation, &snapshot)
@@ -830,30 +624,17 @@ mod tests {
         );
         assert_eq!(
             storage
-                .recheck_plan(plan_path, &resolved_plan, &checked_plan_raw, &formal_plan)
-                .unwrap_err()
-                .reason_code,
-            "handoff_source_changed"
-        );
-        assert_eq!(
-            storage
                 .build_task_to_execute(task_path, "TASK-001", &request)
                 .unwrap_err()
                 .reason_code,
-            "source_plan_fingerprint_mismatch"
+            "source_hash_mismatch"
         );
         assert!(
             storage
                 .verify_task_to_execute(task_path, "TASK-001", &handoff)
                 .is_err()
         );
-        assert_eq!(
-            storage
-                .build_task_to_plan(task_path, None, &return_request)
-                .unwrap_err()
-                .reason_code,
-            "source_plan_fingerprint_mismatch"
-        );
+        fs::write(&source_path, &source_raw).unwrap();
         fs::write(root.join(plan_path), &plan_raw).unwrap();
         let mut draft = parse_json_contract(&index_raw).unwrap();
         draft["status"] = json!("draft");
@@ -881,15 +662,29 @@ mod tests {
                 .build_task_to_execute(task_path, "TASK-001", &request)
                 .is_err()
         );
+        fs::write(root.join(task_path), &index_raw).unwrap();
         #[cfg(unix)]
         {
-            let original = root.join(plan_path);
-            let redirected = root.join("alternate-plan.json");
+            let original_source = root.join("outputs/work/sources/example/SRC-001/source.txt");
+            let redirected_source = root.join("alternate-source.txt");
+            fs::rename(&original_source, &redirected_source).unwrap();
+            std::os::unix::fs::symlink(&redirected_source, &original_source).unwrap();
+            assert_eq!(
+                storage
+                    .recheck_task(&validation, &snapshot)
+                    .unwrap_err()
+                    .reason_code,
+                "handoff_source_changed"
+            );
+            fs::remove_file(&original_source).unwrap();
+            fs::rename(&redirected_source, &original_source).unwrap();
+            let original = root.join(task_path);
+            let redirected = root.join("alternate-task-index.json");
             fs::rename(&original, &redirected).unwrap();
             std::os::unix::fs::symlink(&redirected, &original).unwrap();
             assert_eq!(
                 storage
-                    .recheck_plan(plan_path, &resolved_plan, &checked_plan_raw, &formal_plan)
+                    .recheck_task(&validation, &snapshot)
                     .unwrap_err()
                     .reason_code,
                 "handoff_source_changed"
@@ -900,11 +695,13 @@ mod tests {
     #[test]
     fn closed_attempt_returns_match_python_stopped_and_blocked() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+        let historical_skill =
+            crate::fixture_support::historical_execute_skill_root(&repo.join("../skills/work"))
+                .unwrap();
         let request = json!({"summary":"調整已確認範圍",
             "confirmed_approach":"保留既有介面", "requested_changes":["新增驗收條件"],
-            "preserve":["既有功能"],"affected_ids":["GOAL-001","TASK-001"],
+            "preserve":["既有功能"],"affected_ids":["ACCEPTANCE-001","TASK-001"],
             "validation_requirements":["重新確認驗收條件"],"reason":"Clarify specification"});
-        let plan_path = "outputs/work/plans/example.json";
         let task_path = "outputs/work/tasks/example/index.json";
         for status in ["stopped", "blocked"] {
             let fixture = repo
@@ -912,9 +709,31 @@ mod tests {
                 .join(status);
             let storage = LocalHandoffStorage {
                 project_root: fixture.clone(),
+                skill_root: historical_skill.clone(),
+                skill_configs: vec![],
+            };
+            let current = LocalHandoffStorage {
+                project_root: fixture.clone(),
                 skill_root: repo.join("../skills/work"),
                 skill_configs: vec![],
             };
+            let attempt_path =
+                fixture.join("outputs/work/executions/example/TASK-001/ATTEMPT-004/attempt.json");
+            let historical_bytes = fs::read(&attempt_path).unwrap();
+            assert_eq!(
+                current
+                    .build_closed_return(
+                        "execute_to_task",
+                        task_path,
+                        "TASK-001",
+                        "ATTEMPT-004",
+                        &request
+                    )
+                    .unwrap_err()
+                    .reason_code,
+                "handoff_execute_instructions_changed"
+            );
+            assert_eq!(fs::read(&attempt_path).unwrap(), historical_bytes);
             if status == "stopped" {
                 let semantic = json!({"summary":"Start selected TASK."});
                 let first = storage
@@ -955,7 +774,21 @@ mod tests {
                     .reason_code,
                 "handoff_task_already_started"
             );
-            for direction in ["execute_to_task", "execute_to_plan"] {
+            let legacy: Value = serde_json::from_slice(
+                &fs::read(fixture.join("execute_to_plan-expected.json")).unwrap(),
+            )
+            .unwrap();
+            let paths = crate::artifact_paths::LocalArtifactPaths {
+                project_root: fixture.clone(),
+            };
+            assert_eq!(
+                work_feature::handoff::validate_task_handoff(&paths, &legacy)
+                    .unwrap_err()
+                    .reason_code,
+                "invalid_handoff_direction"
+            );
+            {
+                let direction = "execute_to_task";
                 let expected: Value = serde_json::from_slice(
                     &fs::read(fixture.join(format!("{direction}-expected.json"))).unwrap(),
                 )
@@ -970,7 +803,7 @@ mod tests {
                             direction,
                             task_path,
                             "TASK-001",
-                            "ATTEMPT-001",
+                            "ATTEMPT-004",
                             &request
                         )
                         .unwrap(),
@@ -981,10 +814,9 @@ mod tests {
                     storage
                         .verify_closed_return(
                             direction,
-                            plan_path,
                             task_path,
                             "TASK-001",
-                            "ATTEMPT-001",
+                            "ATTEMPT-004",
                             &expected
                         )
                         .unwrap(),
@@ -1000,10 +832,9 @@ mod tests {
                     storage
                         .verify_closed_return(
                             direction,
-                            plan_path,
                             task_path,
                             "TASK-001",
-                            "ATTEMPT-001",
+                            "ATTEMPT-004",
                             &missing_hash
                         )
                         .is_err()
@@ -1014,7 +845,7 @@ mod tests {
                             direction,
                             task_path,
                             "TASK-001",
-                            "ATTEMPT-002",
+                            "ATTEMPT-001",
                             &request
                         )
                         .unwrap_err()
@@ -1026,37 +857,32 @@ mod tests {
     }
 
     #[test]
-    fn plan_to_task_matches_python_reference_from_formal_collection() {
-        let root = PathBuf::from(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/fixtures/task-diagnostics"
-        ));
+    fn legacy_handoff_directions_are_rejected_before_source_lookup() {
         let storage = LocalHandoffStorage {
-            project_root: root,
-            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
+            project_root: std::env::temp_dir(),
+            skill_root: PathBuf::new(),
             skill_configs: vec![],
         };
-        let plan_path = "outputs/work/plans/example.json";
-        let request = json!({"summary":"Build the tasks.","affected_ids":["GOAL-001"]});
-        let expected = json!({"schema":"work-handoff/v1","marker":"WORK-HANDOFF",
-            "direction":"plan_to_task","requirement_id":"example",
-            "artifacts":{"plan":plan_path,"task":"outputs/work/tasks/example/index.json",
-                "execution":"outputs/work/executions/example"},
-            "source":{"stage":"plan","plan_sha256":"32060424c0c7084b6301982b90f71472ee5abe5cec3f2e9712bfa4e6134e3e5c",
-                "skill_selection_sha256":"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"},
-            "target":{"stage":"task"},"summary":"Build the tasks.","affected_ids":["GOAL-001"]});
-        assert_eq!(
-            storage.build_plan_to_task(plan_path, &request).unwrap(),
-            expected
-        );
-        let checked = storage.verify_plan_to_task(plan_path, &expected).unwrap();
-        assert_eq!(
-            checked,
-            json!({"schema":"work-handoff-source-validation/v1",
-            "status":"valid","direction":"plan_to_task","marker":"WORK-HANDOFF",
-            "requirement_id":"example","source_stage":"plan","target_stage":"task",
-            "plan_path":plan_path,"source":expected["source"]})
-        );
+        let paths = crate::artifact_paths::LocalArtifactPaths {
+            project_root: storage.project_root.clone(),
+        };
+        for direction in ["plan_to_task", "task_to_plan", "execute_to_plan"] {
+            let legacy = json!({"schema":"work-handoff/v1", "direction":direction});
+            assert_eq!(
+                work_feature::handoff::validate_task_handoff(&paths, &legacy)
+                    .unwrap_err()
+                    .reason_code,
+                "invalid_handoff_direction"
+            );
+            assert!(serde_json::from_value::<work_model::handoff::FormalHandoff>(legacy).is_err());
+            assert_eq!(
+                storage
+                    .build_preflight_return(direction, "missing/index.json", "TASK-001", &json!({}))
+                    .unwrap_err()
+                    .reason_code,
+                "invalid_handoff_direction"
+            );
+        }
     }
 
     #[test]
@@ -1072,14 +898,14 @@ mod tests {
         let task_path = "outputs/work/tasks/example/index.json";
         let request = json!({"summary":"Start execution."});
         let source = json!({"stage":"task","task_spec_id":"TASK-SPEC-001","task_id":"TASK-001",
-            "task_collection_sha256":"845980f442face84f720dfdc8ff7a17ad7eb49cfa3ad40b3e81ecf12b3c63b05",
-            "task_index_sha256":"4fce06e458b010f46e6347302e93daef01a5ab733c4277bb742067329ba9bbfe",
-            "task_item_sha256":"d2181e1030d6e844ccb93dbb3ffe05ede5d41cb647e1a86bf98f2ee28e17da3f",
-            "task_instructions_sha256":"b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a",
+            "task_collection_sha256":"d21c60bb7cc40e955e31c40cb819ddd94fdaf38d20bf0cda26b1b4733ac776a8",
+            "task_index_sha256":"c643a96b52b4246dd174cc97394ae145cb20b5b9946cf45016b469210295ab32",
+            "task_item_sha256":"38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca",
+            "task_instructions_sha256":"571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
             "skill_id":null,"skill_selection_sha256":"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"});
         let expected = json!({"schema":"work-handoff/v1","marker":"WORK-HANDOFF",
             "direction":"task_to_execute","requirement_id":"example",
-            "artifacts":{"plan":"outputs/work/plans/example.json","task":task_path,
+            "artifacts":{"source":"outputs/work/sources/example","task":task_path,
                 "execution":"outputs/work/executions/example"},
             "source":source,"target":{"stage":"execute"},"summary":"Start execution."});
         assert_eq!(
@@ -1123,7 +949,7 @@ mod tests {
             );
         }
         for (field, path) in [
-            ("plan", "custom/example.json"),
+            ("source", "custom/sources/example"),
             ("task", "custom/tasks/example/index.json"),
             ("execution", "custom/executions/example"),
         ] {
@@ -1152,7 +978,7 @@ mod tests {
         }
         assert_eq!(
             storage
-                .verify_plan_to_task("outputs/work/plans/example.json", &expected)
+                .verify_preflight_return("execute_to_task", task_path, "TASK-001", &expected)
                 .unwrap_err()
                 .reason_code,
             "handoff_direction_mismatch"
@@ -1171,7 +997,7 @@ mod tests {
                 .reason_code,
             "handoff_task_not_found"
         );
-        let paths = LocalPlanStorage {
+        let paths = crate::artifact_paths::LocalArtifactPaths {
             project_root: storage.project_root.clone(),
         };
         let mut validation = load_collection(
@@ -1195,7 +1021,7 @@ mod tests {
     }
 
     #[test]
-    fn task_to_plan_matches_python_whole_spec_and_selected_task() {
+    fn execute_return_requires_selected_task_and_complete_semantic_request() {
         let storage = LocalHandoffStorage {
             project_root: PathBuf::from(concat!(
                 env!("CARGO_MANIFEST_DIR"),
@@ -1204,66 +1030,11 @@ mod tests {
             skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
             skill_configs: vec![],
         };
-        let plan_path = "outputs/work/plans/example.json";
         let task_path = "outputs/work/tasks/example/index.json";
-        let request = json!({"summary":"Review specification.",
-            "confirmed_approach":"Retain the interface.",
-            "requested_changes":["Clarify scope."],"preserve":["Current behavior."],
-            "affected_ids":["TASK-001"],"validation_requirements":["Review criteria."]});
-        let base_source = json!({"stage":"task","plan_sha256":"32060424c0c7084b6301982b90f71472ee5abe5cec3f2e9712bfa4e6134e3e5c",
-            "task_spec_id":"TASK-SPEC-001",
-            "task_collection_sha256":"845980f442face84f720dfdc8ff7a17ad7eb49cfa3ad40b3e81ecf12b3c63b05",
-            "task_index_sha256":"4fce06e458b010f46e6347302e93daef01a5ab733c4277bb742067329ba9bbfe",
-            "skill_selection_sha256":"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"});
-        for task_id in [None, Some("TASK-001")] {
-            let mut source = base_source.clone();
-            if let Some(id) = task_id {
-                source["task_id"] = json!(id);
-                source["task_item_sha256"] =
-                    json!("d2181e1030d6e844ccb93dbb3ffe05ede5d41cb647e1a86bf98f2ee28e17da3f");
-                source["skill_id"] = Value::Null;
-            }
-            let expected = json!({"schema":"work-handoff/v1","marker":"WORK-HANDOFF",
-                "direction":"task_to_plan","requirement_id":"example",
-                "artifacts":{"plan":plan_path,"task":task_path,"execution":"outputs/work/executions/example"},
-                "source":source,"target":{"stage":"plan"},
-                "summary":request["summary"],"confirmed_approach":request["confirmed_approach"],
-                "requested_changes":request["requested_changes"],"preserve":request["preserve"],
-                "affected_ids":request["affected_ids"],
-                "validation_requirements":request["validation_requirements"]});
-            assert_eq!(
-                storage
-                    .build_task_to_plan(task_path, task_id, &request)
-                    .unwrap(),
-                expected
-            );
-            assert_eq!(
-                storage
-                    .verify_task_to_plan(plan_path, task_path, task_id, &expected)
-                    .unwrap(),
-                json!({"schema":"work-handoff-source-validation/v1","status":"valid",
-                    "direction":"task_to_plan","marker":"WORK-HANDOFF","requirement_id":"example",
-                    "source_stage":"task","target_stage":"plan","plan_path":plan_path,
-                    "task_path":task_path,"source":source})
-            );
-            let mut wrong_plan = expected.clone();
-            wrong_plan["artifacts"]["plan"] = json!("outputs/work/plans/alternate/example.json");
-            assert_eq!(
-                storage
-                    .verify_task_to_plan(
-                        "outputs/work/plans/alternate/example.json",
-                        task_path,
-                        task_id,
-                        &wrong_plan,
-                    )
-                    .unwrap_err()
-                    .reason_code,
-                "handoff_source_mismatch"
-            );
-        }
+        let request = json!({"summary":"Review specification.","reason":"Specification defect.","confirmed_approach":"Retain the interface.","requested_changes":["Clarify scope."],"preserve":["Current behavior."],"affected_ids":["TASK-001"],"validation_requirements":["Review criteria."]});
         assert_eq!(
             storage
-                .build_task_to_plan(task_path, Some("TASK-999"), &request)
+                .build_preflight_return("execute_to_task", task_path, "TASK-999", &request)
                 .unwrap_err()
                 .reason_code,
             "handoff_task_not_found"
@@ -1276,7 +1047,7 @@ mod tests {
             invalid["affected_ids"] = affected;
             assert_eq!(
                 storage
-                    .build_task_to_plan(task_path, None, &invalid)
+                    .build_preflight_return("execute_to_task", task_path, "TASK-001", &invalid)
                     .unwrap_err()
                     .reason_code,
                 reason
@@ -1294,7 +1065,7 @@ mod tests {
             invalid.as_object_mut().unwrap().remove(field);
             assert_eq!(
                 storage
-                    .build_task_to_plan(task_path, None, &invalid)
+                    .build_preflight_return("execute_to_task", task_path, "TASK-001", &invalid)
                     .unwrap_err()
                     .reason_code,
                 "invalid_object_fields",
@@ -1306,7 +1077,7 @@ mod tests {
             invalid[field] = json!("override");
             assert_eq!(
                 storage
-                    .build_task_to_plan(task_path, None, &invalid)
+                    .build_preflight_return("execute_to_task", task_path, "TASK-001", &invalid)
                     .unwrap_err()
                     .reason_code,
                 "invalid_object_fields",
@@ -1317,7 +1088,7 @@ mod tests {
         empty_changes["requested_changes"] = json!([]);
         assert_eq!(
             storage
-                .build_task_to_plan(task_path, None, &empty_changes)
+                .build_preflight_return("execute_to_task", task_path, "TASK-001", &empty_changes)
                 .unwrap_err()
                 .reason_code,
             "invalid_string_array"
@@ -1340,14 +1111,15 @@ mod tests {
             "requested_changes":["Clarify scope."],"preserve":["Current behavior."],
             "affected_ids":["TASK-001"],"validation_requirements":["Review criteria."]});
         let source = json!({"stage":"execute","task_spec_id":"TASK-SPEC-001","task_id":"TASK-001",
-            "task_collection_sha256":"845980f442face84f720dfdc8ff7a17ad7eb49cfa3ad40b3e81ecf12b3c63b05",
-            "task_index_sha256":"4fce06e458b010f46e6347302e93daef01a5ab733c4277bb742067329ba9bbfe",
-            "task_item_sha256":"d2181e1030d6e844ccb93dbb3ffe05ede5d41cb647e1a86bf98f2ee28e17da3f",
-            "task_instructions_sha256":"b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a",
+            "task_collection_sha256":"d21c60bb7cc40e955e31c40cb819ddd94fdaf38d20bf0cda26b1b4733ac776a8",
+            "task_index_sha256":"c643a96b52b4246dd174cc97394ae145cb20b5b9946cf45016b469210295ab32",
+            "task_item_sha256":"38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca",
+            "task_instructions_sha256":"571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
             "skill_id":null,"execute_skill_selection_sha256":"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
             "execution_context":{"attempt":{"status":"not_created"},"phase":"preflight",
                 "issue_type":"specification_defect","reason":"Specification defect."}});
-        for (direction, target) in [("execute_to_task", "task"), ("execute_to_plan", "plan")] {
+        {
+            let (direction, target) = ("execute_to_task", "task");
             let result = storage
                 .build_preflight_return(direction, task_path, "TASK-001", &request)
                 .unwrap();
@@ -1355,7 +1127,7 @@ mod tests {
                 result,
                 json!({"schema":"work-handoff/v1","marker":"WORK-HANDOFF",
                 "direction":direction,"requirement_id":"example",
-                "artifacts":{"plan":"outputs/work/plans/example.json","task":task_path,
+                "artifacts":{"source":"outputs/work/sources/example","task":task_path,
                     "execution":"outputs/work/executions/example"},
                 "source":source,"target":{"stage":target},
                 "summary":request["summary"],"confirmed_approach":request["confirmed_approach"],
@@ -1365,18 +1137,12 @@ mod tests {
             );
             assert_eq!(
                 storage
-                    .verify_preflight_return(
-                        direction,
-                        "outputs/work/plans/example.json",
-                        task_path,
-                        "TASK-001",
-                        &result,
-                    )
+                    .verify_preflight_return(direction, task_path, "TASK-001", &result,)
                     .unwrap(),
                 json!({"schema":"work-handoff-source-validation/v1","status":"valid",
                 "direction":direction,"marker":"WORK-HANDOFF","requirement_id":"example",
                 "source_stage":"execute","target_stage":target,
-                "plan_path":"outputs/work/plans/example.json","task_path":task_path,"source":source})
+                "task_path":task_path,"source":source})
             );
         }
         for invalid in [
@@ -1408,7 +1174,7 @@ mod tests {
                 "{invalid}"
             );
         }
-        let paths = LocalPlanStorage {
+        let paths = crate::artifact_paths::LocalArtifactPaths {
             project_root: storage.project_root.clone(),
         };
         let mut validation = load_collection(
@@ -1427,10 +1193,6 @@ mod tests {
         validation["collection_contract"]["tasks"][0]["inputs"] = json!([{
             "id":"INPUT-001","kind":"user_provided","source":"User specification",
             "precondition":"User confirms detail"}]);
-        let plan = parse_json_contract(
-            &fs::read(storage.project_root.join("outputs/work/plans/example.json")).unwrap(),
-        )
-        .unwrap();
         let index = parse_json_contract(
             &fs::read(
                 storage
@@ -1441,9 +1203,10 @@ mod tests {
         )
         .unwrap();
         let returned = work_feature::handoff::build_preflight_return(
-            &paths,
+            &crate::artifact_paths::LocalArtifactPaths {
+                project_root: storage.project_root.clone(),
+            },
             &validation,
-            &plan,
             &index,
             "execute_to_task",
             "TASK-001",
@@ -1497,7 +1260,6 @@ mod tests {
                     .as_nanos()
             ));
             for relative in [
-                "outputs/work/plans/example.json",
                 task_path,
                 "outputs/work/tasks/example/tasks/TASK-001.json",
                 "outputs/work/executions/example/index.json",
@@ -1505,6 +1267,7 @@ mod tests {
                 let destination = root.join(relative);
                 fs::create_dir_all(destination.parent().unwrap()).unwrap();
                 fs::copy(fixture.join(relative), destination).unwrap();
+                crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
             }
             let execution = root.join("outputs/work/executions/example");
             let target = execution.join("TASK-001");
@@ -1568,7 +1331,7 @@ mod tests {
     }
 
     #[test]
-    fn specification_transaction_marker_gates_plan_task_and_preflight_handoffs() {
+    fn specification_transaction_marker_gates_task_and_execute_handoffs() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo.join("crates/work-infrastructure/fixtures/task-diagnostics");
         let root = std::env::temp_dir().join(format!(
@@ -1579,10 +1342,8 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let plan_path = "outputs/work/plans/example.json";
         let task_path = "outputs/work/tasks/example/index.json";
         for relative in [
-            plan_path,
             task_path,
             "outputs/work/tasks/example/tasks/TASK-001.json",
             "outputs/work/executions/example/index.json",
@@ -1590,16 +1351,13 @@ mod tests {
             let destination = root.join(relative);
             fs::create_dir_all(destination.parent().unwrap()).unwrap();
             fs::copy(fixture.join(relative), destination).unwrap();
+            crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         }
         let storage = LocalHandoffStorage {
             project_root: root.clone(),
             skill_root: repo.join("../skills/work"),
             skill_configs: vec![],
         };
-        let plan_request = json!({"summary":"Build tasks.","affected_ids":["GOAL-001"]});
-        let handoff = storage
-            .build_plan_to_task(plan_path, &plan_request)
-            .unwrap();
         let execute_request = json!({"summary":"Start execution."});
         let return_request = json!({"summary":"Review specification.",
             "confirmed_approach":"Retain interface.","requested_changes":["Clarify scope."],
@@ -1611,8 +1369,9 @@ mod tests {
             .build_task_to_execute(task_path, "TASK-001", &execute_request)
             .unwrap();
         let return_handoff = storage
-            .build_task_to_plan(task_path, None, &return_request)
+            .build_preflight_return("execute_to_task", task_path, "TASK-001", &preflight_request)
             .unwrap();
+        let handoff = return_handoff.clone();
         let (validation, snapshot) = storage.task_snapshot(task_path).unwrap();
         assert_eq!(
             storage
@@ -1634,7 +1393,7 @@ mod tests {
         );
         assert_eq!(
             storage
-                .verify_task_to_plan(plan_path, task_path, None, &return_handoff)
+                .verify_preflight_return("execute_to_task", task_path, "TASK-001", &return_handoff)
                 .unwrap_err()
                 .reason_code,
             "spec_update_pending"
@@ -1648,18 +1407,16 @@ mod tests {
         );
         let check_pending = || {
             let results = [
-                storage.build_plan_to_task(plan_path, &plan_request),
-                storage.verify_plan_to_task(plan_path, &handoff),
+                storage.verify_task_to_execute(task_path, "TASK-001", &task_handoff),
                 storage.build_task_to_execute(task_path, "TASK-001", &execute_request),
-                storage.build_task_to_plan(task_path, None, &return_request),
-                storage.build_preflight_return(
+                storage.verify_preflight_return(
                     "execute_to_task",
                     task_path,
                     "TASK-001",
-                    &preflight_request,
+                    &return_handoff,
                 ),
                 storage.build_preflight_return(
-                    "execute_to_plan",
+                    "execute_to_task",
                     task_path,
                     "TASK-001",
                     &preflight_request,
@@ -1681,26 +1438,29 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            storage.verify_plan_to_task(plan_path, &handoff).unwrap()["status"],
+            storage
+                .verify_task_to_execute(task_path, "TASK-001", &task_handoff)
+                .unwrap()["status"],
             "valid"
         );
         storage
             .build_task_to_execute(task_path, "TASK-001", &execute_request)
             .unwrap();
         storage
-            .build_task_to_plan(task_path, None, &return_request)
-            .unwrap();
-        storage
             .build_preflight_return("execute_to_task", task_path, "TASK-001", &preflight_request)
             .unwrap();
-        storage
-            .build_preflight_return("execute_to_plan", task_path, "TASK-001", &preflight_request)
-            .unwrap();
-    }
 
+        storage
+            .verify_preflight_return("execute_to_task", task_path, "TASK-001", &return_handoff)
+            .unwrap();
+        assert!(!root.join("outputs/work/plans").exists());
+    }
     #[test]
     fn closed_return_requires_completed_specification_transaction() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+        let historical_skill =
+            crate::fixture_support::historical_execute_skill_root(&repo.join("../skills/work"))
+                .unwrap();
         let fixture = repo.join("crates/work-infrastructure/fixtures/handoff-closed/stopped");
         let root = std::env::temp_dir().join(format!(
             "work-handoff-closed-marker-{}-{}",
@@ -1716,33 +1476,35 @@ mod tests {
             "outputs/work/tasks/example/tasks/TASK-001.json",
             "outputs/work/tasks/example/tasks/TASK-002.json",
             "outputs/work/executions/example/index.json",
-            "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
+            "outputs/work/executions/example/TASK-001/ATTEMPT-004/attempt.json",
         ] {
             let destination = root.join(relative);
             fs::create_dir_all(destination.parent().unwrap()).unwrap();
             fs::copy(fixture.join(relative), destination).unwrap();
+            crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         }
         let storage = LocalHandoffStorage {
             project_root: root.clone(),
-            skill_root: repo.join("../skills/work"),
+            skill_root: historical_skill.clone(),
             skill_configs: vec![],
         };
         let request = json!({"summary":"調整已確認範圍",
             "confirmed_approach":"保留既有介面", "requested_changes":["新增驗收條件"],
-            "preserve":["既有功能"], "affected_ids":["GOAL-001","TASK-001"],
+            "preserve":["既有功能"], "affected_ids":["ACCEPTANCE-001","TASK-001"],
             "validation_requirements":["重新確認驗收條件"], "reason":"Clarify specification"});
         let journal =
             root.join("outputs/work/executions/example/.work-spec-update-SPEC-UPDATE-001.json");
         let journal_raw = b"{\"transaction\":\"test\"}\n";
         fs::write(&journal, journal_raw).unwrap();
-        for direction in ["execute_to_task", "execute_to_plan"] {
+        {
+            let direction = "execute_to_task";
             assert_eq!(
                 storage
                     .build_closed_return(
                         direction,
                         "outputs/work/tasks/example/index.json",
                         "TASK-001",
-                        "ATTEMPT-001",
+                        "ATTEMPT-004",
                         &request,
                     )
                     .unwrap_err()
@@ -1755,26 +1517,26 @@ mod tests {
             work_operations::derivation::publication::completion_marker(journal_raw),
         )
         .unwrap();
-        for direction in ["execute_to_task", "execute_to_plan"] {
+        {
+            let direction = "execute_to_task";
             let handoff = storage
                 .build_closed_return(
                     direction,
                     "outputs/work/tasks/example/index.json",
                     "TASK-001",
-                    "ATTEMPT-001",
+                    "ATTEMPT-004",
                     &request,
                 )
                 .unwrap();
             assert_eq!(handoff["direction"], direction);
         }
-        let plan_path = "outputs/work/plans/example.json";
         let task_path = "outputs/work/tasks/example/index.json";
         let handoff = storage
             .build_closed_return(
                 "execute_to_task",
                 task_path,
                 "TASK-001",
-                "ATTEMPT-001",
+                "ATTEMPT-004",
                 &request,
             )
             .unwrap();
@@ -1811,7 +1573,7 @@ mod tests {
                         "execute_to_task",
                         task_path,
                         "TASK-001",
-                        "ATTEMPT-001",
+                        "ATTEMPT-004",
                         &invalid
                     )
                     .is_err(),
@@ -1819,7 +1581,7 @@ mod tests {
             );
         }
         let attempt_path =
-            root.join("outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json");
+            root.join("outputs/work/executions/example/TASK-001/ATTEMPT-004/attempt.json");
         let attempt_raw = fs::read(&attempt_path).unwrap();
         for field in [
             "task_collection_sha256",
@@ -1847,7 +1609,7 @@ mod tests {
                         "execute_to_task",
                         task_path,
                         "TASK-001",
-                        "ATTEMPT-001",
+                        "ATTEMPT-004",
                         &request
                     )
                     .is_err(),
@@ -1875,7 +1637,7 @@ mod tests {
                         "execute_to_task",
                         task_path,
                         "TASK-001",
-                        "ATTEMPT-001",
+                        "ATTEMPT-004",
                         &request
                     )
                     .is_err(),
@@ -1900,10 +1662,9 @@ mod tests {
             storage
                 .verify_closed_return(
                     "execute_to_task",
-                    plan_path,
                     task_path,
                     "TASK-001",
-                    "ATTEMPT-001",
+                    "ATTEMPT-004",
                     &handoff
                 )
                 .is_err()
@@ -1930,7 +1691,7 @@ mod tests {
                     "execute_to_task",
                     task_path,
                     "TASK-001",
-                    "ATTEMPT-001",
+                    "ATTEMPT-004",
                     &request
                 )
                 .is_err()
@@ -1944,7 +1705,7 @@ mod tests {
                     "execute_to_task",
                     task_path,
                     "TASK-001",
-                    "ATTEMPT-001",
+                    "ATTEMPT-004",
                     &request
                 )
                 .unwrap_err()
@@ -1954,149 +1715,16 @@ mod tests {
     }
 
     #[test]
-    fn plan_to_task_uses_validated_plan_and_rejects_changed_source() {
-        let root = std::env::temp_dir().join(format!(
-            "work-handoff-plan-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        fs::create_dir(&root).unwrap();
+    fn task_handoff_rejects_invalid_request_before_reading_and_preserves_inputs() {
+        let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+        let fixture = repo.join("crates/work-infrastructure/fixtures/task-diagnostics");
         let storage = LocalHandoffStorage {
-            project_root: root.clone(),
-            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
+            project_root: fixture.clone(),
+            skill_root: repo.join("../skills/work"),
             skill_configs: vec![],
         };
-        let instructions = LocalHierarchyCatalog {
-            skill_root: storage.skill_root.clone(),
-        };
-        let skills = LocalSkillCatalog { roots: vec![] };
-        let paths = LocalPlanStorage {
-            project_root: root.clone(),
-        };
-        let prepared = prepare_semantic(
-            &instructions,
-            &skills,
-            &paths,
-            &[],
-            &json!({"requirement_id":"example","title":"Plan","summary":"Result",
-                "goals":["Result"],"scope":["Source"],"deliverables":["Artifact"],
-                "acceptance_criteria":["Observable"],
-                "hierarchy_selection_request":{"decision":"general_only","selections":[]},
-                "skill_selection_request":{"decision":"base_only","skills":[]},"references":[]}),
-        )
-        .unwrap();
-        let plan_path = prepared["path"].as_str().unwrap();
-        let file = root.join(plan_path);
-        fs::create_dir_all(file.parent().unwrap()).unwrap();
-        fs::write(&file, render_plan_value(&prepared["plan"]).unwrap()).unwrap();
-        let request = json!({"summary":"Build the tasks.","affected_ids":["GOAL-001"]});
-        assert_eq!(
-            storage
-                .build_plan_to_task("missing.json", &json!({"summary":"No IDs"}))
-                .unwrap_err()
-                .reason_code,
-            "invalid_object_fields"
-        );
-        assert_eq!(
-            storage
-                .verify_plan_to_task("missing.json", &json!({"schema":"invalid"}))
-                .unwrap_err()
-                .reason_code,
-            "invalid_handoff_direction"
-        );
-        let handoff = storage.build_plan_to_task(plan_path, &request).unwrap();
-        assert_eq!(
-            handoff["source"]["plan_sha256"],
-            prepared["validation"]["plan_sha256"]
-        );
-        assert_eq!(handoff["source"]["stage"], "plan");
-        assert_eq!(handoff["target"]["stage"], "task");
-        assert_eq!(
-            storage.verify_plan_to_task(plan_path, &handoff).unwrap()["status"],
-            "valid"
-        );
-        for field in ["plan_sha256", "skill_selection_sha256"] {
-            let mut forged = handoff.clone();
-            forged["source"][field] = json!("0".repeat(64));
-            assert_eq!(
-                storage
-                    .verify_plan_to_task(plan_path, &forged)
-                    .unwrap_err()
-                    .reason_code,
-                "handoff_source_mismatch",
-                "{field}"
-            );
-        }
-        for (field, path) in [
-            ("plan", "custom/example.json"),
-            ("task", "custom/tasks/example/index.json"),
-            ("execution", "custom/executions/example"),
-        ] {
-            let mut forged = handoff.clone();
-            forged["artifacts"][field] = json!(path);
-            assert_eq!(
-                storage
-                    .verify_plan_to_task(plan_path, &forged)
-                    .unwrap_err()
-                    .reason_code,
-                "handoff_source_mismatch",
-                "{field}"
-            );
-        }
-        let mut wrong_requirement = handoff.clone();
-        wrong_requirement["requirement_id"] = json!("other");
-        wrong_requirement["artifacts"] = json!({"plan":"custom/other.json",
-            "task":"custom/tasks/other/index.json","execution":"custom/executions/other"});
-        assert_eq!(
-            storage
-                .verify_plan_to_task(plan_path, &wrong_requirement)
-                .unwrap_err()
-                .reason_code,
-            "handoff_source_mismatch"
-        );
-        let mut unknown = handoff.clone();
-        unknown["affected_ids"] = json!(["GOAL-999"]);
-        assert_eq!(
-            storage
-                .verify_plan_to_task(plan_path, &unknown)
-                .unwrap_err()
-                .reason_code,
-            "handoff_unknown_plan_ids"
-        );
-        assert!(
-            storage
-                .verify_plan_to_task("missing/plan.json", &handoff)
-                .is_err()
-        );
-        assert_eq!(
-            storage
-                .build_plan_to_task(
-                    plan_path,
-                    &json!({"summary":"Build the tasks.","affected_ids":["GOAL-999"]})
-                )
-                .unwrap_err()
-                .reason_code,
-            "handoff_unknown_plan_ids"
-        );
-        for (ids, reason) in [
-            (json!(["GOAL-001", "GOAL-001"]), "duplicate_array_value"),
-            (json!([]), "invalid_string_array"),
-            (json!(["PLAN"]), "invalid_handoff_identifier"),
-        ] {
-            assert_eq!(
-                storage
-                    .build_plan_to_task(
-                        plan_path,
-                        &json!({"summary":"Build the tasks.","affected_ids":ids}),
-                    )
-                    .unwrap_err()
-                    .reason_code,
-                reason
-            );
-        }
+        let path = "outputs/work/tasks/example/index.json";
+        let before = fs::read(fixture.join(path)).unwrap();
         for field in [
             "schema",
             "direction",
@@ -2105,88 +1733,32 @@ mod tests {
             "artifacts",
             "requirement_id",
         ] {
-            let mut forged = request.clone();
-            forged[field] = json!("override");
+            let mut request = json!({"summary":"Start execution."});
+            request[field] = json!("override");
             assert_eq!(
                 storage
-                    .build_plan_to_task(plan_path, &forged)
+                    .build_task_to_execute("missing/index.json", "TASK-001", &request)
                     .unwrap_err()
                     .reason_code,
-                "invalid_object_fields",
-                "{field}"
+                "invalid_object_fields"
             );
         }
-        for (invalid, reason) in [
-            (
-                json!({"summary":" ","affected_ids":["GOAL-001"]}),
-                "empty_text_value",
-            ),
-            (
-                json!({"affected_ids":["GOAL-001"]}),
-                "invalid_object_fields",
-            ),
-        ] {
-            assert_eq!(
-                storage
-                    .build_plan_to_task(plan_path, &invalid)
-                    .unwrap_err()
-                    .reason_code,
-                reason
-            );
-        }
-        let original = fs::read(&file).unwrap();
+        assert_eq!(
+            storage
+                .build_task_to_execute("missing/index.json", "TASK-001", &json!({}))
+                .unwrap_err()
+                .reason_code,
+            "invalid_object_fields"
+        );
         assert!(
             storage
-                .build_plan_to_task("../example.json", &request)
+                .build_task_to_execute(
+                    "../index.json",
+                    "TASK-001",
+                    &json!({"summary":"Start execution."})
+                )
                 .is_err()
         );
-        assert_eq!(fs::read(&file).unwrap(), original);
-        let mut draft_plan = prepared["plan"].clone();
-        draft_plan["status"] = json!("draft");
-        fs::write(&file, render_plan_value(&draft_plan).unwrap()).unwrap();
-        assert_eq!(
-            storage
-                .build_plan_to_task(plan_path, &request)
-                .unwrap_err()
-                .reason_code,
-            "invalid_plan_status"
-        );
-        let mut wrong_skill = prepared["plan"].clone();
-        wrong_skill["skill_selection"]["selection_sha256"] = json!("0".repeat(64));
-        fs::write(&file, render_plan_value(&wrong_skill).unwrap()).unwrap();
-        assert_eq!(
-            storage
-                .build_plan_to_task(plan_path, &request)
-                .unwrap_err()
-                .reason_code,
-            "skill_selection_fingerprint_mismatch"
-        );
-        assert!(storage.verify_plan_to_task(plan_path, &handoff).is_err());
-        let noncanonical = serde_json::to_vec(&prepared["plan"]).unwrap();
-        fs::write(&file, &noncanonical).unwrap();
-        assert!(storage.build_plan_to_task(plan_path, &request).is_err());
-        assert_eq!(fs::read(&file).unwrap(), noncanonical);
-        fs::write(&file, &original).unwrap();
-        let custom_path = "custom/plans/example.json";
-        let mut custom_plan = prepared["plan"].clone();
-        custom_plan["artifacts"] = json!({"plan":custom_path,
-            "task":"custom/tasks/example/index.json","execution":"custom/executions/example"});
-        let custom_file = root.join(custom_path);
-        fs::create_dir_all(custom_file.parent().unwrap()).unwrap();
-        fs::write(&custom_file, render_plan_value(&custom_plan).unwrap()).unwrap();
-        assert_eq!(
-            storage.build_plan_to_task(custom_path, &request).unwrap()["artifacts"],
-            custom_plan["artifacts"]
-        );
-        let mut changed = prepared["plan"].clone();
-        changed["summary"] = json!("Changed result");
-        fs::write(&file, render_plan_value(&changed).unwrap()).unwrap();
-        assert_eq!(
-            storage
-                .verify_plan_to_task(plan_path, &handoff)
-                .unwrap_err()
-                .reason_code,
-            "handoff_source_mismatch"
-        );
+        assert_eq!(fs::read(fixture.join(path)).unwrap(), before);
     }
 }

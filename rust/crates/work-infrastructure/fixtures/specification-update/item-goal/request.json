@@ -2,103 +2,12 @@
   "schema": "work-spec-update-request/v1",
   "reason": "Confirmed collection revision",
   "expected": {
-    "plan_sha256": "32060424c0c7084b6301982b90f71472ee5abe5cec3f2e9712bfa4e6134e3e5c",
-    "task_index_sha256": "4fce06e458b010f46e6347302e93daef01a5ab733c4277bb742067329ba9bbfe",
-    "execution_index_sha256": "b5f1a0a249019749b2d4838d9fc5f566229127b67b22d21bf0146680f9881622",
+    "source_sha256": "2da42c71cf7ba14844e784d6f81ba13b1b77aede84408b829d573e3e36f8647a",
+    "task_index_sha256": "c643a96b52b4246dd174cc97394ae145cb20b5b9946cf45016b469210295ab32",
+    "execution_index_sha256": "280eeada977f69c29810f0dfc8948172d1cff95d8c9b981a3ef71db9c5f01069",
     "task_item_sha256": {
-      "TASK-001": "d2181e1030d6e844ccb93dbb3ffe05ede5d41cb647e1a86bf98f2ee28e17da3f"
+      "TASK-001": "38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca"
     }
-  },
-  "plan": {
-    "schema": "work-plan/v1",
-    "requirement_id": "example",
-    "status": "confirmed",
-    "title": "Example Plan",
-    "summary": "Plan summary.",
-    "artifacts": {
-      "plan": "outputs/work/plans/example.json",
-      "task": "outputs/work/tasks/example/index.json",
-      "execution": "outputs/work/executions/example"
-    },
-    "hierarchy_selection": {
-      "schema": "work-hierarchy-selection/v1",
-      "decision": "general_only",
-      "selected_paths": [],
-      "entries": [],
-      "catalog_sha256": "c39e2ade6cf58b16dd4e76a0606c7693792d3b57f5d5319392346a5ed9c456aa",
-      "selection_sha256": "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404"
-    },
-    "work_instruction_selection": {
-      "selected_paths": [],
-      "resolved_paths": [
-        "general"
-      ],
-      "sources": [
-        {
-          "kind": "workflow",
-          "logical_name": "work.instruction-loading",
-          "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
-          "compatibility_revision": 2
-        },
-        {
-          "kind": "workflow",
-          "logical_name": "work.workflow.plan",
-          "canonical_sha256": "0f90310486ef23d30095f7b7149b10ef3ba6fe51736fc21930ca9fd78007ba31",
-          "compatibility_revision": 2
-        },
-        {
-          "kind": "instruction",
-          "logical_name": "plan.general",
-          "canonical_sha256": "20ad4e9e8df00205c8e416219a943b5e12c658b516bcdb8e0960d98d252c80d4",
-          "compatibility_revision": 1
-        }
-      ],
-      "references": [],
-      "instructions_sha256": "6a8353ee6896bb9971c205cbb03584580cde12321971f3e1df35e6630541be36"
-    },
-    "skill_selection": {
-      "schema": "work-skill-selection/v1",
-      "decision": "base_only",
-      "skills": [],
-      "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"
-    },
-    "goals": [
-      {
-        "id": "GOAL-001",
-        "statement": "Complete the goal."
-      }
-    ],
-    "scope": [
-      {
-        "id": "SCOPE-001",
-        "kind": "in_scope",
-        "statement": "Handle the scope.",
-        "goal_ids": [
-          "GOAL-001"
-        ]
-      }
-    ],
-    "deliverables": [
-      {
-        "id": "DELIVERABLE-001",
-        "statement": "Produce the result.",
-        "goal_ids": [
-          "GOAL-001"
-        ],
-        "acceptance_ids": [
-          "ACCEPTANCE-001"
-        ]
-      }
-    ],
-    "acceptance_criteria": [
-      {
-        "id": "ACCEPTANCE-001",
-        "statement": "The result is observable.",
-        "deliverable_ids": [
-          "DELIVERABLE-001"
-        ]
-      }
-    ]
   },
   "task_index": {
     "schema": "work-task-index/v1",
@@ -108,14 +17,47 @@
     "title": "Example TASK",
     "summary": "Task summary.",
     "artifacts": {
-      "plan": "outputs/work/plans/example.json",
+      "source": "outputs/work/sources/example",
       "task": "outputs/work/tasks/example/index.json",
       "execution": "outputs/work/executions/example"
     },
-    "source_plan": {
-      "canonical_sha256": "32060424c0c7084b6301982b90f71472ee5abe5cec3f2e9712bfa4e6134e3e5c",
-      "hierarchy_selection_sha256": "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404"
+    "source": {
+      "kind": "snapshot",
+      "manifest": {
+        "schema": "work-source-snapshot/v1",
+        "requirement_id": "example",
+        "source_id": "SRC-001",
+        "captured_at": "2026-10-03T00:00:00Z",
+        "source": {
+          "kind": "user_text"
+        },
+        "content": {
+          "path": "source.txt",
+          "sha256": "c0025641ad55f45e002ef3307cbe976060548cd4f3a0f068f1bf4d614ea7a9a8",
+          "size": 753
+        }
+      }
     },
+    "hierarchy_selection": {
+      "schema": "work-hierarchy-selection/v1",
+      "decision": "general_only",
+      "selected_paths": [],
+      "entries": [],
+      "catalog_sha256": "74977ff41dae925d76037c60fcbb6e5c6d950af73416308d5e21ca3b96ef5d54",
+      "selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59"
+    },
+    "skill_selection": {
+      "schema": "work-skill-selection/v1",
+      "decision": "base_only",
+      "skills": [],
+      "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"
+    },
+    "acceptance_criteria": [
+      {
+        "id": "ACCEPTANCE-001",
+        "criterion": "The result is observable."
+      }
+    ],
     "instruction_selection": {
       "sources": [
         {
@@ -133,20 +75,20 @@
         {
           "kind": "instruction",
           "logical_name": "task.general",
-          "canonical_sha256": "f718da96bc956849a1a6e5abaab491379c17b7f7487c2b76dff28b04a94851db",
+          "canonical_sha256": "f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3",
           "compatibility_revision": 1
         },
         {
           "kind": "reference",
           "logical_name": "task.general.task-records",
-          "canonical_sha256": "9bd9dff5c693ea21064dc5bb9684078981ebb71836c8e6d4316c3cfef597aa0a",
+          "canonical_sha256": "6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8",
           "compatibility_revision": 1
         }
       ],
       "references": [
         "task.general.task-records"
       ],
-      "instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a"
+      "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758"
     },
     "execution_defaults": {
       "working_directory": ".",
@@ -157,7 +99,7 @@
       {
         "id": "TASK-001",
         "path": "tasks/TASK-001.json",
-        "canonical_sha256": "2ead982abe2751cc7449b52ffb6fb92c1dd9a88504d01d16eea726c9c0b71c73"
+        "canonical_sha256": "41e4646a0dd763677536d6c933937d7d7098a412ef27b2f21466f6f485dfc2c6"
       }
     ],
     "changes": [
@@ -213,32 +155,32 @@
           {
             "kind": "instruction",
             "logical_name": "task.general",
-            "canonical_sha256": "f718da96bc956849a1a6e5abaab491379c17b7f7487c2b76dff28b04a94851db",
+            "canonical_sha256": "f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3",
             "compatibility_revision": 1
           },
           {
             "kind": "reference",
             "logical_name": "task.general.task-records",
-            "canonical_sha256": "9bd9dff5c693ea21064dc5bb9684078981ebb71836c8e6d4316c3cfef597aa0a",
+            "canonical_sha256": "6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8",
             "compatibility_revision": 1
           }
         ],
         "references": [
           "task.general.task-records"
         ],
-        "instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a"
+        "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758"
       },
       "traceability": {
-        "goal_ids": [
-          "GOAL-001"
-        ],
-        "deliverable_ids": [
-          "DELIVERABLE-001"
-        ],
         "acceptance_ids": [
           "ACCEPTANCE-001"
         ]
       },
+      "acceptance_criteria": [
+        {
+          "id": "TASK-001-ACCEPTANCE-001",
+          "criterion": "Exit code is zero."
+        }
+      ],
       "goal": "Modify the source and validate it. confirmed",
       "files": [
         {
@@ -283,7 +225,8 @@
           ],
           "pass_condition": "Exit code is zero.",
           "acceptance_ids": [
-            "ACCEPTANCE-001"
+            "ACCEPTANCE-001",
+            "TASK-001-ACCEPTANCE-001"
           ]
         }
       ]

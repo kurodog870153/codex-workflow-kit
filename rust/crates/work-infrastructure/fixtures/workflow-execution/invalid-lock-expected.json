@@ -2,7 +2,7 @@
   "arguments": {},
   "artifacts": {
     "execution": "outputs/work/executions/example",
-    "plan": "outputs/work/plans/example.json",
+    "source": "outputs/work/sources/example",
     "task": "outputs/work/tasks/example/index.json"
   },
   "command": null,
@@ -49,11 +49,11 @@
       "operation": "inspect_recovery",
       "role": "main",
       "status": "execution_locked",
-      "verified_state_sha256": "f69f3d6073a100786aa2c74acb634719ea23ab36c0d7343326ca1b8d57eb2c94"
+      "verified_state_sha256": "64b73dc6cdc66531fc833ed9a5b1685bd6c0e488333010272ef35757d479157b"
     },
     "routing_status": "VALID",
     "schema": "work-instruction-selection-manifest/v1",
-    "selection_sha256": "bb5f7a353fd2da6902a87e741ca5abe0e01f1cbde86e289ffdfc6b9eeaf6c2c5",
+    "selection_sha256": "fd6f3402e440342cfd6a305b088acc58c72d5b909d91c4324696a3273bd24135",
     "sources": [
       {
         "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
@@ -74,13 +74,13 @@
         "path": "references/instruction-loading/runtime.md"
       },
       {
-        "canonical_sha256": "b27d40bd8a066d8a09a78c6714eecc2314a0465fbceaa1cacf87af924d1bae32",
+        "canonical_sha256": "3e2724177a35b6968effb7186035a7df1eaca97a52ebcfde416cd2809ad194ba",
         "compatibility_revision": 1,
         "logical_name": "work.shared.artifact-paths",
         "path": "references/instruction-loading/artifact-paths.md"
       },
       {
-        "canonical_sha256": "56b44b90cd595a3095ff1f0601560ad1661465fa9239b0b838b86c1fa0456e35",
+        "canonical_sha256": "d84827cf6d5c2df995a94cb2bc6f36d1857a33d81f6f5921a43f0dd6a2c45eba",
         "compatibility_revision": 1,
         "logical_name": "work.shared.fingerprints",
         "path": "references/instruction-loading/fingerprints.md"
@@ -99,7 +99,7 @@
       }
     ]
   },
-  "selection_sha256": "bb5f7a353fd2da6902a87e741ca5abe0e01f1cbde86e289ffdfc6b9eeaf6c2c5",
+  "selection_sha256": "fd6f3402e440342cfd6a305b088acc58c72d5b909d91c4324696a3273bd24135",
   "semantic_input_contract": null,
   "source_order": [
     "work.instruction-loading",

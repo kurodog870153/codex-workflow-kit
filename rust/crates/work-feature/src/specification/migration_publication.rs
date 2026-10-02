@@ -17,18 +17,18 @@ pub fn publication_paths(
     request: &Value,
     approved_sha256: &str,
 ) -> Result<MigrationPublicationPaths, WorkError> {
-    let plan = request["candidates"]
+    let index = request["candidates"]
         .as_array()
         .into_iter()
         .flatten()
-        .find(|row| row["kind"] == "plan")
+        .find(|row| row["kind"] == "task_index")
         .ok_or_else(|| {
             fail(
                 "migration_execution_directory",
                 "A candidate execution directory is required.",
             )
         })?;
-    let execution = plan["content"]["artifacts"]["execution"]
+    let execution = index["content"]["artifacts"]["execution"]
         .as_str()
         .ok_or_else(|| {
             fail(
@@ -79,7 +79,7 @@ mod tests {
 
     #[test]
     fn publication_path_uses_approved_fingerprint() {
-        let request = json!({"candidates":[{"kind":"plan","content":{
+        let request = json!({"candidates":[{"kind":"task_index","content":{
             "artifacts":{"execution":"outputs/work/executions/example"}}}]});
         let paths = publication_paths(&request, &"a".repeat(64)).unwrap();
         assert_eq!(
@@ -87,6 +87,9 @@ mod tests {
             "outputs/work/executions/example/.work-spec-migration-AAAAAAAAAAAA.json"
         );
         assert_eq!(paths.marker, format!("{}.done", paths.journal));
+        let mut legacy = request.clone();
+        legacy["candidates"][0]["kind"] = json!("plan");
+        assert!(publication_paths(&legacy, &"a".repeat(64)).is_err());
     }
 
     #[test]

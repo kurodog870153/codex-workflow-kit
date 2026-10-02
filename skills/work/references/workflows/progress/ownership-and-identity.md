@@ -1,8 +1,7 @@
 <!-- work-compatibility-revision: 1 -->
 # Ownership and identity
 
-
-1. Plan and Task own discussion, decision status and resumption. They send the complete content to the parent, which alone invokes the private progress saver. Task skill subagents return their content through the Task coordinator. Neither Plan nor Task directly spawns this saver.
-2. The parent reads the progress saver prompt, pauses the originating role, and invokes one ephemeral saver with the parent's model and reasoning effort and `WORK_PROGRESS_SAVE_V1` envelope. If the subagent capability is unavailable, the parent follows the same prompt directly with its current runtime. Do not request a public mode switch or copied handoff JSON.
-3. Preserve an explicit requirement ID. Before an initial Plan has an ID, ask the user for a safe ID for this progress file; apply the shared requirement-ID filename rules. Choosing it authorizes neither a formal Plan nor formal artifact paths. Retain it on resume and obtain the normal complete-content approval before formal Plan creation; do not ask the user to repeat an unchanged ID.
-4. Each mode has independent storage at `outputs/work/progress/<requirement-id>/<mode>/progress.json`, with immutable `history/<revision>/progress.json` copies. Use fixed paths only. Progress has no executable status and is not a formal Plan, TASK, planning index, structured Task draft or cross-mode handoff.
+1. Task owns discussion, decision status and resumption. It returns complete checkpoint content through the parent, which invokes the private progress saver. Task skill subagents return evidence through the coordinator; they do not spawn a saver.
+2. The parent supplies the routed progress-saver prompt and one ephemeral `WORK_PROGRESS_SAVE_V1` envelope with `skill=$work`, `mode=task`, resolved roots, complete fixed `task_source`, content, expected revision and continuation point. Inherit model and reasoning settings. If delegation is unavailable, follow the same private prompt directly.
+3. Retain the explicit safe requirement ID from the fixed Source. The saved `context.planning_source` contains its complete immutable Snapshot and confirmed Task-owned hierarchy, skill selections, artifact paths and main acceptance criteria. A checkpoint must not change this Source binding.
+4. Store discussion only at `outputs/work/progress/<requirement-id>/task/progress.json` with immutable `history/<revision>/progress.json` copies. Discussion has no executable status and grants no formal approval, selection authority or execution permission.

@@ -4,16 +4,14 @@ use std::path::Path;
 
 use serde_json::{Value, json};
 use work_feature::error::{ExitCode, WorkError};
-use work_feature::ports::ArtifactStore;
 use work_feature::skill::SkillRoot;
 use work_feature::task::assembly::{
     ProjectAssemblyInput, TaskAssemblyRepository, approved_contract, assemble_from_repository,
 };
 use work_operations::task::ordering::{TaskDocumentKind, render_task};
 
-use crate::files::{LocalFiles, resolve_project_path};
+use crate::artifact_paths::LocalArtifactPaths;
 use crate::hierarchy_catalog::LocalHierarchyCatalog;
-use crate::plan_storage::LocalPlanStorage;
 use crate::skill_catalog::{LocalSkillCatalog, SkillRootConfig};
 use crate::task::create_storage::{CreateTaskRequest, create_task_artifacts};
 use crate::task::draft_storage::LocalTaskDraftStorage;
@@ -22,7 +20,6 @@ pub struct TaskAssemblyRequest<'a> {
     pub requirement_id: &'a str,
     pub metadata: &'a Value,
     pub expected_revision: u64,
-    pub plan_path: &'a str,
 }
 
 pub struct LocalTaskAssembly {
@@ -35,11 +32,6 @@ impl TaskAssemblyRepository for LocalTaskAssembly {
             project_root: self.project_root.to_path_buf(),
         }
         .read_planning_index(requirement_id)
-    }
-
-    fn read_plan_raw(&self, plan_path: &str) -> Result<Vec<u8>, WorkError> {
-        let (_, plan_file) = resolve_project_path(&self.project_root, plan_path)?;
-        LocalFiles.read_raw(&plan_file)
     }
 
     fn read_draft(&self, index: &Value, task_id: &str) -> Result<Value, WorkError> {
@@ -69,7 +61,7 @@ pub fn assemble_from_project(
             locator: config.locator.clone(),
         })
         .collect::<Vec<_>>();
-    let paths = LocalPlanStorage {
+    let paths = LocalArtifactPaths {
         project_root: project_root.to_path_buf(),
     };
     assemble_from_repository(
@@ -84,7 +76,6 @@ pub fn assemble_from_project(
             requirement_id: request.requirement_id,
             metadata: request.metadata,
             expected_revision: request.expected_revision,
-            plan_path: request.plan_path,
         },
     )
 }
@@ -113,7 +104,7 @@ pub fn create_from_drafts(
         skill_configs,
         CreateTaskRequest {
             raw: &raw,
-            plan_path: artifacts["plan"].as_str().unwrap(),
+            source_root: artifacts["source"].as_str().unwrap(),
             task_path: artifacts["task"].as_str().unwrap(),
             execution_dir: artifacts["execution"].as_str().unwrap(),
             recovery: false,
@@ -144,7 +135,7 @@ mod tests {
     }
 
     #[test]
-    fn saved_draft_assembly_and_creation_preserve_python_approval() {
+    fn source_only_draft_assembly_and_creation_preserve_approval() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo.join("crates/work-infrastructure/fixtures/task-assembly");
         let root = std::env::temp_dir().join(format!(
@@ -155,9 +146,7 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let plan = root.join("outputs/work/plans/example.json");
-        fs::create_dir_all(plan.parent().unwrap()).unwrap();
-        fs::copy(fixture.join("plan.json"), &plan).unwrap();
+        crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         let index: Value =
             serde_json::from_slice(&fs::read(fixture.join("index.json")).unwrap()).unwrap();
         let draft: Value =
@@ -180,7 +169,6 @@ mod tests {
             requirement_id: "example",
             metadata: &metadata,
             expected_revision: 2,
-            plan_path: "outputs/work/plans/example.json",
         };
         let skill = repo.join("../skills/work");
         let mut before_assembly = BTreeMap::new();
@@ -189,15 +177,24 @@ mod tests {
         let mut after_assembly = BTreeMap::new();
         snapshot(&root, &mut after_assembly);
         assert_eq!(after_assembly, before_assembly);
+        assert!(!root.join("outputs/work/plans").exists());
+        assert_eq!(assembled["contract"]["source"]["kind"], "snapshot");
+        assert_eq!(
+            assembled["contract"]["acceptance_criteria"][0]["id"],
+            "ACCEPTANCE-001"
+        );
+        assert_eq!(
+            assembled["contract"]["tasks"][0]["acceptance_criteria"][0]["id"],
+            "TASK-001-ACCEPTANCE-001"
+        );
         assert!(!root.join("outputs/work/tasks/example/index.json").exists());
         let instructions = LocalHierarchyCatalog {
             skill_root: skill.clone(),
         };
         let skills = LocalSkillCatalog { roots: vec![] };
-        let paths = LocalPlanStorage {
+        let paths = LocalArtifactPaths {
             project_root: root.clone(),
         };
-        let plan_raw = fs::read(&plan).unwrap();
         for (missing_candidate, reason) in [
             (true, "task_candidate_required"),
             (false, "draft_not_refined"),
@@ -220,10 +217,8 @@ mod tests {
                 AssemblyInput {
                     index: &case_index,
                     drafts: &cases,
-                    plan_raw: &plan_raw,
                     metadata: &metadata,
                     expected_revision: 2,
-                    plan_path: request.plan_path,
                 },
             )
             .unwrap_err();
@@ -243,7 +238,6 @@ mod tests {
                     requirement_id: request.requirement_id,
                     metadata: &changed_metadata,
                     expected_revision: request.expected_revision,
-                    plan_path: request.plan_path,
                 },
                 assembled["approval_sha256"].as_str().unwrap(),
             )
@@ -252,21 +246,18 @@ mod tests {
             "draft_approval_mismatch"
         );
         assert!(!root.join("outputs/work/tasks/example/index.json").exists());
-        let original_plan = fs::read(&plan).unwrap();
-        let mut changed_plan: Value = serde_json::from_slice(&original_plan).unwrap();
-        changed_plan["summary"] = json!("Changed Plan");
-        fs::write(
-            &plan,
-            work_operations::plan::render_plan_value(&changed_plan).unwrap(),
-        )
-        .unwrap();
+        let source_path = root.join("outputs/work/sources/example/SRC-001/source.txt");
+        let original_source = fs::read(&source_path).unwrap();
+        let mut changed_source = original_source.clone();
+        changed_source[0] ^= 1;
+        fs::write(&source_path, &changed_source).unwrap();
         assert_eq!(
             assemble_from_project(&root, &skill, &[], &request)
                 .unwrap_err()
                 .reason_code,
-            "draft_source_drift"
+            "source_hash_mismatch"
         );
-        fs::write(&plan, original_plan).unwrap();
+        fs::write(&source_path, original_source).unwrap();
         assert_eq!(
             create_from_drafts(&root, &skill, &[], &request, &"0".repeat(64))
                 .unwrap_err()

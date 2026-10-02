@@ -313,12 +313,12 @@ mod tests {
             )
             .unwrap();
         };
-        for mode in ["plan", "task", "execute"] {
+        for mode in ["task", "execute"] {
             for path in ["general", "web", "web/frontend"] {
                 write(mode, path, path);
             }
         }
-        write("plan", "web/frontend/component", "component");
+        write("execute", "web/frontend/component", "component");
         write("task", "web/frontend/css", "css");
         write("execute", "web/frontend/css", "css");
         for path in [
@@ -354,7 +354,7 @@ mod tests {
             task["metadata"]["web/backend/java/jpa"],
             json!({"name":"web/backend/java/jpa","description":"web/backend/java/jpa instructions.","work_tags":["test-tag"]})
         );
-        let plan = repository.catalog("plan").unwrap();
+        let plan = repository.catalog("execute").unwrap();
         assert_eq!(plan["metadata"]["general"]["name"], "general");
         assert!(!plan.to_string().contains("Private instruction body"));
         assert!(work_operations::protocol::valid_sha256(
@@ -379,7 +379,7 @@ mod tests {
         );
         assert_eq!(
             all["metadata"]["web/frontend/component"]["mode_support"],
-            json!(["plan"])
+            json!(["execute"])
         );
         assert_eq!(
             all["metadata"]["web/frontend/css"]["modes"]
@@ -423,40 +423,49 @@ mod tests {
             repository.catalog("build").unwrap_err().reason_code,
             "invalid_instruction_mode"
         );
-        write("plan", "general", "# general\n");
+        write("execute", "general", "# general\n");
         assert_eq!(
-            repository.catalog("plan").unwrap_err().reason_code,
+            repository.catalog("execute").unwrap_err().reason_code,
             "instruction_frontmatter_missing"
         );
         write(
-            "plan",
+            "execute",
             "general",
             &good.replace("    - test-tag", "    - duplicate\n    - duplicate"),
         );
         assert_eq!(
-            repository.catalog("plan").unwrap_err().reason_code,
+            repository.catalog("execute").unwrap_err().reason_code,
             "invalid_instruction_work_tags"
         );
         write(
-            "plan",
+            "execute",
             "general",
             &good.replace("---\n\nBody.", "  extra: rejected\n---\n\nBody."),
         );
         assert_eq!(
-            repository.catalog("plan").unwrap_err().reason_code,
+            repository.catalog("execute").unwrap_err().reason_code,
             "invalid_instruction_metadata_fields"
         );
-        write("plan", "general", good);
-        let notes = root.join("references/instructions/plan/general/references/notes.md");
+        write("execute", "general", good);
+        let notes = root.join("references/instructions/execute/general/references/notes.md");
         fs::create_dir_all(notes.parent().unwrap()).unwrap();
         fs::write(notes, "notes\n").unwrap();
-        let plan = repository.catalog("plan").unwrap();
+        let plan = repository.catalog("execute").unwrap();
         assert_eq!(plan["paths"], json!(["general"]));
         assert_eq!(plan["children"], json!({"general": []}));
 
-        write("execute", "web", good);
+        let missing_root = root.join("missing-general");
+        let missing_entry =
+            missing_root.join("references/instructions/execute/web/instructions.md");
+        fs::create_dir_all(missing_entry.parent().unwrap()).unwrap();
+        fs::write(missing_entry, good).unwrap();
         assert_eq!(
-            repository.catalog("execute").unwrap_err().reason_code,
+            LocalHierarchyCatalog {
+                skill_root: missing_root
+            }
+            .catalog("execute")
+            .unwrap_err()
+            .reason_code,
             "general_instruction_not_unique"
         );
         write("task", "general", good);
@@ -480,17 +489,17 @@ mod tests {
                 .as_nanos()
         ));
         let root = parent.join("work");
-        let general = root.join("references/instructions/plan/general/instructions.md");
+        let general = root.join("references/instructions/execute/general/instructions.md");
         fs::create_dir_all(general.parent().unwrap()).unwrap();
         fs::write(&general, "---\nname: General\ndescription: General instructions.\nmetadata:\n  work-tags:\n    - test-tag\n---\n").unwrap();
         let outside = parent.join("outside.md");
         fs::write(&outside, "outside\n").unwrap();
-        let escaped = root.join("references/instructions/plan/escaped/instructions.md");
+        let escaped = root.join("references/instructions/execute/escaped/instructions.md");
         fs::create_dir_all(escaped.parent().unwrap()).unwrap();
         symlink(outside, escaped).unwrap();
         assert_eq!(
             (LocalHierarchyCatalog { skill_root: root })
-                .catalog("plan")
+                .catalog("execute")
                 .unwrap_err()
                 .reason_code,
             "instruction_path_escapes_skill_root"
@@ -516,7 +525,7 @@ mod tests {
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(path, "---\nname: Test\ndescription: Test instructions.\nmetadata:\n  work-tags:\n    - test-tag\n---\n\nBody.\n").unwrap();
         };
-        for mode in ["plan", "task", "execute"] {
+        for mode in ["task", "execute"] {
             for path in ["general", "web", "web/frontend", "web/frontend/component"] {
                 write(mode, path);
             }
@@ -557,24 +566,13 @@ mod tests {
                 "web/backend/java/mybatis"
             ]
         );
-        let general = resolve_hierarchy(&repository, "plan", &[]).unwrap();
+        let general = resolve_hierarchy(&repository, "execute", &[]).unwrap();
         assert!(general.selected_paths.is_empty());
         assert_eq!(general.resolved_paths, ["general"]);
         assert_eq!(general.required_paths, ["general"]);
 
-        let projected = resolve_hierarchy(
-            &repository,
-            "plan",
-            &["web/frontend/component/astro".into()],
-        )
-        .unwrap();
-        assert_eq!(projected.selected_paths, ["web/frontend/component/astro"]);
         assert_eq!(
-            projected.resolved_paths,
-            ["general", "web", "web/frontend", "web/frontend/component"]
-        );
-        assert_eq!(
-            resolve_hierarchy(&repository, "plan", &["general".into()])
+            resolve_hierarchy(&repository, "execute", &["general".into()])
                 .unwrap_err()
                 .reason_code,
             "invalid_hierarchy_path"

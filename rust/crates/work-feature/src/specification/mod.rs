@@ -20,22 +20,22 @@ use work_operations::derivation::transaction::{
     PublicationOrder, TransactionDeriver, TransactionInput, TransactionKind,
 };
 use work_operations::execution::index::{render_execution_index, validate_execution_index};
-use work_operations::plan::render_plan_value;
 use work_operations::specification::migration_diff::unified_diff;
 use work_operations::specification::update::rebuild_execution_index;
 use work_operations::task::ordering::{TaskDocumentKind, render_task};
 
+use crate::artifact_paths::ArtifactPathRepository;
 use crate::error::{ExitCode, WorkError};
 use crate::instruction::InstructionSourceRepository;
-use crate::plan::PlanPathRepository;
+use crate::ports::SourceSnapshotReader;
 use crate::skill::{SkillRoot, SkillSnapshotRepository};
 use crate::task::{CollectionInput, validate_collection};
 
 pub struct SpecificationBaseline<'a> {
-    pub plan_path: &'a str,
     pub task_path: &'a str,
     pub execution_path: &'a str,
-    pub plan_raw: &'a [u8],
+    pub source_sha256: &'a str,
+    pub source_evidence: &'a BTreeMap<String, Vec<u8>>,
     pub index_raw: &'a [u8],
     pub items: &'a BTreeMap<String, Vec<u8>>,
     pub execution_raw: &'a [u8],
@@ -70,24 +70,12 @@ fn render_task_value(value: &Value, kind: TaskDocumentKind) -> Result<Vec<u8>, W
 }
 
 fn changed_fields(
-    old_plan: &Value,
-    plan: &Value,
     old_index: &Value,
     index: &Value,
     old_items: &BTreeMap<String, Value>,
     items: &BTreeMap<String, Value>,
 ) -> Vec<String> {
     let mut result = BTreeSet::new();
-    for key in old_plan
-        .as_object()
-        .into_iter()
-        .flat_map(|row| row.keys())
-        .chain(plan.as_object().into_iter().flat_map(|row| row.keys()))
-    {
-        if key != "changes" && old_plan.get(key) != plan.get(key) {
-            result.insert(format!("/plan/{key}"));
-        }
-    }
     for key in old_index
         .as_object()
         .into_iter()
@@ -130,7 +118,7 @@ pub fn preview_update<H, S, P>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
 {
     if request["schema"] != "work-spec-update-request/v1" {
         return Err(fail(
@@ -138,17 +126,16 @@ where
             "Use work-spec-update-request/v1.",
         ));
     }
-    if !request["plan"].is_object()
-        || !request["task_index"].is_object()
-        || !request["task_items"].is_object()
-    {
-        return Err(fail(
-            "spec_update_candidate",
-            "A complete Plan, TASK index and item map are required.",
-        ));
-    }
+    work_operations::specification::update::validate_update_request(request).map_err(|issue| {
+        WorkError::new(
+            ExitCode::Contract,
+            issue.reason_code,
+            issue.message,
+            issue.details,
+        )
+    })?;
     let expected = fingerprint::specification_baseline(
-        baseline.plan_raw,
+        baseline.source_sha256,
         baseline.index_raw,
         baseline.execution_raw,
         baseline.items,
@@ -159,7 +146,40 @@ where
             "The reviewed source fingerprints changed.",
         ));
     }
-    let old_plan = parse(baseline.plan_raw)?;
+    let baseline_validation = validate_collection(
+        instructions,
+        skills,
+        paths,
+        skill_roots,
+        CollectionInput {
+            index_raw: baseline.index_raw,
+            item_raw: baseline.items,
+            index_path: baseline.task_path,
+        },
+    )?;
+    if baseline_validation["source_sha256"] != baseline.source_sha256 {
+        return Err(fail(
+            "spec_update_source_changed",
+            "The baseline must bind its validated Task provenance.",
+        ));
+    }
+    let required_evidence = crate::task::source::evidence_paths(&parse(baseline.index_raw)?)?;
+    if required_evidence.iter().cloned().collect::<BTreeSet<_>>()
+        != baseline.source_evidence.keys().cloned().collect()
+    {
+        return Err(fail(
+            "spec_update_source_changed",
+            "The complete immutable Source proof is required.",
+        ));
+    }
+    for (path, raw) in baseline.source_evidence {
+        if paths.read_raw(path)? != *raw {
+            return Err(fail(
+                "spec_update_source_changed",
+                "The immutable Source proof changed.",
+            ));
+        }
+    }
     let old_index = parse(baseline.index_raw)?;
     let old_execution = parse(baseline.execution_raw)?;
     validate_execution_index(&old_execution, baseline.execution_raw).map_err(|issue| {
@@ -179,24 +199,17 @@ where
             "The execution index already contains a lock.",
         ));
     }
-    let artifacts = &request["plan"]["artifacts"];
-    if artifacts["plan"] != baseline.plan_path
-        || artifacts["task"] != baseline.task_path
+    let artifacts = &request["task_index"]["artifacts"];
+    if artifacts["task"] != baseline.task_path
         || artifacts["execution"]
             .as_str()
             .is_none_or(|path| format!("{path}/index.json") != baseline.execution_path)
     {
         return Err(fail(
             "spec_artifact_identity",
-            "The Plan must route this revision to the same TASK collection.",
+            "The candidate must route this revision to the same TASK collection.",
         ));
     }
-    let plan_raw = render_plan_value(&request["plan"]).map_err(|_| {
-        fail(
-            "invalid_contract_value",
-            "The candidate Plan cannot be rendered.",
-        )
-    })?;
     let index_raw = render_task_value(&request["task_index"], TaskDocumentKind::Index)?;
     let mut item_raw = BTreeMap::new();
     let mut items = BTreeMap::new();
@@ -213,7 +226,6 @@ where
             index_raw: &index_raw,
             item_raw: &item_raw,
             index_path: baseline.task_path,
-            source_plan_raw: &plan_raw,
         },
     )?;
     let affected = request["task_index"]["changes"]
@@ -233,6 +245,42 @@ where
                 .ok_or_else(|| fail("spec_update_candidate", "Affected TASK IDs are invalid."))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let context_fields = [
+        "source",
+        "hierarchy_selection",
+        "skill_selection",
+        "acceptance_criteria",
+    ];
+    if context_fields
+        .iter()
+        .any(|key| old_index[*key] != request["task_index"][*key])
+    {
+        let new_index = &request["task_index"];
+        if new_index["source"]["kind"] != "snapshot" {
+            return Err(fail(
+                "source_confirmation_required",
+                "Normal Revise requires one complete Snapshot.",
+            ));
+        }
+        let new_source = json!({"snapshot":new_index["source"]["manifest"],
+            "artifacts":new_index["artifacts"],"hierarchy_selection":new_index["hierarchy_selection"],
+            "skill_selection":new_index["skill_selection"],"acceptance_criteria":new_index["acceptance_criteria"]});
+        let active_ids: BTreeSet<String> = items.keys().cloned().collect();
+        if affected.iter().cloned().collect::<BTreeSet<_>>() != active_ids {
+            return Err(fail(
+                "source_task_review_incomplete",
+                "A context replacement must review every active Task.",
+            ));
+        }
+        work_operations::task::draft_source::validate_context_confirmation(
+            &old_index,
+            &old_index,
+            &new_source,
+            &active_ids,
+            &request["source_confirmation"],
+        )
+        .map_err(|e| WorkError::new(ExitCode::Contract, e.reason_code, e.message, e.details))?;
+    }
     let change_id = request["task_index"]["changes"]
         .as_array()
         .and_then(|rows| rows.last())
@@ -277,7 +325,6 @@ where
         .rsplit_once('/')
         .map_or("", |(parent, _)| parent);
     let mut source = BTreeMap::from([
-        (baseline.plan_path.to_owned(), baseline.plan_raw.to_vec()),
         (baseline.task_path.to_owned(), baseline.index_raw.to_vec()),
         (
             baseline.execution_path.to_owned(),
@@ -285,10 +332,16 @@ where
         ),
     ]);
     let mut candidate = BTreeMap::from([
-        (baseline.plan_path.to_owned(), plan_raw),
         (baseline.task_path.to_owned(), index_raw),
         (baseline.execution_path.to_owned(), execution_raw),
     ]);
+    source.extend(baseline.source_evidence.clone());
+    candidate.extend(baseline.source_evidence.clone());
+    for path in crate::task::source::evidence_paths(&request["task_index"])? {
+        let raw = paths.read_raw(&path)?;
+        source.insert(path.clone(), raw.clone());
+        candidate.insert(path, raw);
+    }
     for (id, raw) in baseline.items {
         source.insert(format!("{directory}/tasks/{id}.json"), raw.clone());
     }
@@ -304,12 +357,10 @@ where
         .collect::<Vec<_>>();
     all_paths.sort_by_key(|path| {
         (
-            if path.contains("/tasks/") {
-                20
-            } else if path == baseline.plan_path {
-                10
-            } else if path == baseline.task_path {
+            if path == baseline.task_path {
                 30
+            } else if path.contains("/tasks/") {
+                20
             } else {
                 40
             },
@@ -332,7 +383,6 @@ where
     let derived = TransactionDeriver::derive(TransactionInput {
         kind: TransactionKind::Update,
         order: PublicationOrder::Artifact {
-            plan_path: baseline.plan_path.into(),
             task_index_path: baseline.task_path.into(),
         },
         request: request.clone(),
@@ -358,14 +408,7 @@ where
         .iter()
         .map(|(id, raw)| parse(raw).map(|value| (id.clone(), value)))
         .collect::<Result<BTreeMap<_, _>, _>>()?;
-    let changed = changed_fields(
-        &old_plan,
-        &request["plan"],
-        &old_index,
-        &request["task_index"],
-        &old_items,
-        &items,
-    );
+    let changed = changed_fields(&old_index, &request["task_index"], &old_items, &items);
     let old_rows = old_execution["tasks"]
         .as_array()
         .cloned()
@@ -399,13 +442,12 @@ where
     }
     let result = work_model::specification::verified::<work_model::specification::SpecUpdate>(
         json!({"schema":"work-spec-update/v1","status":"valid",
-        "requirement_id":request["plan"]["requirement_id"],"record_id":id,
+        "requirement_id":request["task_index"]["requirement_id"],"record_id":id,
         "approved_sha256":approval,"affected_task_ids":affected,"changed_fields":changed,
         "validation":{"task_collection":validation,"execution_index":"valid",
             "history":"validated"},"diff":review_diff,
         "lifecycle_impact":lifecycle_impact,
-        "artifacts":artifacts,"candidate":{"plan":request["plan"],
-            "task_index":request["task_index"],"task_items":request["task_items"]},
+        "artifacts":artifacts,"candidate":{"task_index":request["task_index"],"task_items":request["task_items"]},
         "transaction":transaction,"file_readiness":"requires_execute_preflight",
         "next_step":{"command":"specification apply","input":"same_request","approved_sha256":approval}}),
     );

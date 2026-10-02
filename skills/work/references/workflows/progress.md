@@ -1,5 +1,5 @@
 <!-- work-compatibility-revision: 2 -->
-# Plan and Task discussion progress
+# Task discussion progress
 
 1. Use this entry only when it appears in the CLI-produced canonical selection manifest.
 2. Load only the same-mode operation modules listed after this entry in `source_order`; do not scan this workflow directory or follow Markdown links to discover rules.

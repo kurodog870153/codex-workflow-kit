@@ -19,3 +19,14 @@ pub fn parse(text: &str) -> Result<Value, WorkError> {
         )
     })
 }
+
+pub fn confirm(value: &Value) -> Result<Value, WorkError> {
+    work_operations::invocation::confirm_invocation(value).map_err(|issue| {
+        WorkError::new(
+            ExitCode::CliUsage,
+            issue.reason_code,
+            issue.message,
+            issue.details,
+        )
+    })
+}

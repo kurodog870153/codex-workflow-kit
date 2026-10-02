@@ -5,7 +5,7 @@
   },
   "artifacts": {
     "execution": "outputs/work/executions/example",
-    "plan": "outputs/work/plans/example.json",
+    "source": "outputs/work/sources/example",
     "task": "outputs/work/tasks/example/index.json"
   },
   "command": "specification reconciliation-prepare",
@@ -39,7 +39,7 @@
   "routing_reasons": [
     "operation:review_reconciliation",
     "workflow_status:execution_reconciliation_pending",
-    "mode:specification"
+    "mode:revise"
   ],
   "routing_status": "VALID",
   "schema": "work-workflow-state/v1",
@@ -50,14 +50,15 @@
       "artifact_lifecycle": "execution_reconciliation_pending",
       "authorization_state": "confirmation_required",
       "formal_events": [],
-      "mode": "specification",
+      "mode": "revise",
       "operation": "review_reconciliation",
       "role": "main",
       "status": "execution_reconciliation_pending",
-      "verified_state_sha256": "6311e6e5bd10489838d3205c9d1586427882900ffa1cd74987911ec8c03356b1"
+      "verified_state_sha256": "34fec66970e6f698565ec721c77d74f3f4184a2218b3d0338b330e2f6c6c77e1"
     },
     "routing_status": "VALID",
     "schema": "work-instruction-selection-manifest/v1",
+    "selection_sha256": "d91f052fb3a0af6da8c5c0b8c416a9367efa941518f229cbff408f3d4307fb3c",
     "sources": [
       {
         "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
@@ -72,19 +73,19 @@
         "path": "references/instruction-loading/transaction-workspace.md"
       },
       {
-        "canonical_sha256": "baf03bbd2b95e5f17d3160f882eef6b5a456af5cc09c7f328846481183743700",
+        "canonical_sha256": "1db326cf70f917ab57eb8e1defbcf479831c5170c97e7d5232745bc8db9ec768",
         "compatibility_revision": 1,
         "logical_name": "work.shared.artifact-revision",
         "path": "references/instruction-loading/artifact-revision.md"
       },
       {
-        "canonical_sha256": "b27d40bd8a066d8a09a78c6714eecc2314a0465fbceaa1cacf87af924d1bae32",
+        "canonical_sha256": "3e2724177a35b6968effb7186035a7df1eaca97a52ebcfde416cd2809ad194ba",
         "compatibility_revision": 1,
         "logical_name": "work.shared.artifact-paths",
         "path": "references/instruction-loading/artifact-paths.md"
       },
       {
-        "canonical_sha256": "56b44b90cd595a3095ff1f0601560ad1661465fa9239b0b838b86c1fa0456e35",
+        "canonical_sha256": "d84827cf6d5c2df995a94cb2bc6f36d1857a33d81f6f5921a43f0dd6a2c45eba",
         "compatibility_revision": 1,
         "logical_name": "work.shared.fingerprints",
         "path": "references/instruction-loading/fingerprints.md"
@@ -96,33 +97,32 @@
         "path": "references/workflows/specification.md"
       },
       {
-        "canonical_sha256": "2824128ddc0b2c42accd0673be7ae7ceea4a84bb50be125067a694ed6caa3c64",
+        "canonical_sha256": "b03550bc7defbff9253b705563042da889db232279e7d8324ce18ee8ed1de783",
         "compatibility_revision": 1,
         "logical_name": "work.workflow.specification.active-task-collection-revision-boundary",
         "path": "references/workflows/specification/active-task-collection-revision-boundary.md"
       },
       {
-        "canonical_sha256": "67d330c88bc947e8750af01456710ae48e64a60166fb27edf37c6c1763a0d1c6",
+        "canonical_sha256": "0eacd26d6c5d845c3dd1bfa73cbe98b4c9466ede1cfdbfcfaa392130b0984734",
         "compatibility_revision": 2,
         "logical_name": "work.workflow.specification.prepare-and-review",
         "path": "references/workflows/specification/prepare-and-review.md"
       },
       {
-        "canonical_sha256": "16ee5711245b7a3676b5f6adccbc8c17a53aa279de44fd29a6f3f11f06197502",
+        "canonical_sha256": "adf13256a623926c8bc3e75e8ca81db78b35192857a2cead6a82a63980d33316",
         "compatibility_revision": 1,
         "logical_name": "work.workflow.specification.publish-and-recover",
         "path": "references/workflows/specification/publish-and-recover.md"
       },
       {
-        "canonical_sha256": "ad57d46b7eb47950ecfe80e43c54f2b1ae7a315fc931d5abf8cd848338a85146",
+        "canonical_sha256": "91f4a5aee9a343a4afb79ac986a2d7729c93b88943e5bacbc806375f2198a5ee",
         "compatibility_revision": 1,
         "logical_name": "work.workflow.specification.specification-verification",
         "path": "references/workflows/specification/specification-verification.md"
       }
-    ],
-    "selection_sha256": "d81ccd18177466397cc3c6de99c5578d74254b2943ca2a41a3c751b1652ce2c4"
+    ]
   },
-  "selection_sha256": "d81ccd18177466397cc3c6de99c5578d74254b2943ca2a41a3c751b1652ce2c4",
+  "selection_sha256": "d91f052fb3a0af6da8c5c0b8c416a9367efa941518f229cbff408f3d4307fb3c",
   "semantic_input_contract": "work-spec-reconciliation-prepare-request/v1",
   "source_order": [
     "work.instruction-loading",

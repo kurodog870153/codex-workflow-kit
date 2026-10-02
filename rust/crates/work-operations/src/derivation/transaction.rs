@@ -30,13 +30,8 @@ pub enum TransactionKind {
 pub enum PublicationOrder {
     Flat,
     Migration,
-    Artifact {
-        plan_path: String,
-        task_index_path: String,
-    },
-    FinalReconciliation {
-        task_index_path: String,
-    },
+    Artifact { task_index_path: String },
+    FinalReconciliation { task_index_path: String },
 }
 
 pub struct TransactionInput {
@@ -147,16 +142,11 @@ fn phase(order: &PublicationOrder, path: &str, has_after: bool) -> u64 {
                 50
             }
         }
-        PublicationOrder::Artifact {
-            plan_path,
-            task_index_path,
-        } => {
-            if path.contains("/tasks/") {
-                20
-            } else if path == plan_path {
-                10
-            } else if path == task_index_path {
+        PublicationOrder::Artifact { task_index_path } => {
+            if path == task_index_path {
                 30
+            } else if path.contains("/tasks/") {
+                20
             } else {
                 40
             }
@@ -180,19 +170,18 @@ mod tests {
         let input = TransactionInput {
             kind: TransactionKind::Update,
             order: PublicationOrder::Artifact {
-                plan_path: "plan.json".into(),
                 task_index_path: "task/index.json".into(),
             },
             request: json!({}),
             artifacts: json!({}),
             affected_task_ids: Vec::new(),
             history: BTreeMap::new(),
-            source: BTreeMap::from([("plan.json".into(), b"old".to_vec())]),
-            candidate: BTreeMap::from([("plan.json".into(), b"new".to_vec())]),
+            source: BTreeMap::from([("task/index.json".into(), b"old".to_vec())]),
+            candidate: BTreeMap::from([("task/index.json".into(), b"new".to_vec())]),
         };
         let result = TransactionDeriver::derive(input).unwrap();
         let journal = &result.journal;
-        assert_eq!(journal["files"][0]["phase"], 10);
+        assert_eq!(journal["files"][0]["phase"], 30);
         assert_eq!(
             journal["files"][0]["before"]["raw_sha256"],
             fingerprint::raw(b"old")
@@ -202,11 +191,11 @@ mod tests {
             fingerprint::raw(b"new")
         );
         assert_eq!(
-            journal["metadata"]["source_sha256"]["plan.json"],
+            journal["metadata"]["source_sha256"]["task/index.json"],
             fingerprint::raw(b"old")
         );
         assert_eq!(
-            journal["metadata"]["candidate_sha256"]["plan.json"],
+            journal["metadata"]["candidate_sha256"]["task/index.json"],
             fingerprint::raw(b"new")
         );
         assert_eq!(journal["approval_sha256"], result.approval_sha256);
@@ -214,6 +203,58 @@ mod tests {
             journal["transaction_id"],
             derived_transaction_id("UPDATE", &result.approval_sha256).unwrap()
         );
+    }
+
+    #[test]
+    fn unchanged_source_evidence_binds_approval_without_a_publication_phase() {
+        let derive = |evidence: &[u8], after: &[u8]| {
+            TransactionDeriver::derive(TransactionInput {
+                kind: TransactionKind::Update,
+                order: PublicationOrder::Artifact {
+                    task_index_path: "outputs/work/tasks/example/index.json".into(),
+                },
+                request: json!({"schema":"review/v1"}),
+                artifacts: json!({}),
+                affected_task_ids: vec![],
+                history: BTreeMap::new(),
+                source: BTreeMap::from([
+                    (
+                        "outputs/work/tasks/example/index.json".into(),
+                        b"old".to_vec(),
+                    ),
+                    (
+                        "outputs/work/sources/example/SRC-001/source.txt".into(),
+                        evidence.to_vec(),
+                    ),
+                ]),
+                candidate: BTreeMap::from([
+                    (
+                        "outputs/work/tasks/example/index.json".into(),
+                        after.to_vec(),
+                    ),
+                    (
+                        "outputs/work/sources/example/SRC-001/source.txt".into(),
+                        evidence.to_vec(),
+                    ),
+                ]),
+            })
+            .unwrap()
+        };
+        let reviewed = derive(b"requirement", b"candidate");
+        assert_eq!(
+            reviewed.approval_sha256,
+            derive(b"requirement", b"candidate").approval_sha256
+        );
+        assert_ne!(
+            reviewed.approval_sha256,
+            derive(b"different requirement", b"candidate").approval_sha256
+        );
+        assert_ne!(
+            reviewed.approval_sha256,
+            derive(b"requirement", b"different candidate").approval_sha256
+        );
+        assert_eq!(reviewed.journal["files"].as_array().unwrap().len(), 1);
+        assert_eq!(reviewed.journal["files"][0]["phase"], 30);
     }
 
     #[test]
@@ -226,8 +267,8 @@ mod tests {
                 artifacts: json!({}),
                 affected_task_ids: Vec::new(),
                 history: BTreeMap::from([("execution/TASK-001/attempt.json".into(), raw.to_vec())]),
-                source: BTreeMap::from([("plan.json".into(), b"before".to_vec())]),
-                candidate: BTreeMap::from([("plan.json".into(), b"after".to_vec())]),
+                source: BTreeMap::from([("task/index.json".into(), b"before".to_vec())]),
+                candidate: BTreeMap::from([("task/index.json".into(), b"after".to_vec())]),
             })
             .unwrap()
         };

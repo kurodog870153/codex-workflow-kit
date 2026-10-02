@@ -23,7 +23,13 @@ pub struct DelegationBuildRequest {
         deserialize_with = "deserialize_optional_nullable",
         skip_serializing_if = "Option::is_none"
     )]
-    pub source_plan_path: Option<Nullable<String>>,
+    pub planning_source: Option<Nullable<crate::task::draft::PlanningSource>>,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub task_path: Option<Nullable<String>>,
     #[serde(
         default,
         deserialize_with = "deserialize_optional_nullable",
@@ -47,7 +53,7 @@ pub struct DelegationBuildRequest {
         deserialize_with = "deserialize_optional_nullable",
         skip_serializing_if = "Option::is_none"
     )]
-    pub confirmed_request: Option<Nullable<Value>>,
+    pub confirmed_request: Option<Nullable<crate::specification::SpecPrepareRequest>>,
     #[serde(
         default,
         deserialize_with = "deserialize_optional_nullable",

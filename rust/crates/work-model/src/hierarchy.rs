@@ -27,7 +27,7 @@ pub struct HierarchySelectionRequest {
     pub selections: Vec<HierarchyChoice>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HierarchySelection {
     pub schema: PublicSchema,
@@ -38,7 +38,7 @@ pub struct HierarchySelection {
     pub selection_sha256: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HierarchySelectionValidation {
     pub schema: PublicSchema,

@@ -14,26 +14,6 @@
       "sha256": "dd8d3495f5933d1850867adf6a9a802cab7d4fd8c2aa5ee6493cec91d27c7e51"
     }
   ],
-  "plan_artifact": {
-    "input": {
-      "schema": "work-plan/v1",
-      "requirement_id": "example",
-      "status": "confirmed",
-      "title": "Example",
-      "summary": "Example plan.",
-      "artifacts": {},
-      "hierarchy_selection": {},
-      "work_instruction_selection": {},
-      "skill_selection": {},
-      "goals": [],
-      "scope": [],
-      "deliverables": [],
-      "acceptance_criteria": []
-    },
-    "bytes_base64": "ewogICJzY2hlbWEiOiAid29yay1wbGFuL3YxIiwKICAicmVxdWlyZW1lbnRfaWQiOiAiZXhhbXBsZSIsCiAgInN0YXR1cyI6ICJjb25maXJtZWQiLAogICJ0aXRsZSI6ICJFeGFtcGxlIiwKICAic3VtbWFyeSI6ICJFeGFtcGxlIHBsYW4uIiwKICAiYXJ0aWZhY3RzIjoge30sCiAgImhpZXJhcmNoeV9zZWxlY3Rpb24iOiB7fSwKICAid29ya19pbnN0cnVjdGlvbl9zZWxlY3Rpb24iOiB7fSwKICAic2tpbGxfc2VsZWN0aW9uIjoge30sCiAgImdvYWxzIjogW10sCiAgInNjb3BlIjogW10sCiAgImRlbGl2ZXJhYmxlcyI6IFtdLAogICJhY2NlcHRhbmNlX2NyaXRlcmlhIjogW10KfQo=",
-    "sha256": "e7cf3391e25315ba9e1b24f86a7afc65356fd24b8b26253c567fb17c608bbd27",
-    "artifact_path": "outputs/work/plans/example.json"
-  },
   "instruction_fingerprint": {
     "scope": "task",
     "sources": [
@@ -63,8 +43,8 @@
   "transaction": {
     "files": [
       {
-        "path": "outputs/work/plans/example.json",
-        "sha256": "e7cf3391e25315ba9e1b24f86a7afc65356fd24b8b26253c567fb17c608bbd27"
+        "path": "outputs/work/tasks/example/index.json",
+        "sha256": "9f71a2ed89c34356fc6ac53e3918d2d26b80d9281fed3dc4e4d3269049a6f377"
       }
     ],
     "metadata": {
@@ -72,8 +52,8 @@
       "kind": "UPDATE"
     },
     "kind": "UPDATE",
-    "approval_sha256": "cd3e7a3212eefd7afd5c211b5683d22d361583ccfa642c3a5ba96027bc210459",
-    "transaction_id": "SPEC-UPDATE-CD3E7A3212EE"
+    "approval_sha256": "34036bea7aaffbe517e7f0619c916853089b6c97c57ac2bb4cbd627bf1dc6990",
+    "transaction_id": "SPEC-UPDATE-34036BEA7AAF"
   },
   "recovery": {
     "prepared_base64": "ZXhwZWN0ZWQK",
@@ -109,7 +89,7 @@
         "example"
       ],
       "exit_code": 0,
-      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"paths\": {\n      \"execution\": \"outputs/work/executions/example\",\n      \"plan\": \"outputs/work/plans/example.json\",\n      \"task\": \"outputs/work/tasks/example/index.json\"\n    },\n    \"requirement_id\": \"example\",\n    \"schema\": \"work-paths/v1\"\n  }\n}\n",
+      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"paths\": {\n      \"execution\": \"outputs/work/executions/example\",\n      \"source\": \"outputs/work/sources/example\",\n      \"task\": \"outputs/work/tasks/example/index.json\"\n    },\n    \"requirement_id\": \"example\",\n    \"schema\": \"work-paths/v1\"\n  }\n}\n",
       "stderr": ""
     },
     {
@@ -124,7 +104,7 @@
         "example"
       ],
       "exit_code": 0,
-      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"paths\": {\n      \"execution\": \"outputs/work/executions/example\",\n      \"plan\": \"outputs/work/plans/example.json\",\n      \"task\": \"outputs/work/tasks/example/index.json\"\n    },\n    \"project_root\": \"<PROJECT_ROOT>\",\n    \"requirement_id\": \"example\",\n    \"schema\": \"work-paths/v1\"\n  }\n}\n",
+      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"paths\": {\n      \"execution\": \"outputs/work/executions/example\",\n      \"source\": \"outputs/work/sources/example\",\n      \"task\": \"outputs/work/tasks/example/index.json\"\n    },\n    \"project_root\": \"<PROJECT_ROOT>\",\n    \"requirement_id\": \"example\",\n    \"schema\": \"work-paths/v1\"\n  }\n}\n",
       "stderr": ""
     },
     {
@@ -149,16 +129,16 @@
       "--requirement-id",
       "example",
       "--workflow-id",
-      "plan"
+      "task"
     ],
     "exit_code": 0,
     "data": {
       "schema": "work-transaction-workspace/v1",
       "requirement_id": "example",
-      "workflow_id": "plan"
+      "workflow_id": "task"
     },
     "transaction_id_regex": "\\d{8}T\\d{6}Z-[0-9a-f]{8}",
-    "path_template": "outputs/work/transactions/example/plan/<TRANSACTION_ID>",
+    "path_template": "outputs/work/transactions/example/task/<TRANSACTION_ID>",
     "nondeterministic": {
       "transaction_id": "UTC timestamp plus eight lowercase hex digits; path contains the same ID"
     }

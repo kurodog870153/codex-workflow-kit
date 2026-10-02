@@ -1,4 +1,4 @@
-//! Selected Skill format shared by Plan and Execution contracts.
+//! Selected Skill format owned by Task planning and shared with Execution.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -74,7 +74,6 @@ pub enum SkillModeSupport {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SelectedSkillModeSupport {
-    pub plan: SkillModeSupport,
     pub task: SkillModeSupport,
     pub execute: SkillModeSupport,
 }

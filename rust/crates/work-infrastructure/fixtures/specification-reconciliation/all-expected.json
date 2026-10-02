@@ -1,45 +1,45 @@
 {
-  "schema": "work-spec-reconciliation-preview/v1",
-  "status": "ready",
   "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
   "attempt_sha256": "1d566b34bf20c67837166d44cfb00f4b9a2a3fbaf3b31d67caf0dffba52f18a7",
   "choice": "all",
-  "pending_deviation_ids": [
-    "DEVIATION-001"
-  ],
-  "selected_deviation_ids": [
-    "DEVIATION-001"
-  ],
-  "retained_deviation_ids": [],
   "deviation_classifications": {
     "DEVIATION-001": "task_only"
   },
-  "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
+  "fingerprint": "c838274f57e114a4272f97bf7d624e575415359a05086ad5d885a82d94173520",
   "ledger": {
-    "schema": "work-spec-reconciliation-ledger/v1",
     "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
     "entries": [
       {
+        "attempt_sha256": "1d566b34bf20c67837166d44cfb00f4b9a2a3fbaf3b31d67caf0dffba52f18a7",
         "deviation_id": "DEVIATION-001",
         "outcome": "incorporated",
-        "target": "task_only",
-        "attempt_sha256": "1d566b34bf20c67837166d44cfb00f4b9a2a3fbaf3b31d67caf0dffba52f18a7",
-        "reconciliation_fingerprint": "ffa32a474e6d71ac0309cfe866ea0995e14a5b4f670e39ccc363f750fa15abbd"
+        "reconciliation_fingerprint": "c838274f57e114a4272f97bf7d624e575415359a05086ad5d885a82d94173520",
+        "target": "task_only"
       }
-    ]
+    ],
+    "schema": "work-spec-reconciliation-ledger/v1"
   },
+  "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
   "migration_preview": {
+    "diffs": [],
+    "documents": [],
+    "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "relationship_results": [],
     "schema": "work-spec-migration-preview/v1",
     "status": "ready",
-    "documents": [],
-    "diffs": [],
-    "validator_results": [],
-    "relationship_results": [],
     "unresolved_items": [],
-    "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "validator_results": [],
     "writable_ready": true
   },
-  "fingerprint": "ffa32a474e6d71ac0309cfe866ea0995e14a5b4f670e39ccc363f750fa15abbd",
+  "pending_deviation_ids": [
+    "DEVIATION-001"
+  ],
+  "publication_ready": true,
   "publication_required": true,
-  "publication_ready": true
+  "retained_deviation_ids": [],
+  "schema": "work-spec-reconciliation-preview/v1",
+  "selected_deviation_ids": [
+    "DEVIATION-001"
+  ],
+  "status": "ready"
 }
