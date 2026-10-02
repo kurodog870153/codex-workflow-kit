@@ -4,8 +4,8 @@
   "title": "Execution",
   "task_spec_id": "TASK-SPEC-002",
   "task_collection_sha256": "9c99e00456c608f941ec5b8a48ca45732a8f6fe5d66f76b0e03b2672ce0706d7",
-  "task_index_sha256": "d95238a94aa9265dd8e3d4d83484a412836afa85a4be47256b042802da4e0d26",
-  "task_instructions_sha256": "faaf4a324feca64f085cc67beb0220b21b61e46cba2f8046a6d17097b113adb6",
+  "task_index_sha256": "adeab7ff9d5a13be4d1c4d19e9a6372261f673cf5b065e580d37334d5d8e66ae",
+  "task_instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a",
   "hierarchy_selection_sha256": "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404",
   "skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
   "overall_status": "pending",
@@ -14,15 +14,15 @@
       "id": "TASK-001",
       "status": "pending",
       "skill_id": null,
-      "task_item_sha256": "af313241b49b13285fea19ee04397d79b189eeddd24cd327a31b24cdce85efc0",
-      "instructions_sha256": "faaf4a324feca64f085cc67beb0220b21b61e46cba2f8046a6d17097b113adb6"
+      "task_item_sha256": "d2181e1030d6e844ccb93dbb3ffe05ede5d41cb647e1a86bf98f2ee28e17da3f",
+      "instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a"
     },
     {
       "id": "TASK-002",
       "status": "pending",
       "skill_id": null,
-      "task_item_sha256": "5dcdbd7b9dccc830d926aafc81ff43adb5c957fe26d57cbb22ef3add9bd06a38",
-      "instructions_sha256": "faaf4a324feca64f085cc67beb0220b21b61e46cba2f8046a6d17097b113adb6"
+      "task_item_sha256": "8000ffebcf48d93197e5f74028ebbd60d993c15e3a49bb99d76f4e0fe3a64e83",
+      "instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a"
     }
   ]
 }

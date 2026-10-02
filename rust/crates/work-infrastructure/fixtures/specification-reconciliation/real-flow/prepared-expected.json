@@ -1,35 +1,35 @@
 {
-  "schema": "work-spec-reconciliation-preview/v1",
-  "status": "ready",
   "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
-  "attempt_sha256": "c843c28d82e62ae5297f3a93db55590e347cec502cd98a2b02b0069b60a15572",
+  "attempt_sha256": "e4299875de1d7bb1d62f00f5f1e39938ae4b48be9907c7191a69942fdea08576",
   "choice": "retain_only",
-  "pending_deviation_ids": [
-    "DEVIATION-001"
-  ],
-  "selected_deviation_ids": [],
-  "retained_deviation_ids": [
-    "DEVIATION-001"
-  ],
   "deviation_classifications": {
     "DEVIATION-001": "retain_only"
   },
-  "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
+  "fingerprint": "efcb1cb8177ac8789072c093c2e26ba93b4199b17cb2ea44c90bc9985f0fb919",
   "ledger": {
-    "schema": "work-spec-reconciliation-ledger/v1",
     "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
     "entries": [
       {
+        "attempt_sha256": "e4299875de1d7bb1d62f00f5f1e39938ae4b48be9907c7191a69942fdea08576",
         "deviation_id": "DEVIATION-001",
         "outcome": "retained",
-        "target": "retain_only",
-        "attempt_sha256": "c843c28d82e62ae5297f3a93db55590e347cec502cd98a2b02b0069b60a15572",
-        "reconciliation_fingerprint": "7a4beff9cbe8c325cccff69002cfc13005ab12828df31d622d83973683273335"
+        "reconciliation_fingerprint": "efcb1cb8177ac8789072c093c2e26ba93b4199b17cb2ea44c90bc9985f0fb919",
+        "target": "retain_only"
       }
-    ]
+    ],
+    "schema": "work-spec-reconciliation-ledger/v1"
   },
+  "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
   "migration_preview": null,
-  "fingerprint": "7a4beff9cbe8c325cccff69002cfc13005ab12828df31d622d83973683273335",
+  "pending_deviation_ids": [
+    "DEVIATION-001"
+  ],
+  "publication_ready": true,
   "publication_required": true,
-  "publication_ready": true
+  "retained_deviation_ids": [
+    "DEVIATION-001"
+  ],
+  "schema": "work-spec-reconciliation-preview/v1",
+  "selected_deviation_ids": [],
+  "status": "ready"
 }

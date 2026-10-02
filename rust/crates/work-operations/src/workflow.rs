@@ -203,7 +203,7 @@ pub fn next_action_guidance(next_action: &str, requirement_id: &str, artifacts: 
             json!({"input_file":"<semantic-input-file>","user_config_root":"<user-config-root>"}),
         ),
         "confirm_task_list" => (
-            Some("task semantic-prepare"),
+            Some("task prepare"),
             Some("work-task-semantic-request/v1"),
             {
                 let mut value = task;
@@ -211,19 +211,15 @@ pub fn next_action_guidance(next_action: &str, requirement_id: &str, artifacts: 
                 value
             },
         ),
-        "choose_task" => (
-            Some("task draft-status"),
-            None,
-            json!({"requirement_id":requirement_id}),
-        ),
+        "choose_task" => (Some("task status"), None, task.clone()),
         "confirm_start" | "confirm_resume" | "confirm_review" => (
-            Some("task draft-status"),
+            Some("task status"),
             None,
-            json!({"requirement_id":requirement_id,"task_id":"<confirmed-task-id>"}),
+            json!({"requirement_id":requirement_id,"plan_path":artifacts["plan"],"user_config_root":"<user-config-root>","task_id":"<confirmed-task-id>"}),
         ),
         "select_task_for_execution" | "confirm_retry" => (Some("execute preflight"), None, execute),
         "review_reconciliation" => (
-            Some("task reconciliation-prepare"),
+            Some("specification reconciliation-prepare"),
             Some("work-spec-reconciliation-prepare-request/v1"),
             {
                 let mut value = common;
@@ -268,6 +264,22 @@ mod tests {
             ("task_list_pending", "confirm_task_list", "task")
         );
         assert_eq!(pending.details["plan_sha256"], plan["plan_sha256"]);
+        let artifacts = json!({"plan":"outputs/work/plans/example.json"});
+        for (action, command) in [
+            ("confirm_task_list", "task prepare"),
+            ("choose_task", "task status"),
+            ("confirm_start", "task status"),
+            ("confirm_resume", "task status"),
+            ("confirm_review", "task status"),
+        ] {
+            let guidance = next_action_guidance(action, "example", &artifacts);
+            assert_eq!(guidance["command"], command);
+            assert_eq!(guidance["arguments"]["plan_path"], artifacts["plan"]);
+            assert_eq!(
+                guidance["arguments"]["user_config_root"],
+                "<user-config-root>"
+            );
+        }
         let task = json!({"task_collection_sha256":"2".repeat(64)});
         let recovery = decide_pre_execution(Some(&plan), None, Some(&task), false)
             .unwrap()
@@ -341,7 +353,7 @@ mod tests {
             json!(["DEVIATION-001"])
         );
         let guidance = next_action_guidance(&pending.next_action, "example", &json!({}));
-        assert_eq!(guidance["command"], "task reconciliation-prepare");
+        assert_eq!(guidance["command"], "specification reconciliation-prepare");
         assert_eq!(
             guidance["request_contract_id"],
             "work-spec-reconciliation-prepare-request/v1"

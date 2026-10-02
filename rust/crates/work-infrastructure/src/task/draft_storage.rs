@@ -65,10 +65,38 @@ fn ensure_status_index_unchanged(expected: &Value, latest: &Value) -> Result<(),
 }
 
 impl LocalTaskDraftStorage {
+    pub fn prepare_sources_from_project(
+        &self,
+        request: TaskSourceUpdateProjectRequest<'_>,
+    ) -> Result<Value, WorkError> {
+        let (_, _, prepared) = self.calculate_source_update(&request)?;
+        Ok(work_model::task::response::typed_response::<
+            work_model::task::response::TaskDraftPrepare,
+        >(
+            json!({"schema":"work-task-draft-prepare/v1","status":"prepared",
+            "request":request.raw_request,"index":prepared.index,
+            "affected_task_ids":prepared.affected_task_ids,"drafts":{}}),
+        ))
+    }
+
     pub fn update_sources_from_project(
         &self,
         request: TaskSourceUpdateProjectRequest<'_>,
     ) -> Result<Value, WorkError> {
+        let (previous, current, prepared) = self.calculate_source_update(&request)?;
+        self.publish_source_update(
+            request.requirement_id,
+            &previous,
+            &current,
+            &prepared,
+            request.recover,
+        )
+    }
+
+    fn calculate_source_update(
+        &self,
+        request: &TaskSourceUpdateProjectRequest<'_>,
+    ) -> Result<(Value, Value, PreparedListUpdate), WorkError> {
         let TaskSourceUpdateProjectRequest {
             requirement_id,
             raw_request,
@@ -77,7 +105,7 @@ impl LocalTaskDraftStorage {
             skill_root,
             skill_configs,
             recover,
-        } = request;
+        } = *request;
         let reason = task_draft::source_update_request(raw_request, expected_revision)?;
         let current = self.read_planning_index(requirement_id)?;
         let previous = if recover {
@@ -139,7 +167,7 @@ impl LocalTaskDraftStorage {
                 json!({}),
             ));
         }
-        self.publish_source_update(requirement_id, &previous, &current, &prepared, recover)
+        Ok((previous, current, prepared))
     }
 
     pub fn save_discussion_request(

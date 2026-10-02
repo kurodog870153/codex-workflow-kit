@@ -8,7 +8,7 @@
     "sources": [
       {
         "path": "outputs/work/executions/example/index.json",
-        "raw_sha256": "1737a82a2df9227b0f1aa45b65bac0efb65c5ec09f06be882981f513f8994b49"
+        "raw_sha256": "a1acff55b040a3d7244cc3215877a63be7bd2d793708815bfbd3a317bd6e6462"
       },
       {
         "path": "outputs/work/plans/example.json",
@@ -16,11 +16,11 @@
       },
       {
         "path": "outputs/work/tasks/example/index.json",
-        "raw_sha256": "270198d69ea92c2092b89144b1d6f163d053fbff2206bc25af6e1d7e9e17e25e"
+        "raw_sha256": "4fce06e458b010f46e6347302e93daef01a5ab733c4277bb742067329ba9bbfe"
       },
       {
         "path": "outputs/work/tasks/example/tasks/TASK-001.json",
-        "raw_sha256": "af313241b49b13285fea19ee04397d79b189eeddd24cd327a31b24cdce85efc0"
+        "raw_sha256": "d2181e1030d6e844ccb93dbb3ffe05ede5d41cb647e1a86bf98f2ee28e17da3f"
       }
     ],
     "candidates": [
@@ -155,20 +155,20 @@
               {
                 "kind": "instruction",
                 "logical_name": "task.general",
-                "canonical_sha256": "c043e87d4376797365a946a3295707814eac9f154e18894983a8b50ff049789d",
+                "canonical_sha256": "f718da96bc956849a1a6e5abaab491379c17b7f7487c2b76dff28b04a94851db",
                 "compatibility_revision": 1
               },
               {
                 "kind": "reference",
                 "logical_name": "task.general.task-records",
-                "canonical_sha256": "1ea4931d886c33c5bac81602aead13f66feb77dd6d35a07175c5fecd1a92c98c",
+                "canonical_sha256": "9bd9dff5c693ea21064dc5bb9684078981ebb71836c8e6d4316c3cfef597aa0a",
                 "compatibility_revision": 1
               }
             ],
             "references": [
               "task.general.task-records"
             ],
-            "instructions_sha256": "faaf4a324feca64f085cc67beb0220b21b61e46cba2f8046a6d17097b113adb6"
+            "instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a"
           },
           "execution_defaults": {
             "working_directory": ".",
@@ -179,7 +179,7 @@
             {
               "id": "TASK-001",
               "path": "tasks/TASK-001.json",
-              "canonical_sha256": "b673e7d87028c96e9ae0cecd98c24171aba4547630f6e2627fff641600239b82"
+              "canonical_sha256": "66aee858d20dbe91be8a17f7db6d066162deb44e2f2879f411d6558f92529582"
             }
           ],
           "changes": [
@@ -217,9 +217,9 @@
           "requirement_id": "example",
           "title": "Execution",
           "task_spec_id": "TASK-SPEC-002",
-          "task_collection_sha256": "6a7d9ef813bc700c6a0dda19150d47bfff20dfe887e61aa92b9ed0cbeb26b2a6",
-          "task_index_sha256": "017b4252f33cd26ac85227363d4ade5d0a2a36f4b4f41d3b2dc347c7f0a999e8",
-          "task_instructions_sha256": "faaf4a324feca64f085cc67beb0220b21b61e46cba2f8046a6d17097b113adb6",
+          "task_collection_sha256": "56de16b0baee1cde0dac2367db0a3db38c51ce643e2e60f4c71a39ce84c87f3f",
+          "task_index_sha256": "021881f0f7a054f32c9f46b6bec4364eed16bf844ff7273c2bb78b9cb0cb73b9",
+          "task_instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a",
           "hierarchy_selection_sha256": "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404",
           "skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
           "overall_status": "pending",
@@ -228,8 +228,8 @@
               "id": "TASK-001",
               "status": "pending_retry",
               "skill_id": null,
-              "task_item_sha256": "b673e7d87028c96e9ae0cecd98c24171aba4547630f6e2627fff641600239b82",
-              "instructions_sha256": "faaf4a324feca64f085cc67beb0220b21b61e46cba2f8046a6d17097b113adb6",
+              "task_item_sha256": "66aee858d20dbe91be8a17f7db6d066162deb44e2f2879f411d6558f92529582",
+              "instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a",
               "latest_attempt": "ATTEMPT-001",
               "status_reason": {
                 "kind": "task_change",
@@ -269,20 +269,20 @@
               {
                 "kind": "instruction",
                 "logical_name": "task.general",
-                "canonical_sha256": "c043e87d4376797365a946a3295707814eac9f154e18894983a8b50ff049789d",
+                "canonical_sha256": "f718da96bc956849a1a6e5abaab491379c17b7f7487c2b76dff28b04a94851db",
                 "compatibility_revision": 1
               },
               {
                 "kind": "reference",
                 "logical_name": "task.general.task-records",
-                "canonical_sha256": "1ea4931d886c33c5bac81602aead13f66feb77dd6d35a07175c5fecd1a92c98c",
+                "canonical_sha256": "9bd9dff5c693ea21064dc5bb9684078981ebb71836c8e6d4316c3cfef597aa0a",
                 "compatibility_revision": 1
               }
             ],
             "references": [
               "task.general.task-records"
             ],
-            "instructions_sha256": "faaf4a324feca64f085cc67beb0220b21b61e46cba2f8046a6d17097b113adb6"
+            "instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a"
           },
           "traceability": {
             "goal_ids": [

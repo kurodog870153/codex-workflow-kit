@@ -116,11 +116,6 @@ os-scripts\windows\install-work.bat
 
 安裝器會在寫入前檢查必要的 workflow、subagent、Cargo manifest 與所選 instruction，並完成本機編譯及 `--help` 啟動檢查。編譯失敗不會改動已安裝的 binary。安裝位置的入口是 `<skill-root>/scripts/work`（macOS）或 `<skill-root>\scripts\work.exe`（Windows）；從不同工作目錄使用時，以已解析的 skill root 組成完整路徑，不依賴 PATH。指引檔逐檔複製失敗時不提供自動回復。
 
-## 版本限制
-
-1. 請使用 `$work`，不再使用舊版的 `$plan`、`$task` 或 `$execute`。
-2. 舊版產生的文件無法直接沿用，也不會自動轉換；升級前請保留備份。
-
 ## 清理本機 Codex 資料
 
 > [!WARNING]

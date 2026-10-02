@@ -222,7 +222,7 @@ call :require_file "references\instruction-loading.md"
 if errorlevel 1 exit /b 1
 call :require_file "references\instruction-loading\invocation.md"
 if errorlevel 1 exit /b 1
-for %%M in (plan task execute specification task-drafts progress) do (
+for %%M in (plan task execute specification progress) do (
     call :require_file "references\workflows\%%M.md"
     if errorlevel 1 exit /b 1
 )

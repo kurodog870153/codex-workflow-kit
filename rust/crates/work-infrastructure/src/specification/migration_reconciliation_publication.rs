@@ -10,6 +10,7 @@ use work_feature::ports::ArtifactStore;
 use work_feature::skill::SkillRoot;
 use work_feature::task::{CollectionInput, validate_collection};
 use work_operations::canonical::parse_json_contract;
+use work_operations::derivation::fingerprint;
 use work_operations::derivation::graph::{
     ArtifactNode, rebind_validated_execution, reconcile_artifact_bindings,
 };
@@ -297,6 +298,47 @@ pub fn validate_expected(
 ) -> Result<(), WorkError> {
     build_updates(root, skill_root, configs, requirement, candidates)?;
     Ok(())
+}
+
+pub fn verify_final_chain(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[SkillRootConfig],
+    requirement: &str,
+) -> Result<Value, WorkError> {
+    let id: RequirementId = requirement.parse().map_err(|_| {
+        fail(
+            "migration_requirement_id",
+            "A valid requirement ID is required.",
+        )
+    })?;
+    let paths = default_artifact_paths(&id)
+        .into_iter()
+        .collect::<BTreeMap<_, _>>();
+    if !storage_path(root, &paths["plan"])?.is_file() {
+        return Err(fail(
+            "migration_plan_missing",
+            "The installed Plan is missing.",
+        ));
+    }
+    if !build_updates(root, skill_root, configs, requirement, &BTreeMap::new())?.is_empty() {
+        return Err(fail(
+            "migration_verify_chain_mismatch",
+            "The installed cross-artifact fingerprint chain is stale.",
+        ));
+    }
+    let mut installed = BTreeMap::new();
+    for relative in [
+        paths["plan"].clone(),
+        paths["task"].clone(),
+        format!("{}/index.json", paths["execution"]),
+    ] {
+        let path = storage_path(root, &relative)?;
+        if path.is_file() {
+            installed.insert(relative, fingerprint::raw(&LocalFiles.read_raw(&path)?));
+        }
+    }
+    Ok(json!({"status":"valid","installed_sha256":installed}))
 }
 
 pub fn reconcile(

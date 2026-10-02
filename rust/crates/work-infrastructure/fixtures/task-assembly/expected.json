@@ -1,5 +1,5 @@
 {
-  "approval_sha256": "370ce83b3915eeb5d5507f8920391043edb31d9b449a8c1c0f1baaf01150727b",
+  "approval_sha256": "1baaf117767b8ebacdc0f93fd164120ca092e1a52c596012884bf1528a7fb0b4",
   "contract": {
     "artifacts": {
       "execution": "outputs/work/executions/example",
@@ -7,7 +7,7 @@
       "task": "outputs/work/tasks/example/index.json"
     },
     "instruction_selection": {
-      "instructions_sha256": "faaf4a324feca64f085cc67beb0220b21b61e46cba2f8046a6d17097b113adb6",
+      "instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a",
       "references": [
         "task.general.task-records"
       ],
@@ -25,13 +25,13 @@
           "logical_name": "work.workflow.task"
         },
         {
-          "canonical_sha256": "c043e87d4376797365a946a3295707814eac9f154e18894983a8b50ff049789d",
+          "canonical_sha256": "f718da96bc956849a1a6e5abaab491379c17b7f7487c2b76dff28b04a94851db",
           "compatibility_revision": 1,
           "kind": "instruction",
           "logical_name": "task.general"
         },
         {
-          "canonical_sha256": "1ea4931d886c33c5bac81602aead13f66feb77dd6d35a07175c5fecd1a92c98c",
+          "canonical_sha256": "9bd9dff5c693ea21064dc5bb9684078981ebb71836c8e6d4316c3cfef597aa0a",
           "compatibility_revision": 1,
           "kind": "reference",
           "logical_name": "task.general.task-records"
@@ -57,7 +57,7 @@
         "goal": "Result",
         "id": "TASK-001",
         "instruction_selection": {
-          "instructions_sha256": "faaf4a324feca64f085cc67beb0220b21b61e46cba2f8046a6d17097b113adb6",
+          "instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a",
           "references": [
             "task.general.task-records"
           ],
@@ -79,13 +79,13 @@
               "logical_name": "work.workflow.task"
             },
             {
-              "canonical_sha256": "c043e87d4376797365a946a3295707814eac9f154e18894983a8b50ff049789d",
+              "canonical_sha256": "f718da96bc956849a1a6e5abaab491379c17b7f7487c2b76dff28b04a94851db",
               "compatibility_revision": 1,
               "kind": "instruction",
               "logical_name": "task.general"
             },
             {
-              "canonical_sha256": "1ea4931d886c33c5bac81602aead13f66feb77dd6d35a07175c5fecd1a92c98c",
+              "canonical_sha256": "9bd9dff5c693ea21064dc5bb9684078981ebb71836c8e6d4316c3cfef597aa0a",
               "compatibility_revision": 1,
               "kind": "reference",
               "logical_name": "task.general.task-records"
@@ -133,9 +133,9 @@
   "revision": 2,
   "schema": "work-task-draft-assembly/v1",
   "status": "valid",
-  "task_collection_sha256": "d78a84dc2d4c74168c926e2f36faad2767619b292cbaa5db471c8a4596d657e4",
-  "task_index_sha256": "6cc4ee7ff18bd6aa88c388152968a45b96a749322a06fc1466e01886b839fcdd",
+  "task_collection_sha256": "c5e49902a8b01e61d01b0f4403718fccfc723c2b7786eafe7f94365c8dff5bb1",
+  "task_index_sha256": "19a1b5db4fdd3c4024a7eb4193586d8fb70e73b8e570df9e6eb5f72899e1031c",
   "task_item_sha256": {
-    "TASK-001": "a7213dd29c6fa018d9e614ffc09f70402bc7093e44167e9f4d6d4ba68c9ab60a"
+    "TASK-001": "c8667e26815df903d723884fe807dfa26d4a0782acb26354a820fe793f3492da"
   }
 }

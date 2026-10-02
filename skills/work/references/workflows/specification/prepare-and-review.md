@@ -41,5 +41,5 @@ JSON through shell interpolation, redirection or pipelines.
 
 ### Unsupported semantic changes
 
-1. If `specification prepare`, `reconciliation-prepare` or `work migration semantic-prepare` rejects a confirmed semantic change as unsupported, retain the rejection and source evidence. Return to the parent for a narrower semantic decision or implement and review a dedicated prepare operation. Do not construct `work-specification apply-request/v1`, full Plan/TASK candidates, derived index fields or candidate bytes with AI as a fallback.
+1. If `specification prepare`, `reconciliation-prepare` or `work migration prepare` rejects a confirmed semantic change as unsupported, retain the rejection and source evidence. Return to the parent for a narrower semantic decision or implement and review a dedicated prepare operation. Do not construct `work-specification apply-request/v1`, full Plan/TASK candidates, derived index fields or candidate bytes with AI as a fallback.
 2. The prepared `data.request` is an internal machine request for the existing validator and publication command. Review its complete candidate set, affected TASKs, history preservation and approval fingerprint; only the Work CLI creates or revises those bytes. Execute still performs normal preflight before a new Attempt.

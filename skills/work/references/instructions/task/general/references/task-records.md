@@ -53,11 +53,11 @@ metadata:
 
 1. [強制] execution index 使用 `work-execution-index/v1` canonical 純 JSON，保存 TASK spec、TASK SHA、Plan `hierarchy_selection_sha256` 與 `skill_selection_sha256`、文件與每 TASK instructions SHA、每 TASK `skill_id`、狀態及選用 lock／audit reference；不得複製 TASK 規格或技能全文。
 2. [強制] TASK 狀態只使用 `pending`、`in_progress`、`pending_retry`、`blocked`、`completed`、`cancelled`；`overall_status` 必須由 Work CLI 推導。
-3. [強制] 初版 TASK collection 與 execution index 由 `task create` 使用同一已核准邏輯契約建立；create 要求 formal index、item targets 與 requirement-specific execution 目錄都不存在，依交易程序建立 items、formal index，再建立 execution 目錄與 canonical `index.json`。
+3. [強制] 初版 TASK collection 與 execution index 由 `task preview → apply` 使用同一已核准邏輯契約建立；apply 要求正式 index、item targets 與 requirement-specific execution 目錄不存在，依交易程序發布。
 4. [強制] 規格鎖與 execution lock 互斥；部分失敗時保留現況與 lock，不自動回復或覆寫。
 5. [強制] 初版 index 的所有 TASK 狀態與 `overall_status` 均為 `pending`，不建立 `latest_attempt`、`status_reason`、lock、audit 或其他 execution record。
-6. [強制] create 部分失敗時不刪除或覆寫已完成內容；`task recover-create` 只有在既有 bytes 與相同核准候選一致，且 execution 目錄不存在、為空或只含完全相同初始 index 時可使用，且須先取得使用者授權。
-7. [強制] Validator 只驗證 contract；create／recover-create 都不執行 CMD 或 OP，也不建立 Attempt、execution lock、instruction audit 或規格升版交易。
+6. [強制] 初版發布部分失敗時不刪除或覆寫已完成內容；`task recover` 使用相同 metadata、來源參數、expected revision 與 approved fingerprint 恢復，且須先取得使用者授權。
+7. [強制] Validator 只驗證 contract；`task apply`／`task recover` 都不執行 CMD 或 OP，也不建立 Attempt、execution lock、instruction audit 或規格升版交易。
 
 8. [強制] 已確認的既有規格同步修改由父 agent 呼叫私人 artifact editor，使用 `specification preview`、`specification apply` 與另行授權的 `specification recover`；三者不新增公開 Work mode，且不得手寫正式 JSON 或執行 TASK。
 9. [強制] 同步修改先驗證整組候選與來源指紋，核准綁定 `approved_sha256`；交易保存前後規格、使用 `spec_update` 鎖，完成標記發布前阻擋 Execute。中斷保留現況，只能依相同候選與授權復原，不宣稱多檔案具檔案系統層級原子性。

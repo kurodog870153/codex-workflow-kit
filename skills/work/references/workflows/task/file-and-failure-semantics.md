@@ -1,0 +1,9 @@
+<!-- work-compatibility-revision: 1 -->
+# File and failure semantics
+
+
+1. The effective entry point is `outputs/work/tasks/<requirement-id>/drafts/index.json`. Each entry's `draft_ref` contains `save_revision`, draft `revision` and `sha256`; the historical path is `history/<save_revision>/<TASK-ID>.json`.
+2. Every save exclusively reserves `history/<index-revision>/`, writes its index and changed draft, verifies bytes, and atomically switches the effective index. Unchanged drafts retain their earlier references. The root-level `<TASK-ID>.json` is a display copy only.
+3. A successful save with `mirror_status: stale` is committed despite the outdated display copy. Report that condition and continue to use historical reads. `superseded` means a newer index was observed; read current progress before another write.
+4. A nonzero exit requires inspection. A stale revision requires fresh status and review. For interrupted planning initialization, discussion, boundary or source saving, resubmit the identical approved `task save` request with its original arguments; the façade checks history and sources and returns recovered or already completed when appropriate. Prepared candidates carry their expected revision, so their save requests omit `--expected-revision`; discussion saves retain the explicit option. Do not delete history, skip a revision or overwrite fingerprints.
+5. For addition, split or merge, confirm changed boundaries and dependencies, run `task prepare`, review the complete result, and pass that result to `task save`. The existing transaction preserves retired IDs and history, marks affected discussions for review and retains unaffected references. Use the same save request for interrupted recovery. Source drift follows the source request form of the same prepare and save lifecycle.

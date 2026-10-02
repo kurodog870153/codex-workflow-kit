@@ -111,6 +111,14 @@ pub struct TaskDraftSourceCheck {
 pub enum DraftPrepareRequest {
     Initial(TaskPlanningIndex),
     Update(TaskPlanningUpdateInput),
+    Source(TaskSourcePrepareRequest),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TaskSourcePrepareRequest {
+    pub reason: String,
+    pub selections: BTreeMap<String, DraftInstructionSelection>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
