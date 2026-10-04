@@ -24,6 +24,7 @@ const TOP_ORDER: &[&str] = &[
     "latest_task_instruction_audit",
     "lock",
     "overall_status",
+    "acceptance_results",
     "tasks",
 ];
 const LOCK_ORDER: &[&str] = &[
@@ -45,6 +46,7 @@ const TASK_ORDER: &[&str] = &[
     "skill_id",
     "task_item_sha256",
     "instructions_sha256",
+    "acceptance_results",
     "latest_attempt",
     "latest_correction",
     "status_reason",
@@ -56,6 +58,9 @@ struct Ordered<'a> {
 }
 
 pub(crate) fn order(path: &[String]) -> &'static [&'static str] {
+    if let Some(order) = crate::execution::acceptance::field_order(path) {
+        return order;
+    }
     if let Some(order) = crate::instruction_refresh::manifest_field_order(path) {
         return order;
     }
@@ -141,7 +146,7 @@ pub fn build_initial_execution_index(
             let id = task["id"].as_str().unwrap_or("");
             json!({"id":id,"status":"pending","skill_id":validation["task_skill_ids"][id],
             "task_item_sha256":validation["task_item_sha256"][id],
-            "instructions_sha256":validation["task_instructions_sha256"][id]})
+            "instructions_sha256":validation["task_instructions_sha256"][id],"acceptance_results":crate::execution::acceptance::pending(crate::execution::acceptance::task_ids(task))})
         })
         .collect();
     let index = json!({"schema":"work-execution-index/v1","requirement_id":collection["requirement_id"],
@@ -151,7 +156,7 @@ pub fn build_initial_execution_index(
         "task_instructions_sha256":validation["instructions_sha256"],
         "hierarchy_selection_sha256":validation["hierarchy_selection_sha256"],
         "skill_selection_sha256":validation["skill_selection_sha256"],
-        "overall_status":"pending","tasks":rows});
+        "overall_status":"pending","tasks":rows,"acceptance_results":crate::execution::acceptance::pending(collection["acceptance_criteria"].as_array().into_iter().flatten().filter_map(|row|row["id"].as_str().map(str::to_owned)))});
     let _: work_model::execution::index::ExecutionIndex =
         serde_json::from_value(index.clone()).expect("initial execution index matches model");
     Ok(index)
@@ -230,6 +235,7 @@ pub fn validate_execution_index(index: &Value, raw: &[u8]) -> Result<Value, Exec
             "hierarchy_selection_sha256",
             "skill_selection_sha256",
             "overall_status",
+            "acceptance_results",
             "tasks",
         ],
         &[
@@ -290,6 +296,29 @@ pub fn validate_execution_index(index: &Value, raw: &[u8]) -> Result<Value, Exec
             json!({}),
         ));
     }
+    let bindings: std::collections::BTreeMap<_, _> = index["tasks"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|row| {
+            Some((
+                row["id"].as_str()?.to_owned(),
+                (
+                    row["task_item_sha256"].as_str()?.to_owned(),
+                    row["instructions_sha256"].as_str()?.to_owned(),
+                ),
+            ))
+        })
+        .collect();
+    crate::execution::acceptance::validate(&index["acceptance_results"], &bindings, None, None)?;
+    for row in index["tasks"].as_array().into_iter().flatten() {
+        crate::execution::acceptance::validate(
+            &row["acceptance_results"],
+            &bindings,
+            None,
+            row["id"].as_str(),
+        )?;
+    }
     if let Some(lock) = index.get("lock") {
         validate_lock(lock)?;
     }
@@ -315,6 +344,7 @@ pub fn validate_execution_index(index: &Value, raw: &[u8]) -> Result<Value, Exec
                 "skill_id",
                 "task_item_sha256",
                 "instructions_sha256",
+                "acceptance_results",
             ],
             &["latest_attempt", "latest_correction", "status_reason"],
         )?;
@@ -678,6 +708,56 @@ mod tests {
     }
 
     #[test]
+    fn initial_progress_covers_shared_and_technical_criteria_without_completion() {
+        let collection = json!({"requirement_id":"example","spec_id":"TASK-SPEC-001","acceptance_criteria":[{"id":"ACCEPTANCE-001","criterion":"Shared result."}],"tasks":[
+            {"id":"TASK-001","traceability":{"acceptance_ids":["ACCEPTANCE-001"]},"acceptance_criteria":[{"id":"TASK-001-ACCEPTANCE-001","criterion":"First technical result."}]},
+            {"id":"TASK-002","traceability":{"acceptance_ids":["ACCEPTANCE-001"]},"acceptance_criteria":[{"id":"TASK-002-ACCEPTANCE-001","criterion":"Second technical result."}]}]});
+        let validation = json!({"task_collection_sha256":"a".repeat(64),"task_index_sha256":"b".repeat(64),"instructions_sha256":"c".repeat(64),"hierarchy_selection_sha256":"d".repeat(64),"skill_selection_sha256":"e".repeat(64),"task_skill_ids":{"TASK-001":null,"TASK-002":null},"task_item_sha256":{"TASK-001":"f".repeat(64),"TASK-002":"0".repeat(64)},"task_instructions_sha256":{"TASK-001":"1".repeat(64),"TASK-002":"2".repeat(64)}});
+        let index = build_initial_execution_index(&collection, &validation).unwrap();
+        assert_eq!(
+            index["acceptance_results"],
+            json!([{"id":"ACCEPTANCE-001","status":"pending","evidence":[]}])
+        );
+        for (position, id) in ["TASK-001", "TASK-002"].into_iter().enumerate() {
+            assert_eq!(index["tasks"][position]["status"], "pending");
+            assert_eq!(
+                index["tasks"][position]["acceptance_results"],
+                json!([{"id":"ACCEPTANCE-001","status":"pending","evidence":[]},{"id":format!("{id}-ACCEPTANCE-001"),"status":"pending","evidence":[]}])
+            );
+        }
+        let raw = render_execution_index(&index).unwrap();
+        validate_execution_index(&index, &raw).unwrap();
+        let typed: work_model::execution::index::ExecutionIndex =
+            serde_json::from_slice(&raw).unwrap();
+        assert_eq!(serde_json::to_value(typed).unwrap(), index);
+        let mut missing = index.clone();
+        missing
+            .as_object_mut()
+            .unwrap()
+            .remove("acceptance_results");
+        assert!(
+            validate_execution_index(&missing, &render_execution_index(&missing).unwrap()).is_err()
+        );
+        let mut missing_row = index.clone();
+        missing_row["tasks"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("acceptance_results");
+        assert!(
+            validate_execution_index(&missing_row, &render_execution_index(&missing_row).unwrap())
+                .is_err()
+        );
+        let mut partial = index.clone();
+        partial["tasks"][1]["acceptance_results"] = json!([]);
+        assert_eq!(
+            crate::execution::acceptance::require_collection(&partial, &collection)
+                .unwrap_err()
+                .reason_code,
+            "acceptance_definition_mismatch"
+        );
+    }
+
+    #[test]
     fn instruction_index_v1_fields_order_and_legacy_rejections_match_python() {
         let index = python_instruction_index();
         let result = validate_instruction_fixture(&index).unwrap();
@@ -885,7 +965,7 @@ mod tests {
     }
 
     #[test]
-    fn initial_index_matches_python_bytes() {
+    fn initial_index_matches_contract_bytes() {
         let collection =
             json!({"requirement_id":"demo","spec_id":"TASK-SPEC-001","tasks":[{"id":"TASK-001"}]});
         let validation = json!({"task_instructions_sha256":{"TASK-001":"a".repeat(64)},"task_skill_ids":{"TASK-001":null},
@@ -896,7 +976,7 @@ mod tests {
         let raw = render_execution_index(&index).unwrap();
         assert_eq!(
             sha256_hex(&raw),
-            "daa09cbcd623c5674b9d76bd0ebd1890e58a94282537f9dd49b1752431f066f4"
+            "0b1d82c0895b1184a00ab99772861d24989eb07a0c21c6069e913010f94ce8ed"
         );
         assert_eq!(
             validate_execution_index(&index, &raw).unwrap()["task_count"],
@@ -926,7 +1006,7 @@ mod tests {
 
     #[test]
     fn ordering_preserves_task_reason_lock_and_command_fields() {
-        let value = json!({
+        let value = json!({"acceptance_results":[],
             "zzz": 2, "aaa": 1,
             "schema": "work-execution-index/v1",
             "task_collection_sha256": "a", "task_index_sha256": "b",

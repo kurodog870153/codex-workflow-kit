@@ -6,15 +6,14 @@ use crate::derivation::identity::next_record_id;
 use crate::execution::attempt::{render_attempt, validate_attempt_bytes};
 use crate::execution::attempt_close::build_close_candidates;
 use crate::execution::authorization::{
-    require_record_finish_result_evidence, require_retry_evidence,
+    effective_task, require_record_finish_result_evidence, require_retry_evidence,
 };
 use crate::execution::command_correction::validate_command_correction;
 use crate::execution::deviation::validate_deviation_artifact;
 use crate::execution::index::{render_execution_index, validate_execution_index};
+use crate::execution::record_finish::build_record_finish_candidates;
 use crate::execution::validate_completed_coverage;
-use crate::execution::{
-    ExecutionIssue, finish_attempt_candidate, finished_record_index, formal_record_kind,
-};
+use crate::execution::{ExecutionIssue, finished_record_index, formal_record_kind};
 
 fn issue(reason_code: &'static str, message: &'static str) -> ExecutionIssue {
     ExecutionIssue {
@@ -411,13 +410,16 @@ pub fn validate_record_finish_recovery(
         )
     })?;
     let base = record_id.split('#').next().unwrap_or(record_id);
-    let kind = formal_record_kind(input.task, base)?;
+    let effective = effective_task(input.task, input.attempt)?;
+    let kind = formal_record_kind(&effective, base)?;
     let current_has_record = input.attempt["records"]
         .as_array()
         .into_iter()
         .flatten()
         .any(|record| record["id"] == record_id);
-    let expected_attempt = if let Some((prepared, prepared_raw)) = input.prepared_attempt {
+    let (expected_attempt, finished_attempt) = if let Some((prepared, prepared_raw)) =
+        input.prepared_attempt
+    {
         if current_has_record {
             return Err(issue(
                 "execution_recovery_duplicate_attempt_target",
@@ -440,17 +442,24 @@ pub fn validate_record_finish_recovery(
                 .expect("validated record")
                 .remove(field);
         }
-        let mut request = json!({"record":result_record});
-        if let Some(files) = prepared.get("modified_files") {
+        let mut request = json!({"schema":"work-record-finish-request/v1","record":result_record});
+        if let Some(evidence) = input.authorization_evidence {
+            request["authorization_evidence"] = json!(evidence);
+        }
+        if let Some(files) = prepared
+            .get("modified_files")
+            .filter(|files| Some(*files) != input.attempt.get("modified_files"))
+        {
             request["modified_files"] = files.clone();
         }
-        let expected = finish_attempt_candidate(
+        let candidate = build_record_finish_candidates(
+            input.task,
             input.attempt,
+            input.index,
+            input.attempt["task_id"].as_str().unwrap_or(""),
             &request,
-            record_id,
-            kind,
-            input.index["lock"].get("command_correction"),
         )?;
+        let expected = candidate.attempt;
         let expected_raw = render_attempt(&expected)?;
         if expected_raw != prepared_raw {
             return Err(issue(
@@ -465,7 +474,7 @@ pub fn validate_record_finish_recovery(
             kind,
             input.authorization_evidence,
         )?;
-        Some(expected_raw)
+        (Some(expected_raw), expected)
     } else {
         if !current_has_record {
             return Err(issue(
@@ -486,9 +495,22 @@ pub fn validate_record_finish_recovery(
             kind,
             input.authorization_evidence,
         )?;
-        None
+        let mut checked = input.attempt.clone();
+        checked["acceptance_results"] =
+            crate::execution::acceptance::reset(&checked["acceptance_results"])?;
+        checked["acceptance_results"] =
+            crate::execution::acceptance::aggregate_attempt(&effective, &checked)?;
+        if checked["acceptance_results"] != input.attempt["acceptance_results"] {
+            return Err(issue(
+                "execution_recovery_acceptance_result_mismatch",
+                "The installed record result must retain its exact derived acceptance evidence.",
+            ));
+        }
+        (None, checked)
     };
     let expected_index = finished_record_index(input.index)?;
+    let expected_index =
+        crate::execution::acceptance::update_index_attempt(&expected_index, &finished_attempt)?;
     let index_raw = render_execution_index(&expected_index).expect("validated index serializes");
     validate_execution_index(&expected_index, &index_raw)?;
     Ok(RecordFinishRecoveryTarget {
@@ -544,7 +566,8 @@ pub fn validate_attempt_close_recovery(
             validate_completed_coverage(input.task, input.attempt)?;
         }
         let ended_at = prepared["ended_at"].as_str().unwrap_or("");
-        let (expected, _) = build_close_candidates(input.index, input.attempt, &request, ended_at)?;
+        let (expected, _) =
+            build_close_candidates(input.task, input.index, input.attempt, &request, ended_at)?;
         let expected_raw = render_attempt(&expected)?;
         if expected_raw != prepared_raw {
             return Err(issue(
@@ -564,6 +587,7 @@ pub fn validate_attempt_close_recovery(
     };
     let request = close_request(&closed);
     let (_, expected_index) = build_close_candidates(
+        input.task,
         input.index,
         &closed,
         &request,
@@ -642,12 +666,12 @@ mod tests {
     #[test]
     fn record_finish_recovery_rejects_tampered_prepared_attempt() {
         let authorization = json!({"schema":"work-attempt-authorization/v1",
-            "task_id":"TASK-001","commands":[],"validations":[{"id":"VAL-001"}],
+            "task_id":"TASK-001","commands":[],"validations":[{"id":"VAL-001","acceptance_ids":["ACCEPTANCE-001"]}],
             "modifiable_files":[],"working_directories":[],"external_operations":[],
             "allowed_deviations":[],"reapproval_conditions":["scope_expansion",
                 "source_or_worktree_drift","failure_divergence","retry","recovery","unknown_result"],
             "authorization_evidence":"Approved"});
-        let attempt = json!({"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
+        let attempt = json!({"acceptance_results":crate::execution::acceptance::pending(["ACCEPTANCE-001".to_owned()]),"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
             "task_spec_id":"TASK-SPEC-001","task_id":"TASK-001","skill_id":null,
             "status":"in_progress","task_collection_sha256":"a".repeat(64),
             "task_index_sha256":"b".repeat(64),"task_item_sha256":"c".repeat(64),
@@ -658,7 +682,7 @@ mod tests {
             "authorization_sha256":canonical_json_sha256(&authorization).unwrap(),
             "authorization":authorization,"started_at":"2026-09-01T10:00+08:00","records":[]});
         let collection = json!({"requirement_id":"demo","spec_id":"TASK-SPEC-001",
-            "tasks":[{"id":"TASK-001"}]});
+            "acceptance_criteria":[{"id":"ACCEPTANCE-001"}],"tasks":[{"id":"TASK-001","traceability":{"acceptance_ids":["ACCEPTANCE-001"]}}]});
         let validation = json!({"task_collection_sha256":"a".repeat(64),
             "task_index_sha256":"b".repeat(64),"instructions_sha256":"d".repeat(64),
             "hierarchy_selection_sha256":"f".repeat(64),"skill_selection_sha256":"0".repeat(64),
@@ -671,10 +695,12 @@ mod tests {
         index["tasks"][0]["latest_attempt"] = json!("ATTEMPT-001");
         index["lock"] = build_execution_lock("TASK-001", "ATTEMPT-001", &"e".repeat(64));
         index["lock"]["record_id"] = json!("VAL-001");
-        let task = json!({"commands":[],"operations":[],"validations":[{"id":"VAL-001"}]});
-        let request = json!({"record":{"outcome":"passed","evidence":"Passed"}});
+        let task = json!({"id":"TASK-001","traceability":{"acceptance_ids":["ACCEPTANCE-001"]},"commands":[],"operations":[],"validations":[{"id":"VAL-001","acceptance_ids":["ACCEPTANCE-001"]}]});
+        let request = json!({"schema":"work-record-finish-request/v1","record":{"outcome":"passed","evidence":"Passed"}});
         let prepared =
-            finish_attempt_candidate(&attempt, &request, "VAL-001", "validation", None).unwrap();
+            build_record_finish_candidates(&task, &attempt, &index, "TASK-001", &request)
+                .unwrap()
+                .attempt;
         let attempt_raw = render_attempt(&attempt).unwrap();
         let index_raw = render_execution_index(&index).unwrap();
         let prepared_raw = render_attempt(&prepared).unwrap();
@@ -692,6 +718,11 @@ mod tests {
         assert_eq!(target.attempt.unwrap(), prepared_raw);
         let finished = crate::canonical::parse_json_contract(&target.index).unwrap();
         assert!(finished["lock"].get("record_id").is_none());
+        assert_eq!(finished["acceptance_results"][0]["status"], "completed");
+        assert_eq!(
+            finished["tasks"][0]["acceptance_results"],
+            prepared["acceptance_results"]
+        );
         let mut altered = prepared.clone();
         altered["started_at"] = json!("2026-09-01T10:01+08:00");
         let altered_raw = render_attempt(&altered).unwrap();
@@ -709,10 +740,11 @@ mod tests {
             .reason_code,
             "execution_recovery_record_finish_target_mismatch"
         );
-        let failed_request = json!({"record":{"outcome":"failed","evidence":"Failed"}});
-        let failed =
-            finish_attempt_candidate(&attempt, &failed_request, "VAL-001", "validation", None)
+        let failed_request = json!({"schema":"work-record-finish-request/v1","record":{"outcome":"failed","evidence":"Failed"},"authorization_evidence":"Fresh failure authorization"});
+        let failed_candidate =
+            build_record_finish_candidates(&task, &attempt, &index, "TASK-001", &failed_request)
                 .unwrap();
+        let failed = failed_candidate.attempt;
         let failed_raw = render_attempt(&failed).unwrap();
         let check = |evidence| {
             validate_record_finish_recovery(RecordFinishRecovery {
@@ -734,6 +766,46 @@ mod tests {
             "execution_authorization_result_evidence_reused"
         );
         assert!(check(Some("Fresh failure authorization")).is_ok());
+        let failed_target = check(Some("Fresh failure authorization")).unwrap();
+        let failed_index = crate::canonical::parse_json_contract(&failed_target.index).unwrap();
+        assert_eq!(failed_index["acceptance_results"][0]["status"], "pending");
+        let mut retry_index = failed_index;
+        retry_index["lock"]["record_id"] = json!("VAL-001#1");
+        retry_index["lock"]["retry_authorization_evidence"] = json!("Fresh retry authorization");
+        let retry_index_raw = render_execution_index(&retry_index).unwrap();
+        let retry_request = json!({"schema":"work-record-finish-request/v1","record":{"outcome":"passed","evidence":"Retry passed"}});
+        let retried = build_record_finish_candidates(
+            &task,
+            &failed,
+            &retry_index,
+            "TASK-001",
+            &retry_request,
+        )
+        .unwrap()
+        .attempt;
+        let retried_raw = render_attempt(&retried).unwrap();
+        let target = validate_record_finish_recovery(RecordFinishRecovery {
+            index: &retry_index,
+            index_raw: &retry_index_raw,
+            attempt: &failed,
+            attempt_raw: &failed_raw,
+            prepared_attempt: Some((&retried, &retried_raw)),
+            task: &task,
+            authorization_evidence: None,
+        })
+        .unwrap();
+        assert_eq!(target.record_id, "VAL-001#1");
+        assert_eq!(target.attempt.unwrap(), retried_raw);
+        assert_eq!(retried["records"][0], failed["records"][0]);
+        assert_eq!(
+            retried["acceptance_results"][0]["evidence"][0]["record_id"],
+            "VAL-001#1"
+        );
+        assert_eq!(
+            crate::canonical::parse_json_contract(&target.index).unwrap()["acceptance_results"][0]
+                ["status"],
+            "completed"
+        );
     }
 
     #[test]
@@ -755,7 +827,8 @@ mod tests {
         let index_raw = render_execution_index(&index).unwrap();
         let attempt = json!({"records":[{"id":"VAL-001"}],
             "authorization":{"authorization_evidence":"Original"}});
-        let task = json!({"commands":[],"operations":[],"validations":[{"id":"VAL-001"}]});
+        let task =
+            json!({"id":"TASK-001","commands":[],"operations":[],"validations":[{"id":"VAL-001"}]});
         let mut prepared = index.clone();
         prepared["lock"]["record_id"] = json!("VAL-001#1");
         prepared["lock"]["retry_authorization_evidence"] = json!("Approved retry");

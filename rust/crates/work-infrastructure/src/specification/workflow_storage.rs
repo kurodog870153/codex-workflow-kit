@@ -15,11 +15,7 @@ use work_feature::specification::{SpecificationBaseline, preview_update};
 use work_feature::task::load_collection_with_file_state;
 use work_operations::canonical::parse_json_contract;
 use work_operations::derivation::fingerprint;
-#[cfg(test)]
-use work_operations::derivation::fingerprint::raw as raw_sha256;
-use work_operations::derivation::graph::{
-    ArtifactNode, bind_plan_source, reconcile_artifact_bindings,
-};
+use work_operations::derivation::graph::{ArtifactNode, reconcile_artifact_bindings};
 use work_operations::derivation::identity::derived_transaction_id;
 use work_operations::derivation::publication::completion_marker;
 use work_operations::execution::attempt::{validate_attempt_bytes, validate_attempt_file_path};
@@ -27,7 +23,6 @@ use work_operations::execution::correction::{
     render_correction, validate_correction, validate_correction_file_path,
 };
 use work_operations::execution::index::validate_execution_index;
-use work_operations::plan::render_plan_value;
 use work_operations::specification::prepare::validate_prepare_request;
 use work_operations::specification::transaction::{render_transaction, validate_transaction};
 use work_operations::specification::update::validate_update_request;
@@ -37,7 +32,6 @@ use work_operations::task::ordering::{TaskDocumentKind, render_task};
 
 use crate::files::LocalFiles;
 use crate::hierarchy_catalog::LocalHierarchyCatalog;
-use crate::plan_storage::LocalPlanStorage;
 use crate::skill_catalog::{LocalSkillCatalog, SkillRootConfig};
 use crate::specification::storage::{
     execution_history_fingerprints, publish_journal, require_no_spec_update, storage_path,
@@ -105,10 +99,10 @@ pub struct SpecificationPrepareInput<'a> {
 }
 
 struct OwnedBaseline {
-    plan_path: String,
     task_path: String,
     execution_path: String,
-    plan_raw: Vec<u8>,
+    source_sha256: String,
+    source_evidence: BTreeMap<String, Vec<u8>>,
     index_raw: Vec<u8>,
     items: BTreeMap<String, Vec<u8>>,
     execution_raw: Vec<u8>,
@@ -118,10 +112,10 @@ struct OwnedBaseline {
 impl OwnedBaseline {
     fn borrow(&self) -> SpecificationBaseline<'_> {
         SpecificationBaseline {
-            plan_path: &self.plan_path,
             task_path: &self.task_path,
             execution_path: &self.execution_path,
-            plan_raw: &self.plan_raw,
+            source_sha256: &self.source_sha256,
+            source_evidence: &self.source_evidence,
             index_raw: &self.index_raw,
             items: &self.items,
             execution_raw: &self.execution_raw,
@@ -229,183 +223,6 @@ fn semantic_positions(value: &Value, rows: &Value) -> Result<Vec<String>, WorkEr
     Ok(result)
 }
 
-fn semantic_plan_rows(plan: &Value, field: &str, choices: &Value) -> Result<Value, WorkError> {
-    let (prefix, required, references): (&str, &[&str], &[(&str, &str)]) = match field {
-        "goals" => ("GOAL", &["statement"], &[]),
-        "scope" => (
-            "SCOPE",
-            &["kind", "statement"],
-            &[("goal_positions", "goals")],
-        ),
-        "dependencies" => ("DEPENDENCY", &["statement", "applies_to"], &[]),
-        "risks" => (
-            "RISK",
-            &["condition", "impact", "mitigation", "applies_to"],
-            &[],
-        ),
-        "milestones" => (
-            "MILESTONE",
-            &["statement", "deliverable_positions"],
-            &[("deliverable_positions", "deliverables")],
-        ),
-        "deliverables" => (
-            "DELIVERABLE",
-            &["statement", "goal_positions", "acceptance_positions"],
-            &[
-                ("goal_positions", "goals"),
-                ("acceptance_positions", "acceptance_criteria"),
-            ],
-        ),
-        "acceptance_criteria" => (
-            "ACCEPTANCE",
-            &["statement", "deliverable_positions"],
-            &[("deliverable_positions", "deliverables")],
-        ),
-        "decisions" => ("DECISION", &["statement", "rationale", "applies_to"], &[]),
-        _ => {
-            return Err(semantic_error(
-                "spec_prepare_field",
-                "Unsupported semantic Plan field.",
-            ));
-        }
-    };
-    let choices = choices.as_array().ok_or_else(|| {
-        semantic_error(
-            "invalid_semantic_items",
-            "A semantic collection must be an array.",
-        )
-    })?;
-    let source = plan[field].as_array();
-    let mut next = source
-        .into_iter()
-        .flatten()
-        .filter_map(|row| row["id"].as_str())
-        .filter_map(|id| id.rsplit_once('-')?.1.parse::<usize>().ok())
-        .max()
-        .unwrap_or(0);
-    let mut keys = std::collections::BTreeSet::new();
-    let mut positions = std::collections::BTreeSet::new();
-    let mut result = Vec::new();
-    for choice in choices {
-        let object = choice.as_object().ok_or_else(|| {
-            semantic_error("invalid_semantic_object", "A semantic object is required.")
-        })?;
-        if required.iter().any(|name| !object.contains_key(*name))
-            || object.keys().any(|name| {
-                name != "key"
-                    && name != "existing_position"
-                    && !required.contains(&name.as_str())
-                    && !references.iter().any(|(semantic, _)| name == semantic)
-            })
-        {
-            return Err(semantic_error(
-                "invalid_object_fields",
-                "The semantic object has missing or unknown fields.",
-            ));
-        }
-        let key = choice["key"]
-            .as_str()
-            .filter(|key| {
-                !key.is_empty()
-                    && key.as_bytes()[0].is_ascii_lowercase()
-                    && key.bytes().all(|byte| {
-                        byte.is_ascii_lowercase()
-                            || byte.is_ascii_digit()
-                            || byte == b'_'
-                            || byte == b'-'
-                    })
-            })
-            .ok_or_else(|| semantic_error("invalid_semantic_key", "Use a lowercase local key."))?;
-        if !keys.insert(key) {
-            return Err(semantic_error(
-                "duplicate_semantic_key",
-                "Local keys must be unique.",
-            ));
-        }
-        let id = if let Some(position) = object.get("existing_position") {
-            let position = position
-                .as_u64()
-                .filter(|value| *value > 0)
-                .ok_or_else(|| {
-                    semantic_error("invalid_semantic_position", "Invalid source position.")
-                })? as usize;
-            if !positions.insert(position) {
-                return Err(semantic_error(
-                    "duplicate_semantic_position",
-                    "A source item may be retained once.",
-                ));
-            }
-            source
-                .and_then(|rows| rows.get(position - 1))
-                .and_then(|row| row["id"].as_str())
-                .ok_or_else(|| {
-                    semantic_error("invalid_semantic_position", "Invalid source position.")
-                })?
-                .to_owned()
-        } else {
-            next += 1;
-            format!("{prefix}-{next:03}")
-        };
-        let mut formal = object.clone();
-        formal.remove("key");
-        formal.remove("existing_position");
-        formal.insert("id".into(), json!(id));
-        for (semantic, collection) in references {
-            if let Some(value) = formal.remove(*semantic) {
-                let ids = semantic_positions(&value, &plan[*collection])?;
-                formal.insert(semantic.replace("_positions", "_ids"), json!(ids));
-            }
-        }
-        if let Some(value) = formal.remove("applies_to") {
-            let rows = value
-                .as_array()
-                .filter(|rows| !rows.is_empty())
-                .ok_or_else(|| {
-                    semantic_error(
-                        "invalid_semantic_reference",
-                        "applies_to requires semantic references.",
-                    )
-                })?;
-            let mut ids = Vec::new();
-            for reference in rows {
-                let collection = reference["collection"].as_str().ok_or_else(|| {
-                    semantic_error("invalid_semantic_reference", "Invalid Plan reference.")
-                })?;
-                let id = if collection == "plan"
-                    && reference.as_object().is_some_and(|value| value.len() == 1)
-                {
-                    "PLAN".to_owned()
-                } else {
-                    let position = reference["position"]
-                        .as_u64()
-                        .filter(|position| *position > 0)
-                        .ok_or_else(|| {
-                            semantic_error("invalid_semantic_position", "Invalid Plan position.")
-                        })?;
-                    plan.get(collection)
-                        .and_then(Value::as_array)
-                        .and_then(|rows| rows.get(position as usize - 1))
-                        .and_then(|row| row["id"].as_str())
-                        .ok_or_else(|| {
-                            semantic_error("invalid_semantic_reference", "Unknown Plan reference.")
-                        })?
-                        .to_owned()
-                };
-                if ids.contains(&id) {
-                    return Err(semantic_error(
-                        "invalid_semantic_reference",
-                        "Plan references must be unique.",
-                    ));
-                }
-                ids.push(id);
-            }
-            formal.insert("applies_to".into(), json!(ids));
-        }
-        result.push(Value::Object(formal));
-    }
-    Ok(Value::Array(result))
-}
-
 fn semantic_index_decisions(index: &Value, choices: &Value) -> Result<Value, WorkError> {
     let rows = choices.as_array().ok_or_else(|| {
         semantic_error(
@@ -491,191 +308,25 @@ fn semantic_index_decisions(index: &Value, choices: &Value) -> Result<Value, Wor
     Ok(Value::Array(result))
 }
 
-fn semantic_traceability(plan: &Value, choices: &Value) -> Result<Value, WorkError> {
+fn semantic_traceability(index: &Value, choices: &Value) -> Result<Value, WorkError> {
     let fields = choices.as_object().ok_or_else(|| {
         semantic_error(
             "invalid_semantic_object",
-            "Traceability needs a semantic object.",
+            "Traceability needs acceptance positions.",
         )
     })?;
-    let groups = [
-        ("goal_positions", "goals"),
-        ("deliverable_positions", "deliverables"),
-        ("acceptance_positions", "acceptance_criteria"),
-        ("milestone_positions", "milestones"),
-    ];
-    if fields
-        .keys()
-        .any(|key| !groups.iter().any(|(name, _)| key == name))
-        || groups[..3]
-            .iter()
-            .any(|(name, _)| !fields.contains_key(*name))
-    {
+    if fields.len() != 1 || !fields.contains_key("acceptance_positions") {
         return Err(semantic_error(
             "invalid_object_fields",
-            "Traceability has missing or unknown positions.",
+            "Only Task-owned acceptance positions are supported.",
         ));
     }
-    let mut result = serde_json::Map::new();
-    for (name, collection) in groups {
-        if let Some(value) = fields.get(name) {
-            result.insert(
-                name.replace("_positions", "_ids"),
-                json!(semantic_positions(value, &plan[collection])?),
-            );
-        }
-    }
-    Ok(Value::Object(result))
+    Ok(
+        json!({"acceptance_ids":semantic_positions(&choices["acceptance_positions"], &index["acceptance_criteria"])?}),
+    )
 }
 
-fn semantic_constraint_rows(plan: &Value, choices: &Value) -> Result<Value, WorkError> {
-    let contract = |reason, message| WorkError::new(ExitCode::Contract, reason, message, json!({}));
-    let choices = choices.as_array().ok_or_else(|| {
-        contract(
-            "invalid_semantic_items",
-            "A semantic collection must be an array.",
-        )
-    })?;
-    let source = plan["constraints"].as_array();
-    let mut next_number = source
-        .into_iter()
-        .flatten()
-        .filter_map(|row| row["id"].as_str())
-        .filter_map(|id| id.rsplit_once('-'))
-        .filter_map(|(_, number)| number.parse::<usize>().ok())
-        .max()
-        .unwrap_or(0);
-    let mut keys = std::collections::BTreeSet::new();
-    let mut positions = std::collections::BTreeSet::new();
-    let mut rows = Vec::new();
-    for choice in choices {
-        let object = choice
-            .as_object()
-            .ok_or_else(|| contract("invalid_semantic_object", "A semantic object is required."))?;
-        if !["key", "statement", "applies_to"]
-            .iter()
-            .all(|key| object.contains_key(*key))
-            || object.keys().any(|key| {
-                !["key", "statement", "applies_to", "existing_position"].contains(&key.as_str())
-            })
-        {
-            return Err(contract(
-                "invalid_object_fields",
-                "The semantic object has missing or unknown fields.",
-            ));
-        }
-        let key = choice["key"]
-            .as_str()
-            .filter(|key| {
-                !key.is_empty()
-                    && key.as_bytes()[0].is_ascii_lowercase()
-                    && key.bytes().all(|byte| {
-                        byte.is_ascii_lowercase()
-                            || byte.is_ascii_digit()
-                            || byte == b'_'
-                            || byte == b'-'
-                    })
-            })
-            .ok_or_else(|| {
-                contract(
-                    "invalid_semantic_key",
-                    "Use a local lowercase semantic key.",
-                )
-            })?;
-        if !keys.insert(key) {
-            return Err(contract(
-                "duplicate_semantic_key",
-                "Local semantic keys must be unique.",
-            ));
-        }
-        let id = if let Some(value) = object.get("existing_position") {
-            let position = value
-                .as_u64()
-                .filter(|position| *position > 0)
-                .ok_or_else(|| {
-                    contract(
-                        "invalid_semantic_position",
-                        "A one-based position must identify a source item.",
-                    )
-                })? as usize;
-            let id = source
-                .and_then(|source| source.get(position - 1))
-                .and_then(|row| row["id"].as_str())
-                .ok_or_else(|| {
-                    contract(
-                        "invalid_semantic_position",
-                        "A one-based position must identify a source item.",
-                    )
-                })?;
-            if !positions.insert(position) {
-                return Err(contract(
-                    "duplicate_semantic_position",
-                    "An existing item may be retained once.",
-                ));
-            }
-            id.to_owned()
-        } else {
-            next_number += 1;
-            format!("CONSTRAINT-{next_number:03}")
-        };
-        let references = choice["applies_to"]
-            .as_array()
-            .filter(|rows| !rows.is_empty())
-            .ok_or_else(|| {
-                contract(
-                    "invalid_semantic_reference",
-                    "applies_to requires semantic references.",
-                )
-            })?;
-        let mut applies_to = Vec::new();
-        for reference in references {
-            let group = reference["collection"].as_str().ok_or_else(|| {
-                contract(
-                    "invalid_semantic_reference",
-                    "applies_to must identify one semantic Plan item.",
-                )
-            })?;
-            let id = if group == "plan"
-                && reference
-                    .as_object()
-                    .is_some_and(|object| object.len() == 1)
-            {
-                "PLAN"
-            } else {
-                let position = reference["position"]
-                    .as_u64()
-                    .filter(|position| *position > 0)
-                    .ok_or_else(|| {
-                        contract(
-                            "invalid_semantic_position",
-                            "A one-based position must identify a source item.",
-                        )
-                    })? as usize;
-                plan.get(group)
-                    .and_then(Value::as_array)
-                    .and_then(|rows| rows.get(position - 1))
-                    .and_then(|row| row["id"].as_str())
-                    .ok_or_else(|| {
-                        contract(
-                            "invalid_semantic_reference",
-                            "applies_to must identify one semantic Plan item.",
-                        )
-                    })?
-            };
-            if applies_to.contains(&id.to_owned()) {
-                return Err(contract(
-                    "invalid_semantic_reference",
-                    "applies_to references must be unique.",
-                ));
-            }
-            applies_to.push(id.to_owned());
-        }
-        rows.push(json!({"id":id,"statement":choice["statement"],"applies_to":applies_to}));
-    }
-    Ok(json!(rows))
-}
-
-fn resolve_plan_path(root: &Path, requirement_id: &str) -> Result<String, WorkError> {
+fn resolve_task_path(root: &Path, requirement_id: &str) -> Result<String, WorkError> {
     let mut candidates = Vec::new();
     for relative in work_json_files(root)? {
         let Ok(raw) = std::fs::read(storage_path(root, &relative)?) else {
@@ -684,14 +335,16 @@ fn resolve_plan_path(root: &Path, requirement_id: &str) -> Result<String, WorkEr
         let Ok(document) = serde_json::from_slice::<Value>(&raw) else {
             continue;
         };
-        if document["schema"] != "work-plan/v1" || document["requirement_id"] != requirement_id {
+        if document["schema"] != "work-task-index/v1"
+            || document["requirement_id"] != requirement_id
+        {
             continue;
         }
-        if document["artifacts"]["plan"] != relative {
+        if document["artifacts"]["task"] != relative {
             return Err(WorkError::new(
                 ExitCode::ArtifactIntegrity,
-                "spec_plan_binding_invalid",
-                "A matching Plan has an invalid artifact binding.",
+                "spec_task_binding_invalid",
+                "A matching TASK index has an invalid artifact binding.",
                 json!({"path":relative}),
             ));
         }
@@ -701,11 +354,11 @@ fn resolve_plan_path(root: &Path, requirement_id: &str) -> Result<String, WorkEr
         return Err(WorkError::new(
             ExitCode::ArtifactIntegrity,
             if candidates.is_empty() {
-                "spec_plan_source_missing"
+                "spec_task_source_missing"
             } else {
-                "spec_plan_source_ambiguous"
+                "spec_task_source_ambiguous"
             },
-            "Exactly one trusted Plan must match the requirement.",
+            "Exactly one trusted TASK index must match the requirement.",
             json!({"requirement_id":requirement_id,"candidates":candidates}),
         ));
     }
@@ -716,41 +369,26 @@ fn sources(
     root: &Path,
     skill_root: &Path,
     configs: &[SkillRootConfig],
-    plan_path: &str,
+    task_path: &str,
 ) -> Result<OwnedBaseline, WorkError> {
-    let plan_raw = LocalFiles.read_raw(&storage_path(root, plan_path)?)?;
-    let plan = parse_json_contract(&plan_raw).map_err(|_| {
-        with_migration_route(fail("invalid_json_contract", "The source Plan is invalid."))
+    let index_raw = LocalFiles.read_raw(&storage_path(root, task_path)?)?;
+    let index = parse_json_contract(&index_raw).map_err(|_| {
+        with_migration_route(fail("invalid_json_contract", "The TASK index is invalid."))
     })?;
-    let artifacts = &plan["artifacts"];
-    let task_path = artifacts["task"]
-        .as_str()
-        .filter(|path| path.ends_with("/index.json"))
-        .ok_or_else(|| {
-            with_migration_route(fail(
-                "spec_artifact_identity",
-                "The Plan must route to a TASK collection index.",
-            ))
-        })?;
-    if artifacts["plan"] != plan_path {
+    let artifacts = &index["artifacts"];
+    if artifacts["task"] != task_path {
         return Err(with_migration_route(fail(
             "spec_artifact_identity",
-            "The Plan artifact binding is invalid.",
+            "The TASK binding is invalid.",
         )));
     }
     let execution = artifacts["execution"].as_str().ok_or_else(|| {
         with_migration_route(fail(
             "spec_artifact_identity",
-            "The Plan execution binding is invalid.",
+            "The execution binding is invalid.",
         ))
     })?;
     let execution_path = format!("{execution}/index.json");
-    let index_raw = LocalFiles
-        .read_raw(&storage_path(root, task_path)?)
-        .map_err(with_migration_route)?;
-    let index = parse_json_contract(&index_raw).map_err(|_| {
-        with_migration_route(fail("invalid_json_contract", "The TASK index is invalid."))
-    })?;
     let directory = task_path.rsplit_once('/').map_or("", |(parent, _)| parent);
     let mut items = BTreeMap::new();
     for reference in index["tasks"].as_array().ok_or_else(|| {
@@ -785,13 +423,13 @@ fn sources(
             locator: config.locator.clone(),
         })
         .collect::<Vec<_>>();
-    let paths = LocalPlanStorage {
+    let paths = crate::artifact_paths::LocalArtifactPaths {
         project_root: root.to_path_buf(),
     };
     let repository = LocalTaskStorage {
         project_root: root.to_path_buf(),
     };
-    load_collection_with_file_state(
+    let collection = load_collection_with_file_state(
         &instructions,
         &skills,
         &paths,
@@ -801,6 +439,22 @@ fn sources(
         true,
     )
     .map_err(with_migration_route)?;
+    let source_sha256 = collection["source_sha256"]
+        .as_str()
+        .ok_or_else(|| {
+            fail(
+                "invalid_task_source",
+                "The validated Source fingerprint is missing.",
+            )
+        })?
+        .to_owned();
+    let mut source_evidence = BTreeMap::new();
+    for path in work_feature::task::source::evidence_paths(&index)? {
+        source_evidence.insert(
+            path.clone(),
+            LocalFiles.read_raw(&storage_path(root, &path)?)?,
+        );
+    }
     let execution_raw = LocalFiles
         .read_raw(&storage_path(root, &execution_path)?)
         .map_err(with_migration_route)?;
@@ -825,10 +479,10 @@ fn sources(
         .collect();
     validate_specification_history(root, &execution_value, execution, &history_sha256)?;
     Ok(OwnedBaseline {
-        plan_path: plan_path.into(),
         task_path: task_path.into(),
         execution_path,
-        plan_raw,
+        source_sha256,
+        source_evidence,
         index_raw,
         items,
         execution_raw,
@@ -878,25 +532,10 @@ pub fn prepare_simple_update(
     })?;
     let edits = semantic["edits"]
         .as_array()
-        .filter(|rows| !rows.is_empty())
+        .filter(|rows| !rows.is_empty() || semantic.get("source_update").is_some())
         .ok_or_else(|| fail("spec_prepare_edits", "Supply non-empty collection edits."))?;
-    let plan_path = resolve_plan_path(root, requirement).map_err(with_migration_route)?;
-    let plan_raw = LocalFiles.read_raw(&storage_path(root, &plan_path)?)?;
-    let plan = parse_json_contract(&plan_raw).map_err(|_| {
-        with_migration_route(fail("invalid_json_contract", "The source Plan is invalid."))
-    })?;
-    if plan["artifacts"]["task"]
-        .as_str()
-        .is_none_or(|path| !path.ends_with("/index.json"))
-    {
-        return Err(with_migration_route(WorkError::new(
-            ExitCode::WorkflowState,
-            "task_collection_required",
-            "TASK writes require a collection index.json artifact.",
-            json!({}),
-        )));
-    }
-    let baseline = sources(root, skill_root, configs, &plan_path)?;
+    let task_path = resolve_task_path(root, requirement).map_err(with_migration_route)?;
+    let baseline = sources(root, skill_root, configs, &task_path)?;
     let execution_dir = baseline
         .execution_path
         .rsplit_once('/')
@@ -906,8 +545,6 @@ pub fn prepare_simple_update(
         root,
         &format!("{execution_dir}/.work-state-writer.lock"),
     )?)?;
-    let mut plan = parse_json_contract(&baseline.plan_raw)
-        .map_err(|_| fail("invalid_json_contract", "The source Plan is invalid."))?;
     let mut index = parse_json_contract(&baseline.index_raw)
         .map_err(|_| fail("invalid_json_contract", "The TASK index is invalid."))?;
     let mut items = baseline
@@ -921,7 +558,6 @@ pub fn prepare_simple_update(
         .collect::<Result<BTreeMap<_, _>, _>>()?;
     let mut normalized = Vec::new();
     let mut seen = std::collections::BTreeSet::new();
-    let mut plan_changed = false;
     let mut shared_index = false;
     let mut changed_item_set = false;
     let mut next_task = items
@@ -1089,7 +725,7 @@ pub fn prepare_simple_update(
                 .collect::<Result<Vec<_>, _>>()?;
             let selection =
                 select_instructions(&instruction_catalog, "task", &selected, &references)?;
-            let acceptance = plan["acceptance_criteria"]
+            let acceptance = index["acceptance_criteria"]
                 .as_array()
                 .into_iter()
                 .flatten()
@@ -1131,9 +767,8 @@ pub fn prepare_simple_update(
             let mut item = json!({"schema":"work-task-item/v1","id":id,
                 "title":candidate["title"],"goal":candidate["goal"],"skill_id":candidate["skill_id"],
                 "instruction_selection":selection,
-                "traceability":{"goal_ids":plan["goals"].as_array().into_iter().flatten().map(|row| row["id"].clone()).collect::<Vec<_>>(),
-                    "deliverable_ids":plan["deliverables"].as_array().into_iter().flatten().map(|row| row["id"].clone()).collect::<Vec<_>>(),
-                    "acceptance_ids":acceptance}});
+                "traceability":{"acceptance_ids":candidate["candidate"]["acceptance_ids"]},
+                "acceptance_criteria":candidate["candidate"]["acceptance_criteria"]});
             if !dependencies.is_empty() {
                 item["dependencies"] = json!(dependencies);
             }
@@ -1154,23 +789,11 @@ pub fn prepare_simple_update(
         let field = edit["field"].as_str().unwrap_or("");
         let task_id = target["task_id"].as_str();
         let simple = match artifact {
-            "plan" | "task_index" => ["title", "summary"].contains(&field),
+            "task_index" => ["title", "summary"].contains(&field),
             "task_item" => ["title", "goal"].contains(&field),
             _ => false,
         };
         let semantic = match artifact {
-            "plan" => [
-                "goals",
-                "scope",
-                "constraints",
-                "dependencies",
-                "risks",
-                "milestones",
-                "deliverables",
-                "acceptance_criteria",
-                "decisions",
-            ]
-            .contains(&field),
             "task_index" => ["decisions", "execution_defaults"].contains(&field),
             "task_item" => {
                 ["traceability", "dependencies"].contains(&field) || nested_groups.contains(&field)
@@ -1191,8 +814,6 @@ pub fn prepare_simple_update(
             ));
         }
         let after = match (artifact, field) {
-            ("plan", "constraints") => semantic_constraint_rows(&plan, &edit["semantic_after"])?,
-            ("plan", _) if semantic => semantic_plan_rows(&plan, field, &edit["semantic_after"])?,
             ("task_index", "decisions") => {
                 semantic_index_decisions(&index, &edit["semantic_after"])?
             }
@@ -1212,7 +833,9 @@ pub fn prepare_simple_update(
                 }
                 value.clone()
             }
-            ("task_item", "traceability") => semantic_traceability(&plan, &edit["semantic_after"])?,
+            ("task_item", "traceability") => {
+                semantic_traceability(&index, &edit["semantic_after"])?
+            }
             ("task_item", "dependencies") => {
                 let refs = task_ids
                     .iter()
@@ -1264,11 +887,11 @@ pub fn prepare_simple_update(
                             (dep.clone(), files)
                         })
                         .collect::<BTreeMap<_, _>>();
-                    let acceptance = plan["acceptance_criteria"]
+                    let acceptance = current["traceability"]["acceptance_ids"]
                         .as_array()
                         .into_iter()
                         .flatten()
-                        .filter_map(|row| row["id"].as_str().map(str::to_owned))
+                        .filter_map(|id| id.as_str().map(str::to_owned))
                         .collect::<Vec<_>>();
                     let replacements = Value::Object(nested_edits[id].clone());
                     let built = build_semantic_patch(
@@ -1293,7 +916,6 @@ pub fn prepare_simple_update(
             _ => edit["after"].clone(),
         };
         let source = match artifact {
-            "plan" => &mut plan,
             "task_index" => &mut index,
             _ => items
                 .get_mut(task_id.expect("TASK ID"))
@@ -1310,9 +932,7 @@ pub fn prepare_simple_update(
             ));
         }
         source[field] = after.clone();
-        if artifact == "plan" {
-            plan_changed = true;
-        } else {
+        {
             if artifact == "task_index" {
                 shared_index = true;
             }
@@ -1324,23 +944,74 @@ pub fn prepare_simple_update(
             normalized.push(row);
         }
     }
-    let plan_raw = if plan_changed {
-        render_plan_value(&plan).map_err(|_| {
+    if let Some(update) = semantic.get("source_update") {
+        let new_source = &update["source"];
+        let selections = update["selections"].as_object().ok_or_else(|| {
             fail(
-                "invalid_contract_value",
-                "The revised Plan cannot be rendered.",
-            )
-        })?
-    } else {
-        baseline.plan_raw.clone()
-    };
-    if plan_changed {
-        bind_plan_source(&plan_raw, &mut index).map_err(|_| {
-            fail(
-                "invalid_contract_value",
-                "The revised Plan cannot be bound.",
+                "invalid_object_fields",
+                "Every active Task needs an instruction selection.",
             )
         })?;
+        if selections.keys().cloned().collect::<BTreeSet<_>>() != items.keys().cloned().collect() {
+            return Err(fail(
+                "invalid_object_fields",
+                "Source selections must cover every active Task exactly once.",
+            ));
+        }
+        let skills = LocalSkillCatalog {
+            roots: configs.to_vec(),
+        };
+        let roots = configs
+            .iter()
+            .map(|config| SkillRoot {
+                scope: config.scope.clone(),
+                locator: config.locator.clone(),
+            })
+            .collect::<Vec<_>>();
+        let paths = crate::artifact_paths::LocalArtifactPaths {
+            project_root: root.to_path_buf(),
+        };
+        work_feature::task::source::validate_context(
+            &paths,
+            &instruction_catalog,
+            &skills,
+            &paths,
+            &roots,
+            requirement,
+            new_source,
+        )?;
+        if new_source["artifacts"] != index["artifacts"] {
+            return Err(fail(
+                "spec_artifact_identity",
+                "Revise must retain the collection artifact routes.",
+            ));
+        }
+        for key in [
+            "hierarchy_selection",
+            "skill_selection",
+            "acceptance_criteria",
+        ] {
+            index[key] = new_source[key].clone();
+        }
+        index["source"] = json!({"kind":"snapshot","manifest":new_source["snapshot"]});
+        for (id, item) in &mut items {
+            let selected: work_model::task::draft::DraftInstructionSelection =
+                serde_json::from_value(selections[id].clone()).map_err(|_| {
+                    fail(
+                        "invalid_instruction_selection",
+                        "An exact Task instruction selection is required.",
+                    )
+                })?;
+            item["instruction_selection"] = serde_json::to_value(select_instructions(
+                &instruction_catalog,
+                "task",
+                &selected.selected_paths,
+                &selected.references,
+            )?)
+            .expect("selection serializes");
+        }
+        shared_index = true;
+        changed_item_set = true;
     }
     if changed_item_set {
         let mut selections = Vec::new();
@@ -1407,7 +1078,7 @@ pub fn prepare_simple_update(
         .unwrap_or(0)
         + 1;
     let removed_item = baseline.items.keys().any(|id| !items.contains_key(id));
-    let mut affected = if plan_changed || shared_index || removed_item {
+    let mut affected = if shared_index || removed_item {
         items
             .keys()
             .cloned()
@@ -1445,9 +1116,9 @@ pub fn prepare_simple_update(
     }
     let affected = affected.into_iter().collect::<Vec<_>>();
     if normalized.is_empty() {
-        normalized.push(json!({"artifact":"task_index","operation":"replace","path":"/source_plan",
-            "before":parse_json_contract(&baseline.index_raw).map_err(|_| fail("invalid_json_contract", "The TASK index is invalid."))?["source_plan"],
-            "after":index["source_plan"]}));
+        normalized.push(json!({"artifact":"task_index","operation":"replace","path":"/spec_id",
+            "before":parse_json_contract(&baseline.index_raw).map_err(|_| fail("invalid_json_contract", "The TASK index is invalid."))?["spec_id"],
+            "after":index["spec_id"]}));
     }
     let mut changes = index["changes"].as_array().cloned().unwrap_or_default();
     changes.push(json!({"id":format!("TASK-CHANGE-{change_number:03}"),
@@ -1455,11 +1126,10 @@ pub fn prepare_simple_update(
         "affected_ids":affected,"edits":normalized}));
     index["changes"] = Value::Array(changes);
     let index_raw = reconcile_artifact_bindings(
-        &plan_raw,
         &mut index,
         &item_raw,
         None,
-        &BTreeSet::from([ArtifactNode::PlanBytes]),
+        &BTreeSet::from([ArtifactNode::TaskIndexBytes]),
     )
     .map_err(|_| {
         fail(
@@ -1471,13 +1141,16 @@ pub fn prepare_simple_update(
         return Err(fail("spec_edit_state", "No Specification bytes changed."));
     }
     let expected = fingerprint::specification_baseline(
-        &baseline.plan_raw,
+        &baseline.source_sha256,
         &baseline.index_raw,
         &baseline.execution_raw,
         &baseline.items,
     );
-    let request = json!({"schema":"work-spec-update-request/v1","reason":reason,
-        "expected":expected,"plan":plan,"task_index":index,"task_items":items});
+    let mut request = json!({"schema":"work-spec-update-request/v1","reason":reason,
+        "expected":expected,"task_index":index,"task_items":items});
+    if let Some(update) = semantic.get("source_update") {
+        request["source_confirmation"] = update["source_confirmation"].clone();
+    }
     let instructions = LocalHierarchyCatalog {
         skill_root: skill_root.to_path_buf(),
     };
@@ -1491,7 +1164,7 @@ pub fn prepare_simple_update(
             locator: config.locator.clone(),
         })
         .collect::<Vec<_>>();
-    let paths = LocalPlanStorage {
+    let paths = crate::artifact_paths::LocalArtifactPaths {
         project_root: root.to_path_buf(),
     };
     let preview = preview_update(
@@ -1523,6 +1196,73 @@ pub fn prepare_simple_update(
     ))
 }
 
+fn require_approved_publication_state(root: &Path, transaction: &Value) -> Result<(), WorkError> {
+    let source = transaction["metadata"]["source_sha256"]
+        .as_object()
+        .expect("validated source hashes");
+    let candidate = transaction["metadata"]["candidate_sha256"]
+        .as_object()
+        .expect("validated candidate hashes");
+    for (relative, expected) in candidate {
+        if source.get(relative) == Some(expected) {
+            let path = storage_path(root, relative)?;
+            let raw = fs::read(path).map_err(|_| {
+                fail(
+                    "spec_update_source_changed",
+                    "An unchanged approved artifact or Source proof cannot be read.",
+                )
+            })?;
+            if fingerprint::raw(&raw) != expected.as_str().expect("validated digest") {
+                return Err(fail(
+                    "spec_update_source_changed",
+                    "An unchanged approved artifact or Source proof changed before publication.",
+                ));
+            }
+        }
+    }
+    let published = transaction["published_count"]
+        .as_u64()
+        .expect("validated progress") as usize;
+    for (position, row) in transaction["files"]
+        .as_array()
+        .expect("validated files")
+        .iter()
+        .enumerate()
+    {
+        let path = storage_path(root, row["path"].as_str().expect("validated path"))?;
+        let current = match fs::read(path) {
+            Ok(raw) => Some(raw),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(_) => {
+                return Err(fail(
+                    "spec_update_publication_state_changed",
+                    "An approved publication target cannot be read.",
+                ));
+            }
+        };
+        let decode = |key: &str| {
+            row.get(key)
+                .map(work_operations::derivation::snapshot::decode_snapshot)
+                .transpose()
+                .map_err(|_| {
+                    fail(
+                        "spec_update_publication_state_changed",
+                        "An approved artifact snapshot is invalid.",
+                    )
+                })
+        };
+        let before = decode("before")?;
+        let after = decode("after")?;
+        if current != after && (position < published || current != before) {
+            return Err(fail(
+                "spec_update_publication_state_changed",
+                "An approved publication target changed before the complete collection could be installed.",
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub fn update_from_project(
     root: &Path,
     skill_root: &Path,
@@ -1547,11 +1287,11 @@ pub fn update_from_project(
             issue.details,
         )
     })?;
-    let artifacts = &request["plan"]["artifacts"];
-    let plan_path = artifacts["plan"].as_str().ok_or_else(|| {
+    let artifacts = &request["task_index"]["artifacts"];
+    let task_path = artifacts["task"].as_str().ok_or_else(|| {
         fail(
             "spec_artifact_identity",
-            "The request Plan has no artifact path.",
+            "The request has no TASK artifact path.",
         )
     })?;
     let execution = artifacts["execution"].as_str().ok_or_else(|| {
@@ -1604,14 +1344,14 @@ pub fn update_from_project(
         }
         let result = work_model::specification::verified::<work_model::specification::SpecUpdate>(
             json!({"schema":"work-spec-update/v1","status":"valid",
-            "requirement_id":request["plan"]["requirement_id"],"record_id":id,
+            "requirement_id":request["task_index"]["requirement_id"],"record_id":id,
             "approved_sha256":journal["approval_sha256"],
             "affected_task_ids":journal["metadata"]["affected_task_ids"],"artifacts":artifacts}),
         );
         (journal, result)
     } else {
         require_no_spec_update(root, execution, None)?;
-        let baseline = sources(root, skill_root, configs, plan_path)?;
+        let baseline = sources(root, skill_root, configs, task_path)?;
         let instructions = LocalHierarchyCatalog {
             skill_root: skill_root.to_path_buf(),
         };
@@ -1625,7 +1365,7 @@ pub fn update_from_project(
                 locator: config.locator.clone(),
             })
             .collect::<Vec<_>>();
-        let paths = LocalPlanStorage {
+        let paths = crate::artifact_paths::LocalArtifactPaths {
             project_root: root.to_path_buf(),
         };
         let preview = preview_update(
@@ -1670,6 +1410,7 @@ pub fn update_from_project(
             "Execution history changed before publication.",
         ));
     }
+    require_approved_publication_state(root, &transaction)?;
     let writer = storage_path(root, &format!("{execution}/.work-state-writer.lock"))?;
     let _guard = LocalWriterLock.acquire(&writer)?;
     if json!(execution_history_fingerprints(root, execution)?)
@@ -1680,6 +1421,7 @@ pub fn update_from_project(
             "Execution history changed before exclusive publication.",
         ));
     }
+    require_approved_publication_state(root, &transaction)?;
     if matches!(input.operation, SpecOperation::Apply) {
         write_journal(root, &journal, &transaction)?;
     }
@@ -1691,7 +1433,7 @@ pub fn update_from_project(
             json!({"recovery_required":true,"record":journal}),
         )
     })?;
-    sources(root, skill_root, configs, plan_path)?;
+    sources(root, skill_root, configs, task_path)?;
     for (path, expected) in transaction["metadata"]["candidate_sha256"]
         .as_object()
         .expect("candidate SHA")
@@ -1720,7 +1462,7 @@ pub fn update_from_project(
     });
     result["publication_status"] = published["status"].clone();
     let verification = json!({"schema":"work-spec-verification-request/v1",
-        "requirement_id":request["plan"]["requirement_id"],"artifacts":artifacts,
+        "requirement_id":request["task_index"]["requirement_id"],"artifacts":artifacts,
         "record_id":transaction["transaction_id"]});
     result["verification_request"] = verification;
     result["next_step"] = json!({"command":"specification verify","input":"verification_request"});
@@ -1785,6 +1527,16 @@ pub fn verify_from_project(
             issue.details,
         )
     })?;
+    if journal["transaction_id"] != id
+        || journal["metadata"]["artifacts"] != *artifacts
+        || journal["metadata"]["request"]["task_index"]["requirement_id"]
+            != request["requirement_id"]
+    {
+        return Err(fail(
+            "spec_verify_record_mismatch",
+            "Verification must identify the exact approved requirement and artifact collection.",
+        ));
+    }
     let marker = LocalFiles.read_raw(&storage_path(
         root,
         &work_operations::derivation::publication::completion_marker_path(&relative),
@@ -1812,7 +1564,7 @@ pub fn verify_from_project(
         root,
         skill_root,
         configs,
-        artifacts["plan"].as_str().unwrap_or(""),
+        artifacts["task"].as_str().unwrap_or(""),
     )?;
     let instructions = LocalHierarchyCatalog {
         skill_root: skill_root.to_path_buf(),
@@ -1827,7 +1579,7 @@ pub fn verify_from_project(
             locator: config.locator.clone(),
         })
         .collect::<Vec<_>>();
-    let paths = LocalPlanStorage {
+    let paths = crate::artifact_paths::LocalArtifactPaths {
         project_root: root.to_path_buf(),
     };
     let repository = LocalTaskStorage {
@@ -1858,35 +1610,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn constraint_semantic_replacement_preserves_id_and_resolves_plan_position() {
-        let plan = json!({"goals":[{"id":"GOAL-001"}],"constraints":[
-            {"id":"CONSTRAINT-001","statement":"Original","applies_to":["GOAL-001"]}]});
-        let choices = json!([{"key":"boundary","existing_position":1,
-            "statement":"Confirmed boundary","applies_to":[{"collection":"goals","position":1}]}]);
+    fn task_decision_replacement_preserves_id_and_resolves_task_position() {
+        let index = json!({"tasks":[{"id":"TASK-001"}],"decisions":[{"id":"TASK-DECISION-001","statement":"Original","rationale":"Reason","task_ids":["TASK-001"]}]});
+        let rows = semantic_index_decisions(&index, &json!([{"key":"boundary","existing_position":1,"statement":"Confirmed boundary","rationale":"Reviewed","task_positions":[1]}])).unwrap();
         assert_eq!(
-            semantic_constraint_rows(&plan, &choices).unwrap(),
-            json!([{"id":"CONSTRAINT-001","statement":"Confirmed boundary",
-                "applies_to":["GOAL-001"]}])
+            rows,
+            json!([{"id":"TASK-DECISION-001","statement":"Confirmed boundary","rationale":"Reviewed","task_ids":["TASK-001"]}])
         );
-        assert_eq!(
-            semantic_constraint_rows(
-                &plan,
-                &json!([{"key":"new",
-            "statement":"New boundary","applies_to":[{"collection":"plan"}]}])
-            )
-            .unwrap(),
-            json!([{"id":"CONSTRAINT-002","statement":"New boundary","applies_to":["PLAN"]}])
-        );
+        let request = json!({"schema":"work-spec-prepare-request/v1","requirement_id":"example","reason":"review","edits":[{"target":{"artifact":"plan"},"field":"summary","after":"Rejected"}]});
+        assert!(validate_prepare_request(&request).is_err());
     }
 
     #[test]
-    fn constraint_semantic_prepare_update_and_verify_preserve_formal_identity() {
+    fn task_boundary_semantic_prepare_update_and_verify_preserve_formal_identity() {
         use work_operations::execution::index::{
             build_initial_execution_index, render_execution_index,
         };
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture =
-            repo.join("crates/work-infrastructure/fixtures/specification-update/plan-summary");
+            repo.join("crates/work-infrastructure/fixtures/specification-update/task-summary");
         let root = std::env::temp_dir().join(format!(
             "work-spec-constraint-{}-{}",
             std::process::id(),
@@ -1896,36 +1638,25 @@ mod tests {
                 .as_nanos()
         ));
         for relative in [
-            "outputs/work/plans/example.json",
             "outputs/work/tasks/example/index.json",
             "outputs/work/tasks/example/tasks/TASK-001.json",
         ] {
             let destination = root.join(relative);
             fs::create_dir_all(destination.parent().unwrap()).unwrap();
             fs::copy(fixture.join(relative), destination).unwrap();
+            crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         }
         fs::write(root.join("src.txt"), b"source\n").unwrap();
-        let plan_path = root.join("outputs/work/plans/example.json");
-        let mut plan: Value = serde_json::from_slice(&fs::read(&plan_path).unwrap()).unwrap();
-        plan["constraints"] = json!([{"id":"CONSTRAINT-001","statement":"Original boundary",
-            "applies_to":["GOAL-001"]}]);
-        let plan_raw = render_plan_value(&plan).unwrap();
-        fs::write(&plan_path, &plan_raw).unwrap();
-        let index_path = root.join("outputs/work/tasks/example/index.json");
-        let mut index: Value = serde_json::from_slice(&fs::read(&index_path).unwrap()).unwrap();
-        index["source_plan"]["canonical_sha256"] = json!(raw_sha256(&plan_raw));
-        fs::write(
-            &index_path,
-            render_task(&index, TaskDocumentKind::Index).unwrap(),
-        )
-        .unwrap();
+        let item_path = root.join("outputs/work/tasks/example/tasks/TASK-001.json");
+        let source_path = root.join("outputs/work/sources/example/SRC-001/source.txt");
+        let original_source = fs::read(&source_path).unwrap();
         let skill = repo.join("../skills/work");
         let collection = load_collection_with_file_state(
             &LocalHierarchyCatalog {
                 skill_root: skill.clone(),
             },
             &LocalSkillCatalog { roots: vec![] },
-            &LocalPlanStorage {
+            &crate::artifact_paths::LocalArtifactPaths {
                 project_root: root.clone(),
             },
             &LocalTaskStorage {
@@ -1943,9 +1674,9 @@ mod tests {
         fs::write(&execution_path, render_execution_index(&execution).unwrap()).unwrap();
         let semantic = serde_json::to_vec(&json!({"schema":"work-spec-prepare-request/v1",
             "requirement_id":"example","reason":"Confirm the constraint wording.",
-            "edits":[{"target":{"artifact":"plan"},"field":"constraints",
-                "semantic_after":[{"key":"boundary","existing_position":1,
-                    "statement":"Confirmed boundary","applies_to":[{"collection":"goals","position":1}]}]}]})).unwrap();
+            "edits":[{"target":{"artifact":"task_item","task_id":"TASK-001"},"field":"goal",
+                "after":"Confirmed boundary"}]}))
+        .unwrap();
         let prepared = prepare_simple_update(
             &root,
             &skill,
@@ -1959,7 +1690,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             prepared["preview"]["changed_fields"],
-            json!(["/plan/constraints", "/task_index/source_plan"])
+            json!(["/task_items/TASK-001/goal"])
         );
         let request = serde_json::to_vec(&prepared["request"]).unwrap();
         let preview = update_from_project(
@@ -1986,12 +1717,11 @@ mod tests {
         )
         .unwrap();
         assert_eq!(published["status"], "updated");
-        let installed: Value = serde_json::from_slice(&fs::read(&plan_path).unwrap()).unwrap();
-        assert_eq!(
-            installed["constraints"],
-            json!([{"id":"CONSTRAINT-001",
-            "statement":"Confirmed boundary","applies_to":["GOAL-001"]}])
-        );
+        let installed: Value = serde_json::from_slice(&fs::read(&item_path).unwrap()).unwrap();
+        assert_eq!(installed["id"], "TASK-001");
+        assert_eq!(installed["goal"], "Confirmed boundary");
+        assert_eq!(fs::read(&source_path).unwrap(), original_source);
+        assert!(prepared["request"].get("plan").is_none());
         let verified = verify_from_project(
             &root,
             &skill,
@@ -2001,6 +1731,19 @@ mod tests {
         .unwrap();
         assert_eq!(verified["verified"], true);
         assert_eq!(verified["execution_authorized"], false);
+        assert!(!root.join("outputs/work/plans").exists());
+        for field in ["requirement_id", "source", "task"] {
+            let mut wrong = published["verification_request"].clone();
+            if field == "requirement_id" {
+                wrong[field] = json!("other");
+            } else {
+                wrong["artifacts"][field] = json!(format!("outputs/work/other/{field}/example"));
+            }
+            let error =
+                verify_from_project(&root, &skill, &[], &serde_json::to_vec(&wrong).unwrap())
+                    .unwrap_err();
+            assert_eq!(error.reason_code, "spec_verify_record_mismatch");
+        }
     }
 
     #[test]
@@ -2114,7 +1857,7 @@ mod tests {
     }
 
     #[test]
-    fn plan_source_resolution_requires_one_matching_custom_binding() {
+    fn task_source_resolution_requires_one_matching_custom_binding() {
         let root = std::env::temp_dir().join(format!(
             "work-spec-plan-source-{}-{}",
             std::process::id(),
@@ -2125,42 +1868,189 @@ mod tests {
         ));
         std::fs::create_dir_all(&root).unwrap();
         assert_eq!(
-            resolve_plan_path(&root, "example").unwrap_err().reason_code,
-            "spec_plan_source_missing"
+            resolve_task_path(&root, "example").unwrap_err().reason_code,
+            "spec_task_source_missing"
         );
-        let custom = "outputs/work/custom/confirmed-plan.json";
+        let custom = "outputs/work/custom/tasks/index.json";
         let first = root.join(custom);
         std::fs::create_dir_all(first.parent().unwrap()).unwrap();
         std::fs::write(
             &first,
-            serde_json::to_vec(&json!({"schema":"work-plan/v1","requirement_id":"example",
-                "artifacts":{"plan":custom,"task":"outputs/work/custom/tasks/index.json",
-                    "execution":"outputs/work/custom/execution"}}))
+            serde_json::to_vec(
+                &json!({"schema":"work-task-index/v1","requirement_id":"example",
+                "artifacts":{"task":custom,
+                    "execution":"outputs/work/custom/execution"}}),
+            )
             .unwrap(),
         )
         .unwrap();
-        assert_eq!(resolve_plan_path(&root, "example").unwrap(), custom);
-        let other = "outputs/work/other-plan.json";
+        assert_eq!(resolve_task_path(&root, "example").unwrap(), custom);
+        let other = "outputs/work/other-task.json";
         std::fs::write(
             root.join(other),
-            serde_json::to_vec(&json!({"schema":"work-plan/v1","requirement_id":"example",
-                "artifacts":{"plan":other}}))
+            serde_json::to_vec(
+                &json!({"schema":"work-task-index/v1","requirement_id":"example",
+                "artifacts":{"task":other}}),
+            )
             .unwrap(),
         )
         .unwrap();
-        let error = resolve_plan_path(&root, "example").unwrap_err();
-        assert_eq!(error.reason_code, "spec_plan_source_ambiguous");
+        let error = resolve_task_path(&root, "example").unwrap_err();
+        assert_eq!(error.reason_code, "spec_task_source_ambiguous");
         assert_eq!(error.details["candidates"], json!([custom, other]));
         std::fs::write(
             root.join(other),
-            serde_json::to_vec(&json!({"schema":"work-plan/v1","requirement_id":"example",
-                "artifacts":{"plan":"outputs/work/wrong.json"}}))
+            serde_json::to_vec(
+                &json!({"schema":"work-task-index/v1","requirement_id":"example",
+                "artifacts":{"task":"outputs/work/wrong.json"}}),
+            )
             .unwrap(),
         )
         .unwrap();
         assert_eq!(
-            resolve_plan_path(&root, "example").unwrap_err().reason_code,
-            "spec_plan_binding_invalid"
+            resolve_task_path(&root, "example").unwrap_err().reason_code,
+            "spec_task_binding_invalid"
+        );
+    }
+
+    #[test]
+    fn source_replacement_requires_complete_review_and_binds_immutable_evidence() {
+        let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+        let fixture =
+            repo.join("crates/work-infrastructure/fixtures/specification-update/item-goal");
+        let root = std::env::temp_dir().join(format!(
+            "work-spec-source-review-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        for relative in [
+            "outputs/work/tasks/example/index.json",
+            "outputs/work/tasks/example/tasks/TASK-001.json",
+            "outputs/work/executions/example/index.json",
+        ] {
+            let target = root.join(relative);
+            fs::create_dir_all(target.parent().unwrap()).unwrap();
+            fs::copy(fixture.join(relative), target).unwrap();
+        }
+        crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
+        fs::write(root.join("src.txt"), b"source\n").unwrap();
+        let index_raw = fs::read(root.join("outputs/work/tasks/example/index.json")).unwrap();
+        let index: Value = serde_json::from_slice(&index_raw).unwrap();
+        let original_source =
+            fs::read(root.join("outputs/work/sources/example/SRC-001/source.txt")).unwrap();
+        let source = crate::fixture_support::capture_planning_context(
+            &root,
+            "example",
+            b"Complete confirmed replacement requirement.\n",
+            &index["hierarchy_selection"],
+            &index["skill_selection"],
+            &index["acceptance_criteria"],
+        )
+        .unwrap();
+        let selections =
+            json!({"TASK-001":{"selected_paths":[],"references":["task.general.task-records"]}});
+        let review = json!({"outcome_decisions":"Outcome reviewed", "technical_decisions":"Technology reviewed", "boundary":"Boundary reviewed", "acceptance":"Acceptance reviewed", "skills":"Skills reviewed", "hierarchy":"Hierarchy reviewed", "instructions":"Instructions reviewed"});
+        let confirmation = json!({"complete_requirement_review":true,
+            "previous_planning_sha256":fingerprint::structured(&index).unwrap(),
+            "new_source_sha256":fingerprint::structured(&source).unwrap(),
+            "requirement_sha256":source["snapshot"]["content"]["sha256"],
+            "retained_acceptance_ids":["ACCEPTANCE-001"], "removed_acceptance":[], "added_acceptance_ids":[],
+            "task_reviews":{"TASK-001":review}});
+        let request = json!({"schema":"work-spec-prepare-request/v1", "requirement_id":"example", "reason":"Confirm replacement context", "edits":[],
+            "source_update":{"source":source,"selections":selections,"source_confirmation":confirmation}});
+        let prepare = |request: &Value| {
+            prepare_simple_update(
+                &root,
+                &repo.join("../skills/work"),
+                &[],
+                SpecificationPrepareInput {
+                    raw: &serde_json::to_vec(request).unwrap(),
+                    date: "2026-10-04",
+                    output_file: None,
+                },
+            )
+        };
+        let first = prepare(&request).unwrap();
+        let second = prepare(&request).unwrap();
+        assert_eq!(
+            first["preview"]["approved_sha256"],
+            second["preview"]["approved_sha256"]
+        );
+        assert!(first["request"].get("plan").is_none());
+        assert!(first["request"]["expected"].get("plan_sha256").is_none());
+        let files = first["preview"]["transaction"]["files"].as_array().unwrap();
+        assert!(
+            files
+                .iter()
+                .all(|row| row["phase"] != 10
+                    && !row["path"].as_str().unwrap().contains("/sources/"))
+        );
+        assert!(
+            first["preview"]["transaction"]["metadata"]["candidate_sha256"]
+                .get("outputs/work/sources/example/SRC-002/source.txt")
+                .is_some()
+        );
+        assert_eq!(
+            fs::read(root.join("outputs/work/tasks/example/index.json")).unwrap(),
+            index_raw
+        );
+        assert_eq!(
+            fs::read(root.join("outputs/work/sources/example/SRC-001/source.txt")).unwrap(),
+            original_source
+        );
+        let mut missing = request.clone();
+        missing["source_update"]
+            .as_object_mut()
+            .unwrap()
+            .remove("source_confirmation");
+        assert!(prepare(&missing).is_err());
+        let mut partial = request.clone();
+        partial["source_update"]["source_confirmation"]["retained_acceptance_ids"] = json!([]);
+        assert_eq!(
+            prepare(&partial).unwrap_err().reason_code,
+            "source_requirement_coverage_incomplete"
+        );
+        for key in [
+            "outcome_decisions",
+            "technical_decisions",
+            "boundary",
+            "acceptance",
+            "skills",
+            "hierarchy",
+            "instructions",
+        ] {
+            let mut partial = request.clone();
+            partial["source_update"]["source_confirmation"]["task_reviews"]["TASK-001"][key] =
+                json!("");
+            assert_eq!(
+                prepare(&partial).unwrap_err().reason_code,
+                "source_task_review_incomplete"
+            );
+        }
+        let mut multiple = request.clone();
+        multiple["source_update"]["source"]["snapshots"] = json!([source["snapshot"]]);
+        assert!(prepare(&multiple).is_err());
+        fs::write(
+            root.join("outputs/work/sources/example/SRC-002/source.txt"),
+            b"drift",
+        )
+        .unwrap();
+        assert!(prepare(&request).is_err());
+        assert!(
+            update_from_project(
+                &root,
+                &repo.join("../skills/work"),
+                &[],
+                SpecificationProjectRequest {
+                    raw: &serde_json::to_vec(&first["request"]).unwrap(),
+                    operation: SpecOperation::Validate,
+                    approved_sha256: None
+                }
+            )
+            .is_err()
         );
     }
 
@@ -2182,7 +2072,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
-    fn semantic_plan_and_task_edits_build_one_complete_candidate() {
+    fn semantic_index_and_task_edits_build_one_complete_candidate() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo.join("crates/work-infrastructure/fixtures/specification-update");
         let root = std::env::temp_dir().join(format!(
@@ -2194,7 +2084,6 @@ mod tests {
                 .as_nanos()
         ));
         for relative in [
-            "outputs/work/plans/example.json",
             "outputs/work/tasks/example/index.json",
             "outputs/work/tasks/example/tasks/TASK-001.json",
             "outputs/work/executions/example/index.json",
@@ -2202,6 +2091,7 @@ mod tests {
             let destination = root.join(relative);
             fs::create_dir_all(destination.parent().unwrap()).unwrap();
             fs::copy(fixture.join(relative), destination).unwrap();
+            crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         }
         fs::write(root.join("src.txt"), b"source\n").unwrap();
         let semantic = serde_json::to_vec(&json!({
@@ -2209,17 +2099,7 @@ mod tests {
             "requirement_id":"example",
             "reason":"Confirmed semantic revision",
             "edits":[
-                {"target":{"artifact":"plan"},"field":"goals",
-                    "semantic_after":[{"key":"outcome","existing_position":1,
-                        "statement":"Deliver the revised outcome."}]},
-                {"target":{"artifact":"plan"},"field":"scope",
-                    "semantic_after":[{"key":"boundary","existing_position":1,
-                        "kind":"in_scope","statement":"Handle the revised scope.",
-                        "goal_positions":[1]}]},
-                {"target":{"artifact":"plan"},"field":"acceptance_criteria",
-                    "semantic_after":[{"key":"accepted","existing_position":1,
-                        "statement":"The revised result is observable.",
-                        "deliverable_positions":[1]}]},
+                {"target":{"artifact":"task_index"},"field":"summary","after":"Confirmed Task scope and outcome."},
                 {"target":{"artifact":"task_item","task_id":"TASK-001"},"field":"commands",
                     "semantic_after":[{"key":"check","existing_position":1,
                         "mode":"argv","argv":["python","-V"]}]},
@@ -2234,7 +2114,7 @@ mod tests {
                     "semantic_after":[{"key":"verify","existing_position":1,
                         "kind":"automated","command_keys":["check"],
                         "pass_condition":"Version command succeeds.",
-                        "acceptance_positions":[1]}]}
+                        "acceptance_ids":["ACCEPTANCE-001","TASK-001-ACCEPTANCE-001"]}]}
             ]
         }))
         .unwrap();
@@ -2260,7 +2140,9 @@ mod tests {
                 .as_array()
                 .unwrap()
                 .iter()
-                .any(|value| value.as_str().is_some_and(|text| text.contains("GOAL-001")))
+                .any(|value| value
+                    .as_str()
+                    .is_some_and(|text| text.contains("Confirmed Task scope and outcome.")))
         );
         assert!(
             prepared["preview"]["lifecycle_impact"]
@@ -2271,14 +2153,10 @@ mod tests {
                     && row["before"] == "pending"
                     && row["after"] == "pending")
         );
-        assert_eq!(prepared["request"]["plan"]["goals"][0]["id"], "GOAL-001");
+        assert!(prepared["request"].get("plan").is_none());
         assert_eq!(
-            prepared["request"]["plan"]["scope"][0]["goal_ids"],
-            json!(["GOAL-001"])
-        );
-        assert_eq!(
-            prepared["request"]["plan"]["acceptance_criteria"][0]["deliverable_ids"],
-            json!(["DELIVERABLE-001"])
+            prepared["request"]["task_index"]["summary"],
+            "Confirmed Task scope and outcome."
         );
         assert_eq!(
             prepared["request"]["task_items"]["TASK-001"]["commands"][0]["id"],
@@ -2298,7 +2176,7 @@ mod tests {
         assert!(
             files
                 .iter()
-                .any(|row| row["path"] == "outputs/work/plans/example.json")
+                .all(|row| row["path"] != "outputs/work/plans/example.json" && row["phase"] != 10)
         );
         assert!(
             files
@@ -2331,21 +2209,23 @@ mod tests {
                     .as_nanos()
             ));
             for relative in [
-                "outputs/work/plans/example.json",
                 "outputs/work/tasks/example/index.json",
                 "outputs/work/executions/example/index.json",
             ] {
                 let destination = root.join(relative);
                 fs::create_dir_all(destination.parent().unwrap()).unwrap();
                 fs::copy(fixture.join(relative), destination).unwrap();
+                crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
             }
             if include_item {
                 let relative = "outputs/work/tasks/example/tasks/TASK-001.json";
                 let destination = root.join(relative);
                 fs::create_dir_all(destination.parent().unwrap()).unwrap();
                 fs::copy(fixture.join(relative), destination).unwrap();
+                crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
             }
             if corrupt_plan {
+                fs::create_dir_all(root.join("outputs/work/plans")).unwrap();
                 fs::write(root.join("outputs/work/plans/example.json"), b"{").unwrap();
             }
             if corrupt_history {
@@ -2383,7 +2263,6 @@ mod tests {
                 .as_nanos()
         ));
         for relative in [
-            "outputs/work/plans/example.json",
             "outputs/work/tasks/example/index.json",
             "outputs/work/tasks/example/tasks/TASK-001.json",
             "outputs/work/tasks/example/tasks/TASK-002.json",
@@ -2392,6 +2271,7 @@ mod tests {
             let destination = root.join(relative);
             fs::create_dir_all(destination.parent().unwrap()).unwrap();
             fs::copy(fixture.join(relative), destination).unwrap();
+            crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         }
         fs::write(root.join("src.txt"), b"source\n").unwrap();
         let semantic = serde_json::to_vec(&json!({
@@ -2448,7 +2328,6 @@ mod tests {
                 .as_nanos()
         ));
         for relative in [
-            "outputs/work/plans/example.json",
             "outputs/work/tasks/example/index.json",
             "outputs/work/tasks/example/tasks/TASK-001.json",
             "outputs/work/executions/example/index.json",
@@ -2456,6 +2335,7 @@ mod tests {
             let destination = root.join(relative);
             fs::create_dir_all(destination.parent().unwrap()).unwrap();
             fs::copy(fixture.join(relative), destination).unwrap();
+            crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         }
         fs::write(root.join("src.txt"), b"source\n").unwrap();
         let request = fs::read(fixture.join("request.json")).unwrap();
@@ -2577,7 +2457,7 @@ mod tests {
     #[test]
     fn item_and_plan_revisions_match_python_requests_and_transactions() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        for variant in ["item-goal", "plan-summary", "add-task", "remove-task"] {
+        for variant in ["item-goal", "task-summary", "add-task", "remove-task"] {
             let fixture = repo
                 .join("crates/work-infrastructure/fixtures/specification-update")
                 .join(variant);
@@ -2590,7 +2470,6 @@ mod tests {
                     .as_nanos()
             ));
             for relative in [
-                "outputs/work/plans/example.json",
                 "outputs/work/tasks/example/index.json",
                 "outputs/work/tasks/example/tasks/TASK-001.json",
                 "outputs/work/executions/example/index.json",
@@ -2598,6 +2477,7 @@ mod tests {
                 let destination = root.join(relative);
                 fs::create_dir_all(destination.parent().unwrap()).unwrap();
                 fs::copy(fixture.join(relative), destination).unwrap();
+                crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
             }
             fs::write(root.join("src.txt"), b"source\n").unwrap();
             if variant == "remove-task" {
@@ -2605,6 +2485,7 @@ mod tests {
                 let destination = root.join(relative);
                 fs::create_dir_all(destination.parent().unwrap()).unwrap();
                 fs::copy(fixture.join(relative), destination).unwrap();
+                crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
             }
             let request = fs::read(fixture.join("request.json")).unwrap();
             let expected_request: Value = serde_json::from_slice(&request).unwrap();
@@ -2696,7 +2577,6 @@ mod tests {
                 .as_nanos()
         ));
         for relative in [
-            "outputs/work/plans/example.json",
             "outputs/work/tasks/example/index.json",
             "outputs/work/tasks/example/tasks/TASK-001.json",
             "outputs/work/tasks/example/tasks/TASK-002.json",
@@ -2705,6 +2585,7 @@ mod tests {
             let destination = root.join(relative);
             fs::create_dir_all(destination.parent().unwrap()).unwrap();
             fs::copy(fixture.join(relative), destination).unwrap();
+            crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         }
         fs::write(root.join("src.txt"), b"source\n").unwrap();
         let other = root.join("outputs/work/tasks/example/tasks/TASK-002.json");
@@ -2756,6 +2637,58 @@ mod tests {
             journal["transaction_id"].as_str().unwrap()
         );
         write_journal(&root, &relative, &journal).unwrap();
+        let remaining = journal["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .skip(1)
+            .map(|row| {
+                let path = row["path"].as_str().unwrap().to_owned();
+                let raw = fs::read(root.join(&path)).ok();
+                (path, raw)
+            })
+            .collect::<Vec<_>>();
+        let source = root.join("outputs/work/sources/example/SRC-001/source.txt");
+        let source_before = fs::read(&source).unwrap();
+        fs::write(&source, b"unexpected Source drift").unwrap();
+        let rejected = update_from_project(
+            &root,
+            &skill,
+            &[],
+            SpecificationProjectRequest {
+                raw: &request,
+                operation: SpecOperation::Recover,
+                approved_sha256: Some(approval),
+            },
+        )
+        .unwrap_err();
+        assert_eq!(rejected.reason_code, "spec_update_source_changed");
+        for (path, raw) in &remaining {
+            assert_eq!(fs::read(root.join(path)).ok(), *raw);
+        }
+        fs::write(&source, &source_before).unwrap();
+        let later = root.join(&remaining.last().unwrap().0);
+        let later_before = fs::read(&later).unwrap();
+        fs::write(&later, b"unexpected candidate drift").unwrap();
+        let rejected = update_from_project(
+            &root,
+            &skill,
+            &[],
+            SpecificationProjectRequest {
+                raw: &request,
+                operation: SpecOperation::Recover,
+                approved_sha256: Some(approval),
+            },
+        )
+        .unwrap_err();
+        assert_eq!(
+            rejected.reason_code,
+            "spec_update_publication_state_changed"
+        );
+        for (path, raw) in remaining.iter().take(remaining.len() - 1) {
+            assert_eq!(fs::read(root.join(path)).ok(), *raw);
+        }
+        fs::write(&later, later_before).unwrap();
         let recovered = update_from_project(
             &root,
             &skill,
@@ -2778,5 +2711,20 @@ mod tests {
         )
         .unwrap();
         assert_eq!(verified["verified"], true);
+        assert!(!root.join("outputs/work/plans").exists());
+        assert_eq!(fs::read(&source).unwrap(), source_before);
+        let repeated = update_from_project(
+            &root,
+            &skill,
+            &[],
+            SpecificationProjectRequest {
+                raw: &request,
+                operation: SpecOperation::Recover,
+                approved_sha256: Some(approval),
+            },
+        )
+        .unwrap();
+        assert_eq!(repeated["publication_status"], "already_published");
+        assert_eq!(fs::read(&other).unwrap(), other_before);
     }
 }

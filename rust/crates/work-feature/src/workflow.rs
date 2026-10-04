@@ -17,7 +17,7 @@ pub trait WorkflowRoutingRepository {
 
 pub struct WorkflowSnapshot {
     pub artifacts: Value,
-    pub plan: Option<Value>,
+    pub source: Option<Value>,
     pub draft: Option<Value>,
     pub task: Option<Value>,
     pub index: Option<Value>,
@@ -146,7 +146,7 @@ pub fn pre_execution_state(
     routing: &mut impl WorkflowRoutingRepository,
     requirement_id: &str,
     artifacts: &Value,
-    plan_validation: Option<&Value>,
+    source_validation: Option<&Value>,
     draft: Option<&Value>,
     task_validation: Option<&Value>,
     execution_index_exists: bool,
@@ -158,7 +158,7 @@ pub fn pre_execution_state(
             artifacts,
             formal_events: &[],
         },
-        plan_validation,
+        source_validation,
         draft,
         task_validation,
         execution_index_exists,
@@ -174,13 +174,13 @@ pub struct WorkflowRoutingContext<'a> {
 pub fn pre_execution_state_with_events(
     routing: &mut impl WorkflowRoutingRepository,
     context: WorkflowRoutingContext<'_>,
-    plan_validation: Option<&Value>,
+    source_validation: Option<&Value>,
     draft: Option<&Value>,
     task_validation: Option<&Value>,
     execution_index_exists: bool,
 ) -> Result<Option<Value>, WorkError> {
     let decision = decide_pre_execution(
-        plan_validation,
+        source_validation,
         draft,
         task_validation,
         execution_index_exists,
@@ -314,8 +314,8 @@ mod tests {
         let (envelope, selection) = build_operation_context(
             &mut FixedRouting,
             &OperationContextRequest {
-                command: "plan",
-                operation: "semantic-prepare",
+                command: "task",
+                operation: "prepare",
                 delegated_role: None,
                 artifacts: &artifacts,
                 project_root: "/project",

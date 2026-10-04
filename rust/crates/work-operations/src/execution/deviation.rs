@@ -549,10 +549,10 @@ pub fn validate_deviation_preview(value: &Value) -> Result<(), ExecutionIssue> {
             "The deviation preview is invalid.",
         ));
     }
-    let blocking =
-        crate::execution::deviation_reconciliation_target(&value["proposal"]) == "plan_and_task";
+    let blocking = crate::execution::deviation_reconciliation_target(&value["proposal"])
+        == "task_and_execution";
     let classification = if blocking {
-        "plan_and_task"
+        "task_and_execution"
     } else {
         "task_only"
     };
@@ -592,7 +592,7 @@ pub fn validate_deviation_record_response(value: &Value) -> Result<(), Execution
         || !numbered_id(&value["deviation_id"], "DEVIATION-")
         || !matches!(
             value["classification"].as_str(),
-            Some("task_only" | "plan_and_task")
+            Some("task_only" | "task_and_execution")
         )
         || value["record_status"] != "recorded"
         || value["lock_status"] != "record_reserved"
@@ -607,7 +607,7 @@ pub fn validate_deviation_record_response(value: &Value) -> Result<(), Execution
         value["task_id"].as_str().unwrap(),
         value["attempt_id"].as_str().unwrap()
     );
-    if value["blocking"] != (value["classification"] == "plan_and_task")
+    if value["blocking"] != (value["classification"] == "task_and_execution")
         || !value["attempt_path"]
             .as_str()
             .is_some_and(|path| path.ends_with(&suffix))
@@ -751,14 +751,15 @@ pub fn build_deviation_preview(
         ));
     }
     validate_deviation_proposal(proposal)?;
-    let blocking = crate::execution::deviation_reconciliation_target(proposal) == "plan_and_task";
+    let blocking =
+        crate::execution::deviation_reconciliation_target(proposal) == "task_and_execution";
     let mut preview = json!({
         "schema":"work-execution-deviation-preview/v1",
         "proposal":proposal,
         "record_kind":record_kind,
         "action_validation":"passed",
         "semantic_review":"required",
-        "classification":if blocking { "plan_and_task" } else { "task_only" },
+        "classification":if blocking { "task_and_execution" } else { "task_only" },
         "blocking":blocking,
         "sources":sources,
     });
@@ -1050,15 +1051,29 @@ mod tests {
                 .reason_code,
             "deviation_preview_classification_mismatch"
         );
-        preview["classification"] = json!("plan_and_task");
+        preview["classification"] = json!("task_and_execution");
         preview["blocking"] = json!(true);
         validate_deviation_preview(&preview).unwrap();
+        let mut legacy = preview.clone();
+        legacy["classification"] = json!("plan_and_task");
+        assert_eq!(
+            validate_deviation_preview(&legacy).unwrap_err().reason_code,
+            "deviation_preview_classification_mismatch"
+        );
         let mut record = json!({"schema":"work-execution-deviation-record/v1",
             "task_id":"TASK-001","attempt_id":"ATTEMPT-001","deviation_id":"DEVIATION-001",
             "attempt_path":"outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
             "classification":"task_only","blocking":false,"record_status":"recorded",
             "lock_status":"record_reserved"});
         validate_deviation_record_response(&record).unwrap();
+        let mut legacy = record.clone();
+        legacy["classification"] = json!("plan_and_task");
+        assert_eq!(
+            validate_deviation_record_response(&legacy)
+                .unwrap_err()
+                .reason_code,
+            "invalid_execution_deviation_fields"
+        );
         record["blocking"] = json!(true);
         assert_eq!(
             validate_deviation_record_response(&record)
@@ -1109,7 +1124,7 @@ mod tests {
         }
     }
 
-    fn strict_proposal() -> Value {
+    pub(super) fn strict_proposal() -> Value {
         json!({"schema":"work-execution-deviation-proposal/v1","task_id":"TASK-001",
             "attempt_id":"ATTEMPT-001","anchor_record_id":"CMD-001",
             "task_basis":["CMD-001","STEP-001"],"gap":"The executable is unavailable.",
@@ -1470,5 +1485,31 @@ mod tests {
             validate_deviation_artifact(&drift).unwrap_err().reason_code,
             "deviation_file_scope_mismatch"
         );
+    }
+}
+
+#[cfg(test)]
+mod task_impact_tests {
+    use super::*;
+
+    #[test]
+    fn every_specification_impact_requires_task_and_execution_revision() {
+        let source = super::tests::strict_proposal();
+        let sources = BTreeMap::from([("task/index.json".to_owned(), "a".repeat(64))]);
+        for field in [
+            "requirement_changed",
+            "scope_changed",
+            "deliverables_changed",
+            "acceptance_criteria_changed",
+            "safety_boundary_changed",
+            "external_side_effect_boundary_changed",
+        ] {
+            let mut proposal = source.clone();
+            proposal["impact"][field] = json!(true);
+            let preview = build_deviation_preview(&proposal, "command", &sources).unwrap();
+            assert_eq!(preview["classification"], "task_and_execution", "{field}");
+            assert_eq!(preview["blocking"], true, "{field}");
+            validate_deviation_preview(&preview).unwrap();
+        }
     }
 }

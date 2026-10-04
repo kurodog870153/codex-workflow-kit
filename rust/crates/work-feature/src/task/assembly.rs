@@ -3,38 +3,35 @@
 use std::collections::BTreeMap;
 
 use serde_json::{Value, json};
-use work_operations::canonical::{canonical_json, parse_json_contract};
+use work_operations::canonical::canonical_json;
 use work_operations::derivation::fingerprint;
 use work_operations::task::TaskIssue;
 use work_operations::task::candidate::{build_semantic_candidate, validate_semantic_candidate};
 use work_operations::task::draft::{validate_planning_index, validate_task_draft};
 use work_operations::task::ordering::{TaskDocumentKind, render_task};
 
+use crate::artifact_paths::ArtifactPathRepository;
 use crate::error::{ExitCode, WorkError};
 use crate::instruction::{InstructionSourceRepository, load, select, task_document_selection};
-use crate::plan::{PlanPathRepository, PlanValidationInput, validate_plan};
+use crate::ports::SourceSnapshotReader;
 use crate::skill::{SkillRoot, SkillSnapshotRepository};
 use crate::task::create::{TaskCreateInput, prepare_task_create};
 
 pub struct AssemblyInput<'a> {
     pub index: &'a Value,
     pub drafts: &'a BTreeMap<String, Value>,
-    pub plan_raw: &'a [u8],
     pub metadata: &'a Value,
     pub expected_revision: u64,
-    pub plan_path: &'a str,
 }
 
 pub struct ProjectAssemblyInput<'a> {
     pub requirement_id: &'a str,
     pub metadata: &'a Value,
     pub expected_revision: u64,
-    pub plan_path: &'a str,
 }
 
 pub trait TaskAssemblyRepository {
     fn read_planning_index(&self, requirement_id: &str) -> Result<Value, WorkError>;
-    fn read_plan_raw(&self, plan_path: &str) -> Result<Vec<u8>, WorkError>;
     fn read_draft(&self, index: &Value, task_id: &str) -> Result<Value, WorkError>;
 }
 
@@ -50,10 +47,9 @@ where
     R: TaskAssemblyRepository,
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
 {
     let index = repository.read_planning_index(input.requirement_id)?;
-    let plan_raw = repository.read_plan_raw(input.plan_path)?;
     let mut drafts = BTreeMap::new();
     for entry in index["tasks"].as_array().expect("validated planning tasks") {
         if entry["status"] != "planned" {
@@ -69,10 +65,8 @@ where
         AssemblyInput {
             index: &index,
             drafts: &drafts,
-            plan_raw: &plan_raw,
             metadata: input.metadata,
             expected_revision: input.expected_revision,
-            plan_path: input.plan_path,
         },
     )?;
     if repository.read_planning_index(input.requirement_id)? != index {
@@ -148,7 +142,7 @@ pub fn assemble_task_drafts<H, S, P>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
 {
     let metadata = input.metadata.as_object().ok_or_else(|| {
         failure(
@@ -180,42 +174,15 @@ where
             json!({}),
         ));
     }
-    let plan = parse_json_contract(input.plan_raw).map_err(|_| {
-        failure(
-            ExitCode::Contract,
-            "invalid_json_contract",
-            "The source Plan is invalid.",
-            json!({}),
-        )
-    })?;
-    let plan_validation = validate_plan(
+    let (_, snapshot) = crate::task::source::validate_context(
+        paths,
         instructions,
         skills,
         paths,
         skill_roots,
-        &plan,
-        PlanValidationInput {
-            raw: input.plan_raw,
-            actual_plan_path: input.plan_path,
-            allow_task_index: true,
-        },
+        input.index["requirement_id"].as_str().unwrap(),
+        &input.index["source"],
     )?;
-    if input.index["requirement_id"] != plan_validation["requirement_id"]
-        || [
-            "plan_sha256",
-            "hierarchy_selection_sha256",
-            "skill_selection_sha256",
-        ]
-        .iter()
-        .any(|field| input.index["source"][*field] != plan_validation[*field])
-    {
-        return Err(failure(
-            ExitCode::ArtifactIntegrity,
-            "draft_source_drift",
-            "The planning source differs from the current validated Plan.",
-            json!({}),
-        ));
-    }
     let entries = input.index["tasks"]
         .as_array()
         .expect("validated planning tasks");
@@ -274,7 +241,7 @@ where
             .iter()
             .filter_map(|value| value.as_str().map(str::to_owned))
             .collect::<Vec<_>>();
-        let acceptance = identifiers(&plan, "acceptance_criteria")
+        let acceptance = identifiers(&input.index["source"], "acceptance_criteria")
             .iter()
             .filter_map(|value| value.as_str().map(str::to_owned))
             .collect::<Vec<_>>();
@@ -327,9 +294,11 @@ where
         task.insert("instruction_selection".into(), selected);
         task.insert(
             "traceability".into(),
-            json!({"goal_ids":identifiers(&plan,"goals"),
-            "deliverable_ids":identifiers(&plan,"deliverables"),
-            "acceptance_ids":identifiers(&plan,"acceptance_criteria")}),
+            json!({"acceptance_ids": candidate["acceptance_ids"]}),
+        );
+        task.insert(
+            "acceptance_criteria".into(),
+            candidate["acceptance_criteria"].clone(),
         );
         tasks.push(Value::Object(task));
     }
@@ -341,12 +310,17 @@ where
     );
     contract.insert("spec_id".into(), json!("TASK-SPEC-001"));
     contract.insert("status".into(), json!("confirmed"));
-    contract.insert("artifacts".into(), plan["artifacts"].clone());
+    for field in [
+        "artifacts",
+        "hierarchy_selection",
+        "skill_selection",
+        "acceptance_criteria",
+    ] {
+        contract.insert(field.into(), input.index["source"][field].clone());
+    }
     contract.insert(
-        "source_plan".into(),
-        json!({
-        "canonical_sha256":input.index["source"]["plan_sha256"],
-        "hierarchy_selection_sha256":input.index["source"]["hierarchy_selection_sha256"]}),
+        "source".into(),
+        json!({"kind":"snapshot", "manifest":input.index["source"]["snapshot"]}),
     );
     contract.insert(
         "instruction_selection".into(),
@@ -375,11 +349,27 @@ where
         TaskCreateInput {
             raw: &raw,
             index_path: artifacts["task"].as_str().unwrap(),
-            plan_path: artifacts["plan"].as_str().unwrap(),
+            source_root: artifacts["source"].as_str().unwrap(),
             execution_dir: artifacts["execution"].as_str().unwrap(),
-            plan_raw: input.plan_raw,
         },
     )?;
+    let (_, current_snapshot) = crate::task::source::validate_context(
+        paths,
+        instructions,
+        skills,
+        paths,
+        skill_roots,
+        input.index["requirement_id"].as_str().unwrap(),
+        &input.index["source"],
+    )?;
+    if current_snapshot != snapshot {
+        return Err(failure(
+            ExitCode::ArtifactIntegrity,
+            "source_snapshot_mismatch",
+            "The immutable Source changed during assembly.",
+            json!({}),
+        ));
+    }
     let index_raw = canonical_json(input.index).expect("JSON value serializes");
     Ok(
         json!({"schema":"work-task-draft-assembly/v1","status":"valid",
@@ -387,7 +377,7 @@ where
         "approval_sha256":fingerprint::task_draft_approval(&index_raw, &prepared.approval_bytes),
         "task_collection_sha256":prepared.validation["task_collection_sha256"],
         "task_index_sha256":prepared.validation["task_index_sha256"],
-        "task_item_sha256":prepared.validation["task_item_sha256"],"contract":contract}),
+        "task_item_sha256":prepared.validation["task_item_sha256"],"execution_index":prepared.initial_execution,"contract":contract}),
     )
 }
 
@@ -403,26 +393,21 @@ mod project_tests {
     impl TaskAssemblyRepository for FailingRepository {
         fn read_planning_index(&self, _: &str) -> Result<Value, WorkError> {
             self.reads.borrow_mut().push("index");
-            Ok(json!({"tasks": []}))
-        }
-
-        fn read_plan_raw(&self, _: &str) -> Result<Vec<u8>, WorkError> {
-            self.reads.borrow_mut().push("plan");
             Err(WorkError::new(
                 ExitCode::ArtifactIntegrity,
-                "plan_read_failed",
-                "The source Plan cannot be read.",
+                "planning_index_read_failed",
+                "The planning index cannot be read.",
                 json!({}),
             ))
         }
 
         fn read_draft(&self, _: &Value, _: &str) -> Result<Value, WorkError> {
-            panic!("draft read must follow a successful Plan read")
+            panic!("draft read must follow a successful planning index read")
         }
     }
 
     #[test]
-    fn project_assembly_stops_after_plan_port_failure() {
+    fn project_assembly_stops_after_planning_index_port_failure() {
         struct Unused;
         impl crate::hierarchy::HierarchyCatalogRepository for Unused {
             fn cross_mode_catalog(
@@ -449,30 +434,43 @@ mod project_tests {
                 panic!("skill must not be used")
             }
         }
-        impl PlanPathRepository for Unused {
-            fn default_paths(
-                &self,
-                _: &work_operations::identifiers::RequirementId,
-            ) -> Result<Value, WorkError> {
-                panic!("paths must not be used")
+        impl ArtifactPathRepository for Unused {
+            fn resolve(&self, _: &str) -> Result<std::path::PathBuf, WorkError> {
+                panic!("unexpected path resolution")
+            }
+            fn exists(&self, _: &str) -> Result<bool, WorkError> {
+                panic!("unexpected existence check")
+            }
+            fn read_raw(&self, _: &str) -> Result<Vec<u8>, WorkError> {
+                panic!("unexpected raw read")
+            }
+            fn create_new(&self, _: &str, _: &[u8]) -> Result<(), WorkError> {
+                panic!("no writes before validation")
             }
             fn validate_paths(
                 &self,
-                _: &work_operations::identifiers::RequirementId,
-                _: &Value,
-                _: &str,
-                _: bool,
+                _: &work_model::identifiers::RequirementId,
+                _: &crate::artifact_paths::ArtifactPaths,
             ) -> Result<(), WorkError> {
-                panic!("paths must not be used")
+                Ok(())
             }
-            fn exists(&self, _: &str) -> Result<bool, WorkError> {
-                panic!("paths must not be used")
+        }
+        impl SourceSnapshotReader for Unused {
+            fn read_snapshot(
+                &self,
+                id: &work_model::identifiers::RequirementId,
+                source: &work_model::identifiers::SourceId,
+            ) -> Result<crate::ports::SnapshotBytes, WorkError> {
+                self.read_snapshot_at(id, source, "outputs/work/sources/example")
             }
-            fn create_exclusive(&self, _: &str, _: &[u8]) -> Result<(), WorkError> {
-                panic!("paths must not be used")
-            }
-            fn read(&self, _: &str) -> Result<Vec<u8>, WorkError> {
-                panic!("paths must not be used")
+            fn read_snapshot_at(
+                &self,
+                _: &work_model::identifiers::RequirementId,
+                _: &work_model::identifiers::SourceId,
+                root: &str,
+            ) -> Result<crate::ports::SnapshotBytes, WorkError> {
+                assert_eq!(root, "outputs/work/sources/example");
+                panic!("Snapshot must not be used after failed repository read")
             }
         }
         let repository = FailingRepository {
@@ -488,11 +486,10 @@ mod project_tests {
                 requirement_id: "example",
                 metadata: &json!({}),
                 expected_revision: 1,
-                plan_path: "plan.json",
             },
         )
         .unwrap_err();
-        assert_eq!(error.reason_code, "plan_read_failed");
-        assert_eq!(*repository.reads.borrow(), ["index", "plan"]);
+        assert_eq!(error.reason_code, "planning_index_read_failed");
+        assert_eq!(*repository.reads.borrow(), ["index"]);
     }
 }

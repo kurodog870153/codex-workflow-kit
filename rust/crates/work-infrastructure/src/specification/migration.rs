@@ -18,12 +18,10 @@ use work_operations::derivation::transaction::{
     PublicationOrder, TransactionDeriver, TransactionInput, TransactionKind,
 };
 use work_operations::execution::index::render_execution_index;
-use work_operations::plan::render_plan_value;
 use work_operations::task::ordering::{TaskDocumentKind, render_task};
 
 use crate::files::LocalFiles;
 use crate::hierarchy_catalog::LocalHierarchyCatalog;
-use crate::plan_storage::LocalPlanStorage;
 use crate::skill_catalog::{LocalSkillCatalog, SkillRootConfig};
 use crate::specification::storage::{execution_history_bytes, storage_path};
 use crate::specification::workflow_storage::{SpecificationPrepareInput, prepare_simple_update};
@@ -38,9 +36,13 @@ fn fail(reason: &str, message: &str) -> WorkError {
 
 struct LocalMigrationPreview<'a> {
     root: &'a Path,
+    baseline: Option<&'a BTreeMap<String, Vec<u8>>>,
 }
 impl MigrationPreviewRepository for LocalMigrationPreview<'_> {
     fn read(&self, relative: &str) -> Result<Vec<u8>, WorkError> {
+        if let Some(raw) = self.baseline.and_then(|sources| sources.get(relative)) {
+            return Ok(raw.clone());
+        }
         LocalFiles.read_raw(&storage_path(self.root, relative)?)
     }
     fn validate_path(&self, relative: &str) -> Result<(), WorkError> {
@@ -52,6 +54,16 @@ pub fn preview_migration(
     skill_root: &Path,
     configs: &[SkillRootConfig],
     request: &Value,
+) -> Result<Value, WorkError> {
+    preview_migration_with_baseline(root, skill_root, configs, request, None)
+}
+
+pub(super) fn preview_migration_with_baseline(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[SkillRootConfig],
+    request: &Value,
+    baseline: Option<&BTreeMap<String, Vec<u8>>>,
 ) -> Result<Value, WorkError> {
     let instructions = LocalHierarchyCatalog {
         skill_root: skill_root.to_path_buf(),
@@ -66,14 +78,13 @@ pub fn preview_migration(
             locator: config.locator.clone(),
         })
         .collect::<Vec<_>>();
-    let paths = LocalPlanStorage {
-        project_root: root.to_path_buf(),
-    };
     preview_from_ports(
-        &LocalMigrationPreview { root },
+        &LocalMigrationPreview { root, baseline },
         &instructions,
         &skills,
-        &paths,
+        &crate::artifact_paths::LocalArtifactPaths {
+            project_root: root.to_path_buf(),
+        },
         &roots,
         request,
     )
@@ -96,6 +107,19 @@ pub fn prepare_revision_request(
     date: &str,
 ) -> Result<Value, WorkError> {
     let parsed = parse_revision_semantic(raw)?;
+    for source in parsed.semantic["sources"]
+        .as_array()
+        .expect("validated raw sources")
+    {
+        let path = source["path"].as_str().expect("validated source path");
+        let raw = LocalFiles.read_raw(&storage_path(root, path)?)?;
+        if source["raw_sha256"] != fingerprint::raw(&raw) {
+            return Err(fail(
+                "migration_source_changed",
+                "Original bytes differ from AI-reviewed evidence.",
+            ));
+        }
+    }
     let prepared = prepare_simple_update(
         root,
         skill_root,
@@ -195,7 +219,6 @@ pub fn preview_revision_from_prepared(
         })
         .collect::<Vec<_>>();
     let validators = vec![
-        json!({"name":"plan","status":"passed"}),
         json!({"name":"task_collection","status":"passed"}),
         json!({"name":"execution_index","status":"passed"}),
     ];
@@ -295,7 +318,6 @@ pub fn revision_transaction(
             )
         })?;
         let raw = match row["kind"].as_str() {
-            Some("plan") => render_plan_value(&row["content"]),
             Some("task_index") => render_task(&row["content"], TaskDocumentKind::Index),
             Some("task_item") => render_task(&row["content"], TaskDocumentKind::Item),
             Some("execution_index") => render_execution_index(&row["content"]),
@@ -320,6 +342,26 @@ pub fn revision_transaction(
                 "migration_candidate_duplicate",
                 "Migration candidate paths must be unique.",
             ));
+        }
+    }
+    for row in requested_candidates
+        .iter()
+        .filter(|row| row["kind"] == "task_index")
+    {
+        for path in work_feature::task::source::evidence_paths(&row["content"])? {
+            let digest = source_sha.get(&path).ok_or_else(|| {
+                fail(
+                    "migration_source_missing",
+                    "The complete immutable Source proof is required.",
+                )
+            })?;
+            if candidate_sha.get(&path) != Some(digest) {
+                return Err(fail(
+                    "migration_candidate_changed",
+                    "Source proof bytes must stay immutable.",
+                ));
+            }
+            requested_hashes.insert(path, digest.clone());
         }
     }
     if requested_hashes.len() != candidate_sha.len()
@@ -398,11 +440,11 @@ pub fn revision_transaction(
         .as_array()
         .into_iter()
         .flatten()
-        .find(|row| row["kind"] == "plan")
+        .find(|row| row["kind"] == "task_index")
         .ok_or_else(|| {
             fail(
                 "migration_candidate_set_incomplete",
-                "The migration Plan is missing.",
+                "The migration Task index is missing.",
             )
         })?["content"]["artifacts"];
     let mut affected = migration_request["candidates"]
@@ -514,13 +556,13 @@ mod tests {
         assert_eq!(resolved_preview["status"], "ready");
         assert_ne!(resolved_preview["fingerprint"], blocked["fingerprint"]);
         let mut mismatched = request.clone();
-        let plan_candidate = mismatched["candidates"]
+        let task_candidate = mismatched["candidates"]
             .as_array_mut()
             .unwrap()
             .iter_mut()
-            .find(|row| row["kind"] == "plan")
+            .find(|row| row["kind"] == "task_index")
             .unwrap();
-        plan_candidate["content"]["artifacts"]["task"] = json!("wrong/index.json");
+        task_candidate["content"]["artifacts"]["task"] = json!("wrong/index.json");
         let mismatch =
             preview_migration(&root, &repo.join("../skills/work"), &[], &mismatched).unwrap();
         assert_eq!(mismatch["status"], "blocked");
@@ -532,11 +574,7 @@ mod tests {
                 .iter()
                 .any(|row| row["name"] == "artifact_paths" && row["status"] == "failed")
         );
-        for variant in [
-            "invalid-plan",
-            "invalid-execution-binding",
-            "incomplete-candidate-set",
-        ] {
+        for variant in ["invalid-execution-binding", "incomplete-candidate-set"] {
             let request: Value = serde_json::from_slice(
                 &fs::read(fixture.join(format!("{variant}-request.json"))).unwrap(),
             )
@@ -549,6 +587,15 @@ mod tests {
                 preview_migration(&root, &repo.join("../skills/work"), &[], &request).unwrap();
             assert_eq!(actual, expected, "variant {variant}");
         }
+        let legacy_candidate: Value =
+            serde_json::from_slice(&fs::read(fixture.join("invalid-plan-request.json")).unwrap())
+                .unwrap();
+        assert_eq!(
+            preview_migration(&root, &repo.join("../skills/work"), &[], &legacy_candidate)
+                .unwrap_err()
+                .reason_code,
+            "invalid_contract_value"
+        );
         let mut legacy = request.clone();
         for source in legacy["sources"].as_array_mut().unwrap() {
             let relative = source["path"].as_str().unwrap().to_owned();
@@ -600,7 +647,12 @@ mod tests {
         fs::write(root.join("src.txt"), b"source\n").unwrap();
         let expected: Value =
             serde_json::from_slice(&fs::read(fixture.join("request.json")).unwrap()).unwrap();
-        let date = expected["candidates"][1]["content"]["changes"]
+        let date = expected["candidates"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["kind"] == "task_index")
+            .unwrap()["content"]["changes"]
             .as_array()
             .unwrap()
             .last()
@@ -631,14 +683,14 @@ mod tests {
             )
             .unwrap_err()
             .reason_code,
-            "invalid_object_fields"
+            "invalid_contract_value"
         );
         let mut forged_identity = actual.clone();
         forged_identity["candidates"]
             .as_array_mut()
             .unwrap()
             .iter_mut()
-            .find(|row| row["kind"] == "plan")
+            .find(|row| row["kind"] == "task_index")
             .unwrap()["task_id"] = json!("TASK-001");
         assert_eq!(
             preview_migration(&root, &repo.join("../skills/work"), &[], &forged_identity)
@@ -667,7 +719,7 @@ mod tests {
             preview_migration(&root, &repo.join("../skills/work"), &[], &actual).unwrap(),
             expected_preview
         );
-        let plan_source = root.join("outputs/work/plans/example.json");
+        let plan_source = root.join("outputs/work/tasks/example/index.json");
         let original_plan = fs::read(&plan_source).unwrap();
         fs::write(&plan_source, b"changed\n").unwrap();
         assert_eq!(

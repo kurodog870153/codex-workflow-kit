@@ -1,5 +1,6 @@
 //! Filesystem, Git, process, and platform adapters.
 
+pub mod artifact_paths;
 pub mod clock_workspace;
 pub mod codec;
 pub mod delegation_storage;
@@ -10,13 +11,13 @@ pub mod git;
 pub mod handoff_storage;
 pub mod hierarchy_catalog;
 pub mod instruction;
-pub mod plan_storage;
 pub mod process;
 pub mod progress_storage;
 pub mod recovery;
 pub mod routing_sources;
 pub mod skill_bundle;
 pub mod skill_catalog;
+pub mod source_snapshot_storage;
 pub mod specification;
 pub mod task;
 pub mod transaction_storage;

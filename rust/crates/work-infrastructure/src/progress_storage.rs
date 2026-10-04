@@ -148,7 +148,7 @@ mod tests {
     };
 
     fn example() -> serde_json::Value {
-        json!({"schema":"work-discussion-progress/v1","requirement_id":"example","mode":"plan","revision":1,"status":"discussion_only","title":"Example","request":"Example request.","current_task_id":null,"context":{},"source_status":[],"notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],"next_discussion_point":"Continue."})
+        json!({"schema":"work-discussion-progress/v1","requirement_id":"example","mode":"task","revision":1,"status":"discussion_only","title":"Example","request":"Example request.","current_task_id":null,"context":{},"source_status":[],"notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],"next_discussion_point":"Continue."})
     }
 
     #[test]
@@ -175,16 +175,16 @@ mod tests {
         let preview = preview_progress(&storage, &candidate, 0).unwrap();
         assert_eq!(
             preview["approved_sha256"],
-            "e7a21a5721c9df578e92608ff99781d703c9beec1c06be11ca77ff00a919a5c1"
+            "10d7595bd4446bbcdf6163ea5ed6bbb6e09f373a1e27cda4d8ce009c2d91f9d2"
         );
         let approved = preview["approved_sha256"].as_str().unwrap();
         let saved = save_progress(&storage, &candidate, 0, approved).unwrap();
         assert_eq!(
             saved["sha256"],
-            "fa743ad5afc7029551a3e9d15121bd6e413e773ede078948db2c89c00560d470"
+            "b90169bf066792c522bd693097a9b3347313520cc68fcd80108646f21c217bd3"
         );
         assert_eq!(
-            read_progress(&storage, "example", "plan").unwrap()["progress"],
+            read_progress(&storage, "example", "task").unwrap()["progress"],
             candidate
         );
         assert_eq!(
@@ -194,7 +194,7 @@ mod tests {
             "progress_revision_conflict"
         );
         let prepared =
-            prepare_progress(&storage, &json!({"title":"Revised"}), "example", "plan", 1).unwrap();
+            prepare_progress(&storage, &json!({"title":"Revised"}), "example", "task", 1).unwrap();
         assert_eq!(prepared["schema"], "work-progress-prepare/v1");
         let second = save_progress(
             &storage,
@@ -208,13 +208,13 @@ mod tests {
             fs::read(
                 storage
                     .project_root
-                    .join("outputs/work/progress/example/plan/history/1/progress.json")
+                    .join("outputs/work/progress/example/task/history/1/progress.json")
             )
             .unwrap(),
             work_operations::progress::render_progress(&candidate).unwrap()
         );
         let mut task = candidate.clone();
-        task["mode"] = json!("task");
+        task["requirement_id"] = json!("task-discussion");
         task["current_task_id"] = json!("TASK-001");
         let task_approval = preview_progress(&storage, &task, 0).unwrap()["approved_sha256"]
             .as_str()
@@ -230,15 +230,15 @@ mod tests {
                 .to_owned();
         save_progress(&storage, &other_requirement, 0, &other_approval).unwrap();
         assert_eq!(
-            read_progress(&storage, "example", "plan").unwrap()["progress"],
+            read_progress(&storage, "example", "task").unwrap()["progress"],
             second["progress"]
         );
         assert_eq!(
-            read_progress(&storage, "example", "task").unwrap()["progress"],
+            read_progress(&storage, "task-discussion", "task").unwrap()["progress"],
             task
         );
         assert_eq!(
-            read_progress(&storage, "other", "plan").unwrap()["progress"],
+            read_progress(&storage, "other", "task").unwrap()["progress"],
             other_requirement
         );
     }
@@ -278,11 +278,11 @@ mod tests {
             .to_owned();
         let current = storage
             .project_root
-            .join("outputs/work/progress/example/plan/progress.json");
+            .join("outputs/work/progress/example/task/progress.json");
         let original = fs::read(&current).unwrap();
         fs::write(&current, b"incomplete unrelated edit").unwrap();
         assert_eq!(
-            read_progress(&storage, "example", "plan")
+            read_progress(&storage, "example", "task")
                 .unwrap_err()
                 .exit_code,
             ExitCode::InputFormat
@@ -294,7 +294,7 @@ mod tests {
         fs::write(&current, &original).unwrap();
         let history_file = storage
             .project_root
-            .join("outputs/work/progress/example/plan/history/1/progress.json");
+            .join("outputs/work/progress/example/task/history/1/progress.json");
         let mut changed_baseline = first.clone();
         changed_baseline["notes"] = json!(["Changed after approval"]);
         let changed_raw = work_operations::progress::render_progress(&changed_baseline).unwrap();
@@ -311,7 +311,7 @@ mod tests {
         fs::write(&history_file, &original).unwrap();
         let history = storage
             .project_root
-            .join("outputs/work/progress/example/plan/history/2");
+            .join("outputs/work/progress/example/task/history/2");
         fs::create_dir(&history).unwrap();
         fs::write(history.join("progress.pending"), b"partial").unwrap();
         assert_eq!(
@@ -321,15 +321,15 @@ mod tests {
             "progress_save_pending"
         );
         assert_eq!(
-            read_progress(&storage, "example", "plan").unwrap()["progress"],
+            read_progress(&storage, "example", "task").unwrap()["progress"],
             first
         );
         let old_history = storage
             .project_root
-            .join("outputs/work/progress/example/plan/history/1/progress.json");
+            .join("outputs/work/progress/example/task/history/1/progress.json");
         fs::write(old_history, b"changed history").unwrap();
         assert_eq!(
-            read_progress(&storage, "example", "plan")
+            read_progress(&storage, "example", "task")
                 .unwrap_err()
                 .reason_code,
             "progress_history_mismatch"
@@ -412,11 +412,11 @@ mod tests {
         ));
         fs::create_dir(&root).unwrap();
         let storage = LocalProgressStorage { project_root: root };
-        let raw = br#"{"schema":"work-discussion-progress/v1","requirement_id":"example","mode":"plan","revision":1,"status":"discussion_only","title":"Example","request":"Example request.","current_task_id":null,"context":{"z":1,"a":2},"source_status":[],"notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],"next_discussion_point":"Continue."}"#;
+        let raw = br#"{"schema":"work-discussion-progress/v1","requirement_id":"example","mode":"task","revision":1,"status":"discussion_only","title":"Example","request":"Example request.","current_task_id":null,"context":{"z":1,"a":2},"source_status":[],"notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],"next_discussion_point":"Continue."}"#;
         let preview = preview_progress_raw(&storage, raw, 0).unwrap();
         assert_eq!(
             preview["approved_sha256"],
-            "46cf6a909fd77431cb6d1a21bbb1518f9b0f5d43e2ba911df2a92bcdd8753e06"
+            "6e70c6ea74c508737af22b07d93f8c9820430bc67a249e7fa9f510ae202bc8e7"
         );
         let saved = save_progress_raw(
             &storage,
@@ -427,16 +427,16 @@ mod tests {
         .unwrap();
         assert_eq!(
             saved["sha256"],
-            "c40db5e7b11cbd3804a5990263dad0ca59053eddc96dc47f9685bbec063d617a"
+            "7cab21bbfc69efcfdbc5fb37c0aead2042ae07f47bb2cce24ca013662be2de63"
         );
         assert_eq!(
-            read_progress(&storage, "example", "plan").unwrap()["sha256"],
+            read_progress(&storage, "example", "task").unwrap()["sha256"],
             saved["sha256"]
         );
         let current = fs::read(
             storage
                 .project_root
-                .join("outputs/work/progress/example/plan/progress.json"),
+                .join("outputs/work/progress/example/task/progress.json"),
         )
         .unwrap();
         assert!(
@@ -445,7 +445,7 @@ mod tests {
                 .contains("\"z\": 1,\n    \"a\": 2")
         );
         let prepared =
-            prepare_progress_document(&storage, br#"{"title":"Revised"}"#, "example", "plan", 1)
+            prepare_progress_document(&storage, br#"{"title":"Revised"}"#, "example", "task", 1)
                 .unwrap();
         assert!(
             String::from_utf8(prepared.candidate_raw.clone())
@@ -472,10 +472,10 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let current = root.join("outputs/work/progress/example/plan/progress.json");
+        let current = root.join("outputs/work/progress/example/task/progress.json");
         fs::create_dir_all(&current).unwrap();
         let storage = LocalProgressStorage { project_root: root };
-        let error = read_progress(&storage, "example", "plan").unwrap_err();
+        let error = read_progress(&storage, "example", "task").unwrap_err();
         assert_eq!(error.reason_code, "progress_read_failed");
         assert_eq!(
             error.details["path"],
@@ -506,7 +506,7 @@ mod tests {
         };
         let target = root.join("other-storage");
         fs::create_dir(&target).unwrap();
-        let directory = root.join("outputs/work/progress/example/plan");
+        let directory = root.join("outputs/work/progress/example/task");
         fs::create_dir_all(directory.parent().unwrap()).unwrap();
         symlink(&target, &directory).unwrap();
         assert_eq!(
@@ -531,10 +531,10 @@ mod tests {
             preview["approved_sha256"].as_str().unwrap(),
         )
         .unwrap();
-        let current = other_root.join("outputs/work/progress/example/plan/progress.json");
+        let current = other_root.join("outputs/work/progress/example/task/progress.json");
         fs::hard_link(&current, other_root.join("alias.json")).unwrap();
         assert_eq!(
-            read_progress(&storage, "example", "plan")
+            read_progress(&storage, "example", "task")
                 .unwrap_err()
                 .exit_code,
             ExitCode::Contract
@@ -551,12 +551,12 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let history = root.join("outputs/work/progress/example/plan/history/1");
+        let history = root.join("outputs/work/progress/example/task/history/1");
         fs::create_dir_all(&history).unwrap();
         fs::write(history.join("progress.json"), b"{\"schema\":").unwrap();
         let storage = LocalProgressStorage { project_root: root };
         assert_eq!(
-            read_progress(&storage, "example", "plan")
+            read_progress(&storage, "example", "task")
                 .unwrap_err()
                 .reason_code,
             "progress_not_saved"

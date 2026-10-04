@@ -10,9 +10,10 @@ use work_operations::execution::index::{
 };
 use work_operations::task::create::prepare_collection;
 
+use crate::artifact_paths::ArtifactPathRepository;
 use crate::error::{ExitCode, WorkError};
 use crate::instruction::InstructionSourceRepository;
-use crate::plan::PlanPathRepository;
+use crate::ports::SourceSnapshotReader;
 use crate::skill::{SkillRoot, SkillSnapshotRepository};
 use crate::task::{CollectionInput, validate_collection};
 
@@ -28,21 +29,19 @@ pub struct PreparedTaskCreate {
 pub struct TaskCreateInput<'a> {
     pub raw: &'a [u8],
     pub index_path: &'a str,
-    pub plan_path: &'a str,
+    pub source_root: &'a str,
     pub execution_dir: &'a str,
-    pub plan_raw: &'a [u8],
 }
 
 pub struct TaskCreateProjectInput<'a> {
     pub raw: &'a [u8],
-    pub plan_path: &'a str,
+    pub source_root: &'a str,
     pub task_path: &'a str,
     pub execution_dir: &'a str,
     pub recovery: bool,
 }
 
 pub trait TaskCreationRepository {
-    fn read_plan(&self, relative_path: &str) -> Result<Vec<u8>, WorkError>;
     fn publish(
         &self,
         task_path: &str,
@@ -90,7 +89,10 @@ pub fn parse_create_input(raw: &[u8]) -> Result<Value, WorkError> {
         "title",
         "summary",
         "artifacts",
-        "source_plan",
+        "source",
+        "hierarchy_selection",
+        "skill_selection",
+        "acceptance_criteria",
         "instruction_selection",
         "tasks",
         "readiness",
@@ -103,7 +105,10 @@ pub fn parse_create_input(raw: &[u8]) -> Result<Value, WorkError> {
         "title",
         "summary",
         "artifacts",
-        "source_plan",
+        "source",
+        "hierarchy_selection",
+        "skill_selection",
+        "acceptance_criteria",
         "instruction_selection",
         "execution_defaults",
         "decisions",
@@ -154,7 +159,7 @@ pub fn prepare_task_create<H, S, P>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
 {
     let projection = parse_create_input(input.raw)?;
     let artifacts = &projection["artifacts"];
@@ -164,8 +169,31 @@ where
             "The explicit execution path must match the TASK index.",
         ));
     }
+    let source = serde_json::from_value(projection["source"].clone()).map_err(|_| {
+        contract(
+            "invalid_task_source",
+            "Creation requires explicit Task provenance.",
+        )
+    })?;
+    let artifact_paths = serde_json::from_value(artifacts.clone()).map_err(|_| {
+        contract(
+            "invalid_artifact_path",
+            "Creation requires explicit artifact roots.",
+        )
+    })?;
+    crate::task::source::verify_provenance(
+        paths,
+        projection["requirement_id"].as_str().ok_or_else(|| {
+            contract(
+                "invalid_requirement_id",
+                "Creation requires a requirement ID.",
+            )
+        })?,
+        &source,
+        &artifact_paths,
+    )?;
     let prepared =
-        prepare_collection(&projection, input.index_path, input.plan_path).map_err(|issue| {
+        prepare_collection(&projection, input.index_path, input.source_root).map_err(|issue| {
             WorkError::new(
                 ExitCode::Contract,
                 issue.reason_code,
@@ -182,7 +210,6 @@ where
             index_raw: &prepared.index_raw,
             item_raw: &prepared.items,
             index_path: input.index_path,
-            source_plan_raw: input.plan_raw,
         },
     )?;
     let initial_execution =
@@ -210,11 +237,16 @@ where
             issue.details,
         )
     })?;
+    let approval_bytes = work_operations::task::create::approval_with_execution(
+        &prepared.approval_bytes,
+        &format!("{}/index.json", input.execution_dir),
+        &execution_raw,
+    );
     Ok(PreparedTaskCreate {
         index_raw: prepared.index_raw,
         items: prepared.items,
         execution_raw,
-        approval_bytes: prepared.approval_bytes,
+        approval_bytes,
         validation,
         initial_execution,
     })
@@ -231,11 +263,10 @@ pub fn create_task_from_project<H, S, P, T>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCreationRepository,
 {
     parse_create_input(request.raw)?;
-    let plan_raw = storage.read_plan(request.plan_path)?;
     let prepared = prepare_task_create(
         instructions,
         skills,
@@ -244,9 +275,8 @@ where
         TaskCreateInput {
             raw: request.raw,
             index_path: request.task_path,
-            plan_path: request.plan_path,
+            source_root: request.source_root,
             execution_dir: request.execution_dir,
-            plan_raw: &plan_raw,
         },
     )?;
     let changed = storage.publish(
@@ -303,7 +333,6 @@ mod tests {
     use super::*;
     use crate::hierarchy::HierarchyCatalogRepository;
     use work_operations::hierarchy::{CrossModeCatalog, Hierarchy};
-    use work_operations::identifiers::RequirementId;
 
     struct UnusedSources;
 
@@ -334,48 +363,53 @@ mod tests {
         }
     }
 
-    impl PlanPathRepository for UnusedSources {
-        fn default_paths(&self, _: &RequirementId) -> Result<Value, WorkError> {
-            panic!("path lookup must follow plan read")
+    impl ArtifactPathRepository for UnusedSources {
+        fn resolve(&self, _: &str) -> Result<std::path::PathBuf, WorkError> {
+            panic!("unexpected path resolution")
         }
-
+        fn exists(&self, _: &str) -> Result<bool, WorkError> {
+            panic!("unexpected existence check")
+        }
+        fn read_raw(&self, _: &str) -> Result<Vec<u8>, WorkError> {
+            panic!("unexpected raw read")
+        }
+        fn create_new(&self, _: &str, _: &[u8]) -> Result<(), WorkError> {
+            panic!("no writes before validation")
+        }
         fn validate_paths(
             &self,
-            _: &RequirementId,
-            _: &Value,
-            _: &str,
-            _: bool,
+            _: &work_model::identifiers::RequirementId,
+            _: &crate::artifact_paths::ArtifactPaths,
         ) -> Result<(), WorkError> {
-            panic!("path lookup must follow plan read")
-        }
-
-        fn exists(&self, _: &str) -> Result<bool, WorkError> {
-            panic!("path lookup must follow plan read")
-        }
-
-        fn create_exclusive(&self, _: &str, _: &[u8]) -> Result<(), WorkError> {
-            panic!("path lookup must follow plan read")
-        }
-
-        fn read(&self, _: &str) -> Result<Vec<u8>, WorkError> {
-            panic!("path lookup must follow plan read")
+            Ok(())
         }
     }
-
-    struct FailingStorage(Cell<bool>);
-
-    impl TaskCreationRepository for FailingStorage {
-        fn read_plan(&self, relative_path: &str) -> Result<Vec<u8>, WorkError> {
-            assert_eq!(relative_path, "plans/example.json");
-            self.0.set(true);
+    impl SourceSnapshotReader for UnusedSources {
+        fn read_snapshot(
+            &self,
+            id: &work_model::identifiers::RequirementId,
+            source: &work_model::identifiers::SourceId,
+        ) -> Result<crate::ports::SnapshotBytes, WorkError> {
+            self.read_snapshot_at(id, source, "outputs/work/sources/example")
+        }
+        fn read_snapshot_at(
+            &self,
+            _: &work_model::identifiers::RequirementId,
+            _: &work_model::identifiers::SourceId,
+            root: &str,
+        ) -> Result<crate::ports::SnapshotBytes, WorkError> {
+            assert_eq!(root, "outputs/work/sources/example");
             Err(WorkError::new(
                 ExitCode::ArtifactIntegrity,
-                "plan_missing",
-                "The source Plan is missing.",
+                "source_snapshot_missing",
+                "The fixed Snapshot is missing.",
                 json!({}),
             ))
         }
+    }
+    struct FailingStorage(Cell<bool>);
 
+    impl TaskCreationRepository for FailingStorage {
         fn publish(
             &self,
             _: &str,
@@ -392,12 +426,12 @@ mod tests {
     }
 
     #[test]
-    fn create_stops_at_failed_plan_port_before_any_publication() {
+    fn create_stops_at_missing_snapshot_before_any_publication() {
         let storage = FailingStorage(Cell::new(false));
         let raw = serde_json::to_vec(&json!({
             "schema":"work-task-collection-projection/v1",
-            "requirement_id":null,"spec_id":null,"status":null,"title":null,
-            "summary":null,"artifacts":null,"source_plan":null,
+            "requirement_id":"example","spec_id":null,"status":null,"title":null,
+            "summary":null,"artifacts":{"source":"outputs/work/sources/example","task":"outputs/work/tasks/example/index.json","execution":"outputs/work/executions/example"},"source":{"kind":"snapshot","manifest":work_model::contract_data::registry_value()["items"]["work-source-snapshot/v1"]["description"]["example"]},"hierarchy_selection":null,"skill_selection":null,"acceptance_criteria":null,
             "instruction_selection":null,"tasks":null,"readiness":null
         }))
         .unwrap();
@@ -409,14 +443,14 @@ mod tests {
             &[],
             TaskCreateProjectInput {
                 raw: &raw,
-                plan_path: "plans/example.json",
-                task_path: "tasks/example/index.json",
-                execution_dir: "execution/example",
+                source_root: "outputs/work/sources/example",
+                task_path: "outputs/work/tasks/example/index.json",
+                execution_dir: "outputs/work/executions/example",
                 recovery: false,
             },
         )
         .unwrap_err();
-        assert!(storage.0.get());
-        assert_eq!(error.reason_code, "plan_missing");
+        assert!(!storage.0.get());
+        assert_eq!(error.reason_code, "source_snapshot_missing");
     }
 }

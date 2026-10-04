@@ -88,7 +88,12 @@ pub fn source_update_request(
             json!({}),
         )
     })?;
-    if fields.len() != 2 || !fields.contains_key("reason") || !fields.contains_key("selections") {
+    if fields.len() != 4
+        || !fields.contains_key("source")
+        || !fields.contains_key("reason")
+        || !fields.contains_key("selections")
+        || !fields.contains_key("source_confirmation")
+    {
         return Err(WorkError::new(
             ExitCode::Contract,
             "invalid_object_fields",
@@ -518,7 +523,7 @@ pub struct SourceUpdateRequest<'a> {
     pub instruction_hashes: &'a BTreeMap<String, String>,
     pub expected_revision: u64,
     pub reason: &'a str,
-    pub plan_path: &'a str,
+    pub source_confirmation: &'a Value,
 }
 
 pub fn prepare_source_update(
@@ -531,7 +536,6 @@ pub fn prepare_source_update(
     let instruction_hashes = request.instruction_hashes;
     let expected_revision = request.expected_revision;
     let reason = request.reason;
-    let plan_path = request.plan_path;
     validate_planning_index(previous).map_err(domain)?;
     if expected_revision < 1 {
         return Err(workflow(
@@ -548,6 +552,13 @@ pub fn prepare_source_update(
     let effects =
         source_change_effects(previous, new_source, selections, instruction_hashes, reason)
             .map_err(source_domain)?;
+    work_operations::task::draft_source::validate_source_confirmation(
+        previous,
+        new_source,
+        &effects.affected,
+        request.source_confirmation,
+    )
+    .map_err(source_domain)?;
     let requirement_id = previous["requirement_id"]
         .as_str()
         .expect("validated requirement");
@@ -578,7 +589,7 @@ pub fn prepare_source_update(
         .as_u64()
         .expect("validated revision");
     let raw = canonical_planning_index(&prepared.index);
-    let request = canonical_json(&json!({"request":{"reason":reason,"selections":selections},"expected_revision":expected_revision,"plan_path":plan_path})).expect("JSON serializes");
+    let request = canonical_json(&json!({"request":{"source":new_source,"reason":reason,"selections":selections,"source_confirmation":request.source_confirmation},"expected_revision":expected_revision})).expect("JSON serializes");
     let mut files = BTreeMap::from([
         ("index.json".into(), raw.clone()),
         ("index-current.tmp".into(), raw),
@@ -597,12 +608,11 @@ pub fn prepare_source_update(
 
 pub struct ValidatedSourceRefresh<'a> {
     pub previous: &'a Value,
-    pub plan: &'a Value,
-    pub plan_validation: &'a Value,
+    pub source: &'a Value,
     pub selections: &'a BTreeMap<String, Value>,
     pub expected_revision: u64,
     pub reason: &'a str,
-    pub plan_path: &'a str,
+    pub source_confirmation: &'a Value,
 }
 
 pub fn prepare_validated_source_refresh(
@@ -614,38 +624,16 @@ pub fn prepare_validated_source_refresh(
     let requirement_id = input.previous["requirement_id"]
         .as_str()
         .expect("validated requirement");
-    if input.plan_validation["requirement_id"] != requirement_id {
-        return Err(workflow(
-            "draft_source_requirement_mismatch",
-            "The validated Plan belongs to another requirement.",
-        ));
-    }
-    let old_source = input.previous["source"]
-        .as_object()
-        .expect("validated source");
-    let mut new_source = serde_json::Map::new();
-    for key in old_source.keys() {
-        let value = input
-            .plan_validation
-            .get(key)
-            .and_then(Value::as_str)
-            .ok_or_else(|| {
-                WorkError::new(
-                    ExitCode::ArtifactIntegrity,
-                    "draft_source_drift",
-                    "The validated Plan source fingerprint is missing.",
-                    json!({"field":key}),
-                )
-            })?;
-        new_source.insert(key.clone(), json!(value));
-    }
-    let skills = input.plan["skill_selection"]["skills"]
+    work_operations::task::source::validate_planning_source(input.source, requirement_id)
+        .map_err(domain)?;
+    let new_source = input.source;
+    let skills = input.source["skill_selection"]["skills"]
         .as_array()
         .ok_or_else(|| {
             WorkError::new(
                 ExitCode::Contract,
                 "invalid_skill_selection",
-                "The validated Plan skill selection is missing.",
+                "The validated Task selection skill selection is missing.",
                 json!({}),
             )
         })?;
@@ -658,7 +646,7 @@ pub fn prepare_validated_source_refresh(
             }) {
                 return Err(workflow(
                     "draft_skill_not_available",
-                    "Resolve the TASK skill binding against the confirmed Plan before updating sources.",
+                    "Resolve the TASK skill binding against the confirmed Task selection before updating sources.",
                 ));
             }
         }
@@ -687,7 +675,7 @@ pub fn prepare_validated_source_refresh(
         validate_task_paths(
             instructions,
             &paths,
-            &input.plan["hierarchy_selection"],
+            &input.source["hierarchy_selection"],
             &format!("selections.{task_id}"),
         )?;
         hashes.insert(
@@ -699,12 +687,12 @@ pub fn prepare_validated_source_refresh(
         history,
         input.previous,
         &SourceUpdateRequest {
-            new_source: &Value::Object(new_source),
+            new_source,
+            source_confirmation: input.source_confirmation,
             selections: input.selections,
             instruction_hashes: &hashes,
             expected_revision: input.expected_revision,
             reason: input.reason,
-            plan_path: input.plan_path,
         },
     )
 }
@@ -929,8 +917,7 @@ pub struct DraftSourceCheck<'a> {
     pub index: &'a Value,
     pub task_id: &'a str,
     pub expected_revision: u64,
-    pub plan: &'a Value,
-    pub plan_validation: &'a Value,
+    pub source: &'a Value,
     pub selected_paths: Option<&'a [String]>,
     pub reference_names: Option<&'a [String]>,
 }
@@ -964,33 +951,19 @@ pub fn check_validated_sources(
     let requirement_id = input.index["requirement_id"]
         .as_str()
         .expect("validated ID");
-    if input.plan_validation["requirement_id"] != requirement_id {
-        return Err(WorkError::new(
-            ExitCode::ArtifactIntegrity,
-            "draft_source_requirement_mismatch",
-            "The Plan belongs to a different requirement.",
-            json!({}),
-        ));
-    }
-    let mismatches: Vec<&str> = input.index["source"]
-        .as_object()
-        .expect("validated source")
-        .iter()
-        .filter_map(|(field, stored)| {
-            (input.plan_validation.get(field) != Some(stored)).then_some(field.as_str())
-        })
-        .collect();
-    if !mismatches.is_empty() {
+    work_operations::task::source::validate_planning_source(input.source, requirement_id)
+        .map_err(domain)?;
+    if input.index["source"] != *input.source {
         return Err(WorkError::new(
             ExitCode::ArtifactIntegrity,
             "draft_source_drift",
-            "The saved planning sources differ from the validated Plan.",
-            json!({"fields":mismatches,"task_id":input.task_id}),
+            "Saved planning sources differ from the fixed Source binding.",
+            json!({"task_id":input.task_id}),
         ));
     }
     let skill_id = &entry["skill_id"];
     if let Some(id) = skill_id.as_str() {
-        let available = input.plan["skill_selection"]["skills"]
+        let available = input.source["skill_selection"]["skills"]
             .as_array()
             .is_some_and(|skills| {
                 skills.iter().any(|skill| {
@@ -1001,7 +974,7 @@ pub fn check_validated_sources(
             return Err(WorkError::new(
                 ExitCode::Contract,
                 "draft_skill_not_available",
-                "The TASK skill is not a Plan-confirmed Task-capable skill.",
+                "The TASK skill is not a Task-confirmed Task-capable skill.",
                 json!({}),
             ));
         }
@@ -1021,7 +994,7 @@ pub fn check_validated_sources(
     validate_task_paths(
         instructions,
         &paths,
-        &input.plan["hierarchy_selection"],
+        &input.source["hierarchy_selection"],
         "draft.instruction_paths",
     )?;
     let loaded = load(instructions, "task", &paths, &references)?;
@@ -1065,7 +1038,7 @@ pub fn status(
             "revision":null,"current_task_id":null,"selected_task_id":null,
             "counts":{"planned":0,"in_progress":0,"refined":0,"needs_review":0},"tasks":[],"discussion":null,
             "next_action":if recovery_required {"inspect_recovery"} else {"confirm_task_list"},
-            "required_checks":if recovery_required {vec![]} else {vec!["plan validate"]},"requires_user_confirmation":true,
+            "required_checks":if recovery_required {vec![]} else {vec!["source inspect"]},"requires_user_confirmation":true,
             "source_validation":"not_checked","assembly_validation":"not_performed","instruction_selection":null,
             "selection_confirmation_required":false}),
         );
@@ -1103,7 +1076,7 @@ pub fn status(
     }
     let mut result = json!({"schema":"work-task-draft-status/v1","requirement_id":requirement_id,"status":"saved",
         "revision":index["revision"],"current_task_id":index["current_task_id"],"selected_task_id":selected_id,
-        "counts":counts,"tasks":tasks,"discussion":null,"next_action":"confirm_task_list","required_checks":["plan validate"],
+        "counts":counts,"tasks":tasks,"discussion":null,"next_action":"confirm_task_list","required_checks":["source inspect"],
         "requires_user_confirmation":true,"source_validation":"not_checked","assembly_validation":"not_performed",
         "instruction_selection":selected.and_then(|entry| entry.get("instruction_selection")).cloned(),
         "selection_confirmation_required":selected.is_some_and(|entry| entry.get("instruction_selection").is_none())});
@@ -1147,7 +1120,7 @@ pub fn status(
         result["required_checks"] = json!(["task preview"]);
     } else if selected.is_none() || selected.is_some_and(|entry| entry["status"] == "refined") {
         result["next_action"] = json!("choose_task");
-        result["required_checks"] = json!(["plan validate", "task status"]);
+        result["required_checks"] = json!(["source inspect", "task status"]);
     } else {
         result["next_action"] = json!(match selected.expect("selected TASK")["status"].as_str() {
             Some("planned") => "confirm_start",
@@ -1155,7 +1128,7 @@ pub fn status(
             Some("needs_review") => "confirm_review",
             _ => unreachable!("validated planning status"),
         });
-        result["required_checks"] = json!(["plan validate", "task status"]);
+        result["required_checks"] = json!(["source inspect", "task status"]);
     }
     Ok(result)
 }
@@ -1167,6 +1140,14 @@ mod tests {
     use work_operations::hierarchy::{CrossModeCatalog, Hierarchy};
     use work_operations::instruction::SourceSet;
 
+    fn planning_source() -> Value {
+        let catalog = "a".repeat(64);
+        json!({"snapshot":work_model::contract_data::registry_value()["items"]["work-source-snapshot/v1"]["description"]["example"],
+        "artifacts":{"source":"outputs/work/sources/example","task":"outputs/work/tasks/example/index.json","execution":"outputs/work/executions/example"},
+        "hierarchy_selection":{"schema":"work-hierarchy-selection/v1","decision":"general_only","selected_paths":[],"entries":[],"catalog_sha256":catalog,"selection_sha256":fingerprint::hierarchy_selection("general_only",&[],&[],&catalog)},
+        "skill_selection":{"schema":"work-skill-selection/v1","decision":"base_only","skills":[],"selection_sha256":fingerprint::skill_selection("base_only",&[])},
+        "acceptance_criteria":[{"id":"ACCEPTANCE-001","criterion":"Result is observable."}]})
+    }
     struct DraftInstructions;
 
     impl HierarchyCatalogRepository for DraftInstructions {
@@ -1207,7 +1188,7 @@ mod tests {
     #[test]
     fn list_update_prepares_exact_history_file_set() {
         let previous = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
-            "source":{"plan_sha256":"a".repeat(64),"hierarchy_selection_sha256":"b".repeat(64),"skill_selection_sha256":"c".repeat(64)},
+            "source":planning_source(),
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Before","goal":"Goal","scope":["Scope"],"skill_id":null,
             "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64)}]});
         let mut proposed = previous.clone();
@@ -1270,7 +1251,7 @@ mod tests {
         assert_eq!(empty["status"], "not_initialized");
         assert_eq!(empty["next_action"], "confirm_task_list");
         let index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
-            "source":{"plan_sha256":"a".repeat(64),"hierarchy_selection_sha256":"b".repeat(64),"skill_selection_sha256":"c".repeat(64)},
+            "source":planning_source(),
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Task","goal":"Goal","scope":["Scope"],"skill_id":null,
             "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64)}]});
         let planned = status("example", Some(&index), None, None, false).unwrap();
@@ -1305,7 +1286,7 @@ mod tests {
     #[test]
     fn status_planned_selection_and_missing_current_match_python() {
         let index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
-            "source":{"plan_sha256":"a".repeat(64),"hierarchy_selection_sha256":"b".repeat(64),"skill_selection_sha256":"c".repeat(64)},
+            "source":planning_source(),
             "current_task_id":"TASK-001","tasks":[
                 {"id":"TASK-001","title":"Task","goal":"Result","scope":["Source"],"skill_id":null,
                  "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64)},
@@ -1349,7 +1330,7 @@ mod tests {
     #[test]
     fn status_saved_and_refined_actions_match_python() {
         let mut index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":3,
-            "source":{"plan_sha256":"a".repeat(64),"hierarchy_selection_sha256":"b".repeat(64),"skill_selection_sha256":"c".repeat(64)},
+            "source":planning_source(),
             "current_task_id":"TASK-001","tasks":[
                 {"id":"TASK-001","title":"Task","goal":"Result","scope":["Source"],"skill_id":null,
                  "dependencies":[],"status":"in_progress","boundary_revision":1,"instructions_sha256":"d".repeat(64),
@@ -1402,20 +1383,16 @@ mod tests {
     #[test]
     fn draft_source_check_respects_saved_selection_and_live_fingerprints() {
         let index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
-            "source":{"plan_sha256":"a".repeat(64),"hierarchy_selection_sha256":"b".repeat(64),"skill_selection_sha256":"c".repeat(64)},
+            "source":planning_source(),
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Task","goal":"Goal","scope":["Scope"],"skill_id":null,
             "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64),
             "instruction_selection":{"selected_paths":[],"references":[]}}]});
-        let plan =
-            json!({"skill_selection":{"skills":[]},"hierarchy_selection":{"selected_paths":[]}});
-        let validation = json!({"requirement_id":"example","plan_sha256":"a".repeat(64),
-            "hierarchy_selection_sha256":"b".repeat(64),"skill_selection_sha256":"c".repeat(64)});
+        let validation = index["source"].clone();
         let mut input = DraftSourceCheck {
             index: &index,
             task_id: "TASK-001",
             expected_revision: 1,
-            plan: &plan,
-            plan_validation: &validation,
+            source: &index["source"],
             selected_paths: None,
             reference_names: None,
         };
@@ -1464,18 +1441,18 @@ mod tests {
         );
         input.index = &index;
         let mut stale_validation = validation.clone();
-        stale_validation["plan_sha256"] = json!("0".repeat(64));
-        input.plan_validation = &stale_validation;
+        stale_validation["snapshot"]["captured_at"] = json!("2026-10-02T00:00:00Z");
+        input.source = &stale_validation;
         let drift = check_validated_sources(&DraftInstructions, &input).unwrap_err();
         assert_eq!(drift.reason_code, "draft_source_drift");
-        assert_eq!(drift.details["fields"], json!(["plan_sha256"]));
+        assert_eq!(drift.details["task_id"], "TASK-001");
         let mut skill_stale_validation = validation.clone();
-        skill_stale_validation["skill_selection_sha256"] = json!("0".repeat(64));
-        input.plan_validation = &skill_stale_validation;
+        skill_stale_validation["acceptance_criteria"][0]["criterion"] = json!("Changed criterion.");
+        input.source = &skill_stale_validation;
         let drift = check_validated_sources(&DraftInstructions, &input).unwrap_err();
         assert_eq!(drift.reason_code, "draft_source_drift");
-        assert_eq!(drift.details["fields"], json!(["skill_selection_sha256"]));
-        input.plan_validation = &validation;
+        assert_eq!(drift.details["task_id"], "TASK-001");
+        input.source = &validation;
         let mut referenced = index.clone();
         referenced["tasks"][0]["instruction_selection"]["references"] =
             json!(["task.general.task-records"]);

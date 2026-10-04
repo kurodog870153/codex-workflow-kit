@@ -35,7 +35,11 @@ pub fn finish_preview(input: MigrationPreviewInput<'_>) -> Result<Value, WorkErr
         .filter_map(|row| row["id"].as_str().map(str::to_owned))
         .collect::<Vec<_>>();
     unresolved.sort();
-    let ready = unresolved.is_empty()
+    let ready = !sources.is_empty()
+        && !candidates.is_empty()
+        && !validators.is_empty()
+        && !relationships.is_empty()
+        && unresolved.is_empty()
         && validators
             .iter()
             .chain(&relationships)
@@ -86,5 +90,22 @@ mod tests {
         .unwrap();
         assert_eq!(result["status"], "blocked");
         assert_eq!(result["unresolved_items"], json!(["D-1"]));
+    }
+    #[test]
+    fn missing_relationship_validation_never_produces_writable_approval() {
+        let sources = BTreeMap::from([("raw.bin".into(), vec![0, 255])]);
+        let candidates = BTreeMap::from([("task.json".into(), b"{}".to_vec())]);
+        let result = finish_preview(MigrationPreviewInput {
+            request: &json!({"semantic_decisions":[]}),
+            sources: &sources,
+            candidates: &candidates,
+            validators: vec![json!({"status":"passed"})],
+            relationships: vec![],
+            all_paths: vec![],
+            diffs: vec![],
+        })
+        .unwrap();
+        assert_eq!(result["status"], "blocked");
+        assert_eq!(result["writable_ready"], false);
     }
 }

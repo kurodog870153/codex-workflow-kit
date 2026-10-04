@@ -1,39 +1,27 @@
 {
   "TASK-001": {
-    "schema": "work-attempt/v1",
+    "_reconciliation_resolved_ids": [
+      "DEVIATION-001"
+    ],
+    "acceptance_results": [
+      {
+        "evidence": [],
+        "id": "ACCEPTANCE-001",
+        "status": "pending"
+      },
+      {
+        "evidence": [],
+        "id": "TASK-001-ACCEPTANCE-001",
+        "status": "pending"
+      }
+    ],
     "attempt_id": "ATTEMPT-001",
-    "task_spec_id": "TASK-SPEC-001",
-    "task_id": "TASK-001",
-    "skill_id": null,
-    "status": "completed",
-    "task_collection_sha256": "845980f442face84f720dfdc8ff7a17ad7eb49cfa3ad40b3e81ecf12b3c63b05",
-    "task_index_sha256": "8754fc3b1c2600c29f8bdc58fc3c86b79b70a77f99dbf775fcb2817f085cca85",
-    "task_item_sha256": "d2181e1030d6e844ccb93dbb3ffe05ede5d41cb647e1a86bf98f2ee28e17da3f",
-    "task_instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a",
-    "execute_instructions_sha256": "493a50f30e6531655cf042512891fd4553bd6dfbc73c66b9f442a42604ff7616",
-    "hierarchy_selection_sha256": "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404",
-    "execute_skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
     "authorization": {
-      "schema": "work-attempt-authorization/v1",
-      "task_id": "TASK-001",
-      "commands": [],
-      "validations": [
-        {
-          "id": "VAL-001",
-          "kind": "automated",
-          "command_ids": [
-            "CMD-001"
-          ],
-          "pass_condition": "Exit code is zero.",
-          "acceptance_ids": [
-            "ACCEPTANCE-001"
-          ]
-        }
-      ],
-      "modifiable_files": [],
-      "working_directories": [],
-      "external_operations": [],
       "allowed_deviations": [],
+      "authorization_evidence": "User approved this exact Attempt scope.",
+      "commands": [],
+      "external_operations": [],
+      "modifiable_files": [],
       "reapproval_conditions": [
         "scope_expansion",
         "source_or_worktree_drift",
@@ -42,72 +30,96 @@
         "recovery",
         "unknown_result"
       ],
-      "authorization_evidence": "User approved this exact Attempt scope."
+      "schema": "work-attempt-authorization/v1",
+      "task_id": "TASK-001",
+      "validations": [
+        {
+          "acceptance_ids": [
+            "ACCEPTANCE-001"
+          ],
+          "command_ids": [
+            "CMD-001"
+          ],
+          "id": "VAL-001",
+          "kind": "automated",
+          "pass_condition": "Exit code is zero."
+        }
+      ],
+      "working_directories": []
     },
     "authorization_sha256": "a9f97e21b53598fe97e7496540ddea58c42b1b4f0b18b62ae255ad860cf8df85",
-    "started_at": "2026-09-26T10:00+08:00",
+    "ended_at": "2026-09-26T10:00+08:00",
+    "execute_instructions_sha256": "493a50f30e6531655cf042512891fd4553bd6dfbc73c66b9f442a42604ff7616",
+    "execute_skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
     "execution_deviations": [
       {
-        "schema": "work-execution-deviation/v1",
-        "deviation_id": "DEVIATION-001",
         "approved_preview_sha256": "651c035e125ee14f7d5b89f61025aac3959427e4c86a25bd7f68188430eb3fd0",
+        "decision": {
+          "evidence": "User approved the runtime deviation.",
+          "outcome": "approved"
+        },
+        "deviation_id": "DEVIATION-001",
         "proposal": {
-          "schema": "work-execution-deviation-proposal/v1",
-          "task_id": "TASK-001",
-          "attempt_id": "ATTEMPT-001",
+          "action": {
+            "kind": "skip_record",
+            "reason": "Retain the failed runtime evidence for the retry decision.",
+            "record_id": "VAL-001"
+          },
           "anchor_record_id": "VAL-001",
+          "attempt_id": "ATTEMPT-001",
+          "gap": "The runtime validation result requires an explicit retry.",
+          "impact": {
+            "acceptance_criteria_changed": false,
+            "deliverables_changed": false,
+            "external_side_effect_boundary_changed": false,
+            "requirement_changed": false,
+            "safety_boundary_changed": false,
+            "scope_changed": false,
+            "summary": "Record the runtime-only retry decision."
+          },
+          "modifiable_files": [],
+          "schema": "work-execution-deviation-proposal/v1",
+          "side_effects": [],
           "task_basis": [
             "VAL-001",
             "STEP-002"
           ],
-          "gap": "The runtime validation result requires an explicit retry.",
-          "action": {
-            "kind": "skip_record",
-            "record_id": "VAL-001",
-            "reason": "Retain the failed runtime evidence for the retry decision."
-          },
-          "modifiable_files": [],
-          "impact": {
-            "summary": "Record the runtime-only retry decision.",
-            "requirement_changed": false,
-            "scope_changed": false,
-            "acceptance_criteria_changed": false,
-            "deliverables_changed": false,
-            "safety_boundary_changed": false,
-            "external_side_effect_boundary_changed": false
-          },
-          "side_effects": []
+          "task_id": "TASK-001"
         },
+        "reconciliation_status": "pending",
+        "schema": "work-execution-deviation/v1",
         "supplemental_authorization": {
-          "schema": "work-execution-deviation-authorization/v1",
-          "preview_sha256": "651c035e125ee14f7d5b89f61025aac3959427e4c86a25bd7f68188430eb3fd0",
           "action": {
             "kind": "skip_record",
-            "record_id": "VAL-001",
-            "reason": "Retain the failed runtime evidence for the retry decision."
+            "reason": "Retain the failed runtime evidence for the retry decision.",
+            "record_id": "VAL-001"
           },
+          "authorization_evidence": "User approved the runtime deviation.",
           "modifiable_files": [],
-          "authorization_evidence": "User approved the runtime deviation."
-        },
-        "decision": {
-          "outcome": "approved",
-          "evidence": "User approved the runtime deviation."
-        },
-        "reconciliation_status": "pending"
+          "preview_sha256": "651c035e125ee14f7d5b89f61025aac3959427e4c86a25bd7f68188430eb3fd0",
+          "schema": "work-execution-deviation-authorization/v1"
+        }
       }
     ],
+    "hierarchy_selection_sha256": "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404",
     "records": [
       {
+        "deviation_id": "DEVIATION-001",
         "id": "VAL-001",
         "kind": "validation",
-        "status": "skipped",
         "reason": "Retain the failed runtime evidence for the retry decision.",
-        "deviation_id": "DEVIATION-001"
+        "status": "skipped"
       }
     ],
-    "ended_at": "2026-09-26T10:00+08:00",
-    "_reconciliation_resolved_ids": [
-      "DEVIATION-001"
-    ]
+    "schema": "work-attempt/v1",
+    "skill_id": null,
+    "started_at": "2026-09-26T10:00+08:00",
+    "status": "completed",
+    "task_collection_sha256": "fa3041e72bb33271ebbb99ced5959ab0dd4f325ef1199b63e596607e8e2685a3",
+    "task_id": "TASK-001",
+    "task_index_sha256": "8754fc3b1c2600c29f8bdc58fc3c86b79b70a77f99dbf775fcb2817f085cca85",
+    "task_instructions_sha256": "b1d52e3219a13a4e70dbac355a6db5aeed775db321b6a2fa18a0b74b8866dd83",
+    "task_item_sha256": "8dab83f1866be59af7ff55e54ab13f122c8855a5a51a1cdcd93c00e096ffbec1",
+    "task_spec_id": "TASK-SPEC-001"
   }
 }

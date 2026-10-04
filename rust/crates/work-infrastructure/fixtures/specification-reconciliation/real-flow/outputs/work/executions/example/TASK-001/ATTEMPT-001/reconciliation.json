@@ -6,8 +6,8 @@
       "deviation_id": "DEVIATION-001",
       "outcome": "retained",
       "target": "retain_only",
-      "attempt_sha256": "e4299875de1d7bb1d62f00f5f1e39938ae4b48be9907c7191a69942fdea08576",
-      "reconciliation_fingerprint": "efcb1cb8177ac8789072c093c2e26ba93b4199b17cb2ea44c90bc9985f0fb919"
+      "attempt_sha256": "2ae0e20ec5913132a1fe9b6e04ac9bc0c1adecbc1db250cdd3273324f82d80d8",
+      "reconciliation_fingerprint": "51f75bd5b3187fda1d39b311da088085349fe1874c7f0994cb58b89d7f03f25b"
     }
   ]
 }

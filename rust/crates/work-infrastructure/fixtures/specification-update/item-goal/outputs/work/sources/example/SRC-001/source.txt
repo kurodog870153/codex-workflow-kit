@@ -1,0 +1,42 @@
+{
+  "acceptance_criteria": [
+    {
+      "deliverable_ids": [
+        "DELIVERABLE-001"
+      ],
+      "id": "ACCEPTANCE-001",
+      "statement": "The result is observable."
+    }
+  ],
+  "deliverables": [
+    {
+      "acceptance_ids": [
+        "ACCEPTANCE-001"
+      ],
+      "goal_ids": [
+        "GOAL-001"
+      ],
+      "id": "DELIVERABLE-001",
+      "statement": "Produce the result."
+    }
+  ],
+  "goals": [
+    {
+      "id": "GOAL-001",
+      "statement": "Complete the goal."
+    }
+  ],
+  "requirement_id": "example",
+  "scope": [
+    {
+      "goal_ids": [
+        "GOAL-001"
+      ],
+      "id": "SCOPE-001",
+      "kind": "in_scope",
+      "statement": "Handle the scope."
+    }
+  ],
+  "summary": "Plan summary.",
+  "title": "Example Plan"
+}

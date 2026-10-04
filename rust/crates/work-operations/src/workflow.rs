@@ -19,21 +19,21 @@ pub struct WorkflowIssue {
 }
 
 pub fn decide_pre_execution(
-    plan_validation: Option<&Value>,
+    source_validation: Option<&Value>,
     draft: Option<&Value>,
     task_validation: Option<&Value>,
     execution_index_exists: bool,
 ) -> Result<Option<WorkflowDecision>, WorkflowIssue> {
-    let decision = match (plan_validation, task_validation, execution_index_exists) {
+    let decision = match (source_validation, task_validation, execution_index_exists) {
         (None, _, _) => WorkflowDecision {
-            status: "plan_required".into(),
-            next_action: "prepare_plan".into(),
-            target_artifact: "plan",
+            status: "source_required".into(),
+            next_action: "capture_source".into(),
+            target_artifact: "source",
             requires_user_confirmation: true,
             required_checks: vec![],
             details: json!({}),
         },
-        (Some(plan_validation), None, _) => {
+        (Some(source_validation), None, _) => {
             let draft = draft.ok_or(WorkflowIssue {
                 reason_code: "workflow_draft_required",
                 message: "A TASK draft state is required before formal TASK creation.",
@@ -69,7 +69,7 @@ pub fn decide_pre_execution(
                 target_artifact: "task",
                 requires_user_confirmation: confirmation,
                 required_checks: checks,
-                details: json!({"plan_sha256":plan_validation["plan_sha256"],"draft":draft}),
+                details: json!({"source":source_validation,"draft":draft}),
             }
         }
         (Some(_), Some(task_validation), false) => WorkflowDecision {
@@ -171,21 +171,19 @@ pub fn decide_execution(index: &Value, attempts: &Value) -> WorkflowDecision {
 }
 
 pub fn mode_for_action(status: &str, next_action: &str) -> &'static str {
-    if next_action == "prepare_plan" {
-        "plan"
-    } else if status.starts_with("task_") {
+    if next_action == "capture_source" || status.starts_with("task_") {
         "task"
     } else if next_action == "inspect_recovery" {
         "execute"
     } else if next_action == "review_reconciliation" {
-        "specification"
+        "revise"
     } else {
         "execute"
     }
 }
 
 pub fn lifecycle_for_status(status: &str) -> &str {
-    if status.ends_with("required") || status == "plan_required" {
+    if status.ends_with("required") || status == "source_required" {
         "missing"
     } else {
         status
@@ -194,13 +192,13 @@ pub fn lifecycle_for_status(status: &str) -> &str {
 
 pub fn next_action_guidance(next_action: &str, requirement_id: &str, artifacts: &Value) -> Value {
     let common = json!({"user_config_root":"<user-config-root>"});
-    let task = json!({"requirement_id":requirement_id,"plan_path":artifacts["plan"],"user_config_root":"<user-config-root>"});
+    let task = json!({"requirement_id":requirement_id,"user_config_root":"<user-config-root>"});
     let execute = json!({"task_path":artifacts["task"],"execution_dir":artifacts["execution"],"task_id":"<confirmed-task-id>","user_config_root":"<user-config-root>"});
     let (command, contract, arguments): (Option<&str>, Option<&str>, Value) = match next_action {
-        "prepare_plan" => (
-            Some("plan semantic-prepare"),
-            Some("work-plan-semantic-request/v1"),
-            json!({"input_file":"<semantic-input-file>","user_config_root":"<user-config-root>"}),
+        "capture_source" => (
+            Some("source capture"),
+            None,
+            json!({"input_file":"<capture-metadata-file>","payload_file":"<original-source-bytes-file>"}),
         ),
         "confirm_task_list" => (
             Some("task prepare"),
@@ -215,7 +213,7 @@ pub fn next_action_guidance(next_action: &str, requirement_id: &str, artifacts: 
         "confirm_start" | "confirm_resume" | "confirm_review" => (
             Some("task status"),
             None,
-            json!({"requirement_id":requirement_id,"plan_path":artifacts["plan"],"user_config_root":"<user-config-root>","task_id":"<confirmed-task-id>"}),
+            json!({"requirement_id":requirement_id,"user_config_root":"<user-config-root>","task_id":"<confirmed-task-id>"}),
         ),
         "select_task_for_execution" | "confirm_retry" => (Some("execute preflight"), None, execute),
         "review_reconciliation" => (
@@ -237,7 +235,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn plan_draft_and_recovery_states_follow_python_order() {
+    fn source_draft_and_recovery_states_follow_dependency_order() {
         let missing = decide_pre_execution(None, None, None, false)
             .unwrap()
             .unwrap();
@@ -247,11 +245,11 @@ mod tests {
                 missing.next_action.as_str(),
                 missing.target_artifact
             ),
-            ("plan_required", "prepare_plan", "plan")
+            ("source_required", "capture_source", "source")
         );
         assert!(missing.requires_user_confirmation);
-        let plan = json!({"plan_sha256":"1".repeat(64)});
-        let draft = json!({"status":"list_pending","next_action":"confirm_task_list","requires_user_confirmation":true,"required_checks":["plan validate"]});
+        let plan = json!({"sources":["SRC-001"]});
+        let draft = json!({"status":"list_pending","next_action":"confirm_task_list","requires_user_confirmation":true,"required_checks":["source validate"]});
         let pending = decide_pre_execution(Some(&plan), Some(&draft), None, false)
             .unwrap()
             .unwrap();
@@ -263,8 +261,8 @@ mod tests {
             ),
             ("task_list_pending", "confirm_task_list", "task")
         );
-        assert_eq!(pending.details["plan_sha256"], plan["plan_sha256"]);
-        let artifacts = json!({"plan":"outputs/work/plans/example.json"});
+        assert_eq!(pending.details["source"], plan);
+        let artifacts = json!({"source":"outputs/work/sources/example","task":"outputs/work/tasks/example/index.json","execution":"outputs/work/executions/example"});
         for (action, command) in [
             ("confirm_task_list", "task prepare"),
             ("choose_task", "task status"),
@@ -274,7 +272,7 @@ mod tests {
         ] {
             let guidance = next_action_guidance(action, "example", &artifacts);
             assert_eq!(guidance["command"], command);
-            assert_eq!(guidance["arguments"]["plan_path"], artifacts["plan"]);
+            assert!(guidance["arguments"].get("plan_path").is_none());
             assert_eq!(
                 guidance["arguments"]["user_config_root"],
                 "<user-config-root>"

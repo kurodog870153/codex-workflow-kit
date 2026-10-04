@@ -123,7 +123,7 @@ pub fn validate_index_changes(
         exact(
             change,
             &["id", "spec_id", "date", "reason", "affected_ids", "edits"],
-            &["plan_change_ids"],
+            &[],
         )?;
         let number = numbered(&change["id"], "TASK-CHANGE")
             .filter(|number| *number > previous)
@@ -154,14 +154,6 @@ pub fn validate_index_changes(
                     "invalid_reference",
                     "Unknown or invalid affected TASK ID.",
                 ));
-            }
-        }
-        if let Some(ids) = change.get("plan_change_ids") {
-            if strings(ids)?
-                .iter()
-                .any(|id| numbered(&json!(id), "PLAN-CHANGE").is_none())
-            {
-                return Err(issue("invalid_reference", "Invalid Plan change ID."));
             }
         }
         let edits = change["edits"]
@@ -256,7 +248,6 @@ mod tests {
         let change = json!({
             "id":"TASK-CHANGE-001","spec_id":"TASK-SPEC-001","date":"2026-09-07",
             "reason":"Update task details.","affected_ids":["TASK-001","TASK-001/FILE-001"],
-            "plan_change_ids":["PLAN-CHANGE-001"],
             "edits":[
                 {"artifact":"task_index","operation":"add","path":"/summary","after":"New"},
                 {"artifact":"task_item","task_id":"TASK-001","operation":"replace","path":"/goal","before":"Old","after":"New"},
@@ -299,12 +290,12 @@ mod tests {
             "invalid_reference"
         );
         invalid = valid.clone();
-        invalid[0]["plan_change_ids"] = json!(["CHANGE-001"]);
+        invalid[0]["plan_change_ids"] = json!(["PLAN-CHANGE-001"]);
         assert_eq!(
             validate_index_changes(&invalid, "TASK-SPEC-001", &ids)
                 .unwrap_err()
                 .reason_code,
-            "invalid_reference"
+            "invalid_object_fields"
         );
         invalid = valid.clone();
         invalid[0]["edits"] =

@@ -1,12 +1,9 @@
 {
   "requirement_id": "example",
   "artifacts": {
-    "plan": "outputs/work/plans/example.json",
     "task": "outputs/work/tasks/example/index.json",
-    "execution": "outputs/work/executions/example"
-  },
-  "plan_validation": {
-    "plan_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    "execution": "outputs/work/executions/example",
+    "source": "outputs/work/sources/example"
   },
   "task_validation": {
     "task_collection_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"

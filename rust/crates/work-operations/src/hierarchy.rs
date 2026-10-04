@@ -46,10 +46,10 @@ pub fn build_hierarchy(
     work_directory: &str,
     selected_paths: &[String],
 ) -> Result<Hierarchy, HierarchyIssue> {
-    if !matches!(work_directory, "plan" | "task" | "execute") {
+    if !matches!(work_directory, "task" | "execute") {
         return Err(issue(
             "invalid_work_directory",
-            "The work directory must be plan, task, or execute.",
+            "The work directory must be task or execute.",
             json!({"work_directory": work_directory}),
         ));
     }
@@ -158,7 +158,7 @@ pub fn authorize_task_paths(
     if !unauthorized.is_empty() {
         return Err(issue(
             "task_hierarchy_path_not_authorized",
-            "A TASK hierarchy path is not authorized by the source Plan.",
+            "A TASK hierarchy path is not authorized by the confirmed Task selection.",
             json!({"paths": unauthorized}),
         ));
     }
@@ -337,13 +337,13 @@ mod tests {
             "invalid_work_directory"
         );
         assert_eq!(
-            build_hierarchy("plan", &["web".into(), "web".into()])
+            build_hierarchy("task", &["web".into(), "web".into()])
                 .unwrap_err()
                 .reason_code,
             "duplicate_hierarchy_path"
         );
         assert_eq!(
-            build_hierarchy("plan", &["web".into(), "web/backend".into()])
+            build_hierarchy("task", &["web".into(), "web/backend".into()])
                 .unwrap_err()
                 .reason_code,
             "redundant_hierarchy_path"
@@ -418,8 +418,8 @@ mod tests {
             "catalog_sha256": "b",
             "entries": [{
                 "recommendation_reason": "Reason.",
-                "mode_metadata": {"execute": {"work_tags": ["execute"], "description": "Text.", "name": "Execute"}, "plan": {"work_tags": ["plan"], "name": "Plan"}},
-                "mode_support": ["plan", "execute"],
+                "mode_metadata": {"execute": {"work_tags": ["execute"], "description": "Text.", "name": "Execute"}, "task": {"work_tags": ["task"], "name": "Task"}},
+                "mode_support": ["task", "execute"],
                 "path": "web",
             }],
             "selected_paths": ["web"],
@@ -429,7 +429,7 @@ mod tests {
         let output = String::from_utf8(ordered_selection_bytes(&value).unwrap()).unwrap();
         assert!(output.find("\"schema\"").unwrap() < output.find("\"decision\"").unwrap());
         assert!(output.find("\"decision\"").unwrap() < output.find("\"selected_paths\"").unwrap());
-        assert!(output.find("\"plan\"").unwrap() < output.find("\"execute\"").unwrap());
+        assert!(output.find("\"task\"").unwrap() < output.find("\"execute\"").unwrap());
         assert!(output.find("\"name\"").unwrap() < output.find("\"work_tags\"").unwrap());
     }
 
@@ -444,12 +444,12 @@ mod tests {
             "entries": [{
                 "extra": true,
                 "path": "web/backend",
-                "mode_support": ["plan", "execute"],
+                "mode_support": ["task", "execute"],
                 "recommendation_reason": "Selected.",
                 "mode_metadata": {
                     "zzz": {"name": "Unknown"},
                     "execute": {"work_tags": ["execute"], "description": "Execute", "name": "Execute"},
-                    "plan": {"extra": true, "work_tags": ["plan"], "name": "Plan"}
+                    "task": {"extra": true, "work_tags": ["task"], "name": "Task"}
                 }
             }]
         });
@@ -484,7 +484,7 @@ mod tests {
                     "extra",
                 ],
             ),
-            ("        ", vec!["plan", "execute", "zzz"]),
+            ("        ", vec!["task", "execute", "zzz"]),
             ("          ", vec!["name", "work_tags", "extra"]),
         ] {
             let positions = positions(indent, &fields);

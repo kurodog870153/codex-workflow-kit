@@ -7,6 +7,7 @@ pub enum IdentifierIssue {
     InvalidRequirementId,
     InvalidWorkflowId,
     InvalidTransactionId,
+    InvalidSourceId,
     UnsafePathSegment,
     WindowsDeviceName,
 }
@@ -17,6 +18,7 @@ impl IdentifierIssue {
             Self::InvalidRequirementId => "invalid_requirement_id",
             Self::InvalidWorkflowId => "invalid_workflow_id",
             Self::InvalidTransactionId => "invalid_transaction_id",
+            Self::InvalidSourceId => "invalid_source_id",
             Self::UnsafePathSegment => "unsafe_path_segment",
             Self::WindowsDeviceName => "windows_device_name",
         }
@@ -108,6 +110,35 @@ identifier!(TransactionId, |value: &str| {
         Err(IdentifierIssue::InvalidTransactionId)
     }
 });
+
+identifier!(SourceId, |value: &str| {
+    let digits = value.strip_prefix("SRC-").unwrap_or_default();
+    if digits.len() < 3
+        || !digits.bytes().all(|b| b.is_ascii_digit())
+        || digits.bytes().all(|b| b == b'0')
+        || (digits.len() > 3 && digits.starts_with('0'))
+        || digits.parse::<u64>().is_err()
+    {
+        Err(IdentifierIssue::InvalidSourceId)
+    } else {
+        Ok(())
+    }
+});
+
+impl serde::Serialize for SourceId {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for SourceId {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = <String as serde::Deserialize>::deserialize(deserializer)?;
+        value
+            .parse()
+            .map_err(|issue: IdentifierIssue| serde::de::Error::custom(issue.reason_code()))
+    }
+}
 
 #[cfg(test)]
 mod tests {

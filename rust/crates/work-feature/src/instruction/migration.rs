@@ -20,11 +20,12 @@ pub fn decide_migration(
     mut after: BTreeMap<String, Vec<u8>>,
     excluded: Vec<Value>,
     mut counts: Value,
+    source_evidence: &BTreeMap<String, Vec<u8>>,
 ) -> Result<MigrationDecision, WorkError> {
     if !excluded.is_empty() {
         before.clear();
         after.clear();
-        counts = json!({"plans":0,"task_items":0,"task_indexes":0,"execution_indexes":0});
+        counts = json!({"task_items":0,"task_indexes":0,"execution_indexes":0});
     }
     let files = after
         .iter()
@@ -33,8 +34,12 @@ pub fn decide_migration(
                 "before_sha256":fingerprint::raw(&before[path]),"after_sha256":fingerprint::raw(raw)})
         })
         .collect::<Vec<_>>();
+    let source_sha256 = source_evidence
+        .iter()
+        .map(|(path, raw)| (path.clone(), fingerprint::raw(raw)))
+        .collect::<BTreeMap<_, _>>();
     let evidence = json!({"requirement_id":requirement_id,"router_compatibility_revision":3,
-        "excluded":excluded,"files":files});
+        "excluded":excluded,"files":files,"source_sha256":source_sha256});
     let approval = fingerprint::structured(&evidence).map_err(|_| {
         WorkError::new(
             ExitCode::ArtifactIntegrity,
@@ -92,18 +97,19 @@ mod tests {
 
     #[test]
     fn excluded_artifact_blocks_all_migration_writes() {
-        let before = BTreeMap::from([("plan.json".into(), b"before".to_vec())]);
-        let after = BTreeMap::from([("plan.json".into(), b"after".to_vec())]);
+        let before = BTreeMap::from([("task/index.json".into(), b"before".to_vec())]);
+        let after = BTreeMap::from([("task/index.json".into(), b"after".to_vec())]);
         let decision = decide_migration(
             "example",
             before,
             after,
             vec![json!({"path":"execution/index.json","reason":"active_attempt_snapshot"})],
-            json!({"plans":1,"task_items":0,"task_indexes":0,"execution_indexes":0}),
+            json!({"task_items":0,"task_indexes":1,"execution_indexes":0}),
+            &BTreeMap::new(),
         )
         .unwrap();
         assert_eq!(decision.preview["status"], "review_required");
-        assert_eq!(decision.preview["affected"]["plans"], 0);
+        assert_eq!(decision.preview["affected"]["task_indexes"], 0);
         assert!(decision.before.is_empty());
         assert!(decision.after.is_empty());
     }

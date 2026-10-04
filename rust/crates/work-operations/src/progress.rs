@@ -85,10 +85,10 @@ pub fn validate_progress(value: &Value) -> Result<(), ProgressIssue> {
             json!({"requirement_id":requirement_id}),
         )
     })?;
-    if !matches!(object["mode"].as_str(), Some("plan" | "task")) {
+    if object["mode"] != "task" {
         return Err(issue(
             "invalid_progress_mode",
-            "Only Plan and Task discussions can be saved.",
+            "Only Task discussions can be saved.",
             json!({}),
         ));
     }
@@ -427,7 +427,7 @@ mod tests {
             ("revision", json!(0), "invalid_progress_revision"),
             ("revision", json!(1.5), "invalid_progress_revision"),
             ("mode", json!("execute"), "invalid_progress_mode"),
-            ("mode", json!("plan"), "invalid_progress_task"),
+            ("mode", json!("plan"), "invalid_progress_mode"),
             ("current_task_id", json!("TASK-1"), "invalid_progress_task"),
             ("status", json!("completed"), "invalid_progress_schema"),
         ] {
@@ -444,39 +444,39 @@ mod tests {
             value["confirmed_decisions"] = json!([decision]);
             assert!(validate_progress(&value).is_err());
         }
-        value["mode"] = json!("plan");
+        value["mode"] = json!("task");
         value["current_task_id"] = Value::Null;
         value["confirmed_decisions"] = json!([{"statement":"Keep"}]);
         validate_progress(&value).unwrap();
     }
 
     #[test]
-    fn python_example_bytes_and_discussion_only_rules() {
-        let example = json!({"schema":"work-discussion-progress/v1","requirement_id":"example","mode":"plan","revision":1,"status":"discussion_only","title":"Example","request":"Example request.","current_task_id":null,"context":{},"source_status":[],"notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],"next_discussion_point":"Continue."});
+    fn task_example_bytes_and_discussion_only_rules() {
+        let example = json!({"schema":"work-discussion-progress/v1","requirement_id":"example","mode":"task","revision":1,"status":"discussion_only","title":"Example","request":"Example request.","current_task_id":null,"context":{},"source_status":[],"notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],"next_discussion_point":"Continue."});
         let raw = render_progress(&example).unwrap();
         assert_eq!(raw.len(), 392);
         assert_eq!(
             sha256_hex(&raw),
-            "fa743ad5afc7029551a3e9d15121bd6e413e773ede078948db2c89c00560d470"
+            "b90169bf066792c522bd693097a9b3347313520cc68fcd80108646f21c217bd3"
         );
         assert_eq!(
             approval_sha256(
-                "outputs/work/progress/example/plan/progress.json",
+                "outputs/work/progress/example/task/progress.json",
                 0,
                 None,
                 &example
             )
             .unwrap(),
-            "e7a21a5721c9df578e92608ff99781d703c9beec1c06be11ca77ff00a919a5c1"
+            "10d7595bd4446bbcdf6163ea5ed6bbb6e09f373a1e27cda4d8ce009c2d91f9d2"
         );
         let mut with_decision = example.clone();
         with_decision["confirmed_decisions"] = json!([{"statement":"Yes","rationale":"Because"}]);
         assert_eq!(
             sha256_hex(&render_progress(&with_decision).unwrap()),
-            "8819d413f3ca69ebebc5f0e7c8c55cb39b3011b20158af87ab1d8f41de61549e"
+            "94d80e5273c45a310e5b2a2fb4c2b5580965ef460cb5a832fc6c60a61b59f70d"
         );
         let mut invalid = example;
-        invalid["current_task_id"] = json!("TASK-001");
+        invalid["current_task_id"] = json!("TASK-1");
         assert_eq!(
             validate_progress(&invalid).unwrap_err().reason_code,
             "invalid_progress_task"
@@ -484,40 +484,40 @@ mod tests {
     }
 
     #[test]
-    fn python_cli_unicode_fixture_matches_artifact_and_approval() {
-        let progress = json!({"schema":"work-discussion-progress/v1","requirement_id":"example","mode":"plan","revision":1,"status":"discussion_only","title":"保存尚未完成的討論","request":"先記錄目前共識，稍後繼續。","current_task_id":null,"context":{"scope":["需求規劃"]},"source_status":["Revision is pending; acceptance decisions are missing."],"notes":["具體討論細節。"],"confirmed_decisions":[{"statement":"保留已確認需求。"}],"tentative":["候選驗收方式尚未決定。"],"open_questions":["哪些結果可供觀察？"],"next_discussion_point":"繼續確認驗收結果。"});
+    fn task_unicode_fixture_matches_artifact_and_approval() {
+        let progress = json!({"schema":"work-discussion-progress/v1","requirement_id":"example","mode":"task","revision":1,"status":"discussion_only","title":"保存尚未完成的討論","request":"先記錄目前共識，稍後繼續。","current_task_id":null,"context":{"scope":["需求規劃"]},"source_status":["Revision is pending; acceptance decisions are missing."],"notes":["具體討論細節。"],"confirmed_decisions":[{"statement":"保留已確認需求。"}],"tentative":["候選驗收方式尚未決定。"],"open_questions":["哪些結果可供觀察？"],"next_discussion_point":"繼續確認驗收結果。"});
         assert_eq!(
             sha256_hex(&render_progress(&progress).unwrap()),
-            "86af0f240c3c916e9ad76bb575d2d31e21af66eeecbf1629362077fd8ae26147"
+            "d37aa0c2ad2ab7eeb9e4f098fcd4c882cbf6c32d53a4cb0135cb7cd85d0678ff"
         );
         assert_eq!(
             approval_sha256(
-                "outputs/work/progress/example/plan/progress.json",
+                "outputs/work/progress/example/task/progress.json",
                 0,
                 None,
                 &progress
             )
             .unwrap(),
-            "6eb714e29f6733953275959a6dad0cea4f1759979e052a8f31e5359e9ff74698"
+            "540d69e561bd8fec9cc05d76e6b2f4bcfa76fd42caa4001bcd310e5e3504ab7e"
         );
     }
 
     #[test]
     fn raw_progress_preserves_nested_context_order_without_new_dependency() {
-        let value = json!({"schema":"work-discussion-progress/v1","requirement_id":"example","mode":"plan","revision":1,"status":"discussion_only","title":"Example","request":"Example request.","current_task_id":null,"context":{"a":2,"z":1},"source_status":[],"notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],"next_discussion_point":"Continue."});
-        let raw = br#"{"schema":"work-discussion-progress/v1","requirement_id":"example","mode":"plan","revision":1,"status":"discussion_only","title":"Example","request":"Example request.","current_task_id":null,"context":{"z":1,"a":2},"source_status":[],"notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],"next_discussion_point":"Continue."}"#;
+        let value = json!({"schema":"work-discussion-progress/v1","requirement_id":"example","mode":"task","revision":1,"status":"discussion_only","title":"Example","request":"Example request.","current_task_id":null,"context":{"a":2,"z":1},"source_status":[],"notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],"next_discussion_point":"Continue."});
+        let raw = br#"{"schema":"work-discussion-progress/v1","requirement_id":"example","mode":"task","revision":1,"status":"discussion_only","title":"Example","request":"Example request.","current_task_id":null,"context":{"z":1,"a":2},"source_status":[],"notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],"next_discussion_point":"Continue."}"#;
         let document = ProgressDocument::parse(raw).unwrap();
         assert_eq!(document.value, value);
         assert_eq!(
             sha256_hex(&document.canonical_raw),
-            "c40db5e7b11cbd3804a5990263dad0ca59053eddc96dc47f9685bbec063d617a"
+            "7cab21bbfc69efcfdbc5fb37c0aead2042ae07f47bb2cce24ca013662be2de63"
         );
     }
 
     #[test]
     fn cli_progress_invalid_contract_cases_are_rejected() {
         let example = json!({"schema":"work-discussion-progress/v1","requirement_id":"example",
-            "mode":"plan","revision":1,"status":"discussion_only","title":"Discussion",
+            "mode":"task","revision":1,"status":"discussion_only","title":"Discussion",
             "request":"Resume later.","current_task_id":null,"context":{},"source_status":[],
             "notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],
             "next_discussion_point":"Continue."});
@@ -527,7 +527,7 @@ mod tests {
             ("mode", json!("execute")),
             ("revision", json!(true)),
             ("revision", json!(0)),
-            ("current_task_id", json!("TASK-001")),
+            ("current_task_id", json!("TASK-1")),
             ("notes", json!("not an array")),
             ("context", json!([])),
             ("next_discussion_point", json!(" ")),

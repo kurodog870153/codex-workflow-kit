@@ -15,16 +15,14 @@ pub struct TaskItemInstructionSelection {
     pub sources: Vec<TaskInstructionSource>,
     pub references: Vec<String>,
     pub instructions_sha256: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub routing_manifest: Option<crate::instruction::InstructionSelectionManifest>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TaskTraceability {
-    pub goal_ids: Vec<String>,
-    pub deliverable_ids: Vec<String>,
     pub acceptance_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub milestone_ids: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -153,6 +151,7 @@ pub struct TaskItem {
     pub skill_id: Nullable<String>,
     pub instruction_selection: TaskItemInstructionSelection,
     pub traceability: TaskTraceability,
+    pub acceptance_criteria: Vec<super::source::TaskAcceptance>,
     pub goal: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dependencies: Option<Vec<String>>,

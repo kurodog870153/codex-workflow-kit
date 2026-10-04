@@ -20,6 +20,16 @@ pub fn preview_reconciliation(
     existing_ledger: &Value,
     migration_preview: Option<&Value>,
 ) -> Result<Value, WorkError> {
+    crate::specification::reconciliation_input::validate_preview_fields(request)?;
+    crate::specification::reconciliation_input::validate_ledger_entries(existing_ledger)?;
+    if existing_ledger["schema"] != "work-spec-reconciliation-ledger/v1"
+        || existing_ledger["attempt_path"] != attempt_path
+    {
+        return Err(fail(
+            "reconciliation_ledger",
+            "The ledger must belong to the selected Attempt.",
+        ));
+    }
     if request["schema"] != "work-spec-reconciliation-preview-request/v1" {
         return Err(fail(
             "reconciliation_preview_schema",
@@ -171,7 +181,7 @@ pub fn preview_reconciliation(
         .iter()
         .any(|field| deviation["proposal"]["impact"][*field] == true)
         {
-            "plan_and_task"
+            "task_and_execution"
         } else {
             "task_only"
         };
@@ -181,6 +191,7 @@ pub fn preview_reconciliation(
     let migration_fingerprint =
         migration_preview.map_or(Value::Null, |value| value["fingerprint"].clone());
     let evidence = json!({"request":request,"attempt_sha256":attempt_sha,
+        "execution_index":execution_index,"existing_ledger":existing_ledger,
         "pending_deviation_ids":pending,"selected_deviation_ids":selected,
         "retained_deviation_ids":retained,"deviation_classifications":classifications,
         "migration_fingerprint":migration_fingerprint});
@@ -197,6 +208,11 @@ pub fn preview_reconciliation(
             "target":classifications[id],"attempt_sha256":attempt_sha,
             "reconciliation_fingerprint":fingerprint}));
     }
+    entries.sort_by(|left, right| {
+        left["deviation_id"]
+            .as_str()
+            .cmp(&right["deviation_id"].as_str())
+    });
     let ledger = json!({"schema":"work-spec-reconciliation-ledger/v1",
         "attempt_path":attempt_path,"entries":entries});
     let ready = migration_preview.is_none_or(|value| value["writable_ready"] == true);
@@ -217,6 +233,128 @@ mod tests {
     use super::*;
     use std::fs;
     use std::path::Path;
+
+    #[test]
+    fn ledger_keeps_exact_reviewed_scope_and_task_execution_impact() {
+        let fixture = Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../crates/work-infrastructure/fixtures/specification-reconciliation"
+        ));
+        let mut attempt: Value =
+            serde_json::from_slice(&fs::read(fixture.join("attempt.json")).unwrap()).unwrap();
+        let index: Value =
+            serde_json::from_slice(&fs::read(fixture.join("execution-index.json")).unwrap())
+                .unwrap();
+        let mut request: Value =
+            serde_json::from_slice(&fs::read(fixture.join("selective-request.json")).unwrap())
+                .unwrap();
+        let path = request["attempt_path"].as_str().unwrap().to_owned();
+        attempt["execution_deviations"][0]["proposal"]["impact"]["acceptance_criteria_changed"] =
+            json!(true);
+        let mut retained = attempt["execution_deviations"][0].clone();
+        retained["deviation_id"] = json!("DEVIATION-002");
+        let mut unapproved = retained.clone();
+        unapproved["deviation_id"] = json!("DEVIATION-003");
+        unapproved["decision"]["outcome"] = json!("declined");
+        attempt["execution_deviations"]
+            .as_array_mut()
+            .unwrap()
+            .extend([retained, unapproved]);
+        let raw = serde_json::to_vec(&attempt).unwrap();
+        let ledger =
+            json!({"schema":"work-spec-reconciliation-ledger/v1","attempt_path":path,"entries":[]});
+        let migration: Value =
+            serde_json::from_slice(&fs::read(fixture.join("migration-preview.json")).unwrap())
+                .unwrap();
+        let preview = preview_reconciliation(
+            &request,
+            &path,
+            &raw,
+            &attempt,
+            &index,
+            &ledger,
+            Some(&migration),
+        )
+        .unwrap();
+        assert_eq!(preview["selected_deviation_ids"], json!(["DEVIATION-001"]));
+        assert_eq!(preview["retained_deviation_ids"], json!(["DEVIATION-002"]));
+        assert_eq!(
+            preview["deviation_classifications"]["DEVIATION-001"],
+            "task_and_execution"
+        );
+        assert_eq!(
+            preview["deviation_classifications"]["DEVIATION-002"],
+            "retain_only"
+        );
+        assert_eq!(preview["ledger"]["entries"].as_array().unwrap().len(), 2);
+        assert!(
+            !preview["deviation_classifications"]
+                .as_object()
+                .unwrap()
+                .contains_key("DEVIATION-003")
+        );
+        work_operations::specification::reconciliation_ledger::validate_ledger(&preview["ledger"])
+            .unwrap();
+        request["deviation_ids"] = json!(["DEVIATION-003"]);
+        assert_eq!(
+            preview_reconciliation(
+                &request,
+                &path,
+                &raw,
+                &attempt,
+                &index,
+                &ledger,
+                Some(&migration)
+            )
+            .unwrap_err()
+            .reason_code,
+            "reconciliation_unknown_deviation"
+        );
+        request["deviation_ids"] = json!(["DEVIATION-001", "DEVIATION-001"]);
+        assert!(
+            preview_reconciliation(
+                &request,
+                &path,
+                &raw,
+                &attempt,
+                &index,
+                &ledger,
+                Some(&migration)
+            )
+            .is_err()
+        );
+        request["deviation_ids"] = json!(["DEVIATION-001"]);
+        let mut other = ledger.clone();
+        other["attempt_path"] = json!("other");
+        assert_eq!(
+            preview_reconciliation(
+                &request,
+                &path,
+                &raw,
+                &attempt,
+                &index,
+                &other,
+                Some(&migration)
+            )
+            .unwrap_err()
+            .reason_code,
+            "reconciliation_ledger"
+        );
+        let mut mixed = preview["ledger"].clone();
+        mixed["entries"][0]["target"] = json!("plan_and_task");
+        assert!(
+            preview_reconciliation(
+                &request,
+                &path,
+                &raw,
+                &attempt,
+                &index,
+                &mixed,
+                Some(&migration)
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn reviewed_choices_and_fingerprints_match_python() {

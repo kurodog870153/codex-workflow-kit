@@ -7,24 +7,23 @@ use work_operations::canonical::parse_json_contract;
 use work_operations::protocol::TASK_ID_PREFIX;
 use work_operations::task::draft::{validate_draft_instruction_selection, validate_planning_index};
 
+use crate::artifact_paths::ArtifactPathRepository;
 use crate::error::{ExitCode, WorkError};
 use crate::hierarchy::validate_task_paths;
 use crate::instruction::{InstructionSourceRepository, load as load_instructions};
-use crate::plan::{PlanPathRepository, validate_plan_bytes};
+use crate::ports::SourceSnapshotReader;
 use crate::skill::{SkillRoot, SkillSnapshotRepository};
 use crate::task::draft::{
     TaskDraftHistoryRepository, prepare_list_update, resolve_instruction_selection,
 };
 
-pub trait SemanticTaskRepository: TaskDraftHistoryRepository {
+pub trait SemanticTaskRepository: TaskDraftHistoryRepository + SourceSnapshotReader {
     fn require_initial_storage_free(&self, requirement_id: &str) -> Result<(), WorkError>;
     fn read_planning_index(&self, requirement_id: &str) -> Result<Value, WorkError>;
-    fn normalize_plan_path(&self, plan_path: &str) -> Result<String, WorkError>;
 }
 
 pub struct SemanticTaskRequest<'a> {
     pub requirement_id: &'a str,
-    pub plan_path: &'a str,
     pub expected_revision: u64,
     pub semantic: &'a Value,
 }
@@ -92,20 +91,19 @@ pub fn prepare_semantic_task_request(
     repository: &impl SemanticTaskRepository,
     instructions: &impl InstructionSourceRepository,
     skills: &impl SkillSnapshotRepository,
-    paths: &impl PlanPathRepository,
+    paths: &impl ArtifactPathRepository,
     roots: &[SkillRoot],
     request: SemanticTaskRequest<'_>,
 ) -> Result<Value, WorkError> {
     let SemanticTaskRequest {
         requirement_id,
-        plan_path,
         expected_revision,
         semantic,
     } = request;
     exact_keys(
         semantic,
         &["upsert", "remove_task_ids", "current_task", "reason"],
-        &[],
+        &["source"],
     )?;
     if expected_revision == 0 {
         repository.require_initial_storage_free(requirement_id)?;
@@ -256,27 +254,25 @@ pub fn prepare_semantic_task_request(
             &ids
         )?)
     };
-    let normalized_plan = repository.normalize_plan_path(plan_path)?;
-    let plan_raw = paths.read(&normalized_plan)?;
-    let validation = validate_plan_bytes(
+    let source = semantic
+        .get("source")
+        .cloned()
+        .or_else(|| previous.as_ref().map(|index| index["source"].clone()))
+        .ok_or_else(|| {
+            contract(
+                "missing_planning_source",
+                "Initial planning requires a complete fixed Source and confirmed Task choices.",
+            )
+        })?;
+    let (_, snapshot) = crate::task::source::validate_context(
+        repository,
         instructions,
         skills,
         paths,
         roots,
-        &plan_raw,
-        &normalized_plan,
+        requirement_id,
+        &source,
     )?;
-    if validation["requirement_id"] != requirement_id {
-        return Err(fail(
-            "draft_source_requirement_mismatch",
-            "The Plan belongs to another requirement.",
-        ));
-    }
-    let plan = parse_json_contract(&plan_raw)
-        .map_err(|_| contract("invalid_json_contract", "The Plan is invalid JSON."))?;
-    let source = json!({"plan_sha256":validation["plan_sha256"],
-        "hierarchy_selection_sha256":validation["hierarchy_selection_sha256"],
-        "skill_selection_sha256":validation["skill_selection_sha256"]});
     if previous
         .as_ref()
         .is_some_and(|index| index["source"] != source)
@@ -310,9 +306,9 @@ pub fn prepare_semantic_task_request(
     } else {
         boundaries
     };
-    let plan_skills = plan["skill_selection"]["skills"]
+    let task_skills = source["skill_selection"]["skills"]
         .as_array()
-        .expect("validated Plan skills");
+        .expect("validated Task skills");
     let mut entries = Vec::new();
     for boundary in choices.drain(..) {
         let id = boundary["id"]
@@ -346,12 +342,12 @@ pub fn prepare_semantic_task_request(
             references.as_deref(),
         )?;
         if let Some(skill_id) = boundary["skill_id"].as_str() {
-            if !plan_skills.iter().any(|skill| {
+            if !task_skills.iter().any(|skill| {
                 skill["id"] == skill_id && skill["mode_support"]["task"] != "unsupported"
             }) {
                 return Err(fail(
                     "draft_skill_not_available",
-                    "Use a Plan-confirmed Task-capable skill.",
+                    "Use an independently confirmed Task-capable skill.",
                 ));
             }
         }
@@ -372,7 +368,7 @@ pub fn prepare_semantic_task_request(
         validate_task_paths(
             instructions,
             &paths,
-            &plan["hierarchy_selection"],
+            &source["hierarchy_selection"],
             "boundary.instruction_selection",
         )?;
         let hash =
@@ -401,14 +397,23 @@ pub fn prepare_semantic_task_request(
         || json!({"schema":"work-task-planning-index/v1","requirement_id":requirement_id}),
     );
     index["revision"] = json!(expected_revision + 1);
-    index["source"] = source;
+    index["source"] = source.clone();
     index["current_task_id"] = current;
     index["tasks"] = json!(entries);
     validate_planning_index(&index).map_err(|issue| contract(issue.reason_code, issue.message))?;
-    if paths.read(&normalized_plan)? != plan_raw {
+    let (_, fresh) = crate::task::source::validate_context(
+        repository,
+        instructions,
+        skills,
+        paths,
+        roots,
+        requirement_id,
+        &source,
+    )?;
+    if fresh != snapshot {
         return Err(fail(
             "draft_source_drift",
-            "The Plan sources changed during preparation.",
+            "Planning sources changed during preparation.",
         ));
     }
     if let Some(previous) = &previous {

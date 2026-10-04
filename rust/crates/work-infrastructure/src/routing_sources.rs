@@ -118,10 +118,10 @@ mod tests {
         let mut session = RoutingSourceSession::new(root);
         let manifest = work_feature::instruction::migration_manifest(
             &mut session,
-            "plan",
-            "plan_confirmed",
-            "prepare_plan",
-            &json!({"schema":"work-plan/v1","requirement_id":"example"}),
+            "task",
+            "task_confirmed",
+            "choose_task",
+            &json!({"schema":"work-task-index/v1","requirement_id":"example"}),
         )
         .unwrap();
         assert!(work_operations::protocol::valid_sha256(
@@ -135,8 +135,8 @@ mod tests {
         let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         let mut session = RoutingSourceSession::new(root.clone());
         let request = RoutingRequest {
-            status: "plan_required",
-            operation: "prepare_plan",
+            status: "task_required",
+            operation: "choose_task",
             confirmation: true,
             mode: None,
             artifact_lifecycle: "missing",
@@ -177,10 +177,10 @@ mod tests {
     }
 
     #[test]
-    fn plan_required_workflow_state_selects_current_sources() {
+    fn source_required_workflow_state_selects_current_sources() {
         let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         let mut session = RoutingSourceSession::new(root);
-        let artifacts = json!({"plan":"outputs/work/plans/demo.json","task":"outputs/work/tasks/demo/index.json","execution":"outputs/work/executions/demo"});
+        let artifacts = json!({"source":"outputs/work/sources/demo","task":"outputs/work/tasks/demo/index.json","execution":"outputs/work/executions/demo"});
         let state = pre_execution_state(&mut session, "demo", &artifacts, None, None, None, false)
             .unwrap()
             .unwrap();
@@ -193,11 +193,8 @@ mod tests {
                 .as_str()
                 .unwrap()
         ));
-        assert_eq!(state["command"], "plan semantic-prepare");
-        assert_eq!(
-            state["request_contract_id"],
-            "work-plan-semantic-request/v1"
-        );
+        assert_eq!(state["command"], "source capture");
+        assert_eq!(state["request_contract_id"], Value::Null);
     }
 
     #[test]
@@ -271,5 +268,46 @@ mod tests {
             .unwrap();
             assert_eq!(actual, expected, "workflow state {name}");
         }
+    }
+}
+
+#[cfg(test)]
+mod source_context_tests {
+    use super::*;
+    use work_feature::workflow::{
+        OperationContextRequest, build_operation_context, validate_operation_context,
+    };
+
+    #[test]
+    fn capture_routes_to_source_and_binds_authorized_write_context() {
+        let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
+        let mut session = RoutingSourceSession::new(root);
+        let artifacts =
+            json!({"payload_file":{"path":"/host/payload.pdf","raw_sha256":"a".repeat(64)}});
+        let approval = "b".repeat(64);
+        let (envelope, selection) = build_operation_context(
+            &mut session,
+            &OperationContextRequest {
+                command: "source",
+                operation: "capture",
+                delegated_role: None,
+                artifacts: &artifacts,
+                project_root: "/project",
+                approval_sha256: Some(&approval),
+                transaction_workspace: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(envelope["workflow"], "task");
+        assert_eq!(envelope["side_effect_boundary"], "authorized_atomic_write");
+        assert_eq!(envelope["approval_sha256"], approval);
+        assert!(
+            selection["required_instruction_sources"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("work.shared.source-loading"))
+        );
+        validate_operation_context(&envelope, &selection, &artifacts).unwrap();
+        assert!(validate_operation_context(&envelope, &selection, &json!({})).is_err());
     }
 }

@@ -2,27 +2,21 @@
 
 Runtime configuration:
 
-Use the delegating agent's model and reasoning effort. Do not specify model or reasoning overrides.
-
-Apply the routed shared private-role module supplied in the operation envelope.
+Use the delegating agent's model and reasoning effort. Do not specify overrides. Apply the routed shared private-role module supplied in the operation envelope.
 
 ## Delegation contract
 
-1. Accept work only when the parent delegation envelope contains `WORK_DELEGATION_V1`, `skill=$work`, `mode=task`, a non-empty request, and a validated source Plan with `hierarchy_selection` and `skill_selection`. For explicit progress restoration, the parent may instead supply the saved discussion under discussion progress; this permits restoration and clarification, not formal readiness or unvalidated skill loading.
-2. Validate the source Plan, confirmed hierarchy snapshot, per-TASK hierarchy subsets, Work instructions, selected skill snapshots, dependencies, and fingerprints before relying on source-dependent decisions. Stop the affected operation on drift; independent discussion saving and restoration retain their narrow exception.
-3. Do not discover, recommend, add, remove, or replace skills. A missing required skill must return to Plan.
-4. Split the work into minimum TASK boundaries. Bind each TASK to exactly one confirmed skill ID or `null` for explicitly justified base-only work.
-5. Work on one selected TASK at a time. For its executable bound skill, read Task skill subagent prompt and create one isolated ephemeral skill subagent using the coordinator's model and reasoning effort and the skill prompt's instructions. Supply exactly that TASK boundary, full confirmed skill snapshot, relevant validated Plan and Task instructions, repository evidence and saved discussion. Merge its result yourself; do not create the next TASK subagent before the user chooses to continue after a saved checkpoint.
-6. Do not create skill subagents for Plan-only skills or base-only TASKs.
-7. If the skill subagent capability is unavailable, perform that skill's refinement directly with the current runtime under the same private prompt and one-skill boundary. Under parent fallback, follow this procedure without further delegation.
+1. Accept only a parent `WORK_DELEGATION_V1` envelope with `skill=$work`, `mode=task`, non-empty request and complete `task_source`, current `work_instruction_selection`, `repository_evidence` and `saved_discussion`. The Task-owned Source context retains immutable original bytes, confirmed hierarchy, skill selection, main acceptance criteria and portable artifact paths. Formal TASK files need not exist yet.
+2. A resume envelope contains only `saved_progress` and restores Task discussion with its fixed `context.planning_source`. Validate mode, requirement identity and Source binding; restoration grants no readiness or execution authority.
+3. Validate fixed Source bytes, confirmed selections, instruction fingerprints and saved evidence before source-dependent decisions. Return drift or missing inputs to the parent; do not refresh external requirement sources or silently replace choices.
+4. Task planning owns skill discovery and selection decisions. Propose missing or unsupported skills to the parent for explicit confirmation; only use confirmed Task and Execute capable skills.
+5. Split work into minimum TASK boundaries with stable main acceptance responsibilities and TASK-owned technical criteria. Bind each TASK to one skill ID or explicitly justified base-only `null`.
+6. Refine one selected TASK at a time. Supply an isolated skill subagent with the complete formal TASK boundary, assigned full skill snapshot, Task-owned Source, current Task instructions, repository evidence and saved discussion. Inherit model and reasoning settings. If a formal boundary is not available, refine the planning candidate under the parent; do not forge a task-skill envelope.
+7. If delegation is unavailable, use the same private prompt and one-skill boundary directly. Merge returned proposals yourself. User-requested checkpoints return to the parent; the coordinator does not spawn a saver.
 
 ## Role boundary
 
-1. Handle repository evidence, clarification, per-skill coordination, TASK candidate merging, readiness validation, authorization boundaries, formalization, execution-index creation or recovery, handoff, and completion reporting.
-2. Do not execute TASK specifications or invent unconfirmed requirements. Create only the per-skill subagents authorized by the delegation contract.
-3. Follow the Task workflow's saved-planning procedure. Return the saved revision, current TASK, unresolved questions and next discussion point at each checkpoint. A user-requested mid-discussion save is also a valid return boundary. In a new session, restore the selected TASK's saved evidence instead of replaying all previous discussions.
-4. For an independent discussion checkpoint, return the complete supplied content, including relevant per-skill results and continuation point, through the parent to its private progress saver. Do not spawn the saver yourself. Task owns continued discussion after progress restoration and resolves conflicts with structured drafts; the saver only records supplied content.
-
-## Coordinated artifact revision
-
-1. For confirmed changes to existing formal artifacts, use the routed artifact-revision operation. Return the request through the parent and resume only after source revalidation.
+1. Handle evidence, clarification, selection proposals, candidate merging, readiness, approval boundaries, initial formalization, Execution creation or recovery, handoff and reporting. Do not execute TASK specifications or invent requirements.
+2. Follow the saved-planning procedure and return saved revision, selected TASK, unresolved questions and next discussion point. Resume selected historical evidence without replaying unchanged discussions.
+3. Return complete independent discussion content with unchanged fixed Source and continuation point through the parent to its progress saver. Task owns continued discussion and conflict resolution; saving grants no formal approval.
+4. Send confirmed changes to existing formal artifacts through the parent to `$work revise`. Revalidate the resulting TASK collection before relying on it.

@@ -16,5 +16,19 @@
       "after": "Review the approved runtime deviation."
     }
   ],
-  "semantic_decisions": []
+  "semantic_decisions": [],
+  "sources": [
+    {
+      "path": "outputs/work/executions/example/index.json",
+      "raw_sha256": "7a7023345bbee2f50b27212a81300f1fbf0e9709e112f64fce329c64374017a2"
+    },
+    {
+      "path": "outputs/work/tasks/example/index.json",
+      "raw_sha256": "4d5b79571c2d895600e4b0debe5ab61c30075748d1ac1789e6cecb141f2c61c3"
+    },
+    {
+      "path": "outputs/work/tasks/example/tasks/TASK-001.json",
+      "raw_sha256": "38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca"
+    }
+  ]
 }

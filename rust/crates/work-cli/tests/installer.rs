@@ -152,10 +152,8 @@ mod macos {
             "references/instruction-loading.md",
             "references/instruction-loading/invocation.md",
             "scripts/work",
-            "references/workflows/plan.md",
             "references/workflows/task.md",
             "references/workflows/execute.md",
-            "references/subagents/plan.md",
             "references/subagents/task-coordinator.md",
             "references/subagents/task-skill.md",
             "references/subagents/execute.md",
@@ -172,6 +170,21 @@ mod macos {
             "shared",
         ] {
             assert!(!root.join(relative).exists(), "{relative}");
+        }
+        let mut modes = fs::read_dir(root.join("references/instructions"))
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .filter(|name| !name.starts_with('.'))
+            .collect::<Vec<_>>();
+        modes.sort();
+        assert_eq!(modes, ["execute", "task"]);
+        for relative in [
+            "references/workflows/task/complete-the-request.md",
+            "references/workflows/progress/resume-in-task.md",
+            "references/instruction-loading/artifact-migration.md",
+            "references/instructions/task/general/references/task-records.md",
+        ] {
+            assert!(root.join(relative).is_file(), "{relative}");
         }
         for relative in ["agents", "rules"] {
             assert!(!install_root.join(relative).exists());
@@ -312,7 +325,7 @@ mod macos {
         let home = workspace("backend");
         success(&run(&installer(), "1\n3\n", &home, None));
         let installed = work(&home);
-        for mode in ["plan", "task", "execute"] {
+        for mode in ["task", "execute"] {
             for branch in ["general", "web", "web/backend"] {
                 assert_branch(&installed, mode, branch, true);
             }
@@ -332,19 +345,10 @@ mod macos {
         ));
         let installed = work_at(&home);
         assert!(!home.join(".agents").exists());
-        assert_branch(&installed, "plan", "programming-language", true);
-        assert_branch(&installed, "plan", "programming-language/java", true);
-        assert_branch(
-            &installed,
-            "plan",
-            "programming-language/java/persistence",
-            false,
-        );
         for branch in [
             "programming-language/java/persistence/jpa",
             "programming-language/java/persistence/mybatis",
         ] {
-            assert_branch(&installed, "plan", branch, false);
             for mode in ["task", "execute"] {
                 assert_branch(
                     &installed,
@@ -369,10 +373,11 @@ mod macos {
         let installed = work_at(&home);
         assert!(!home.join(".agents").exists());
         for branch in ["web/frontend", "web/frontend/css"] {
-            assert_branch(&installed, "plan", branch, true);
+            for mode in ["task", "execute"] {
+                assert_branch(&installed, mode, branch, true);
+            }
         }
         for branch in ["web/frontend/astro", "web/frontend/css/tailwind"] {
-            assert_branch(&installed, "plan", branch, false);
             for mode in ["task", "execute"] {
                 assert_branch(&installed, mode, branch, true);
             }
@@ -384,7 +389,7 @@ mod macos {
         let home = workspace("typescript");
         success(&run(&installer(), "1\n8\n", &home, None));
         let installed = work(&home);
-        for mode in ["plan", "task", "execute"] {
+        for mode in ["task", "execute"] {
             assert_branch(&installed, mode, "programming-language", true);
             assert_branch(&installed, mode, "programming-language/typescript", true);
             assert_branch(&installed, mode, "web", false);
@@ -396,7 +401,7 @@ mod macos {
         let home = workspace("frontend-typescript");
         success(&run(&installer(), "1\n7 8\n", &home, None));
         let installed = work(&home);
-        for mode in ["plan", "task", "execute"] {
+        for mode in ["task", "execute"] {
             assert_branch(&installed, mode, "web/frontend", true);
             assert_branch(&installed, mode, "programming-language/typescript", true);
             assert_branch(&installed, mode, "web/frontend/typescript", false);
@@ -469,7 +474,7 @@ mod macos {
             success(&status);
             assert!(
                 String::from_utf8_lossy(&status.stdout)
-                    .contains("\"next_action\": \"prepare_plan\"")
+                    .contains("\"next_action\": \"capture_source\"")
             );
         }
     }
@@ -626,6 +631,53 @@ mod macos {
                 }
             }
         }
+    }
+
+    #[test]
+    fn interrupted_input_never_writes_installation() {
+        for input in ["", "2\n", "1\n"] {
+            let home = workspace("interrupted-input");
+            let output = run(&installer(), input, &home, None);
+            assert_eq!(output.status.code(), Some(1));
+            assert!(String::from_utf8_lossy(&output.stderr).contains("installation input ended"));
+            assert!(!home.join(".agents").exists());
+        }
+    }
+
+    #[test]
+    fn failed_copy_preserves_complete_existing_installation() {
+        let home = workspace("copy-failure");
+        let installed = home.join(".agents/skills/work");
+        fs::create_dir_all(installed.join("scripts")).unwrap();
+        fs::write(installed.join("scripts/work"), b"previous binary").unwrap();
+        fs::write(installed.join("SKILL.md"), b"previous instructions").unwrap();
+        fs::write(installed.join("agents"), b"conflicting user file").unwrap();
+        let before = files(&installed);
+        let output = run(&installer(), "1\n1\n", &home, None);
+        assert_eq!(output.status.code(), Some(1));
+        assert!(String::from_utf8_lossy(&output.stderr).contains("failed to prepare Work"));
+        assert_eq!(files(&installed), before);
+    }
+
+    #[test]
+    fn failed_publication_restores_complete_existing_installation() {
+        let home = workspace("publish-failure");
+        let installed = home.join(".agents/skills/work");
+        fs::create_dir_all(installed.join("scripts")).unwrap();
+        fs::write(installed.join("scripts/work"), b"previous binary").unwrap();
+        fs::write(installed.join("SKILL.md"), b"previous instructions").unwrap();
+        let before = files(&installed);
+        let tools = home.join("fake-tools");
+        fs::create_dir(&tools).unwrap();
+        let fake_mv = tools.join("mv");
+        fs::write(&fake_mv, "#!/bin/sh\nfor arg in \"$@\"; do case \"$arg\" in */prepared) exit 1;; esac; done\nexec /bin/mv \"$@\"\n").unwrap();
+        fs::set_permissions(&fake_mv, fs::Permissions::from_mode(0o755)).unwrap();
+        let output = run(&installer(), "1\n1\n", &home, Some(&tools));
+        assert_eq!(output.status.code(), Some(1));
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("previous installation was restored")
+        );
+        assert_eq!(files(&installed), before);
     }
 
     #[test]
@@ -798,6 +850,27 @@ mod windows {
             .unwrap();
         assert!(help.status.success());
         assert!(String::from_utf8_lossy(&help.stdout).contains("usage: work"));
+    }
+
+    #[test]
+    fn failed_copy_preserves_existing_binary_and_instructions() {
+        let home = workspace("copy-failure");
+        let installed = home.join("skills/work");
+        fs::create_dir_all(installed.join("scripts")).unwrap();
+        fs::write(installed.join("scripts/work.exe"), b"previous binary").unwrap();
+        fs::write(installed.join("SKILL.md"), b"previous instructions").unwrap();
+        fs::write(installed.join("agents"), b"conflicting user file").unwrap();
+        let output = run(&home, None, false);
+        assert_eq!(output.status.code(), Some(1));
+        assert!(String::from_utf8_lossy(&output.stdout).contains("failed to install"));
+        for (relative, bytes) in [
+            ("scripts/work.exe", b"previous binary".as_slice()),
+            ("SKILL.md", b"previous instructions".as_slice()),
+            ("agents", b"conflicting user file".as_slice()),
+        ] {
+            assert_eq!(fs::read(installed.join(relative)).unwrap(), bytes);
+        }
+        assert_eq!(fs::read_dir(&installed).unwrap().count(), 3);
     }
 
     #[test]

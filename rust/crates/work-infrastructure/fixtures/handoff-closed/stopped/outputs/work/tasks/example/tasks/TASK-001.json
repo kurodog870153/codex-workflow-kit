@@ -24,32 +24,32 @@
       {
         "kind": "instruction",
         "logical_name": "task.general",
-        "canonical_sha256": "f718da96bc956849a1a6e5abaab491379c17b7f7487c2b76dff28b04a94851db",
+        "canonical_sha256": "f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3",
         "compatibility_revision": 1
       },
       {
         "kind": "reference",
         "logical_name": "task.general.task-records",
-        "canonical_sha256": "9bd9dff5c693ea21064dc5bb9684078981ebb71836c8e6d4316c3cfef597aa0a",
+        "canonical_sha256": "6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8",
         "compatibility_revision": 1
       }
     ],
     "references": [
       "task.general.task-records"
     ],
-    "instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a"
+    "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758"
   },
   "traceability": {
-    "goal_ids": [
-      "GOAL-001"
-    ],
-    "deliverable_ids": [
-      "DELIVERABLE-001"
-    ],
     "acceptance_ids": [
       "ACCEPTANCE-001"
     ]
   },
+  "acceptance_criteria": [
+    {
+      "id": "TASK-001-ACCEPTANCE-001",
+      "criterion": "Result is observable"
+    }
+  ],
   "goal": "Review result",
   "steps": [
     {
@@ -67,7 +67,8 @@
       "confirmer": "User",
       "criteria": "Result is observable",
       "acceptance_ids": [
-        "ACCEPTANCE-001"
+        "ACCEPTANCE-001",
+        "TASK-001-ACCEPTANCE-001"
       ]
     }
   ]

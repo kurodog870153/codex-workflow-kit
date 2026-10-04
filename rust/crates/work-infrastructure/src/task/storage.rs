@@ -81,7 +81,7 @@ mod tests {
     use std::cell::{Cell, RefCell};
     use std::collections::BTreeMap;
 
-    use serde_json::json;
+    use serde_json::{Value, json};
     use work_feature::execution::{
         AttemptStartPublication, AttemptStartRepository, CommandProjectRequest,
         CommandProjectSources, DeviationProjectRequest, ExecutionIndexRepository,
@@ -94,7 +94,6 @@ mod tests {
         record_deviation_from_project, start_attempt_from_project,
     };
     use work_feature::instruction::{load, select, task_document_selection};
-    use work_feature::plan::prepare_semantic;
     use work_feature::ports::Git;
     use work_feature::ports::WriterLock;
     use work_feature::task::{
@@ -119,7 +118,6 @@ mod tests {
     };
     use crate::git::LocalGit;
     use crate::hierarchy_catalog::LocalHierarchyCatalog;
-    use crate::plan_storage::LocalPlanStorage;
     use crate::skill_catalog::LocalSkillCatalog;
     use crate::writer_lock::LocalWriterLock;
 
@@ -268,7 +266,114 @@ mod tests {
     }
 
     #[test]
-    fn collection_validates_plan_items_sources_and_fingerprints() {
+    fn independent_collection_accepts_both_provenances_and_rejects_missing_evidence() {
+        for fixture_name in ["task-diagnostics", "specification-migration"] {
+            let fixture =
+                PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures")).join(fixture_name);
+            let root = std::env::temp_dir().join(format!(
+                "work-formal-provenance-{}-{}-{}",
+                std::process::id(),
+                fixture_name,
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            let index_path = "outputs/work/tasks/example/index.json";
+            let index_raw = fs::read(fixture.join(index_path)).unwrap();
+            let mut index: Value = serde_json::from_slice(&index_raw).unwrap();
+            let index_file = root.join(index_path);
+            fs::create_dir_all(index_file.parent().unwrap()).unwrap();
+            fs::write(&index_file, &index_raw).unwrap();
+            for row in index["tasks"].as_array().unwrap() {
+                let relative = format!(
+                    "outputs/work/tasks/example/{}",
+                    row["path"].as_str().unwrap()
+                );
+                let target = root.join(&relative);
+                fs::create_dir_all(target.parent().unwrap()).unwrap();
+                fs::write(target, fs::read(fixture.join(relative)).unwrap()).unwrap();
+            }
+            crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
+            let work = LocalHierarchyCatalog {
+                skill_root: PathBuf::from(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../../../skills/work"
+                )),
+            };
+            // Confirm current Task instructions without changing retained migration evidence.
+            let mut sets = Vec::new();
+            for row in index["tasks"].as_array_mut().unwrap() {
+                let relative = format!(
+                    "outputs/work/tasks/example/{}",
+                    row["path"].as_str().unwrap()
+                );
+                let item_file = root.join(&relative);
+                let mut item: Value =
+                    serde_json::from_slice(&fs::read(&item_file).unwrap()).unwrap();
+                let selected: Vec<String> =
+                    serde_json::from_value(item["instruction_selection"]["selected_paths"].clone())
+                        .unwrap();
+                let refs: Vec<String> =
+                    serde_json::from_value(item["instruction_selection"]["references"].clone())
+                        .unwrap();
+                item["instruction_selection"] =
+                    serde_json::to_value(select(&work, "task", &selected, &refs).unwrap()).unwrap();
+                sets.push(load(&work, "task", &selected, &refs).unwrap());
+                let raw = render_task(&item, TaskDocumentKind::Item).unwrap();
+                row["canonical_sha256"] = json!(sha256_hex(&raw));
+                fs::write(item_file, raw).unwrap();
+            }
+            index["instruction_selection"] =
+                serde_json::to_value(task_document_selection(&sets).unwrap()).unwrap();
+            let index_raw = render_task(&index, TaskDocumentKind::Index).unwrap();
+            fs::write(&index_file, &index_raw).unwrap();
+            let skills = LocalSkillCatalog { roots: vec![] };
+            let paths = crate::artifact_paths::LocalArtifactPaths {
+                project_root: root.clone(),
+            };
+            let repository = LocalTaskStorage {
+                project_root: root.clone(),
+            };
+            let loaded =
+                load_collection(&work, &skills, &paths, &repository, &[], index_path).unwrap();
+            assert!(loaded["task_count"].as_u64().unwrap() > 0);
+            assert!(!root.join("outputs/work/plans").exists());
+            let mut missing = index.clone();
+            missing.as_object_mut().unwrap().remove("source");
+            fs::write(&index_file, serde_json::to_vec(&missing).unwrap()).unwrap();
+            assert!(load_collection(&work, &skills, &paths, &repository, &[], index_path).is_err());
+            if index["source"]["kind"] == "migration" {
+                let mut unapproved = index.clone();
+                unapproved["source"]["approval_sha256"] = json!("0".repeat(64));
+                fs::write(&index_file, serde_json::to_vec(&unapproved).unwrap()).unwrap();
+                assert_eq!(
+                    load_collection(&work, &skills, &paths, &repository, &[], index_path)
+                        .unwrap_err()
+                        .reason_code,
+                    "migration_source_approval_mismatch"
+                );
+            } else {
+                fs::write(&index_file, &index_raw).unwrap();
+                let source_path = root.join(format!(
+                    "outputs/work/sources/example/{}/source.txt",
+                    index["source"]["manifest"]["source_id"].as_str().unwrap()
+                ));
+                let mut raw = fs::read(&source_path).unwrap();
+                raw[0] ^= 1;
+                fs::write(source_path, raw).unwrap();
+                assert_eq!(
+                    load_collection(&work, &skills, &paths, &repository, &[], index_path)
+                        .unwrap_err()
+                        .reason_code,
+                    "source_hash_mismatch"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn collection_validates_without_plan_items_sources_and_fingerprints() {
         let root = std::env::temp_dir().join(format!(
             "work-task-execution-context-{}-{}",
             std::process::id(),
@@ -285,28 +390,42 @@ mod tests {
             skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
         };
         let skills = LocalSkillCatalog { roots: vec![] };
-        let paths = LocalPlanStorage {
+        let paths = crate::artifact_paths::LocalArtifactPaths {
             project_root: root.clone(),
         };
-        let request = json!({"requirement_id":"issue55-task-parity","title":"Task parity","summary":"Verify collection.",
-            "goals":["Deliver result."],"scope":["Implementation."],"deliverables":["Result artifact."],"acceptance_criteria":["Result is verified."],
-            "hierarchy_selection_request":{"decision":"general_only","selections":[]},"skill_selection_request":{"decision":"base_only","skills":[]},"references":[]});
-        let prepared = prepare_semantic(&work, &skills, &paths, &[], &request).unwrap();
-        let plan = &prepared["plan"];
-        let task_path = plan["artifacts"]["task"].as_str().unwrap();
+        let hierarchy = work_feature::hierarchy::build_selection(
+            &work,
+            &json!({"decision":"general_only","selections":[]}),
+        )
+        .unwrap();
+        let selected_skills = work_feature::skill::build_selection(
+            &skills,
+            &[],
+            &json!({"decision":"base_only","skills":[]}),
+        )
+        .unwrap();
+        let task_path = "outputs/work/tasks/issue55-task-parity/index.json";
         let references = vec!["task.general.task-records".into()];
         let selection = select(&work, "task", &[], &references).unwrap();
         let set = load(&work, "task", &[], &references).unwrap();
         let document = task_document_selection(&[set]).unwrap();
+        let source = crate::fixture_support::capture_planning_context(
+            &root,
+            "issue55-task-parity",
+            b"Deliver the result artifact and verify it.",
+            &hierarchy,
+            &selected_skills,
+            &json!([{"id":"ACCEPTANCE-001","criterion":"Result is verified."}]),
+        )
+        .unwrap();
         let item = json!({"schema":"work-task-item/v1","id":"TASK-001","title":"Implement result","skill_id":null,
-            "instruction_selection":selection,"traceability":{"goal_ids":["GOAL-001"],"deliverable_ids":["DELIVERABLE-001"],"acceptance_ids":["ACCEPTANCE-001"]},
+            "instruction_selection":selection,"traceability":{"acceptance_ids":["ACCEPTANCE-001"]},"acceptance_criteria":[{"id":"TASK-001-ACCEPTANCE-001","criterion":"Result is verified."}],
             "goal":"Deliver result.","steps":[{"id":"STEP-001","action":"Verify result.","references":["VAL-001"]}],
-            "validations":[{"id":"VAL-001","kind":"manual","confirmer":"user","criteria":"Result is verified.","acceptance_ids":["ACCEPTANCE-001"]}]});
+            "validations":[{"id":"VAL-001","kind":"manual","confirmer":"user","criteria":"Result is verified.","acceptance_ids":["ACCEPTANCE-001","TASK-001-ACCEPTANCE-001"]}]});
         let item_raw = render_task(&item, TaskDocumentKind::Item).unwrap();
-        let plan_raw = work_operations::plan::render_plan_value(plan).unwrap();
         let index = json!({"schema":"work-task-index/v1","requirement_id":"issue55-task-parity","spec_id":"TASK-SPEC-001","status":"confirmed",
-            "title":"Task parity","summary":"Verify collection.","artifacts":plan["artifacts"],
-            "source_plan":{"canonical_sha256":sha256_hex(&plan_raw),"hierarchy_selection_sha256":plan["hierarchy_selection"]["selection_sha256"]},
+            "title":"Task parity","summary":"Verify collection.","artifacts":source["artifacts"],
+            "source":{"kind":"snapshot","manifest":source["snapshot"]},"hierarchy_selection":source["hierarchy_selection"],"skill_selection":source["skill_selection"],"acceptance_criteria":source["acceptance_criteria"],
             "instruction_selection":document,"tasks":[{"id":"TASK-001","path":"tasks/TASK-001.json","canonical_sha256":sha256_hex(&item_raw)}],
             "readiness":{"status":"passed","spec_id":"TASK-SPEC-001"}});
         let index_raw = render_task(&index, TaskDocumentKind::Index).unwrap();
@@ -320,7 +439,6 @@ mod tests {
                 index_raw: &index_raw,
                 item_raw: &items,
                 index_path: task_path,
-                source_plan_raw: &plan_raw,
             },
         )
         .unwrap();
@@ -336,7 +454,7 @@ mod tests {
         assert_eq!(result["task_skill_ids"]["TASK-001"], json!(null));
         assert_eq!(
             result["hierarchy_selection_sha256"],
-            plan["hierarchy_selection"]["selection_sha256"]
+            hierarchy["selection_sha256"]
         );
         assert!(result.get("rules_sha256").is_none());
         assert!(result.get("task_rules_sha256").is_none());
@@ -360,19 +478,15 @@ mod tests {
                     index_raw: &stale_index_raw,
                     item_raw: &BTreeMap::from([("TASK-001".into(), stale_raw)]),
                     index_path: task_path,
-                    source_plan_raw: &plan_raw,
                 },
             )
             .unwrap_err()
             .reason_code,
             "instructions_fingerprint_mismatch"
         );
-        let plan_path = root.join(plan["artifacts"]["plan"].as_str().unwrap());
         let index_file = root.join(task_path);
         let item_path = index_file.parent().unwrap().join("tasks/TASK-001.json");
-        fs::create_dir_all(plan_path.parent().unwrap()).unwrap();
         fs::create_dir_all(item_path.parent().unwrap()).unwrap();
-        fs::write(&plan_path, &plan_raw).unwrap();
         fs::write(&index_file, &index_raw).unwrap();
         fs::write(&item_path, &item_raw).unwrap();
         let repository = LocalTaskStorage {
@@ -392,11 +506,11 @@ mod tests {
         assert_eq!(context.contract["tasks"][0]["id"], "TASK-001");
         assert_eq!(
             canonical_json_sha256(&context.contract).unwrap(),
-            "e1b2814e9bfa37b35bf4659a7d4f46942c98a28f40431902ff140ca08e19bfc1"
+            "82bf788882ca7d4d25a729d8925c6a5ebe80628d03395edf0462bc772b639305"
         );
         assert_eq!(
             canonical_json_sha256(&context.validation).unwrap(),
-            "be8ba45d1cdcecffcecac4b37d0a3ff82fe729e120e90a637ef8d72551b741d8"
+            "3c479e4c8f384726be3bad8531276127cc6227c61821e6f7cacd7e37006fecb0"
         );
         assert_eq!(
             context.validation["task_collection_sha256"],
@@ -410,6 +524,7 @@ mod tests {
             )],
             item_raw
         );
+        assert!(!root.join("outputs/work/plans").exists());
         let loaded = load_collection(&work, &skills, &paths, &repository, &[], task_path).unwrap();
         assert_eq!(loaded["task_ids"], json!(["TASK-001"]));
         assert_eq!(loaded["task_count"], 1);
@@ -481,6 +596,8 @@ mod tests {
         fs::write(&index_file, &index_raw).unwrap();
         let mut second_item = item.clone();
         second_item["id"] = json!("TASK-002");
+        second_item["acceptance_criteria"][0]["id"] = json!("TASK-002-ACCEPTANCE-001");
+        second_item["validations"][0]["acceptance_ids"][1] = json!("TASK-002-ACCEPTANCE-001");
         let second_raw = render_task(&second_item, TaskDocumentKind::Item).unwrap();
         let mut second_index = index.clone();
         second_index["tasks"].as_array_mut().unwrap().push(json!({
@@ -539,6 +656,9 @@ mod tests {
             let task_id = format!("TASK-{number:03}");
             let mut next_item = item.clone();
             next_item["id"] = json!(task_id);
+            let technical = format!("{task_id}-ACCEPTANCE-001");
+            next_item["acceptance_criteria"][0]["id"] = json!(technical);
+            next_item["validations"][0]["acceptance_ids"][1] = json!(technical);
             next_item["title"] = json!(format!("Validate item {number}"));
             if number == 100 {
                 next_item["dependencies"] = json!(["TASK-001"]);
@@ -617,14 +737,19 @@ mod tests {
             .is_err()
         );
         fs::write(&second_path, &second_raw).unwrap();
-        fs::write(&plan_path, [plan_raw.as_slice(), b" "].concat()).unwrap();
+        let snapshot_path =
+            root.join("outputs/work/sources/issue55-task-parity/SRC-001/source.txt");
+        let original_source = fs::read(&snapshot_path).unwrap();
+        let mut changed_source = original_source.clone();
+        changed_source[0] ^= 1;
+        fs::write(&snapshot_path, &changed_source).unwrap();
         assert_eq!(
             recheck_task_execution_context(&paths, &repository, &selected)
                 .unwrap_err()
                 .reason_code,
-            "source_plan_fingerprint_mismatch"
+            "source_hash_mismatch"
         );
-        fs::write(&plan_path, &plan_raw).unwrap();
+        fs::write(&snapshot_path, original_source).unwrap();
         fs::write(&index_file, &index_raw).unwrap();
         fs::remove_file(&second_path).unwrap();
         let execute = select(
@@ -642,7 +767,7 @@ mod tests {
             "allowed_deviations":[],"reapproval_conditions":["scope_expansion",
                 "source_or_worktree_drift","failure_divergence","retry","recovery","unknown_result"],
             "authorization_evidence":"Approved"});
-        let attempt = json!({"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
+        let attempt = json!({"acceptance_results":work_operations::execution::acceptance::pending(work_operations::execution::acceptance::task_ids(&item)),"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
             "task_spec_id":"TASK-SPEC-001","task_id":"TASK-001","skill_id":null,
             "status":"in_progress","task_collection_sha256":context.validation["task_collection_sha256"],
             "task_index_sha256":context.validation["task_index_sha256"],
@@ -723,7 +848,8 @@ mod tests {
             &start_choice,
         )
         .unwrap();
-        assert_eq!(counted_start_tasks.reads.borrow().len(), 6);
+        // Include the post-worktree and final preparation collection rechecks.
+        assert_eq!(counted_start_tasks.reads.borrow().len(), 16);
         assert_eq!(prepared_start["request"]["authorization"], authorization);
         assert_eq!(
             prepared_start["request"]["worktree_snapshot_sha256"],
@@ -755,7 +881,7 @@ mod tests {
         .unwrap_err();
         assert_eq!(
             drift_before_authorization.reason_code,
-            "invalid_json_contract"
+            "execute_worktree_task_changed"
         );
         assert!(changing.target_reads.get() > 1);
         let rejected_scope = start_attempt_from_project(
@@ -820,7 +946,7 @@ mod tests {
                 },
             )
             .unwrap_err();
-        assert_eq!(recovery_drift.reason_code, "invalid_json_contract");
+        assert_eq!(recovery_drift.reason_code, "execute_worktree_task_changed");
         assert!(changing_recovery.target_reads.get() > 1);
         let started_attempt_path =
             root.join(format!("{execution_dir}/TASK-001/ATTEMPT-001/attempt.json"));
@@ -886,7 +1012,7 @@ mod tests {
             fs::read(&execution_index_file).unwrap(),
             started_index_bytes
         );
-        let mut execution_index = json!({"schema":"work-execution-index/v1",
+        let mut execution_index = json!({"acceptance_results":initial_index["acceptance_results"],"schema":"work-execution-index/v1",
             "requirement_id":"issue55-task-parity","title":"Execution",
             "task_spec_id":"TASK-SPEC-001",
             "task_collection_sha256":context.validation["task_collection_sha256"],
@@ -897,7 +1023,7 @@ mod tests {
             "lock":build_execution_lock("TASK-001","ATTEMPT-001",&execute_sha),
             "tasks":[{"id":"TASK-001","status":"in_progress","skill_id":null,
                 "task_item_sha256":context.validation["task_item_sha256"]["TASK-001"],
-                "instructions_sha256":context.validation["task_instructions_sha256"]["TASK-001"],
+                "acceptance_results":initial_index["tasks"][0]["acceptance_results"],"instructions_sha256":context.validation["task_instructions_sha256"]["TASK-001"],
                 "latest_attempt":"ATTEMPT-001"}]});
         execution_index["lock"]["record_id"] = json!("VAL-001");
         let attempt_path = root.join(format!("{execution_dir}/TASK-001/ATTEMPT-001/attempt.json"));
@@ -1449,6 +1575,23 @@ mod tests {
         )
         .unwrap();
         assert_eq!(validated["record_kind"], "validation");
+        let validation_attempt_raw = fs::read(&attempt_path).unwrap();
+        let validation_attempt: Value = serde_json::from_slice(&validation_attempt_raw).unwrap();
+        assert!(
+            validation_attempt["acceptance_results"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|row| row["status"] == "completed"
+                    && row["evidence"][0]["record_id"] == "VAL-001")
+        );
+        let validation_index: Value =
+            serde_json::from_slice(&fs::read(&execution_index_file).unwrap()).unwrap();
+        assert_eq!(
+            validation_index["tasks"][0]["acceptance_results"],
+            validation_attempt["acceptance_results"]
+        );
+
         let closed = close_attempt_from_project(
             &sources,
             &execution_storage,
@@ -1460,6 +1603,24 @@ mod tests {
         )
         .unwrap();
         assert_eq!(closed["attempt_status"], "stopped");
+        let stopped_attempt_raw = fs::read(&attempt_path).unwrap();
+        let stopped_attempt: Value = serde_json::from_slice(&stopped_attempt_raw).unwrap();
+        assert_eq!(stopped_attempt["records"], validation_attempt["records"]);
+        assert!(
+            stopped_attempt["acceptance_results"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|row| row["status"] == "pending"
+                    && row["evidence"].as_array().unwrap().is_empty())
+        );
+        let stopped_index: Value =
+            serde_json::from_slice(&fs::read(&execution_index_file).unwrap()).unwrap();
+        assert_eq!(
+            stopped_index["tasks"][0]["acceptance_results"],
+            stopped_attempt["acceptance_results"]
+        );
+
         let correction = create_correction_from_project(
             &sources,
             &execution_storage,
@@ -1677,7 +1838,6 @@ mod tests {
                     index_raw: &broken_raw,
                     item_raw: &items,
                     index_path: task_path,
-                    source_plan_raw: &plan_raw
                 }
             )
             .unwrap_err()

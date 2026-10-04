@@ -380,7 +380,7 @@ mod tests {
 
     #[test]
     fn command_manifest_keeps_all_python_public_leaves() {
-        assert_eq!(leaves(&manifest().root), 92);
+        assert_eq!(leaves(&manifest().root), 88);
         command(&manifest().root).debug_assert();
     }
 
@@ -518,17 +518,9 @@ mod tests {
             "--task-id",
             "TASK-001",
         ];
-        for command in [
-            "build-execute-to-task",
-            "build-execute-to-plan",
-            "verify-execute-to-task",
-            "verify-execute-to-plan",
-        ] {
+        for command in ["build-execute-to-task", "verify-execute-to-task"] {
             let mut arguments = vec![command];
             arguments.extend(common);
-            if command.starts_with("verify-") {
-                arguments.extend(["--plan-path", "plan.json"]);
-            }
             assert_eq!(
                 parse(&arguments).unwrap_err().reason_code,
                 "cli_usage_error",
@@ -545,9 +537,7 @@ mod tests {
                 };
                 assert_eq!(parsed.arguments["task_id"], "TASK-001");
                 assert_eq!(parsed.arguments["task_path"], "task.json");
-                if command.starts_with("verify-") {
-                    assert_eq!(parsed.arguments["plan_path"], "plan.json");
-                }
+                assert!(!parsed.arguments.contains_key("plan_path"));
                 if context[0] == "--preflight" {
                     assert_eq!(parsed.arguments["preflight"], true);
                 } else {
@@ -677,6 +667,7 @@ mod tests {
             "reconciliation-preview",
             "reconciliation-prepare",
             "reconciliation-apply",
+            "reconciliation-recover",
         ] {
             let mut args = vec![
                 command,
@@ -685,7 +676,7 @@ mod tests {
                 "--user-config-root",
                 "/config",
             ];
-            if command == "reconciliation-apply" {
+            if matches!(command, "reconciliation-apply" | "reconciliation-recover") {
                 args.extend([
                     "--approved-sha256",
                     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -903,8 +894,6 @@ mod tests {
             "save",
             "--requirement-id",
             "example",
-            "--plan-path",
-            "outputs/work/plans/example.json",
             "--user-config-root",
             "/config",
             "--input-file",
@@ -950,7 +939,7 @@ mod tests {
             ),
             (
                 &["delegation", "validate", "--role", "bad"],
-                "argument --role: invalid choice: 'bad' (choose from 'plan', 'task-coordinator', 'execute', 'task-skill', 'artifact-editor', 'progress-saver')",
+                "argument --role: invalid choice: 'bad' (choose from 'task-coordinator', 'execute', 'task-skill', 'artifact-editor', 'progress-saver')",
             ),
         ];
         for (arguments, expected) in cases {
@@ -963,56 +952,6 @@ mod tests {
                 expected
             );
         }
-    }
-
-    #[test]
-    fn plan_validate_parser_keeps_input_source_and_rejects_removed_prepare() {
-        let tokens = [
-            "--project-root",
-            "/project",
-            "plan",
-            "validate",
-            "--user-config-root",
-            "/config",
-            "--skill-root",
-            "repo:.agents/skills=/skills",
-            "--input-file",
-            "request.json",
-            "--plan-path",
-            "outputs/work/plans/example.json",
-        ]
-        .map(str::to_owned);
-        let ParseOutcome::Command(parsed) = parse_tokens(&tokens).unwrap() else {
-            panic!("expected plan validate command");
-        };
-        assert_eq!(parsed.path, ["plan", "validate"]);
-        assert_eq!(parsed.arguments["project_root"], "/project");
-        assert_eq!(parsed.arguments["user_config_root"], "/config");
-        assert_eq!(
-            parsed.arguments["skill_root"],
-            json!(["repo:.agents/skills=/skills"])
-        );
-        assert_eq!(parsed.arguments["input_file"], "request.json");
-        assert!(!parsed.arguments.contains_key("path"));
-        assert_eq!(
-            parsed.arguments["plan_path"],
-            "outputs/work/plans/example.json"
-        );
-        let old = [
-            "--project-root",
-            "/project",
-            "plan",
-            "prepare",
-            "--input-file",
-            "request.json",
-            "--user-config-root",
-            "/config",
-        ]
-        .map(str::to_owned);
-        assert_eq!(
-            parse_tokens(&old).unwrap_err().reason_code,
-            "cli_usage_error"
-        );
     }
 
     #[test]
@@ -1118,5 +1057,30 @@ mod tests {
             panic!("expected record-begin command");
         };
         assert_eq!(begin.arguments["record_id"], "RECORD-001");
+    }
+    #[test]
+    fn invocation_confirm_requires_input_and_has_no_origin_override() {
+        assert!(
+            parse_tokens(&[
+                "--project-root".into(),
+                ".".into(),
+                "invocation".into(),
+                "confirm".into()
+            ])
+            .is_err()
+        );
+        assert!(
+            parse_tokens(&[
+                "--project-root".into(),
+                ".".into(),
+                "invocation".into(),
+                "confirm".into(),
+                "--input-file".into(),
+                "request.json".into(),
+                "--origin".into(),
+                "explicit".into()
+            ])
+            .is_err()
+        );
     }
 }

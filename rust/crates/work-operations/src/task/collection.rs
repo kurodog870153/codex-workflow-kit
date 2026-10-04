@@ -52,12 +52,9 @@ pub fn semantic_projection(
     index: TaskIndex,
     items: Vec<TaskItem>,
     task_path: &str,
-    source_plan_sha256: &str,
 ) -> TaskCollectionProjection {
     let mut artifacts = index.artifacts;
     artifacts.task = task_path.into();
-    let mut source_plan = index.source_plan;
-    source_plan.canonical_sha256 = source_plan_sha256.into();
     TaskCollectionProjection {
         schema: PublicSchema::WorkTaskCollectionProjectionV1,
         requirement_id: index.requirement_id,
@@ -66,7 +63,10 @@ pub fn semantic_projection(
         title: index.title,
         summary: index.summary,
         artifacts,
-        source_plan,
+        source: index.source,
+        hierarchy_selection: index.hierarchy_selection,
+        skill_selection: index.skill_selection,
+        acceptance_criteria: index.acceptance_criteria,
         instruction_selection: index.instruction_selection,
         execution_defaults: index.execution_defaults,
         decisions: index.decisions,
@@ -78,6 +78,7 @@ pub fn semantic_projection(
                 skill_id: item.skill_id,
                 instruction_selection: item.instruction_selection,
                 traceability: item.traceability,
+                acceptance_criteria: item.acceptance_criteria,
                 goal: item.goal,
                 dependencies: item.dependencies,
                 inputs: item.inputs,
@@ -109,7 +110,6 @@ pub fn semantic_projection(
                             after: edit.after,
                         })
                         .collect(),
-                    plan_change_ids: change.plan_change_ids,
                 })
                 .collect()
         }),

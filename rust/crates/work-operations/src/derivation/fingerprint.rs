@@ -56,12 +56,12 @@ pub fn skill_selection(decision: &str, skills: &[Value]) -> String {
 
 /// Fingerprints of the complete installed Specification baseline.
 pub fn specification_baseline(
-    plan_raw: &[u8],
+    source_sha256: &str,
     index_raw: &[u8],
     execution_raw: &[u8],
     items: &BTreeMap<String, Vec<u8>>,
 ) -> Value {
-    json!({"plan_sha256": raw(plan_raw),
+    json!({"source_sha256": source_sha256,
         "task_index_sha256": raw(index_raw),
         "execution_index_sha256": raw(execution_raw),
         "task_item_sha256": items.iter().map(|(id, bytes)|
@@ -114,6 +114,22 @@ pub fn task_draft_approval(index_raw: &[u8], approval_bytes: &[u8]) -> String {
     review.extend_from_slice(index_raw);
     review.extend_from_slice(approval_bytes);
     raw(&review)
+}
+
+pub fn task_provenance(source: &work_model::task::source::TaskProvenance) -> String {
+    structured(&serde_json::to_value(source).expect("provenance serializes"))
+        .expect("JSON serializes")
+}
+pub fn migration_source_approval(
+    requirement: &str,
+    sources: &[work_model::task::source::MigrationSourceEvidence],
+) -> String {
+    let material =
+        serde_json::to_vec(&serde_json::json!({"requirement_id":requirement,"sources":sources}))
+            .expect("evidence serializes");
+    let mut bytes = b"WORK-MIGRATION-SOURCE-APPROVAL-V1\n".to_vec();
+    bytes.extend(material);
+    raw(&bytes)
 }
 
 #[cfg(test)]

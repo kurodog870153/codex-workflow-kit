@@ -10,6 +10,7 @@ pub mod item;
 pub mod projection;
 pub mod request;
 pub mod response;
+pub mod source;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

@@ -102,7 +102,6 @@ fn semantic_only(value: &Value) -> Result<(), SpecificationIssue> {
         "command_ids",
         "command_id",
         "validation_id",
-        "acceptance_ids",
         "goal_ids",
         "deliverable_ids",
         "milestone_ids",
@@ -126,8 +125,14 @@ fn semantic_only(value: &Value) -> Result<(), SpecificationIssue> {
                     json!({}),
                 ));
             }
-            for child in object.values() {
-                semantic_only(child)?;
+            for (key, child) in object {
+                if key == "acceptance_ids" || key == "acceptance_criteria" {
+                    let input = json!({key:child});
+                    crate::task::candidate::validate_semantic_candidate(&input, false)
+                        .map_err(|error| issue(error.reason_code, error.message, error.details))?;
+                } else {
+                    semantic_only(child)?;
+                }
             }
         }
         Value::Array(values) => {
@@ -151,7 +156,7 @@ pub fn validate_prepare_request(value: &Value) -> Result<(), SpecificationIssue>
     fields(
         value,
         &["schema", "requirement_id", "reason", "edits"],
-        &[],
+        &["source_update"],
         "spec_prepare",
     )?;
     if value["schema"] != "work-spec-prepare-request/v1" {
@@ -177,9 +182,26 @@ pub fn validate_prepare_request(value: &Value) -> Result<(), SpecificationIssue>
             json!({}),
         ));
     }
+    if let Some(update) = value.get("source_update") {
+        serde_json::from_value::<work_model::specification::SpecificationSourceUpdate>(
+            update.clone(),
+        )
+        .map_err(|_| {
+            issue(
+                "source_confirmation_required",
+                "A complete Source context, selections and impact confirmation are required.",
+                json!({}),
+            )
+        })?;
+        crate::task::source::validate_planning_source(
+            &update["source"],
+            value["requirement_id"].as_str().unwrap(),
+        )
+        .map_err(|e| issue(e.reason_code, e.message, e.details))?;
+    }
     let edits = value["edits"]
         .as_array()
-        .filter(|edits| !edits.is_empty())
+        .filter(|edits| !edits.is_empty() || value.get("source_update").is_some())
         .ok_or_else(|| artifact("spec_prepare_edits", "Supply non-empty collection edits."))?;
     for (position, edit) in edits.iter().enumerate() {
         let location = format!("edits[{position}]");
@@ -284,13 +306,8 @@ pub fn validate_prepare_request(value: &Value) -> Result<(), SpecificationIssue>
         )?;
         let artifact_name = target["artifact"]
             .as_str()
-            .filter(|name| ["plan", "task_index", "task_item"].contains(name))
-            .ok_or_else(|| {
-                artifact(
-                    "spec_prepare_artifact",
-                    "Use plan, task_index or task_item.",
-                )
-            })?;
+            .filter(|name| ["task_index", "task_item"].contains(name))
+            .ok_or_else(|| artifact("spec_prepare_artifact", "Use task_index or task_item."))?;
         if (artifact_name == "task_item") != target.get("task_id").is_some_and(Value::is_string) {
             return Err(issue(
                 "invalid_contract_value",
@@ -306,22 +323,10 @@ pub fn validate_prepare_request(value: &Value) -> Result<(), SpecificationIssue>
             )
         })?;
         let simple = match artifact_name {
-            "plan" | "task_index" => ["title", "summary"].contains(&field),
+            "task_index" => ["title", "summary"].contains(&field),
             _ => ["title", "goal"].contains(&field),
         };
         let semantic = match artifact_name {
-            "plan" => [
-                "goals",
-                "scope",
-                "constraints",
-                "dependencies",
-                "risks",
-                "milestones",
-                "deliverables",
-                "acceptance_criteria",
-                "decisions",
-            ]
-            .contains(&field),
             "task_index" => ["decisions", "execution_defaults"].contains(&field),
             _ => [
                 "traceability",

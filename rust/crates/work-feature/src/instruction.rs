@@ -31,11 +31,11 @@ pub fn mode_catalog(
     repository: &impl InstructionCatalogRepository,
     mode: &str,
 ) -> Result<ModeCatalog, WorkError> {
-    if !matches!(mode, "plan" | "task" | "execute") {
+    if !matches!(mode, "task" | "execute") {
         return Err(WorkError::new(
             ExitCode::Contract,
             "invalid_instruction_mode",
-            "The instruction mode must be plan, task, or execute.",
+            "The instruction mode must be task or execute.",
             json!({"mode":mode}),
         ));
     }
@@ -261,55 +261,6 @@ pub fn resolve_hierarchy(
         )
     })?;
     let mode_paths = repository.mode_paths(mode)?;
-    if mode == "plan" && !selected_paths.is_empty() {
-        let cross = repository.cross_mode_catalog()?;
-        let mut projected = Vec::new();
-        for path in selected_paths {
-            if !cross.paths.contains(path) {
-                let parent = path
-                    .rsplit_once('/')
-                    .map_or("general", |(parent, _)| parent);
-                return Err(error(
-                    ExitCode::Contract,
-                    "instruction_hierarchy_path_missing",
-                    "A selected instruction hierarchy path does not exist in the catalog.",
-                    json!({"mode": "all", "path": path, "parent": parent, "valid_choices": cross.children.get(parent).cloned().unwrap_or_default()}),
-                ));
-            }
-            let mut candidate = path.as_str();
-            loop {
-                if mode_paths.contains(&candidate.to_owned()) {
-                    if !projected.contains(&candidate.to_owned()) {
-                        projected.push(candidate.to_owned());
-                    }
-                    break;
-                }
-                let Some((parent, _)) = candidate.rsplit_once('/') else {
-                    break;
-                };
-                candidate = parent;
-            }
-        }
-        let leaves: Vec<String> = projected
-            .iter()
-            .filter(|path| {
-                !projected
-                    .iter()
-                    .any(|other| other.starts_with(&format!("{path}/")))
-            })
-            .cloned()
-            .collect();
-        let mut result = build_hierarchy(mode, &leaves).map_err(|issue| {
-            error(
-                ExitCode::Contract,
-                issue.reason_code,
-                issue.message,
-                issue.details,
-            )
-        })?;
-        result.selected_paths = selected_paths.to_vec();
-        return Ok(result);
-    }
     for path in &hierarchy.resolved_paths {
         if !mode_paths.contains(path) {
             let parent = path
@@ -353,6 +304,67 @@ pub fn select(
         selected_paths,
         references,
     )?))
+}
+
+pub fn select_task(
+    repository: &impl InstructionSourceRepository,
+    confirmed_hierarchy: &Value,
+    selected_paths: &[String],
+    references: &[String],
+) -> Result<InstructionSelection, WorkError> {
+    crate::hierarchy::validate_selection(repository, confirmed_hierarchy)?;
+    crate::hierarchy::validate_task_paths(
+        repository,
+        selected_paths,
+        confirmed_hierarchy,
+        "instruction_selection",
+    )?;
+    let loaded = load(repository, "task", selected_paths, references)?;
+    require_task_sources(&loaded)?;
+    Ok(source_selection(&loaded))
+}
+
+pub fn validate_task_selection(
+    repository: &impl InstructionSourceRepository,
+    confirmed_hierarchy: &Value,
+    stored: &InstructionSelection,
+) -> Result<SourceSet, WorkError> {
+    crate::hierarchy::validate_selection(repository, confirmed_hierarchy)?;
+    crate::hierarchy::validate_task_paths(
+        repository,
+        &stored.selected_paths,
+        confirmed_hierarchy,
+        "instruction_selection",
+    )?;
+    let loaded = validate_selection(repository, "task", stored)?;
+    require_task_sources(&loaded)?;
+    Ok(loaded)
+}
+
+fn require_task_sources(set: &SourceSet) -> Result<(), WorkError> {
+    if set.mode != "task"
+        || set.sources.iter().any(|source| {
+            let name = source.summary.logical_name.as_str();
+            match source.summary.kind.as_str() {
+                "instruction" | "reference" => !name.starts_with("task."),
+                "workflow" => {
+                    name != "work.instruction-loading"
+                        && !name.starts_with("work.shared.")
+                        && name != "work.workflow.task"
+                        && !name.starts_with("work.workflow.task.")
+                }
+                _ => true,
+            }
+        })
+    {
+        return Err(error(
+            ExitCode::Contract,
+            "task_instruction_source_mode_mismatch",
+            "Task instruction selections must contain only Task and shared sources.",
+            json!({"mode": set.mode}),
+        ));
+    }
+    Ok(())
 }
 
 pub fn validate_selection(
@@ -475,7 +487,25 @@ fn sha(value: &Value, location: &str) -> Result<String, WorkError> {
     })
 }
 
+fn validate_optional_routing_manifest(value: &Value) -> Result<(), WorkError> {
+    if let Some(manifest) = value.get("routing_manifest") {
+        serde_json::from_value::<work_model::instruction::InstructionSelectionManifest>(
+            manifest.clone(),
+        )
+        .map_err(|cause| {
+            error(
+                ExitCode::Contract,
+                "invalid_instruction_routing_manifest",
+                "Stored routing metadata must match the instruction selection manifest contract.",
+                json!({"cause":cause.to_string()}),
+            )
+        })?;
+    }
+    Ok(())
+}
+
 pub fn parse_selection(value: &Value, location: &str) -> Result<InstructionSelection, WorkError> {
+    validate_optional_routing_manifest(value)?;
     let selection = strict_fields(
         value,
         location,
@@ -671,6 +701,7 @@ pub fn task_document_selection(task_sources: &[SourceSet]) -> Result<Value, Work
     let mut identities = std::collections::HashMap::new();
     let mut references = Vec::new();
     for set in task_sources {
+        require_task_sources(set)?;
         for source in &set.sources {
             let key = (
                 source.summary.kind.clone(),
@@ -713,12 +744,13 @@ pub fn validate_task_document_selection(
     value: &Value,
     expected: &Value,
 ) -> Result<Value, WorkError> {
+    validate_optional_routing_manifest(value)?;
     let location = "instruction_selection";
     let selection = strict_fields(
         value,
         location,
         &["sources", "references", "instructions_sha256"],
-        &[],
+        &["routing_manifest"],
     )?;
     let parsed = json!({
         "selected_paths": [],
@@ -772,7 +804,7 @@ pub fn stored_selection(
             "references",
             "instructions_sha256",
         ],
-        &[],
+        &["routing_manifest"],
     )?;
     let parsed = parse_selection(value, "historical instruction selection")?;
     for paths in [&parsed.selected_paths, &parsed.resolved_paths] {
@@ -811,11 +843,12 @@ pub fn stored_document_selection(
     value: &Value,
     task_selections: &[Value],
 ) -> Result<Value, WorkError> {
+    validate_optional_routing_manifest(value)?;
     strict_fields(
         value,
         "historical instruction selection",
         &["sources", "references", "instructions_sha256"],
-        &[],
+        &["routing_manifest"],
     )?;
     let document_as_selection = json!({
         "selected_paths": [], "resolved_paths": ["general"],
@@ -913,8 +946,9 @@ pub fn stored_document_selection(
 #[cfg(test)]
 mod tests {
     use super::{
-        InstructionCatalogRepository, mode_catalog, sha, stored_document_selection,
-        stored_selection, strict_fields, strings,
+        InstructionCatalogRepository, mode_catalog, parse_selection, sha,
+        stored_document_selection, stored_selection, strict_fields, strings,
+        validate_task_document_selection,
     };
     use crate::error::WorkError;
     use crate::hierarchy::HierarchyCatalogRepository;
@@ -1036,5 +1070,24 @@ mod tests {
                 .reason_code,
             "instruction_source_identity_conflict"
         );
+    }
+    #[test]
+    fn malformed_optional_routing_metadata_is_rejected_at_all_selection_entries() {
+        let document = json!({"sources":[],"references":[],"instructions_sha256":"a".repeat(64),
+            "routing_manifest":{"schema":"work-instruction-selection-manifest/v1"}});
+        let mut selection = document.clone();
+        selection["selected_paths"] = json!([]);
+        selection["resolved_paths"] = json!(["general"]);
+        for result in [
+            parse_selection(&selection, "instruction_selection").map(|_| ()),
+            stored_selection(&selection, None).map(|_| ()),
+            validate_task_document_selection(&document, &document).map(|_| ()),
+            stored_document_selection(&document, &[]).map(|_| ()),
+        ] {
+            assert_eq!(
+                result.unwrap_err().reason_code,
+                "invalid_instruction_routing_manifest"
+            );
+        }
     }
 }

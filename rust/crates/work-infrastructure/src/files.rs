@@ -275,7 +275,6 @@ pub fn resolve_project_path(root: &Path, raw: &str) -> Result<(String, PathBuf),
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU64, Ordering};
-    use work_operations::identifiers::RequirementId;
 
     static NEXT: AtomicU64 = AtomicU64::new(0);
 
@@ -356,11 +355,6 @@ mod tests {
         assert_eq!(
             store.read_json(&file).unwrap_err().reason_code,
             "input_file_multiple_bom"
-        );
-        let id: RequirementId = "example".parse().unwrap();
-        assert_eq!(
-            work_feature::plan::default_artifact_paths(&id)[0].1,
-            "outputs/work/plans/example.json"
         );
     }
 

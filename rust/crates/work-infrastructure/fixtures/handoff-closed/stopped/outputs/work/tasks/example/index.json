@@ -6,14 +6,47 @@
   "title": "Formal TASK",
   "summary": "Result",
   "artifacts": {
-    "plan": "outputs/work/plans/example.json",
+    "source": "outputs/work/sources/example",
     "task": "outputs/work/tasks/example/index.json",
     "execution": "outputs/work/executions/example"
   },
-  "source_plan": {
-    "canonical_sha256": "477a9c931dc3e1aeb41b80d2fa6aa9486453b0aaa4a17e2778025c9236b6f673",
-    "hierarchy_selection_sha256": "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404"
+  "source": {
+    "kind": "snapshot",
+    "manifest": {
+      "schema": "work-source-snapshot/v1",
+      "requirement_id": "example",
+      "source_id": "SRC-001",
+      "captured_at": "2026-10-03T00:00:00Z",
+      "source": {
+        "kind": "user_text"
+      },
+      "content": {
+        "path": "source.txt",
+        "sha256": "7207f68cff308aed428d6c1a6b51f48c9778d933fe34dceb8bf26193e4ef87b9",
+        "size": 687
+      }
+    }
   },
+  "hierarchy_selection": {
+    "schema": "work-hierarchy-selection/v1",
+    "decision": "general_only",
+    "selected_paths": [],
+    "entries": [],
+    "catalog_sha256": "74977ff41dae925d76037c60fcbb6e5c6d950af73416308d5e21ca3b96ef5d54",
+    "selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59"
+  },
+  "skill_selection": {
+    "schema": "work-skill-selection/v1",
+    "decision": "base_only",
+    "skills": [],
+    "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"
+  },
+  "acceptance_criteria": [
+    {
+      "id": "ACCEPTANCE-001",
+      "criterion": "Observable"
+    }
+  ],
   "instruction_selection": {
     "sources": [
       {
@@ -31,31 +64,31 @@
       {
         "kind": "instruction",
         "logical_name": "task.general",
-        "canonical_sha256": "f718da96bc956849a1a6e5abaab491379c17b7f7487c2b76dff28b04a94851db",
+        "canonical_sha256": "f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3",
         "compatibility_revision": 1
       },
       {
         "kind": "reference",
         "logical_name": "task.general.task-records",
-        "canonical_sha256": "9bd9dff5c693ea21064dc5bb9684078981ebb71836c8e6d4316c3cfef597aa0a",
+        "canonical_sha256": "6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8",
         "compatibility_revision": 1
       }
     ],
     "references": [
       "task.general.task-records"
     ],
-    "instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a"
+    "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758"
   },
   "tasks": [
     {
       "id": "TASK-001",
       "path": "tasks/TASK-001.json",
-      "canonical_sha256": "89710b9eec06266a15363e5747e07552a7f81a28580a5e9de4d0d85eaf9093b4"
+      "canonical_sha256": "4bedcceb18c974eabb4656f0586e078058f4d4eead9e349ffbdab729d413bed8"
     },
     {
       "id": "TASK-002",
       "path": "tasks/TASK-002.json",
-      "canonical_sha256": "1415c0cfb400cc7fe8556d43e4abf3b1d8c5dfe2192cc5c88cfa43f3bb94fe99"
+      "canonical_sha256": "48c8bd8b70ddb4fbba344446d505c33f30f59b6ac15076cb8576df57fb455830"
     }
   ],
   "readiness": {

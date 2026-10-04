@@ -40,7 +40,7 @@ impl SkillSnapshotRepository for OneSkill {
     fn snapshot(&self, _: &str, _: &str, _: &str) -> Result<Value, WorkError> {
         Ok(json!({"skill": {
             "id": "a".repeat(64), "name": "frontend", "scope": "repo", "root": "skills", "source": "frontend/SKILL.md",
-            "description": "Build frontends.", "work_modes": ["plan", "task", "execute"],
+            "description": "Build frontends.", "work_modes": ["task", "execute"],
             "allow_implicit_invocation": true, "summary_sha256": "b".repeat(64)
         }, "bundle": {"bundle_sha256": "c".repeat(64)}}))
     }
@@ -68,7 +68,7 @@ fn declared_skill_selection_detects_drift_and_duplicates() {
         validate_selection(&OneSkill, &roots, &selected).unwrap()["status"],
         "valid"
     );
-    assert_eq!(selected["skills"][0]["mode_support"]["plan"], "declared");
+    assert_eq!(selected["skills"][0]["mode_support"]["task"], "declared");
     let duplicated = json!({"decision": "external_skills", "skills": [choice.clone(), choice]});
     assert_eq!(
         build_selection(&OneSkill, &roots, &duplicated)
@@ -175,7 +175,7 @@ fn build_rejects_malformed_missing_roots_unavailable_and_mode_override() {
     );
     let mut override_modes = request;
     override_modes["skills"][0]["mode_support"] =
-        json!({"plan":"inferred","task":"inferred","execute":"unsupported"});
+        json!({"task":"inferred","execute":"unsupported"});
     assert_eq!(
         build_selection(&OneSkill, &roots, &override_modes)
             .unwrap_err()
@@ -209,8 +209,7 @@ fn inferred_modes_are_required_when_skill_has_no_declared_modes() {
         "inferred_skill_modes_required"
     );
     let mut confirmed = request;
-    confirmed["skills"][0]["mode_support"] =
-        json!({"plan":"inferred","task":"inferred","execute":"unsupported"});
+    confirmed["skills"][0]["mode_support"] = json!({"task":"inferred","execute":"unsupported"});
     let selected = build_selection(&NoDeclaredModes, &roots, &confirmed).unwrap();
     assert_eq!(
         selected["skills"][0]["mode_support"],
@@ -224,7 +223,7 @@ impl SkillSnapshotRepository for TwoSkills {
         Ok(json!({"skill": {
             "id": if scope == "repo" {"a".repeat(64)} else {"d".repeat(64)},
             "name": "frontend", "scope": scope, "root": root, "source": source,
-            "description": "Build frontends.", "work_modes": ["plan", "task", "execute"],
+            "description": "Build frontends.", "work_modes": ["task", "execute"],
             "allow_implicit_invocation": true, "summary_sha256": "b".repeat(64)
         }, "bundle": {"bundle_sha256": "c".repeat(64)}}))
     }
@@ -260,5 +259,39 @@ fn build_preserves_choice_order_for_same_named_skills() {
     assert_eq!(
         validate_selection(&TwoSkills, &roots, &selected).unwrap()["status"],
         "valid"
+    );
+}
+
+struct ExecuteOnlySkill;
+impl SkillSnapshotRepository for ExecuteOnlySkill {
+    fn snapshot(&self, scope: &str, root: &str, source: &str) -> Result<Value, WorkError> {
+        let mut snapshot = OneSkill.snapshot(scope, root, source)?;
+        snapshot["skill"]["work_modes"] = json!(["execute"]);
+        Ok(snapshot)
+    }
+}
+
+#[test]
+fn task_selection_rejects_skill_without_task_support() {
+    let roots = [SkillRoot {
+        scope: "repo".into(),
+        locator: "skills".into(),
+    }];
+    let choice = json!({"scope":"repo","root":"skills","source":"frontend/SKILL.md",
+        "recommendation_reason":"Needed.","dependency_status":"available"});
+    let request = json!({"decision":"external_skills","skills":[choice]});
+    assert_eq!(
+        build_selection(&ExecuteOnlySkill, &roots, &request)
+            .unwrap_err()
+            .reason_code,
+        "invalid_skill_mode_support"
+    );
+    let mut inferred = request;
+    inferred["skills"][0]["mode_support"] = json!({"task":"unsupported","execute":"inferred"});
+    assert_eq!(
+        build_selection(&NoDeclaredModes, &roots, &inferred)
+            .unwrap_err()
+            .reason_code,
+        "invalid_skill_mode_support"
     );
 }

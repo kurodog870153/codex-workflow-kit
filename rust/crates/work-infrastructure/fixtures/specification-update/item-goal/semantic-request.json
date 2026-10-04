@@ -1,15 +1,15 @@
 {
-  "schema": "work-spec-prepare-request/v1",
-  "requirement_id": "example",
-  "reason": "Confirmed collection revision",
   "edits": [
     {
+      "after": "Modify the source and validate it. confirmed",
+      "field": "goal",
       "target": {
         "artifact": "task_item",
         "task_id": "TASK-001"
-      },
-      "field": "goal",
-      "after": "Modify the source and validate it. confirmed"
+      }
     }
-  ]
+  ],
+  "reason": "Confirmed collection revision",
+  "requirement_id": "example",
+  "schema": "work-spec-prepare-request/v1"
 }

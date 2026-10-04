@@ -1,19 +1,19 @@
 {
   "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
-  "attempt_sha256": "e4299875de1d7bb1d62f00f5f1e39938ae4b48be9907c7191a69942fdea08576",
+  "attempt_sha256": "2ae0e20ec5913132a1fe9b6e04ac9bc0c1adecbc1db250cdd3273324f82d80d8",
   "choice": "all",
   "deviation_classifications": {
     "DEVIATION-001": "task_only"
   },
-  "fingerprint": "01a07893053ab9f860467879b997c1da48bb64c5c2d06af0a27314e6ed5f590c",
+  "fingerprint": "548a4fc87d13029587fe5a011b7447ff513cb67c6764253840c493cd30615983",
   "ledger": {
     "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
     "entries": [
       {
-        "attempt_sha256": "e4299875de1d7bb1d62f00f5f1e39938ae4b48be9907c7191a69942fdea08576",
+        "attempt_sha256": "2ae0e20ec5913132a1fe9b6e04ac9bc0c1adecbc1db250cdd3273324f82d80d8",
         "deviation_id": "DEVIATION-001",
         "outcome": "incorporated",
-        "reconciliation_fingerprint": "01a07893053ab9f860467879b997c1da48bb64c5c2d06af0a27314e6ed5f590c",
+        "reconciliation_fingerprint": "548a4fc87d13029587fe5a011b7447ff513cb67c6764253840c493cd30615983",
         "target": "task_only"
       }
     ],
@@ -23,33 +23,27 @@
   "migration_preview": {
     "diffs": [
       {
+        "operation": "replace",
         "path": "outputs/work/executions/example/index.json",
-        "operation": "replace",
-        "unified_diff": "--- outputs/work/executions/example/index.json:source\n+++ outputs/work/executions/example/index.json:candidate\n@@ -2,21 +2,25 @@\n   \"schema\": \"work-execution-index/v1\",\n   \"requirement_id\": \"example\",\n   \"title\": \"Execution\",\n-  \"task_spec_id\": \"TASK-SPEC-001\",\n-  \"task_collection_sha256\": \"845980f442face84f720dfdc8ff7a17ad7eb49cfa3ad40b3e81ecf12b3c63b05\",\n-  \"task_index_sha256\": \"4fce06e458b010f46e6347302e93daef01a5ab733c4277bb742067329ba9bbfe\",\n+  \"task_spec_id\": \"TASK-SPEC-002\",\n+  \"task_collection_sha256\": \"56de16b0baee1cde0dac2367db0a3db38c51ce643e2e60f4c71a39ce84c87f3f\",\n+  \"task_index_sha256\": \"021881f0f7a054f32c9f46b6bec4364eed16bf844ff7273c2bb78b9cb0cb73b9\",\n   \"task_instructions_sha256\": \"b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a\",\n   \"hierarchy_selection_sha256\": \"1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404\",\n   \"skill_selection_sha256\": \"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959\",\n-  \"overall_status\": \"completed\",\n+  \"overall_status\": \"pending\",\n   \"tasks\": [\n     {\n       \"id\": \"TASK-001\",\n-      \"status\": \"completed\",\n+      \"status\": \"pending_retry\",\n       \"skill_id\": null,\n-      \"task_item_sha256\": \"d2181e1030d6e844ccb93dbb3ffe05ede5d41cb647e1a86bf98f2ee28e17da3f\",\n+      \"task_item_sha256\": \"66aee858d20dbe91be8a17f7db6d066162deb44e2f2879f411d6558f92529582\",\n       \"instructions_sha256\": \"b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a\",\n-      \"latest_attempt\": \"ATTEMPT-001\"\n+      \"latest_attempt\": \"ATTEMPT-001\",\n+      \"status_reason\": {\n+        \"kind\": \"task_change\",\n+        \"ref\": \"TASK-CHANGE-001\"\n+      }\n     }\n   ]\n }\n"
+        "unified_diff": "--- outputs/work/executions/example/index.json:source\n+++ outputs/work/executions/example/index.json:candidate\n@@ -2,13 +2,13 @@\n   \"schema\": \"work-execution-index/v1\",\n   \"requirement_id\": \"example\",\n   \"title\": \"Execution\",\n-  \"task_spec_id\": \"TASK-SPEC-001\",\n-  \"task_collection_sha256\": \"16fe2ad1f85821f0d8cf65d8e054b02137f99deffd724d160d97165ce627bfeb\",\n-  \"task_index_sha256\": \"4d5b79571c2d895600e4b0debe5ab61c30075748d1ac1789e6cecb141f2c61c3\",\n+  \"task_spec_id\": \"TASK-SPEC-002\",\n+  \"task_collection_sha256\": \"d62a89166ea7618e417daae1312647fe2f1b3462e9f10dfc89c58c6a95d6670e\",\n+  \"task_index_sha256\": \"95d7c2c6e96ef02b585c85ce28d748946925e2ae6144e4991a471ab58c7d8cd3\",\n   \"task_instructions_sha256\": \"571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758\",\n   \"hierarchy_selection_sha256\": \"e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59\",\n   \"skill_selection_sha256\": \"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959\",\n-  \"overall_status\": \"completed\",\n+  \"overall_status\": \"pending\",\n   \"acceptance_results\": [\n     {\n       \"id\": \"ACCEPTANCE-001\",\n@@ -19,9 +19,9 @@\n   \"tasks\": [\n     {\n       \"id\": \"TASK-001\",\n-      \"status\": \"completed\",\n+      \"status\": \"pending_retry\",\n       \"skill_id\": null,\n-      \"task_item_sha256\": \"38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca\",\n+      \"task_item_sha256\": \"97796375b3e86ee424bfa90cce6f33a53ac51d5ac07d228cb524c18c8a21990f\",\n       \"instructions_sha256\": \"571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758\",\n       \"acceptance_results\": [\n         {\n@@ -35,7 +35,11 @@\n           \"evidence\": []\n         }\n       ],\n-      \"latest_attempt\": \"ATTEMPT-001\"\n+      \"latest_attempt\": \"ATTEMPT-001\",\n+      \"status_reason\": {\n+        \"kind\": \"task_change\",\n+        \"ref\": \"TASK-CHANGE-001\"\n+      }\n     }\n   ]\n }\n"
       },
       {
-        "path": "outputs/work/plans/example.json",
         "operation": "replace",
-        "unified_diff": ""
-      },
-      {
         "path": "outputs/work/tasks/example/index.json",
-        "operation": "replace",
-        "unified_diff": "--- outputs/work/tasks/example/index.json:source\n+++ outputs/work/tasks/example/index.json:candidate\n@@ -1,7 +1,7 @@\n {\n   \"schema\": \"work-task-index/v1\",\n   \"requirement_id\": \"example\",\n-  \"spec_id\": \"TASK-SPEC-001\",\n+  \"spec_id\": \"TASK-SPEC-002\",\n   \"status\": \"confirmed\",\n   \"title\": \"Example TASK\",\n   \"summary\": \"Task summary.\",\n@@ -55,11 +55,32 @@\n     {\n       \"id\": \"TASK-001\",\n       \"path\": \"tasks/TASK-001.json\",\n-      \"canonical_sha256\": \"d2181e1030d6e844ccb93dbb3ffe05ede5d41cb647e1a86bf98f2ee28e17da3f\"\n+      \"canonical_sha256\": \"66aee858d20dbe91be8a17f7db6d066162deb44e2f2879f411d6558f92529582\"\n+    }\n+  ],\n+  \"changes\": [\n+    {\n+      \"id\": \"TASK-CHANGE-001\",\n+      \"spec_id\": \"TASK-SPEC-002\",\n+      \"date\": \"2026-09-26\",\n+      \"reason\": \"Incorporate the approved runtime deviation.\",\n+      \"affected_ids\": [\n+        \"TASK-001\"\n+      ],\n+      \"edits\": [\n+        {\n+          \"artifact\": \"task_item\",\n+          \"task_id\": \"TASK-001\",\n+          \"operation\": \"replace\",\n+          \"path\": \"/goal\",\n+          \"before\": \"Modify the source and validate it.\",\n+          \"after\": \"Review the approved runtime deviation.\"\n+        }\n+      ]\n     }\n   ],\n   \"readiness\": {\n     \"status\": \"passed\",\n-    \"spec_id\": \"TASK-SPEC-001\"\n+    \"spec_id\": \"TASK-SPEC-002\"\n   }\n }\n"
+        "unified_diff": "--- outputs/work/tasks/example/index.json:source\n+++ outputs/work/tasks/example/index.json:candidate\n@@ -1,7 +1,7 @@\n {\n   \"schema\": \"work-task-index/v1\",\n   \"requirement_id\": \"example\",\n-  \"spec_id\": \"TASK-SPEC-001\",\n+  \"spec_id\": \"TASK-SPEC-002\",\n   \"status\": \"confirmed\",\n   \"title\": \"Example TASK\",\n   \"summary\": \"Task summary.\",\n@@ -7866,11 +7866,32 @@\n     {\n       \"id\": \"TASK-001\",\n       \"path\": \"tasks/TASK-001.json\",\n-      \"canonical_sha256\": \"38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca\"\n+      \"canonical_sha256\": \"97796375b3e86ee424bfa90cce6f33a53ac51d5ac07d228cb524c18c8a21990f\"\n+    }\n+  ],\n+  \"changes\": [\n+    {\n+      \"id\": \"TASK-CHANGE-001\",\n+      \"spec_id\": \"TASK-SPEC-002\",\n+      \"date\": \"2026-09-26\",\n+      \"reason\": \"Incorporate the approved runtime deviation.\",\n+      \"affected_ids\": [\n+        \"TASK-001\"\n+      ],\n+      \"edits\": [\n+        {\n+          \"artifact\": \"task_item\",\n+          \"task_id\": \"TASK-001\",\n+          \"operation\": \"replace\",\n+          \"path\": \"/goal\",\n+          \"before\": \"Modify the source and validate it.\",\n+          \"after\": \"Review the approved runtime deviation.\"\n+        }\n+      ]\n     }\n   ],\n   \"readiness\": {\n     \"status\": \"passed\",\n-    \"spec_id\": \"TASK-SPEC-001\"\n+    \"spec_id\": \"TASK-SPEC-002\"\n   }\n }\n"
       },
       {
-        "path": "outputs/work/tasks/example/tasks/TASK-001.json",
         "operation": "replace",
-        "unified_diff": "--- outputs/work/tasks/example/tasks/TASK-001.json:source\n+++ outputs/work/tasks/example/tasks/TASK-001.json:candidate\n@@ -50,7 +50,7 @@\n       \"ACCEPTANCE-001\"\n     ]\n   },\n-  \"goal\": \"Modify the source and validate it.\",\n+  \"goal\": \"Review the approved runtime deviation.\",\n   \"files\": [\n     {\n       \"id\": \"FILE-001\",\n"
+        "path": "outputs/work/tasks/example/tasks/TASK-001.json",
+        "unified_diff": "--- outputs/work/tasks/example/tasks/TASK-001.json:source\n+++ outputs/work/tasks/example/tasks/TASK-001.json:candidate\n@@ -50,7 +50,7 @@\n       \"criterion\": \"Exit code is zero.\"\n     }\n   ],\n-  \"goal\": \"Modify the source and validate it.\",\n+  \"goal\": \"Review the approved runtime deviation.\",\n   \"files\": [\n     {\n       \"id\": \"FILE-001\",\n"
       }
     ],
     "documents": [
       "outputs/work/executions/example/index.json",
-      "outputs/work/plans/example.json",
       "outputs/work/tasks/example/index.json",
       "outputs/work/tasks/example/tasks/TASK-001.json"
     ],
-    "fingerprint": "b5f737b48b77d84a136cc1a1bc9006677fd96729f99177600166e04430eafd67",
+    "fingerprint": "98ea34979d7422dcc23a0a8ef5605c1c9cb833a1c82299b23a520b0cd3829204",
     "relationship_results": [
       {
         "name": "candidate_set",
@@ -68,10 +62,6 @@
     "status": "ready",
     "unresolved_items": [],
     "validator_results": [
-      {
-        "name": "plan",
-        "status": "passed"
-      },
       {
         "name": "task_collection",
         "status": "passed"

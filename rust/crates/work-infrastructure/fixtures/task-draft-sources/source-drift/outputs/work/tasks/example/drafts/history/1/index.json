@@ -1,0 +1,66 @@
+{
+  "current_task_id": "TASK-001",
+  "requirement_id": "example",
+  "revision": 1,
+  "schema": "work-task-planning-index/v1",
+  "source": {
+    "acceptance_criteria": [
+      {
+        "criterion": "Observable",
+        "id": "ACCEPTANCE-001"
+      }
+    ],
+    "artifacts": {
+      "execution": "outputs/work/executions/example",
+      "source": "outputs/work/sources/example",
+      "task": "outputs/work/tasks/example/index.json"
+    },
+    "hierarchy_selection": {
+      "catalog_sha256": "74977ff41dae925d76037c60fcbb6e5c6d950af73416308d5e21ca3b96ef5d54",
+      "decision": "general_only",
+      "entries": [],
+      "schema": "work-hierarchy-selection/v1",
+      "selected_paths": [],
+      "selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59"
+    },
+    "skill_selection": {
+      "decision": "base_only",
+      "schema": "work-skill-selection/v1",
+      "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
+      "skills": []
+    },
+    "snapshot": {
+      "captured_at": "2026-10-02T00:00:00Z",
+      "content": {
+        "path": "source.txt",
+        "sha256": "813cdc534521528983b3ea97ea55cab8f6e7a806ab9ec0e84407a4b6832737e2",
+        "size": 695
+      },
+      "requirement_id": "example",
+      "schema": "work-source-snapshot/v1",
+      "source": {
+        "kind": "user_text"
+      },
+      "source_id": "SRC-001"
+    }
+  },
+  "tasks": [
+    {
+      "boundary_revision": 1,
+      "dependencies": [],
+      "goal": "Result",
+      "id": "TASK-001",
+      "instruction_selection": {
+        "references": [],
+        "selected_paths": []
+      },
+      "instructions_sha256": "48975c28f9dbc77acb7af7d733f6b3188b6ce22ba603f9f923abcf1af040af9d",
+      "scope": [
+        "Source"
+      ],
+      "skill_id": null,
+      "status": "planned",
+      "title": "Task"
+    }
+  ]
+}

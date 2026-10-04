@@ -34,7 +34,7 @@ use crate::specification::storage::{
 };
 use crate::transaction_storage::replace_journal;
 use crate::writer_lock::LocalWriterLock;
-use work_feature::plan::default_artifact_paths;
+use work_feature::artifact_paths::default_artifact_paths;
 
 pub use work_feature::instruction::refresh_build::RefreshCandidate;
 use work_feature::instruction::refresh_build::{
@@ -48,11 +48,38 @@ impl RefreshSnapshotRepository for LocalRefreshSnapshot<'_> {
     fn discover_requirements(&self) -> Result<BTreeMap<String, Value>, WorkError> {
         discover_requirements(self.project_root)
     }
-    fn default_paths(&self, id: &RequirementId) -> Vec<(String, String)> {
+    fn default_paths(&self, id: &RequirementId) -> work_model::task::source::TaskArtifactPaths {
         default_artifact_paths(id)
-            .into_iter()
-            .map(|(kind, path)| (kind.to_owned(), path))
-            .collect()
+    }
+    fn source_evidence(&self, index: &Value) -> Result<BTreeMap<String, Vec<u8>>, WorkError> {
+        let requirement = index["requirement_id"]
+            .as_str()
+            .ok_or_else(|| failure("invalid_requirement_id", "A Task requirement is required."))?;
+        work_operations::task::source::validate_formal_context(index, requirement).map_err(
+            |e| {
+                WorkError::new(
+                    ExitCode::ArtifactIntegrity,
+                    e.reason_code,
+                    e.message,
+                    e.details,
+                )
+            },
+        )?;
+        let paths = crate::artifact_paths::LocalArtifactPaths {
+            project_root: self.project_root.to_path_buf(),
+        };
+        work_feature::task::source::verify_provenance(
+            &paths,
+            requirement,
+            &serde_json::from_value(index["source"].clone()).expect("validated Task provenance"),
+            &serde_json::from_value(index["artifacts"].clone())
+                .expect("validated Task artifact paths"),
+        )?;
+        let mut evidence = BTreeMap::new();
+        for relative in work_feature::task::source::evidence_paths(index)? {
+            evidence.insert(relative.clone(), self.read(&relative)?);
+        }
+        Ok(evidence)
     }
     fn exists(&self, relative: &str) -> Result<bool, WorkError> {
         Ok(storage_path(self.project_root, relative)?.is_file())
@@ -143,7 +170,7 @@ pub fn apply_source_refresh(
         .get(requirement_id)
         .and_then(|paths| paths["execution"].as_str())
         .map(str::to_owned)
-        .unwrap_or_else(|| default_artifact_paths(&id)[2].1.clone());
+        .unwrap_or_else(|| default_artifact_paths(&id).execution);
     let journal_relative = work_operations::derivation::publication::journal_path(
         &execution_dir,
         work_operations::derivation::publication::JournalKind::SourceRefresh(approved_sha256),
@@ -198,6 +225,18 @@ pub fn apply_source_refresh(
                 },
                 "The refresh belongs to a different request.",
             ));
+        }
+        for (path, expected) in journal["metadata"]["candidate_sha256"].as_object().unwrap() {
+            if journal["metadata"]["source_sha256"][path] == *expected
+                && work_operations::derivation::fingerprint::raw(
+                    &LocalFiles.read_raw(&storage_path(project_root, path)?)?,
+                ) != *expected
+            {
+                return Err(failure(
+                    "source_refresh_source_changed",
+                    "The immutable Source proof changed after approval.",
+                ));
+            }
         }
         let updated = journal["files"]
             .as_array()
@@ -423,7 +462,7 @@ pub fn apply_source_refresh_all(
             .get(requirement_id)
             .and_then(|paths| paths["execution"].as_str())
             .map(str::to_owned)
-            .unwrap_or_else(|| default_artifact_paths(&id)[2].1.clone());
+            .unwrap_or_else(|| default_artifact_paths(&id).execution);
         let journal = work_operations::derivation::publication::journal_path(
             &execution,
             work_operations::derivation::publication::JournalKind::SourceRefresh(approval),
@@ -459,4 +498,129 @@ pub fn apply_source_refresh_all(
     finish_record(&mut record);
     replace_journal(&path, &render_batch(&record)?)?;
     Ok(record)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use work_operations::derivation::snapshot::decode_snapshot;
+    use work_operations::task::ordering::{TaskDocumentKind, render_task};
+
+    fn fixture_root(label: &str) -> (std::path::PathBuf, std::path::PathBuf) {
+        let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+        let fixture =
+            repo.join("crates/work-infrastructure/fixtures/specification-update/item-goal");
+        let root = std::env::temp_dir().join(format!(
+            "work-task-refresh-{label}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        for relative in [
+            "outputs/work/tasks/example/index.json",
+            "outputs/work/tasks/example/tasks/TASK-001.json",
+            "outputs/work/executions/example/index.json",
+        ] {
+            let target = root.join(relative);
+            fs::create_dir_all(target.parent().unwrap()).unwrap();
+            fs::copy(fixture.join(relative), target).unwrap();
+        }
+        crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
+        fs::write(root.join("src.txt"), b"source\n").unwrap();
+        (root, repo.join("../skills/work"))
+    }
+
+    #[test]
+    fn refresh_task_and_execution_preserves_source_and_recovers_partial_publication() {
+        let (root, skill) = fixture_root("recover");
+        let sources = ["manifest.json", "manifest.json.done", "source.txt"].map(|name| {
+            let path = root.join("outputs/work/sources/example/SRC-001").join(name);
+            let raw = fs::read(&path).unwrap();
+            (path, raw)
+        });
+        let candidate = build_refresh(&root, &skill, "example").unwrap();
+        assert_eq!(candidate.preview["status"], "refreshable");
+        assert!(candidate.preview["affected"].get("plans").is_none());
+        assert_eq!(candidate.source_evidence.len(), 3);
+        let approval = candidate.preview["approved_sha256"].as_str().unwrap();
+        assert_eq!(
+            build_refresh(&root, &skill, "example").unwrap().preview["approved_sha256"],
+            approval
+        );
+        assert_eq!(
+            apply_source_refresh(&root, &skill, "example", &"0".repeat(64), "apply")
+                .unwrap_err()
+                .reason_code,
+            "source_refresh_approval_changed"
+        );
+        let request = json!({"kind":"source_refresh", "requirement_id":"example", "preview_fingerprint":approval});
+        let (mut journal, _) = transaction(&candidate, &request, &BTreeMap::new()).unwrap();
+        assert!(
+            journal["files"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|row| !row["path"].as_str().unwrap().contains("/sources/"))
+        );
+        let first = &journal["files"][0];
+        fs::write(
+            root.join(first["path"].as_str().unwrap()),
+            decode_snapshot(&first["after"]).unwrap(),
+        )
+        .unwrap();
+        journal["state"] = json!("publishing");
+        journal["published_count"] = json!(1);
+        let path = work_operations::derivation::publication::journal_path(
+            "outputs/work/executions/example",
+            work_operations::derivation::publication::JournalKind::SourceRefresh(approval),
+        );
+        write_journal(&root, &path, &journal).unwrap();
+        let result = apply_source_refresh(&root, &skill, "example", approval, "recover").unwrap();
+        assert_eq!(result["status"], "updated");
+        assert_eq!(
+            apply_source_refresh(&root, &skill, "example", approval, "apply").unwrap()["status"],
+            "already_completed"
+        );
+        for (path, raw) in &sources {
+            assert_eq!(fs::read(path).unwrap(), *raw);
+        }
+        assert!(!root.join("outputs/work/plans").exists());
+        let index_raw = fs::read(root.join("outputs/work/tasks/example/index.json")).unwrap();
+        let index: Value = serde_json::from_slice(&index_raw).unwrap();
+        assert_eq!(index["source"]["kind"], "snapshot");
+        assert_eq!(
+            render_task(&index, TaskDocumentKind::Index).unwrap(),
+            index_raw
+        );
+        fs::write(&sources[2].0, b"drift").unwrap();
+        assert!(build_refresh(&root, &skill, "example").is_err());
+        assert_eq!(
+            apply_source_refresh(&root, &skill, "example", approval, "recover")
+                .unwrap_err()
+                .reason_code,
+            "source_refresh_source_changed"
+        );
+    }
+
+    #[test]
+    fn batch_refresh_discovers_task_without_plan_and_keeps_source_immutable() {
+        let (root, skill) = fixture_root("batch");
+        let source = root.join("outputs/work/sources/example/SRC-001/source.txt");
+        let raw = fs::read(&source).unwrap();
+        let impact = source_impact(&root, &skill).unwrap();
+        assert_eq!(impact["affected_requirements"], 1);
+        let preview = preview_source_refresh_all(&root, &skill).unwrap();
+        assert_eq!(preview["status"], "refreshable");
+        let approval = preview["approved_sha256"].as_str().unwrap();
+        let published = apply_source_refresh_all(&root, &skill, approval, "apply").unwrap();
+        assert_eq!(published["completed_requirement_ids"], json!(["example"]));
+        assert_eq!(
+            apply_source_refresh_all(&root, &skill, approval, "recover").unwrap()["status"],
+            "already_completed"
+        );
+        assert_eq!(fs::read(source).unwrap(), raw);
+        assert!(!root.join("outputs/work/plans").exists());
+    }
 }

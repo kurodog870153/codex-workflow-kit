@@ -1,47 +1,57 @@
 {
-  "schema": "work-spec-prepare-request/v1",
-  "requirement_id": "example",
-  "reason": "Confirmed collection revision",
   "edits": [
     {
       "operation": "add_task",
       "task": {
-        "title": "Second TASK",
-        "goal": "Validate the second result.",
-        "skill_id": null,
-        "selected_paths": [],
-        "references": [
-          "task.general.task-records"
-        ],
-        "dependency_positions": [
-          1
-        ],
         "candidate": {
+          "acceptance_criteria": [
+            {
+              "criterion": "The added result is verified.",
+              "id": "TASK-002-ACCEPTANCE-001"
+            }
+          ],
+          "acceptance_ids": [
+            "ACCEPTANCE-001"
+          ],
           "steps": [
             {
-              "key": "check",
               "action": "Validate.",
+              "key": "check",
               "references": [
                 {
-                  "kind": "validations",
-                  "key": "verify"
+                  "key": "verify",
+                  "kind": "validations"
                 }
               ]
             }
           ],
           "validations": [
             {
-              "key": "verify",
-              "kind": "manual",
+              "acceptance_ids": [
+                "ACCEPTANCE-001",
+                "TASK-002-ACCEPTANCE-001"
+              ],
               "confirmer": "user",
               "criteria": "Approved.",
-              "acceptance_positions": [
-                1
-              ]
+              "key": "verify",
+              "kind": "manual"
             }
           ]
-        }
+        },
+        "dependency_positions": [
+          1
+        ],
+        "goal": "Validate the second result.",
+        "references": [
+          "task.general.task-records"
+        ],
+        "selected_paths": [],
+        "skill_id": null,
+        "title": "Second TASK"
       }
     }
-  ]
+  ],
+  "reason": "Confirmed collection revision",
+  "requirement_id": "example",
+  "schema": "work-spec-prepare-request/v1"
 }

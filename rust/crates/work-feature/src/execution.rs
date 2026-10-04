@@ -6,9 +6,10 @@ pub mod recovery;
 
 use std::collections::{HashMap, HashSet};
 
+use crate::artifact_paths::ArtifactPathRepository;
 use crate::error::{ExitCode, WorkError};
 use crate::instruction::{self, InstructionSourceRepository};
-use crate::plan::PlanPathRepository;
+use crate::ports::SourceSnapshotReader;
 use crate::skill::{SkillRoot, SkillSnapshotRepository};
 use crate::task::{self, TaskCollectionRepository};
 use serde_json::{Value, json};
@@ -236,17 +237,11 @@ fn prepare_command_context(
         ));
     }
     let mut observed = source_files.clone();
-    let plan_path = collection["artifacts"]["plan"].as_str().ok_or_else(|| {
-        error(
-            ExitCode::Contract,
-            "command_run_paths",
-            "The formal Plan path is missing.",
-            json!({}),
-        )
-    })?;
-    observed
-        .entry(plan_path.to_owned())
-        .or_insert(repository.read_source(plan_path)?);
+    for path in task::source::evidence_paths(collection)? {
+        if !observed.contains_key(&path) {
+            observed.insert(path.clone(), repository.read_source(&path)?);
+        }
+    }
     observed.insert(format!("{execution_dir}/index.json"), index_raw.to_vec());
     observed.insert(
         format!(
@@ -368,7 +363,7 @@ pub fn prepare_recovery_from_project<H, S, P, T, E>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCollectionRepository,
     E: RecoveryPrepareRepository + ExecutionIndexRepository + AttemptStartRepository,
 {
@@ -394,11 +389,9 @@ where
         ));
     }
     let mut observed = context.sources;
-    let plan_path = context.contract["artifacts"]["plan"].as_str().unwrap_or("");
-    observed.insert(
-        plan_path.to_owned(),
-        repository.read_recovery_source(plan_path)?,
-    );
+    for path in task::source::evidence_paths(&context.contract)? {
+        observed.insert(path.clone(), repository.read_recovery_source(&path)?);
+    }
     let index_path = format!("{}/index.json", target.execution_dir);
     let index_raw = repository.read_index(&index_path)?;
     let index = parse_execution_document(&index_raw, &index_path)?;
@@ -522,7 +515,7 @@ pub fn create_correction_from_project<H, S, P, T, E>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCollectionRepository,
     E: ExecutionIndexRepository + AttemptStartRepository + CorrectionRepository,
 {
@@ -633,7 +626,7 @@ pub fn prepare_execute_preflight_from_project<H, S, P, T, E>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCollectionRepository,
     E: ExecutionIndexRepository,
 {
@@ -660,44 +653,27 @@ fn preflight_from_loaded_context<H, S, P, T, E>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCollectionRepository,
     E: ExecutionIndexRepository,
 {
-    let plan_path = context.contract["artifacts"]["plan"]
-        .as_str()
-        .ok_or_else(|| {
-            error(
-                ExitCode::Contract,
-                "execute_preflight_plan_path",
-                "The formal PLAN path is missing.",
-                json!({}),
-            )
-        })?;
-    let plan_raw = sources.paths.read(plan_path)?;
-    if fingerprint::raw(&plan_raw) != context.index["source_plan"]["canonical_sha256"] {
-        return Err(error(
-            ExitCode::ArtifactIntegrity,
-            "execute_preflight_plan_changed",
-            "The source PLAN changed after TASK validation.",
-            json!({}),
-        ));
-    }
-    let plan = parse_execution_document(&plan_raw, plan_path)?;
+    task::recheck_task_execution_context(sources.paths, sources.task_repository, context)?;
     let mut validation = context.validation.clone();
     validation["collection_contract"] = context.contract.clone();
-    prepare_execute_preflight(
+    let result = prepare_execute_preflight(
         repository,
         sources.instructions,
         ExecutePreflightRequest {
             validation: &validation,
-            plan: &plan,
+
             task_path: target.task_path,
             execution_dir: target.execution_dir,
             task_id: target.task_id,
             confirmed_inputs,
         },
-    )
+    )?;
+    task::recheck_task_execution_context(sources.paths, sources.task_repository, context)?;
+    Ok(result)
 }
 
 pub fn inspect_worktree_from_project<H, S, P, T, E>(
@@ -709,7 +685,7 @@ pub fn inspect_worktree_from_project<H, S, P, T, E>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCollectionRepository,
     E: ExecutionIndexRepository + ExecutionWorktreeRepository,
 {
@@ -726,12 +702,14 @@ where
     let preflight =
         preflight_from_loaded_context(sources, repository, target, confirmed_inputs, &context)?;
     task::recheck_task_execution_context(sources.paths, sources.task_repository, &context)?;
-    inspect_worktree(
+    let result = inspect_worktree(
         repository,
         &preflight,
         &context.validation,
         &context.contract,
-    )
+    )?;
+    task::recheck_task_execution_context(sources.paths, sources.task_repository, &context)?;
+    Ok(result)
 }
 
 pub fn prepare_attempt_start_from_project<H, S, P, T, E>(
@@ -744,7 +722,7 @@ pub fn prepare_attempt_start_from_project<H, S, P, T, E>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCollectionRepository,
     E: ExecutionIndexRepository + ExecutionWorktreeRepository + AttemptStartRepository,
 {
@@ -857,6 +835,7 @@ where
             json!({}),
         ));
     }
+    task::recheck_task_execution_context(sources.paths, sources.task_repository, &context)?;
     Ok(prepared)
 }
 
@@ -871,7 +850,7 @@ pub fn start_attempt_from_project<H, S, P, T, E>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCollectionRepository,
     E: ExecutionIndexRepository + ExecutionWorktreeRepository + AttemptStartRepository,
 {
@@ -917,6 +896,7 @@ where
     let index_path = format!("{}/index.json", target.execution_dir);
     let index_raw = repository.read_index(&index_path)?;
     let index = parse_execution_document(&index_raw, &index_path)?;
+    task::recheck_task_execution_context(sources.paths, sources.task_repository, &context)?;
     start_attempt_from_preflight(
         repository, &preflight, &index, &index_raw, request, started_at,
     )
@@ -932,7 +912,7 @@ pub fn begin_record_from_project<H, S, P, T, E>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCollectionRepository,
     E: ExecutionIndexRepository + AttemptStartRepository + RecordBeginRepository,
 {
@@ -956,7 +936,7 @@ pub fn finish_record_from_project<H, S, P, T, E>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCollectionRepository,
     E: ExecutionIndexRepository + AttemptStartRepository + RecordFinishRepository,
 {
@@ -980,7 +960,7 @@ pub fn record_command_correction_from_project<H, S, P, T, E>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCollectionRepository,
     E: ExecutionIndexRepository + AttemptStartRepository + CommandCorrectionRepository,
 {
@@ -1006,7 +986,7 @@ pub fn close_attempt_from_project<H, S, P, T, E>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCollectionRepository,
     E: ExecutionIndexRepository + AttemptStartRepository + AttemptCloseRepository,
 {
@@ -1079,7 +1059,7 @@ fn with_lifecycle_project_context<H, S, P, T, E>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCollectionRepository,
     E: ExecutionIndexRepository + AttemptStartRepository,
 {
@@ -1173,7 +1153,7 @@ pub fn prepare_deviation_from_project<H, S, P, T, E>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCollectionRepository,
     E: CommandPrepareRepository + ExecutionIndexRepository + AttemptStartRepository,
 {
@@ -1191,7 +1171,7 @@ pub fn prepare_semantic_deviation_from_project<H, S, P, T, E>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCollectionRepository,
     E: CommandPrepareRepository + ExecutionIndexRepository + AttemptStartRepository,
 {
@@ -1338,7 +1318,7 @@ pub fn record_deviation_from_project<H, S, P, T, E>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCollectionRepository,
     E: CommandPrepareRepository
         + ExecutionIndexRepository
@@ -1365,7 +1345,7 @@ fn with_deviation_project_context<H, S, P, T, E>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCollectionRepository,
     E: CommandPrepareRepository + ExecutionIndexRepository + AttemptStartRepository,
 {
@@ -1418,8 +1398,9 @@ where
         &references,
     )?);
     let mut source_files = context.sources.clone();
-    let plan_path = context.contract["artifacts"]["plan"].as_str().unwrap_or("");
-    source_files.insert(plan_path.to_owned(), repository.read_source(plan_path)?);
+    for path in task::source::evidence_paths(&context.contract)? {
+        source_files.insert(path.clone(), repository.read_source(&path)?);
+    }
     source_files.insert(index_path, index_raw.clone());
     source_files.insert(attempt_path, attempt_raw.clone());
     let lifecycle = RecordBeginContext {
@@ -1449,7 +1430,7 @@ pub fn prepare_command_from_project<H, S, P, T, E>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCollectionRepository,
     E: CommandPrepareRepository + ExecutionIndexRepository + AttemptStartRepository,
 {
@@ -1464,7 +1445,7 @@ pub fn recheck_command_from_project<H, S, P, T, E>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCollectionRepository,
     E: CommandPrepareRepository + ExecutionIndexRepository + AttemptStartRepository,
 {
@@ -1480,7 +1461,7 @@ fn prepare_command_project<H, S, P, T, E>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCollectionRepository,
     E: CommandPrepareRepository + ExecutionIndexRepository + AttemptStartRepository,
 {
@@ -2134,7 +2115,7 @@ fn has_blocking_deviation_for_record(attempt: &Value, record_id: &Value) -> bool
             deviation["decision"]["outcome"] == "approved"
                 && deviation["reconciliation_status"] == "pending"
                 && deviation["proposal"]["anchor_record_id"] == *record_id
-                && deviation_reconciliation_target(&deviation["proposal"]) == "plan_and_task"
+                && deviation_reconciliation_target(&deviation["proposal"]) == "task_and_execution"
         })
 }
 
@@ -2265,7 +2246,7 @@ pub fn close_attempt_from_context(
         validate_completed_coverage(task, attempt).map_err(rule)?;
     }
     let (closed, updated_index) =
-        build_close_candidates(index, attempt, request, ended_at).map_err(rule)?;
+        build_close_candidates(task, index, attempt, request, ended_at).map_err(rule)?;
     let attempt_after = render_attempt(&closed).map_err(rule)?;
     let index_after = render_execution_index(&updated_index).map_err(|_| {
         error(
@@ -2297,7 +2278,7 @@ pub fn close_attempt_from_context(
         .map(|deviation| {
             let classification = deviation_reconciliation_target(&deviation["proposal"]);
             json!({"deviation_id":deviation["deviation_id"],
-                "classification":classification,"blocking":classification == "plan_and_task"})
+                "classification":classification,"blocking":classification == "task_and_execution"})
         })
         .collect();
     let task_status = updated_index["tasks"]
@@ -2836,7 +2817,6 @@ pub fn preflight_index<R: ExecutionIndexRepository>(
 
 pub struct ExecutePreflightRequest<'a> {
     pub validation: &'a Value,
-    pub plan: &'a Value,
     pub task_path: &'a str,
     pub execution_dir: &'a str,
     pub task_id: &'a str,
@@ -2850,7 +2830,6 @@ pub fn prepare_execute_preflight(
 ) -> Result<Value, WorkError> {
     let ExecutePreflightRequest {
         validation,
-        plan,
         task_path,
         execution_dir,
         task_id,
@@ -2876,6 +2855,22 @@ pub fn prepare_execute_preflight(
         &["pending", "pending_retry"],
     )?;
     let task = &base["task"];
+    let collection = &validation["collection_contract"];
+    let row = base["index"]["tasks"]
+        .as_array()
+        .and_then(|rows| rows.iter().find(|row| row["id"] == task_id))
+        .expect("preflight verified TASK row");
+    if base["index"]["skill_selection_sha256"] != collection["skill_selection"]["selection_sha256"]
+        || row["skill_id"] != task["skill_id"]
+        || row["task_item_sha256"] != validation["task_item_sha256"][task_id]
+    {
+        return Err(error(
+            ExitCode::ArtifactIntegrity,
+            "execute_preflight_task_binding_mismatch",
+            "Execution must retain the formal TASK skill selection and item binding.",
+            json!({"task_id":task_id}),
+        ));
+    }
     let stored =
         instruction::parse_selection(&task["instruction_selection"], "task.instruction_selection")?;
     let mut references = vec!["execute.general.execution-records".to_owned()];
@@ -2909,13 +2904,26 @@ pub fn prepare_execute_preflight(
     } else {
         "base_only"
     };
-    let selected_skills: Vec<_> = plan["skill_selection"]["skills"]
+    let selected_skills: Vec<_> = validation["collection_contract"]["skill_selection"]["skills"]
         .as_array()
         .into_iter()
         .flatten()
         .filter(|skill| skill["id"].as_str() == target_skill && target_skill.is_some())
         .cloned()
         .collect();
+    if selected_skills.len() != usize::from(target_skill.is_some())
+        || selected_skills.iter().any(|skill| {
+            skill["mode_support"]["execute"] == "unsupported"
+                || skill["dependency_status"] != "available"
+        })
+    {
+        return Err(error(
+            ExitCode::ArtifactIntegrity,
+            "execute_preflight_skill_binding_mismatch",
+            "The target TASK requires its confirmed available executable skill.",
+            json!({"task_id":task_id,"skill_id":task["skill_id"]}),
+        ));
+    }
     let skill_selection = json!({"schema":"work-skill-selection/v1","decision":decision,
         "selection_sha256":skill_selection_sha256(decision, &selected_skills),
         "skills":selected_skills});
@@ -3125,7 +3133,7 @@ mod tests {
             "allowed_deviations":[action],"reapproval_conditions":["scope_expansion",
                 "source_or_worktree_drift","failure_divergence","retry","recovery","unknown_result"],
             "authorization_evidence":"Approved"});
-        let attempt = json!({"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
+        let attempt = json!({"acceptance_results":[],"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
             "task_spec_id":"TASK-SPEC-001","task_id":"TASK-001","skill_id":null,
             "status":"in_progress","task_collection_sha256":"a".repeat(64),
             "task_index_sha256":"b".repeat(64),"task_item_sha256":"c".repeat(64),
@@ -3135,7 +3143,7 @@ mod tests {
             "execute_skill_selection_sha256":"0".repeat(64),
             "authorization_sha256":canonical_json_sha256(&authorization).unwrap(),
             "authorization":authorization,"started_at":"2026-09-01T10:00+08:00","records":[]});
-        let mut index = json!({"schema":"work-execution-index/v1","requirement_id":"demo",
+        let mut index = json!({"acceptance_results":[],"schema":"work-execution-index/v1","requirement_id":"demo",
             "title":"Execution","task_spec_id":"TASK-SPEC-001",
             "task_collection_sha256":"a".repeat(64),"task_index_sha256":"b".repeat(64),
             "task_instructions_sha256":"d".repeat(64),
@@ -3143,15 +3151,20 @@ mod tests {
             "skill_selection_sha256":"0".repeat(64),"overall_status":"in_progress",
             "lock":build_execution_lock("TASK-001","ATTEMPT-001",&"e".repeat(64)),
             "tasks":[{"id":"TASK-001","status":"in_progress","skill_id":null,
-                "task_item_sha256":"c".repeat(64),"instructions_sha256":"d".repeat(64),
+                "task_item_sha256":"c".repeat(64),"acceptance_results":[],"instructions_sha256":"d".repeat(64),
                 "latest_attempt":"ATTEMPT-001"}]});
         index["lock"]["record_id"] = json!("CMD-001");
         let task = json!({"id":"TASK-001","commands":[{"id":"CMD-001","mode":"argv",
             "argv":["printf","ok"]}],"operations":[],"validations":[],
             "instruction_selection":{"selected_paths":[],"resolved_paths":[]}});
+        let mut manifest=work_model::contract_data::registry_value()["items"]["work-source-snapshot/v1"]["description"]["example"].clone();
+        manifest["requirement_id"] = json!("demo");
+        manifest["content"] =
+            json!({"path":"source.txt","size":12,"sha256":sha256_hex(b"requirements")});
+        let manifest_raw = work_operations::canonical::canonical_json(&manifest).unwrap();
         let collection = json!({"requirement_id":"demo","spec_id":"TASK-SPEC-001",
-            "artifacts":{"plan":"plan.json","task":"task/index.json",
-                "execution":"execution"},
+            "artifacts":{"source":"outputs/work/sources/demo","task":"task/index.json",
+                "execution":"execution"},"source":{"kind":"snapshot","manifest":manifest},
             "execution_defaults":{"os":"macos","working_directory":"."},
             "tasks":[task.clone()]});
         let validation = json!({"task_collection_sha256":"a".repeat(64),
@@ -3163,7 +3176,18 @@ mod tests {
         let index_raw = render_execution_index(&index).unwrap();
         let sources = HashMap::from([
             ("task/index.json".into(), b"task".to_vec()),
-            ("plan.json".into(), b"plan".to_vec()),
+            (
+                "outputs/work/sources/demo/SRC-001/manifest.json".into(),
+                manifest_raw.clone(),
+            ),
+            (
+                "outputs/work/sources/demo/SRC-001/manifest.json.done".into(),
+                b"complete".to_vec(),
+            ),
+            (
+                "outputs/work/sources/demo/SRC-001/source.txt".into(),
+                b"requirements".to_vec(),
+            ),
             ("execution/index.json".into(), index_raw.clone()),
             (
                 "execution/TASK-001/ATTEMPT-001/attempt.json".into(),
@@ -3202,7 +3226,18 @@ mod tests {
         prepare_command_from_context(&repository, make_context(), &request).unwrap();
         assert_eq!(*repository.idle_checks.borrow(), [false, true]);
         assert_eq!(preview["invocation"]["argv"], json!(["printf", "ok"]));
-        assert_eq!(preview["sources"]["plan.json"], sha256_hex(b"plan"));
+        assert_eq!(
+            preview["sources"]["outputs/work/sources/demo/SRC-001/manifest.json"],
+            sha256_hex(&manifest_raw)
+        );
+        assert_eq!(
+            preview["sources"]["outputs/work/sources/demo/SRC-001/manifest.json.done"],
+            sha256_hex(b"complete")
+        );
+        assert_eq!(
+            preview["sources"]["outputs/work/sources/demo/SRC-001/source.txt"],
+            sha256_hex(b"requirements")
+        );
         assert_eq!(
             preview["receipt_prefix"],
             "execution/TASK-001/ATTEMPT-001/.work-command-CMD-001"
@@ -3452,7 +3487,7 @@ mod tests {
             "allowed_deviations":[],"reapproval_conditions":["scope_expansion",
                 "source_or_worktree_drift","failure_divergence","retry","recovery","unknown_result"],
             "authorization_evidence":"Approved"});
-        let attempt = json!({"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
+        let attempt = json!({"acceptance_results":[],"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
             "task_spec_id":"TASK-SPEC-001","task_id":"TASK-001","skill_id":null,
             "status":"in_progress","task_collection_sha256":"a".repeat(64),
             "task_index_sha256":"b".repeat(64),"task_item_sha256":"c".repeat(64),
@@ -3462,7 +3497,7 @@ mod tests {
             "execute_skill_selection_sha256":"0".repeat(64),
             "authorization_sha256":canonical_json_sha256(&authorization).unwrap(),
             "authorization":authorization,"started_at":"2026-09-01T10:00+08:00","records":[]});
-        let index = json!({"schema":"work-execution-index/v1","requirement_id":"demo",
+        let index = json!({"acceptance_results":[],"schema":"work-execution-index/v1","requirement_id":"demo",
             "title":"Execution","task_spec_id":"TASK-SPEC-001",
             "task_collection_sha256":"a".repeat(64),"task_index_sha256":"b".repeat(64),
             "task_instructions_sha256":"d".repeat(64),
@@ -3470,12 +3505,13 @@ mod tests {
             "skill_selection_sha256":"0".repeat(64),"overall_status":"in_progress",
             "lock":build_execution_lock("TASK-001","ATTEMPT-001",&"e".repeat(64)),
             "tasks":[{"id":"TASK-001","status":"in_progress","skill_id":null,
-                "task_item_sha256":"c".repeat(64),"instructions_sha256":"d".repeat(64),
+                "task_item_sha256":"c".repeat(64),"acceptance_results":[],"instructions_sha256":"d".repeat(64),
                 "latest_attempt":"ATTEMPT-001"}]});
         let task = json!({"id":"TASK-001","commands":[{"id":"CMD-001"}],
             "operations":[],"validations":[],"instruction_selection":{
                 "selected_paths":[],"resolved_paths":[]}});
-        let collection = json!({"requirement_id":"demo","spec_id":"TASK-SPEC-001"});
+        let collection =
+            json!({"requirement_id":"demo","spec_id":"TASK-SPEC-001","tasks":[task.clone()]});
         let validation = json!({"task_collection_sha256":"a".repeat(64),
             "task_index_sha256":"b".repeat(64),"instructions_sha256":"d".repeat(64),
             "hierarchy_selection_sha256":"f".repeat(64),"task_ids":["TASK-001"],
@@ -3578,6 +3614,76 @@ mod tests {
         validate_execution_index(&closed_index, index_after).unwrap();
         assert_eq!(closed_attempt["status"], "completed");
         assert!(closed_index.get("lock").is_none());
+        let proposal = json!({"schema":"work-execution-deviation-proposal/v1","task_id":"TASK-001","attempt_id":"ATTEMPT-001","anchor_record_id":"CMD-001","task_basis":["CMD-001"],"gap":"The acceptance boundary requires coordinated revision.","action":{"kind":"skip_record","record_id":"CMD-001","reason":"Stop for specification revision."},"modifiable_files":[],"impact":{"summary":"Acceptance changed.","requirement_changed":false,"scope_changed":false,"acceptance_criteria_changed":true,"deliverables_changed":false,"safety_boundary_changed":false,"external_side_effect_boundary_changed":false},"side_effects":[]});
+        let preview =
+            build_deviation_preview(&proposal, "command", &std::collections::BTreeMap::new())
+                .unwrap();
+        let (deviated, response) = append_approved_deviation(
+            &attempt,
+            &preview,
+            preview["preview_sha256"].as_str().unwrap(),
+            "Approved specification deviation",
+            "execution",
+        )
+        .unwrap();
+        assert_eq!(response["classification"], "task_and_execution");
+        let deviated_raw = render_attempt(&deviated).unwrap();
+        let mut reserved = index.clone();
+        reserved["lock"]["record_id"] = json!("CMD-001");
+        let reserved_raw = render_execution_index(&reserved).unwrap();
+        let stopped = json!({"schema":"work-attempt-close-request/v1","status":"stopped","final_type":"specification_defect","reason":"Return to Task for coordinated revision.","authorization_evidence":"Approved specification close"});
+        let sink = FakeAttemptClose::default();
+        let context = || RecordBeginContext {
+            collection: &collection,
+            validation: &validation,
+            task: &task,
+            attempt: &deviated,
+            attempt_raw: &deviated_raw,
+            index: &reserved,
+            index_raw: &reserved_raw,
+            execution_dir: "execution",
+            task_id: "TASK-001",
+        };
+        let mut unrelated = stopped.clone();
+        unrelated["final_type"] = json!("user_stopped");
+        assert_eq!(
+            close_attempt_from_context(
+                &sink,
+                context(),
+                &unrelated,
+                "2026-09-01T10:10+08:00",
+                &selection
+            )
+            .unwrap_err()
+            .reason_code,
+            "attempt_close_record_reserved"
+        );
+        assert!(sink.0.borrow().is_none());
+        let closed = close_attempt_from_context(
+            &sink,
+            context(),
+            &stopped,
+            "2026-09-01T10:10+08:00",
+            &selection,
+        )
+        .unwrap();
+        assert_eq!(closed["attempt_status"], "stopped");
+        assert_eq!(closed["task_status"], "blocked");
+        assert_eq!(closed["lock_status"], "released");
+        assert_eq!(
+            closed["pending_deviations"],
+            json!([{"deviation_id":"DEVIATION-001","classification":"task_and_execution","blocking":true}])
+        );
+        let stored = sink.0.borrow();
+        let (after, index_after) = stored.as_ref().unwrap();
+        let after = parse_json_contract(after).unwrap();
+        assert_eq!(after["final_type"], "specification_defect");
+        assert_eq!(
+            after["execution_deviations"],
+            deviated["execution_deviations"]
+        );
+        let index_after = parse_json_contract(index_after).unwrap();
+        assert!(index_after.get("lock").is_none());
     }
 
     impl AttemptStartRepository for FakeRetryStart {
@@ -3778,7 +3884,7 @@ mod tests {
         let source = json!({"kind":"instruction","logical_name":"task.general",
             "canonical_sha256":"a".repeat(64),"compatibility_revision":1});
         let validation = json!({"collection_contract":{"requirement_id":"demo",
-            "spec_id":"TASK-SPEC-001","artifacts":{"task":"task/index.json","execution":"execution"},
+            "skill_selection":{"skills":[]},"spec_id":"TASK-SPEC-001","artifacts":{"task":"task/index.json","execution":"execution"},
             "tasks":[{"id":"TASK-001","skill_id":null,"dependencies":[],"inputs":[],"files":[],
                 "instruction_selection":{"selected_paths":[],"resolved_paths":["general"],
                     "sources":[source],"references":[],"instructions_sha256":"d".repeat(64)}}]},
@@ -3787,16 +3893,19 @@ mod tests {
             "instructions_sha256":"d".repeat(64),"hierarchy_selection_sha256":"f".repeat(64),
             "skill_selection_sha256":"0".repeat(64),
             "task_collection_sha256":"a".repeat(64),"task_index_sha256":"b".repeat(64)});
+        let mut validation = validation;
+        validation["skill_selection_sha256"] = json!(skill_selection_sha256("base_only", &[]));
+        validation["collection_contract"]["skill_selection"]["selection_sha256"] =
+            validation["skill_selection_sha256"].clone();
         let (_, raw) = prepare_initial_index(&validation).unwrap();
         let repository = FakeIndex(raw);
-        let plan = json!({"skill_selection":{"skills":[]}});
         assert_eq!(
             prepare_execute_preflight(
                 &repository,
                 &FakeInstruction,
                 ExecutePreflightRequest {
                     validation: &validation,
-                    plan: &plan,
+
                     task_path: "other/index.json",
                     execution_dir: "execution",
                     task_id: "TASK-001",
@@ -3812,7 +3921,7 @@ mod tests {
             &FakeInstruction,
             ExecutePreflightRequest {
                 validation: &validation,
-                plan: &plan,
+
                 task_path: "task/index.json",
                 execution_dir: "execution",
                 task_id: "TASK-001",
@@ -3837,24 +3946,27 @@ mod tests {
         assert_eq!(result["execute_skill_selection"]["decision"], "base_only");
         assert_eq!(result["eligibility"], "passed");
         let selected_skill = json!({"id":"repo:backend","name":"backend",
-            "summary_sha256":"1".repeat(64),"bundle_sha256":"2".repeat(64)});
+            "summary_sha256":"1".repeat(64),"bundle_sha256":"2".repeat(64),"mode_support":{"execute":"supported"},"dependency_status":"available"});
         let mut skilled_validation = validation.clone();
         skilled_validation["collection_contract"]["tasks"][0]["skill_id"] = json!("repo:backend");
         skilled_validation["task_skill_ids"]["TASK-001"] = json!("repo:backend");
-        let skilled_plan = json!({"skill_selection":{"skills":[selected_skill]}});
+        skilled_validation["collection_contract"]["skill_selection"] =
+            json!({"skills":[selected_skill]});
         skilled_validation["skill_selection_sha256"] = json!(skill_selection_sha256(
             "external_skills",
-            skilled_plan["skill_selection"]["skills"]
+            skilled_validation["collection_contract"]["skill_selection"]["skills"]
                 .as_array()
                 .unwrap(),
         ));
+        skilled_validation["collection_contract"]["skill_selection"]["selection_sha256"] =
+            skilled_validation["skill_selection_sha256"].clone();
         let (_, skilled_raw) = prepare_initial_index(&skilled_validation).unwrap();
         let skilled = prepare_execute_preflight(
             &FakeIndex(skilled_raw),
             &FakeInstruction,
             ExecutePreflightRequest {
                 validation: &skilled_validation,
-                plan: &skilled_plan,
+
                 task_path: "task/index.json",
                 execution_dir: "execution",
                 task_id: "TASK-001",
@@ -3862,6 +3974,40 @@ mod tests {
             },
         )
         .unwrap();
+        for kind in ["missing", "unsupported", "unavailable"] {
+            let mut invalid = skilled_validation.clone();
+            match kind {
+                "missing" => {
+                    invalid["collection_contract"]["skill_selection"]["skills"] = json!([])
+                }
+                "unsupported" => {
+                    invalid["collection_contract"]["skill_selection"]["skills"][0]["mode_support"]
+                        ["execute"] = json!("unsupported")
+                }
+                _ => {
+                    invalid["collection_contract"]["skill_selection"]["skills"][0]["dependency_status"] =
+                        json!("unavailable")
+                }
+            }
+            let (_, raw) = prepare_initial_index(&invalid).unwrap();
+            assert_eq!(
+                prepare_execute_preflight(
+                    &FakeIndex(raw),
+                    &FakeInstruction,
+                    ExecutePreflightRequest {
+                        validation: &invalid,
+                        task_path: "task/index.json",
+                        execution_dir: "execution",
+                        task_id: "TASK-001",
+                        confirmed_inputs: &[]
+                    }
+                )
+                .unwrap_err()
+                .reason_code,
+                "execute_preflight_skill_binding_mismatch",
+                "{kind}"
+            );
+        }
         assert_eq!(skilled["eligibility"], "passed");
         assert_eq!(skilled["skill_id"], "repo:backend");
         assert_eq!(
@@ -3870,7 +4016,7 @@ mod tests {
         );
         assert_eq!(
             skilled["execute_skill_selection"]["skills"],
-            skilled_plan["skill_selection"]["skills"]
+            skilled_validation["collection_contract"]["skill_selection"]["skills"]
         );
         result["snapshot_sha256"] = json!("0".repeat(64));
         let authorization = json!({"schema":"work-attempt-authorization/v1",
@@ -3914,7 +4060,7 @@ mod tests {
             &FakeInstruction,
             ExecutePreflightRequest {
                 validation: &validation,
-                plan: &plan,
+
                 task_path: "task/index.json",
                 execution_dir: "execution",
                 task_id: "TASK-001",

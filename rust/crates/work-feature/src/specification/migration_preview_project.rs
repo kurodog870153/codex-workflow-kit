@@ -1,8 +1,9 @@
-//! Migration preview validation over source, plan, task and path ports.
+//! Migration preview validation over immutable Source, Task and Execution ports.
 
+use crate::artifact_paths::ArtifactPathRepository;
 use crate::error::{ExitCode, WorkError};
 use crate::instruction::InstructionSourceRepository;
-use crate::plan::{PlanPathRepository, PlanValidationInput, validate_plan};
+use crate::ports::SourceSnapshotReader;
 use crate::skill::{SkillRoot, SkillSnapshotRepository};
 use crate::specification::migration_preview::{MigrationPreviewInput, finish_preview};
 use crate::task::{CollectionInput, validate_collection};
@@ -10,7 +11,6 @@ use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use work_operations::derivation::fingerprint;
 use work_operations::execution::index::{render_execution_index, validate_execution_index};
-use work_operations::plan::render_plan_value;
 use work_operations::specification::migration_diff::unified_diff;
 use work_operations::task::ordering::{TaskDocumentKind, render_task};
 
@@ -42,7 +42,7 @@ where
     R: MigrationPreviewRepository,
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
 {
     if request["schema"] != "work-spec-migration-preview-request/v1" {
         return Err(fail(
@@ -50,6 +50,7 @@ where
             "A migration preview request is required.",
         ));
     }
+    let _: work_model::specification::SpecMigrationPreviewRequest = serde_json::from_value(request.clone()).map_err(|cause| WorkError::new(ExitCode::Contract,"invalid_contract_value","Migration accepts only current TASK and Execution candidates with exact source fingerprints.",json!({"cause":cause.to_string()})))?;
     for candidate in request["candidates"].as_array().ok_or_else(|| {
         fail(
             "migration_candidate_set_incomplete",
@@ -69,6 +70,13 @@ where
             ));
         }
     }
+    if request["sources"].as_array().is_some_and(Vec::is_empty) {
+        return Err(fail(
+            "migration_source_missing",
+            "At least one reviewed raw source fingerprint is required.",
+        ));
+    }
+    let mut source_identities = BTreeSet::new();
     let mut sources = BTreeMap::new();
     for evidence in request["sources"].as_array().ok_or_else(|| {
         fail(
@@ -82,7 +90,15 @@ where
                 "A migration source path is required.",
             )
         })?;
-        if sources.contains_key(path) {
+        if !work_operations::protocol::valid_sha256(
+            evidence["raw_sha256"].as_str().unwrap_or_default(),
+        ) {
+            return Err(fail(
+                "migration_source_fingerprint_invalid",
+                "Each raw source requires an exact SHA-256 fingerprint.",
+            ));
+        }
+        if !source_identities.insert(work_operations::canonical::portable_path_identity(path)) {
             return Err(fail(
                 "migration_source_duplicate",
                 "Migration source paths must be unique.",
@@ -124,7 +140,6 @@ where
             )
         })?;
         let raw = match kind {
-            "plan" => render_plan_value(&row["content"]),
             "task_index" => render_task(&row["content"], TaskDocumentKind::Index),
             "task_item" => render_task(&row["content"], TaskDocumentKind::Item),
             "execution_index" => render_execution_index(&row["content"]),
@@ -146,7 +161,7 @@ where
         kinds.entry(kind).or_default().push(row);
     }
     let mut relationships = Vec::new();
-    let complete = ["plan", "task_index", "execution_index"]
+    let complete = ["task_index", "execution_index"]
         .iter()
         .all(|kind| kinds.get(kind).is_some_and(|rows| rows.len() == 1))
         && kinds.get("task_item").is_some_and(|rows| {
@@ -163,30 +178,14 @@ where
     } else {
         relationships.push(json!({"name":"candidate_set","status":"failed",
             "code":"migration_candidate_set_incomplete",
-            "message":"A complete candidate set requires one Plan, TASK index, execution index, and unique TASK items."}));
+            "message":"A complete candidate set requires one TASK index, execution index, and unique TASK items."}));
     }
     let mut validators = Vec::new();
     if complete {
-        let plan = kinds["plan"][0];
         let index = kinds["task_index"][0];
         let execution = kinds["execution_index"][0];
-        let plan_path = plan["path"].as_str().unwrap();
         let index_path = index["path"].as_str().unwrap();
         let execution_path = execution["path"].as_str().unwrap();
-        let plan_raw = &candidates[plan_path];
-        let plan_result = validate_plan(
-            instructions,
-            skills,
-            paths,
-            skill_roots,
-            &plan["content"],
-            PlanValidationInput {
-                raw: plan_raw,
-                actual_plan_path: plan_path,
-                allow_task_index: true,
-            },
-        );
-        validators.push(validation_result("plan", &plan_result));
         let mut items = BTreeMap::new();
         for row in &kinds["task_item"] {
             let id = row["task_id"].as_str().unwrap();
@@ -204,7 +203,6 @@ where
                 index_raw: &candidates[index_path],
                 item_raw: &items,
                 index_path,
-                source_plan_raw: plan_raw,
             },
         );
         validators.push(validation_result("task_collection", &collection_result));
@@ -216,18 +214,26 @@ where
             Err(issue) => json!({"name":"execution_index","status":"failed",
                 "code":issue.reason_code,"message":issue.message}),
         });
-        let artifacts = &plan["content"]["artifacts"];
-        let paths_match = artifacts["plan"] == plan_path
-            && artifacts["task"] == index_path
+        let artifacts = &index["content"]["artifacts"];
+        let paths_match = artifacts["task"] == index_path
             && artifacts["execution"]
                 .as_str()
-                .is_some_and(|path| format!("{path}/index.json") == execution_path);
+                .is_some_and(|path| format!("{path}/index.json") == execution_path)
+            && kinds["task_item"].iter().all(|row| {
+                let directory = index_path.rsplit_once('/').map_or("", |(parent, _)| parent);
+                row["task_id"] == row["content"]["id"]
+                    && row["path"]
+                        == format!(
+                            "{directory}/tasks/{}.json",
+                            row["task_id"].as_str().unwrap()
+                        )
+            });
         relationships.push(if paths_match {
             json!({"name":"artifact_paths","status":"passed"})
         } else {
             json!({"name":"artifact_paths","status":"failed",
                 "code":"migration_artifact_path_mismatch",
-                "message":"Candidate paths do not match the Plan artifact routing."})
+                "message":"Candidate paths do not match the Task artifact routing."})
         });
         let bound = collection_result.ok().and_then(|validation| {
             execution_result.ok().map(|_| {
@@ -238,12 +244,22 @@ where
                     && execution_value["task_collection_sha256"]
                         == validation["task_collection_sha256"]
                     && execution_value["task_index_sha256"] == validation["task_index_sha256"]
+                    && execution_value["task_instructions_sha256"]
+                        == validation["instructions_sha256"]
+                    && execution_value["hierarchy_selection_sha256"]
+                        == validation["hierarchy_selection_sha256"]
+                    && execution_value["skill_selection_sha256"]
+                        == validation["skill_selection_sha256"]
                     && rows.len() == ids.len()
                     && ids.iter().all(|id| {
                         rows.iter().any(|row| {
                             row["id"] == *id
                                 && row["task_item_sha256"]
                                     == validation["task_item_sha256"][id.as_str().unwrap()]
+                                && row["skill_id"]
+                                    == validation["task_skill_ids"][id.as_str().unwrap()]
+                                && row["instructions_sha256"]
+                                    == validation["task_instructions_sha256"][id.as_str().unwrap()]
                         })
                     })
             })
@@ -257,6 +273,20 @@ where
                 "code":"migration_execution_binding_not_checked",
                 "message":"Execution binding requires valid TASK and execution candidates."}),
         });
+    }
+    if complete {
+        for path in crate::task::source::evidence_paths(&kinds["task_index"][0]["content"])? {
+            if let Some(raw) = sources.get(&path) {
+                candidates.insert(path, raw.clone());
+            }
+        }
+    }
+    if complete {
+        for (path, raw) in &sources {
+            candidates
+                .entry(path.clone())
+                .or_insert_with(|| raw.clone());
+        }
     }
     let all_paths = sources
         .keys()
@@ -287,7 +317,6 @@ mod tests {
     use super::*;
     use crate::hierarchy::HierarchyCatalogRepository;
     use work_operations::hierarchy::{CrossModeCatalog, Hierarchy};
-    use work_operations::identifiers::RequirementId;
     use work_operations::instruction::SourceSet;
 
     struct Unused;
@@ -322,30 +351,45 @@ mod tests {
             panic!("invalid request must stop before skills")
         }
     }
-    impl PlanPathRepository for Unused {
-        fn default_paths(&self, _: &RequirementId) -> Result<Value, WorkError> {
-            panic!("invalid request must stop before paths")
+    impl ArtifactPathRepository for Unused {
+        fn resolve(&self, _: &str) -> Result<std::path::PathBuf, WorkError> {
+            panic!("unexpected path resolution")
+        }
+        fn exists(&self, _: &str) -> Result<bool, WorkError> {
+            panic!("unexpected existence check")
+        }
+        fn read_raw(&self, _: &str) -> Result<Vec<u8>, WorkError> {
+            panic!("unexpected raw read")
+        }
+        fn create_new(&self, _: &str, _: &[u8]) -> Result<(), WorkError> {
+            panic!("no writes before validation")
         }
         fn validate_paths(
             &self,
-            _: &RequirementId,
-            _: &Value,
-            _: &str,
-            _: bool,
+            _: &work_model::identifiers::RequirementId,
+            _: &crate::artifact_paths::ArtifactPaths,
         ) -> Result<(), WorkError> {
-            panic!("invalid request must stop before paths")
-        }
-        fn exists(&self, _: &str) -> Result<bool, WorkError> {
-            panic!("invalid request must stop before paths")
-        }
-        fn create_exclusive(&self, _: &str, _: &[u8]) -> Result<(), WorkError> {
-            panic!("invalid request must stop before paths")
-        }
-        fn read(&self, _: &str) -> Result<Vec<u8>, WorkError> {
-            panic!("invalid request must stop before paths")
+            Ok(())
         }
     }
-
+    impl SourceSnapshotReader for Unused {
+        fn read_snapshot(
+            &self,
+            id: &work_model::identifiers::RequirementId,
+            source: &work_model::identifiers::SourceId,
+        ) -> Result<crate::ports::SnapshotBytes, WorkError> {
+            self.read_snapshot_at(id, source, "outputs/work/sources/example")
+        }
+        fn read_snapshot_at(
+            &self,
+            _: &work_model::identifiers::RequirementId,
+            _: &work_model::identifiers::SourceId,
+            root: &str,
+        ) -> Result<crate::ports::SnapshotBytes, WorkError> {
+            assert_eq!(root, "outputs/work/sources/example");
+            panic!("Snapshot must not be used after failed repository read")
+        }
+    }
     #[test]
     fn invalid_schema_stops_before_all_ports() {
         let error =

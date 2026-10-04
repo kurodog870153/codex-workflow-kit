@@ -219,6 +219,7 @@ pub struct Attempt {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution_deviations: Option<Vec<ExecutionDeviation>>,
     pub records: Vec<AttemptRecord>,
+    pub acceptance_results: Vec<super::acceptance::AcceptanceProgress>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub overall_result: Option<OverallResult>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -1,4 +1,4 @@
-//! Discovery of formal Plans for source-impact and batch refresh previews.
+//! Discovery of formal Task collections for source-impact and batch refresh previews.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -62,13 +62,13 @@ pub fn discover_requirements(root: &Path) -> Result<BTreeMap<String, Value>, Wor
         let Ok(value) = parse_json_contract(&raw) else {
             continue;
         };
-        if value["schema"] != "work-plan/v1" {
+        if value["schema"] != "work-task-index/v1" {
             continue;
         }
         let Some(requirement_id) = value["requirement_id"].as_str() else {
             continue;
         };
-        if ["plan", "task", "execution"]
+        if ["source", "task", "execution"]
             .iter()
             .any(|field| !value["artifacts"][field].is_string())
         {
@@ -78,10 +78,10 @@ pub fn discover_requirements(root: &Path) -> Result<BTreeMap<String, Value>, Wor
             continue;
         };
         let relative = relative.to_string_lossy().replace('\\', "/");
-        if value["artifacts"]["plan"] != relative {
+        if value["artifacts"]["task"] != relative {
             continue;
         }
-        let artifacts = json!({"plan":value["artifacts"]["plan"],
+        let artifacts = json!({"source":value["artifacts"]["source"],
             "task":value["artifacts"]["task"],
             "execution":value["artifacts"]["execution"]});
         if discovered
@@ -91,7 +91,7 @@ pub fn discover_requirements(root: &Path) -> Result<BTreeMap<String, Value>, Wor
             return Err(WorkError::new(
                 ExitCode::ArtifactIntegrity,
                 "source_impact_duplicate_requirement",
-                "Multiple Plans declare the same requirement ID.",
+                "Multiple Task collections declare the same requirement ID.",
                 json!({"requirement_id":requirement_id}),
             ));
         }
@@ -118,18 +118,19 @@ mod tests {
     }
 
     #[test]
-    fn discovers_non_default_plan_path_and_rejects_duplicate_requirement() {
+    fn discovers_non_default_task_path_and_rejects_duplicate_requirement() {
         let root = root();
-        let path = root.join("outputs/work/custom/specification.json");
+        let path = root.join("outputs/work/custom/tasks/index.json");
         fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(&path, b"{\"schema\":\"work-plan/v1\",\"requirement_id\":\"custom\",\"artifacts\":{\"plan\":\"outputs/work/custom/specification.json\",\"task\":\"outputs/work/custom/tasks/index.json\",\"execution\":\"outputs/work/custom/execution\"}}\n").unwrap();
+        fs::write(&path, b"{\"schema\":\"work-task-index/v1\",\"requirement_id\":\"custom\",\"artifacts\":{\"source\":\"outputs/work/custom/sources\",\"task\":\"outputs/work/custom/tasks/index.json\",\"execution\":\"outputs/work/custom/execution\"}}\n").unwrap();
         let found = discover_requirements(&root).unwrap();
         assert_eq!(
-            found["custom"]["plan"],
-            "outputs/work/custom/specification.json"
+            found["custom"]["task"],
+            "outputs/work/custom/tasks/index.json"
         );
-        let duplicate = root.join("outputs/work/other.json");
-        fs::write(&duplicate, b"{\"schema\":\"work-plan/v1\",\"requirement_id\":\"custom\",\"artifacts\":{\"plan\":\"outputs/work/other.json\",\"task\":\"tasks.json\",\"execution\":\"execution\"}}\n").unwrap();
+        let duplicate = root.join("outputs/work/other/index.json");
+        fs::create_dir_all(duplicate.parent().unwrap()).unwrap();
+        fs::write(&duplicate, b"{\"schema\":\"work-task-index/v1\",\"requirement_id\":\"custom\",\"artifacts\":{\"source\":\"outputs/work/other/sources\",\"task\":\"outputs/work/other/index.json\",\"execution\":\"execution\"}}\n").unwrap();
         assert_eq!(
             discover_requirements(&root).unwrap_err().reason_code,
             "source_impact_duplicate_requirement"

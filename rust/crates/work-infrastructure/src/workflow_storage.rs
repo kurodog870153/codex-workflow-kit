@@ -5,8 +5,8 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use serde_json::{Value, json};
+use work_feature::artifact_paths::default_artifact_paths;
 use work_feature::error::{ExitCode, WorkError};
-use work_feature::plan::{PlanPathRepository, validate_plan_file};
 use work_feature::ports::ArtifactStore;
 use work_feature::skill::SkillRoot;
 use work_feature::task::load_collection_with_file_state;
@@ -20,14 +20,14 @@ use work_operations::identifiers::RequirementId;
 
 use crate::files::{LocalFiles, resolve_project_path};
 use crate::hierarchy_catalog::LocalHierarchyCatalog;
-use crate::plan_storage::LocalPlanStorage;
 #[cfg(test)]
 use crate::routing_sources::RoutingSourceSession;
 use crate::skill_catalog::{LocalSkillCatalog, SkillRootConfig};
+use crate::source_snapshot_storage::LocalSourceSnapshotStorage;
 use crate::specification::storage::storage_path;
 use crate::task::draft_storage::LocalTaskDraftStorage;
 use crate::task::storage::LocalTaskStorage;
-use work_feature::plan::default_artifact_paths;
+use work_feature::ports::SourceSnapshotReader;
 use work_feature::specification::reconciliation_input::validate_ledger_entries;
 
 fn fail(reason: &str, message: &str) -> WorkError {
@@ -39,7 +39,7 @@ pub struct WorkflowStateRequest<'a> {
     pub skill_root: &'a Path,
     pub skill_configs: &'a [SkillRootConfig],
     pub requirement_id: &'a str,
-    pub plan_path: Option<&'a str>,
+    pub task_path: Option<&'a str>,
 }
 
 pub fn load_workflow_snapshot(
@@ -55,48 +55,40 @@ pub fn load_workflow_snapshot(
             )
         },
     )?;
-    let paths = LocalPlanStorage {
-        project_root: request.project_root.to_path_buf(),
-    };
-    let mut artifacts = serde_json::Map::new();
-    for (field, relative) in default_artifact_paths(&id) {
-        resolve_project_path(request.project_root, &relative)?;
-        artifacts.insert(field.into(), json!(relative));
+    let mut artifacts = serde_json::to_value(default_artifact_paths(&id)).expect("paths serialize");
+    let selected_task = request
+        .task_path
+        .unwrap_or_else(|| artifacts["task"].as_str().unwrap())
+        .to_owned();
+    let (_, task_file) = resolve_project_path(request.project_root, &selected_task)?;
+    if request.task_path.is_some() && !task_file.exists() {
+        return Err(fail(
+            "workflow_task_missing",
+            "The explicitly selected formal TASK does not exist.",
+        ));
     }
-    if let Some(selected) = request.plan_path {
-        let (normalized, path) = resolve_project_path(request.project_root, selected)?;
-        artifacts.insert("plan".into(), json!(normalized));
-        if path.is_file() {
-            let raw = LocalFiles.read_raw(&path)?;
-            let contract = parse_json_contract(&raw).map_err(|_| {
-                fail(
-                    "invalid_json_contract",
-                    "The selected Plan JSON is invalid.",
-                )
-            })?;
-            let selected_artifacts = &contract["artifacts"];
-            paths.validate_paths(
-                &id,
-                selected_artifacts,
-                &normalized,
-                selected_artifacts["task"]
-                    .as_str()
-                    .is_some_and(|path| path.ends_with("/index.json")),
-            )?;
-            artifacts = selected_artifacts
-                .as_object()
-                .expect("validated Plan artifact paths")
-                .clone();
+    if task_file.exists() {
+        let contract = parse_json_contract(&LocalFiles.read_raw(&task_file)?).map_err(|_| {
+            fail(
+                "invalid_json_contract",
+                "The selected TASK JSON is invalid.",
+            )
+        })?;
+        if contract["artifacts"]["task"] != selected_task {
+            return Err(fail(
+                "task_artifact_path_mismatch",
+                "The selected TASK path differs from its declared path.",
+            ));
         }
+        artifacts = contract["artifacts"].clone();
     }
-    let artifacts = Value::Object(artifacts);
-    let plan_path = artifacts["plan"].as_str().expect("artifact Plan path");
-    let task_path = artifacts["task"].as_str().expect("artifact TASK path");
-    let execution_dir = artifacts["execution"]
-        .as_str()
-        .expect("artifact execution path");
-    let (_, plan_file) = resolve_project_path(request.project_root, plan_path)?;
-    let (_, task_file) = resolve_project_path(request.project_root, task_path)?;
+    let task_path = selected_task.as_str();
+    let execution_dir = artifacts["execution"].as_str().ok_or_else(|| {
+        fail(
+            "workflow_artifact_path_missing",
+            "The execution artifact path is missing.",
+        )
+    })?;
     let (_, execution_path) = resolve_project_path(request.project_root, execution_dir)?;
     let index_path = execution_path.join("index.json");
     let index = if index_path.is_file() {
@@ -133,24 +125,13 @@ pub fn load_workflow_snapshot(
             locator: config.locator.clone(),
         })
         .collect();
-    let plan = if plan_file.exists() {
-        let validated =
-            validate_plan_file(&instructions, &skills, &paths, &skill_roots, plan_path)?;
-        if validated["requirement_id"] != request.requirement_id {
-            return Err(fail(
-                "workflow_plan_requirement_mismatch",
-                "The selected Plan does not match the requested requirement.",
-            ));
-        }
-        Some(validated)
-    } else {
-        None
-    };
-    let task = if plan.is_some() && task_file.exists() {
+    let task = if task_file.exists() {
         Some(load_collection_with_file_state(
             &instructions,
             &skills,
-            &paths,
+            &crate::artifact_paths::LocalArtifactPaths {
+                project_root: request.project_root.to_path_buf(),
+            },
             &LocalTaskStorage {
                 project_root: request.project_root.to_path_buf(),
             },
@@ -161,7 +142,16 @@ pub fn load_workflow_snapshot(
     } else {
         None
     };
-    let draft = if plan.is_some() && task.is_none() {
+    if task
+        .as_ref()
+        .is_some_and(|value| value["requirement_id"] != request.requirement_id)
+    {
+        return Err(fail(
+            "workflow_task_requirement_mismatch",
+            "The selected TASK does not match the requested requirement.",
+        ));
+    }
+    let draft = if task.is_none() {
         Some(
             LocalTaskDraftStorage {
                 project_root: request.project_root.to_path_buf(),
@@ -171,6 +161,83 @@ pub fn load_workflow_snapshot(
     } else {
         None
     };
+    let source = if let Some(task) = &task {
+        Some(task["collection_contract"]["source"].clone())
+    } else if draft
+        .as_ref()
+        .is_some_and(|value| value["status"] != "not_initialized")
+    {
+        let saved_index = LocalTaskDraftStorage {
+            project_root: request.project_root.to_path_buf(),
+        }
+        .read_planning_index(request.requirement_id)?;
+        let saved = &saved_index["source"];
+        work_feature::task::source::validate_context(
+            &LocalSourceSnapshotStorage {
+                project_root: request.project_root.to_path_buf(),
+            },
+            &instructions,
+            &skills,
+            &crate::artifact_paths::LocalArtifactPaths {
+                project_root: request.project_root.to_path_buf(),
+            },
+            &skill_roots,
+            request.requirement_id,
+            saved,
+        )?;
+        artifacts = saved["artifacts"].clone();
+        Some(saved.clone())
+    } else {
+        let relative = artifacts["source"].as_str().ok_or_else(|| {
+            fail(
+                "workflow_artifact_path_missing",
+                "The Source artifact path is missing.",
+            )
+        })?;
+        let (_, directory) = resolve_project_path(request.project_root, relative)?;
+        let mut snapshots = Vec::new();
+        if directory.exists() {
+            for entry in std::fs::read_dir(&directory).map_err(|_| {
+                fail(
+                    "workflow_source_read_failed",
+                    "Source versions could not be inspected.",
+                )
+            })? {
+                let entry = entry.map_err(|_| {
+                    fail(
+                        "workflow_source_read_failed",
+                        "Source versions could not be inspected.",
+                    )
+                })?;
+                let name = entry.file_name();
+                let name = name
+                    .to_str()
+                    .ok_or_else(|| fail("invalid_source_namespace", "A Source name is invalid."))?;
+                if name.starts_with(".capture-") {
+                    return Err(fail(
+                        "source_snapshot_incomplete",
+                        "A Source capture requires recovery.",
+                    ));
+                }
+                let source_id = name
+                    .parse()
+                    .map_err(|_| fail("invalid_source_namespace", "A Source ID is invalid."))?;
+                let snapshot = LocalSourceSnapshotStorage {
+                    project_root: request.project_root.to_path_buf(),
+                }
+                .read_snapshot_at(&id, &source_id, relative)?;
+                snapshots
+                    .push(serde_json::to_value(snapshot.manifest).expect("Snapshot serializes"));
+            }
+        }
+        snapshots
+            .sort_by(|left, right| left["source_id"].as_str().cmp(&right["source_id"].as_str()));
+        if snapshots.is_empty() {
+            None
+        } else {
+            Some(json!({"snapshots":snapshots}))
+        }
+    };
     let latest_attempts = if let Some(ref index) = index {
         load_latest_attempts(request.project_root, &artifacts, index)?
     } else {
@@ -178,7 +245,7 @@ pub fn load_workflow_snapshot(
     };
     Ok(WorkflowSnapshot {
         artifacts,
-        plan,
+        source,
         draft,
         task,
         index,
@@ -191,7 +258,7 @@ fn workflow_state(request: &WorkflowStateRequest<'_>) -> Result<Value, WorkError
     let snapshot = load_workflow_snapshot(request)?;
     let WorkflowSnapshot {
         artifacts,
-        plan,
+        source,
         draft,
         task,
         index,
@@ -202,7 +269,7 @@ fn workflow_state(request: &WorkflowStateRequest<'_>) -> Result<Value, WorkError
         &mut routing,
         request.requirement_id,
         &artifacts,
-        plan.as_ref(),
+        source.as_ref(),
         draft.as_ref(),
         task.as_ref(),
         index.is_some(),
@@ -327,7 +394,7 @@ mod tests {
     }
 
     #[test]
-    fn workflow_state_reads_missing_and_plan_only_project_without_writes() {
+    fn workflow_state_reads_missing_and_source_only_project_without_writes() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let root = temporary_root("state");
         let skill_root = repo.join("../skills/work");
@@ -336,18 +403,18 @@ mod tests {
             skill_root: &skill_root,
             skill_configs: &[],
             requirement_id: "example",
-            plan_path: None,
+            task_path: None,
         };
         let missing = workflow_state(&request).unwrap();
-        assert_eq!(missing["status"], "plan_required");
-        assert_eq!(missing["next_action"], "prepare_plan");
+        assert_eq!(missing["status"], "source_required");
+        assert_eq!(missing["next_action"], "capture_source");
         assert_eq!(missing["requires_user_confirmation"], true);
+        assert_eq!(missing["request_contract_id"], Value::Null);
+        assert_eq!(missing["command"], "source capture");
         assert_eq!(
-            missing["request_contract_id"],
-            "work-plan-semantic-request/v1"
+            missing["arguments"]["input_file"],
+            "<capture-metadata-file>"
         );
-        assert_eq!(missing["command"], "plan semantic-prepare");
-        assert_eq!(missing["arguments"]["input_file"], "<semantic-input-file>");
         assert_eq!(
             missing["semantic_input_contract"],
             missing["request_contract_id"]
@@ -366,47 +433,34 @@ mod tests {
         ));
         assert_eq!(fs::read_dir(&root).unwrap().count(), 0);
 
-        let path = root.join("outputs/work/plans/example.json");
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::copy(
-            repo.join("crates/work-infrastructure/fixtures/task-assembly/plan.json"),
-            &path,
-        )
-        .unwrap();
-        let plan_only = workflow_state(&request).unwrap();
-        assert_eq!(plan_only["status"], "task_not_initialized");
-        assert_eq!(plan_only["next_action"], "confirm_task_list");
+        let fixture = repo.join("crates/work-infrastructure/fixtures/task-diagnostics");
+        crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
+        let source_only = workflow_state(&request).unwrap();
+        assert_eq!(source_only["status"], "task_not_initialized");
+        assert_eq!(source_only["next_action"], "confirm_task_list");
         assert_eq!(
-            plan_only["details"]["plan_sha256"],
-            "ff2063a3da86ffda334b109b7e6afecd4a1ea5dfd172e977ff0742154f5c1c2d"
+            source_only["details"]["source"]["snapshots"][0]["source_id"],
+            "SRC-001"
         );
         assert_eq!(
-            plan_only["selection_sha256"],
-            plan_only["selection_manifest"]["selection_sha256"]
+            source_only["selection_sha256"],
+            source_only["selection_manifest"]["selection_sha256"]
         );
-        assert_ne!(missing["selection_sha256"], plan_only["selection_sha256"]);
-        assert_eq!(fs::read_dir(path.parent().unwrap()).unwrap().count(), 1);
+        assert_ne!(missing["selection_sha256"], source_only["selection_sha256"]);
+        assert!(!root.join("outputs/work/plans").exists());
     }
 
     #[test]
-    fn selected_plan_path_must_match_declared_plan_path() {
+    fn selected_task_path_must_match_declared_task_path() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let root = temporary_root("selected-plan");
-        let relative = "custom/plans/example.json";
+        let root = temporary_root("selected-task");
+        let relative = "custom/tasks/example/index.json";
         let path = root.join(relative);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(
             &path,
-            serde_json::to_vec(&json!({
-                "schema":"work-plan/v1",
-                "requirement_id":"example",
-                "artifacts":{
-                    "plan":"other/plans/example.json",
-                    "task":"custom/tasks/example/index.json",
-                    "execution":"custom/executions/example"
-                }
-            }))
-            .unwrap(),
+            serde_json::to_vec(&json!({"artifacts":{"task":"other/tasks/example/index.json"}}))
+                .unwrap(),
         )
         .unwrap();
         let result = workflow_state(&WorkflowStateRequest {
@@ -414,55 +468,61 @@ mod tests {
             skill_root: &repo.join("../skills/work"),
             skill_configs: &[],
             requirement_id: "example",
-            plan_path: Some(relative),
+            task_path: Some(relative),
         });
         assert_eq!(
             result.unwrap_err().reason_code,
-            "plan_artifact_path_mismatch"
+            "task_artifact_path_mismatch"
         );
     }
 
     #[test]
-    fn selected_plan_drives_custom_task_and_execution_paths() {
+    fn selected_task_drives_custom_execution_paths() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let root = temporary_root("custom-artifacts");
-        let relative = "custom/plans/example.json";
+        let fixture = repo.join("crates/work-infrastructure/fixtures/task-diagnostics");
+        let relative = "custom/tasks/example/index.json";
         let path = root.join(relative);
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        let mut plan: Value = serde_json::from_slice(
-            &fs::read(repo.join("crates/work-infrastructure/fixtures/task-assembly/plan.json"))
-                .unwrap(),
+        fs::create_dir_all(path.parent().unwrap().join("tasks")).unwrap();
+        let mut index: Value = serde_json::from_slice(
+            &fs::read(fixture.join("outputs/work/tasks/example/index.json")).unwrap(),
         )
         .unwrap();
-        plan["artifacts"] = json!({
-            "plan": relative,
-            "task": "custom/tasks/example/index.json",
-            "execution": "custom/executions/example"
-        });
+        index["artifacts"]["task"] = json!(relative);
+        index["artifacts"]["execution"] = json!("custom/executions/example");
         fs::write(
             &path,
-            work_operations::plan::render_plan_value(&plan).unwrap(),
+            crate::fixture_support::render_task_index(&index).unwrap(),
         )
         .unwrap();
-        let default_task = root.join("outputs/work/tasks/example/index.json");
-        let default_index = root.join("outputs/work/executions/example/index.json");
-        for decoy in [&default_task, &default_index] {
-            fs::create_dir_all(decoy.parent().unwrap()).unwrap();
-            fs::write(decoy, b"invalid json").unwrap();
+        fs::copy(
+            fixture.join("outputs/work/tasks/example/tasks/TASK-001.json"),
+            path.parent().unwrap().join("tasks/TASK-001.json"),
+        )
+        .unwrap();
+        crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
+        fs::write(root.join("src.txt"), b"original\n").unwrap();
+        for decoy in [
+            "outputs/work/tasks/example/index.json",
+            "outputs/work/executions/example/index.json",
+        ] {
+            let path = root.join(decoy);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, b"invalid json").unwrap();
         }
         let request = WorkflowStateRequest {
             project_root: &root,
             skill_root: &repo.join("../skills/work"),
             skill_configs: &[],
             requirement_id: "example",
-            plan_path: Some(relative),
+            task_path: Some(relative),
         };
         let state = workflow_state(&request).unwrap();
-        assert_eq!(state["status"], "task_not_initialized");
-
-        let custom_index = root.join("custom/executions/example/index.json");
-        fs::create_dir_all(custom_index.parent().unwrap()).unwrap();
-        fs::write(custom_index, b"invalid json").unwrap();
+        assert_eq!(state["status"], "execution_recovery_required");
+        assert_eq!(state["artifacts"]["execution"], "custom/executions/example");
+        let custom = root.join("custom/executions/example/index.json");
+        fs::create_dir_all(custom.parent().unwrap()).unwrap();
+        fs::write(custom, b"invalid json").unwrap();
         assert_eq!(
             workflow_state(&request).unwrap_err().reason_code,
             "invalid_json_contract"
@@ -476,7 +536,6 @@ mod tests {
             repo.join("crates/work-infrastructure/fixtures/specification-reconciliation/real-flow/with-migration");
         let root = temporary_root("complete");
         for relative in [
-            "outputs/work/plans/example.json",
             "outputs/work/tasks/example/index.json",
             "outputs/work/tasks/example/tasks/TASK-001.json",
             "outputs/work/executions/example/index.json",
@@ -486,6 +545,7 @@ mod tests {
             let destination = root.join(relative);
             fs::create_dir_all(destination.parent().unwrap()).unwrap();
             fs::copy(fixture.join(relative), destination).unwrap();
+            crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         }
         fs::write(root.join("src.txt"), b"original\n").unwrap();
         let skill_root = repo.join("../skills/work");
@@ -494,7 +554,7 @@ mod tests {
             skill_root: &skill_root,
             skill_configs: &[],
             requirement_id: "example",
-            plan_path: None,
+            task_path: None,
         };
         let state = workflow_state(&request).unwrap();
         assert_eq!(state["status"], "execution_completed");
@@ -507,12 +567,11 @@ mod tests {
     }
 
     #[test]
-    fn workflow_state_reads_pending_execution_and_rejects_wrong_selected_plan() {
+    fn workflow_state_reads_pending_execution_and_rejects_wrong_selected_task() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo.join("crates/work-infrastructure/fixtures/task-diagnostics");
         let root = temporary_root("pending");
         for relative in [
-            "outputs/work/plans/example.json",
             "outputs/work/tasks/example/index.json",
             "outputs/work/tasks/example/tasks/TASK-001.json",
             "outputs/work/executions/example/index.json",
@@ -520,6 +579,7 @@ mod tests {
             let destination = root.join(relative);
             fs::create_dir_all(destination.parent().unwrap()).unwrap();
             fs::copy(fixture.join(relative), destination).unwrap();
+            crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         }
         fs::write(root.join("src.txt"), b"original\n").unwrap();
         let skill_root = repo.join("../skills/work");
@@ -528,7 +588,7 @@ mod tests {
             skill_root: &skill_root,
             skill_configs: &[],
             requirement_id: "example",
-            plan_path: None,
+            task_path: None,
         };
         let state = workflow_state(&request).unwrap();
         assert_eq!(state["status"], "execution_pending");
@@ -540,15 +600,19 @@ mod tests {
         );
         let wrong_plan = root.join("other/example.json");
         fs::create_dir_all(wrong_plan.parent().unwrap()).unwrap();
-        fs::copy(fixture.join("outputs/work/plans/example.json"), &wrong_plan).unwrap();
+        fs::copy(
+            fixture.join("outputs/work/tasks/example/index.json"),
+            &wrong_plan,
+        )
+        .unwrap();
         assert_eq!(
             workflow_state(&WorkflowStateRequest {
-                plan_path: Some("other/example.json"),
+                task_path: Some("other/example.json"),
                 ..request
             })
             .unwrap_err()
             .reason_code,
-            "plan_artifact_path_mismatch"
+            "task_artifact_path_mismatch"
         );
     }
 
@@ -596,6 +660,7 @@ mod tests {
             let destination = root.join(&relative);
             fs::create_dir_all(destination.parent().unwrap()).unwrap();
             fs::copy(fixture.join(relative), destination).unwrap();
+            crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         }
         let ledger_path = root.join(attempt_dir).join("reconciliation.json");
         let mut ledger: Value = serde_json::from_slice(&fs::read(&ledger_path).unwrap()).unwrap();

@@ -8,7 +8,6 @@ use work_feature::error::{ExitCode, WorkError};
 use work_feature::ports::ArtifactStore;
 
 use crate::files::{LocalFiles, resolve_project_path};
-use crate::plan_storage::LocalPlanStorage;
 use crate::skill_catalog::SkillRootConfig;
 
 #[derive(Debug, Clone)]
@@ -63,9 +62,7 @@ impl LocalDelegationStorage {
             .canonicalize()
             .map_err(|_| boundary("The Work skill root cannot be resolved."))?;
         work_feature::delegation::validate_artifact_editor(
-            &LocalPlanStorage {
-                project_root: self.project_root.clone(),
-            },
+            self,
             envelope,
             sender,
             &project_root.to_string_lossy(),
@@ -74,13 +71,7 @@ impl LocalDelegationStorage {
     }
 
     pub fn build_artifact_editor(&self, request: &Value) -> Result<Value, WorkError> {
-        work_feature::delegation::build_artifact_editor(
-            self,
-            &LocalPlanStorage {
-                project_root: self.project_root.clone(),
-            },
-            request,
-        )
+        work_feature::delegation::build_artifact_editor(self, request)
     }
 
     pub fn validate_progress_saver(
@@ -122,6 +113,7 @@ impl LocalDelegationStorage {
             .canonicalize()
             .map_err(|_| boundary("The Work skill root cannot be resolved."))?;
         work_feature::delegation::validate_execute_role(
+            self,
             envelope,
             sender,
             &project_root.to_string_lossy(),
@@ -133,32 +125,135 @@ impl LocalDelegationStorage {
         work_feature::delegation::build_execute_role(self, request)
     }
 
-    pub fn validate_plan_role(
+    pub fn validate_task_coordinator(
         &self,
         envelope: &Value,
         role: &str,
         sender: &str,
     ) -> Result<Value, WorkError> {
-        work_feature::delegation::validate_plan_role_name(role)?;
-        let project_root = self
-            .project_root
-            .canonicalize()
-            .map_err(|_| boundary("The project root cannot be resolved."))?;
-        let skill_root = self
-            .skill_root
-            .canonicalize()
-            .map_err(|_| boundary("The Work skill root cannot be resolved."))?;
-        work_feature::delegation::validate_plan_role(
-            envelope,
-            role,
-            sender,
-            &project_root.to_string_lossy(),
-            &skill_root.to_string_lossy(),
-        )
+        if role == "task-coordinator" {
+            return work_feature::delegation::validate_task_coordinator(
+                envelope,
+                sender,
+                &self.canonical_project_root()?,
+                &self.canonical_skill_root()?,
+            );
+        }
+        Err(boundary("Plan is not a delegation role."))
     }
 
-    pub fn build_plan_role(&self, request: &Value) -> Result<Value, WorkError> {
-        work_feature::delegation::build_plan_role(self, request)
+    pub fn build_task_coordinator(&self, request: &Value) -> Result<Value, WorkError> {
+        if request["role"] == "task-coordinator" {
+            return work_feature::delegation::build_task_coordinator(self, request);
+        }
+        Err(boundary("Plan is not a delegation role."))
+    }
+}
+
+impl work_feature::delegation::TaskDelegationRepository for LocalDelegationStorage {
+    fn planning_context(&self, value: &Value) -> Result<(Value, Value), WorkError> {
+        let requirement = value["snapshot"]["requirement_id"]
+            .as_str()
+            .ok_or_else(|| boundary("A complete Source Snapshot is required."))?;
+        let instructions = crate::hierarchy_catalog::LocalHierarchyCatalog {
+            skill_root: self.skill_root.clone(),
+        };
+        let skills = crate::skill_catalog::LocalSkillCatalog {
+            roots: self.skill_configs.clone(),
+        };
+        let paths = crate::artifact_paths::LocalArtifactPaths {
+            project_root: self.project_root.clone(),
+        };
+        let roots = self
+            .skill_configs
+            .iter()
+            .map(|root| work_feature::skill::SkillRoot {
+                scope: root.scope.clone(),
+                locator: root.locator.clone(),
+            })
+            .collect::<Vec<_>>();
+        let (_, saved) = work_feature::task::source::validate_context(
+            &paths,
+            &instructions,
+            &skills,
+            &paths,
+            &roots,
+            requirement,
+            value,
+        )?;
+        let selected: Vec<String> =
+            serde_json::from_value(value["hierarchy_selection"]["selected_paths"].clone())
+                .map_err(|_| boundary("Confirmed hierarchy paths are required."))?;
+        let selection = work_feature::instruction::select_task(
+            &instructions,
+            &value["hierarchy_selection"],
+            &selected,
+            &[],
+        )?;
+        let mut collection = value.clone();
+        collection["requirement_id"] = json!(requirement);
+        collection["source"] = json!({"kind":"snapshot", "manifest":saved.manifest});
+        Ok((
+            work_feature::delegation::task_source_context(&collection, json!(saved.bytes)),
+            serde_json::to_value(selection).expect("instruction selection serializes"),
+        ))
+    }
+    fn task_collection(&self, task_path: &str) -> Result<Value, WorkError> {
+        let instructions = crate::hierarchy_catalog::LocalHierarchyCatalog {
+            skill_root: self.skill_root.clone(),
+        };
+        let skills = crate::skill_catalog::LocalSkillCatalog {
+            roots: self.skill_configs.clone(),
+        };
+        let paths = crate::artifact_paths::LocalArtifactPaths {
+            project_root: self.project_root.clone(),
+        };
+        let roots = self
+            .skill_configs
+            .iter()
+            .map(|root| work_feature::skill::SkillRoot {
+                scope: root.scope.clone(),
+                locator: root.locator.clone(),
+            })
+            .collect::<Vec<_>>();
+        work_feature::task::load_collection(
+            &instructions,
+            &skills,
+            &paths,
+            &crate::task::storage::LocalTaskStorage {
+                project_root: self.project_root.clone(),
+            },
+            &roots,
+            task_path,
+        )
+    }
+    fn source_bytes(&self, collection: &Value) -> Result<Value, WorkError> {
+        use work_feature::ports::SourceSnapshotReader;
+        if collection["source"]["kind"] == "migration" {
+            return Ok(Value::Null);
+        }
+        let manifest: work_model::source_snapshot::SourceSnapshot =
+            serde_json::from_value(collection["source"]["manifest"].clone())
+                .map_err(|_| boundary("A Source Snapshot is required."))?;
+        let paths = crate::artifact_paths::LocalArtifactPaths {
+            project_root: self.project_root.clone(),
+        };
+        let saved = paths.read_snapshot_at(
+            &manifest
+                .requirement_id
+                .parse()
+                .map_err(|_| boundary("A portable requirement ID is required."))?,
+            &manifest.source_id,
+            collection["artifacts"]["source"]
+                .as_str()
+                .ok_or_else(|| boundary("The Source root is required."))?,
+        )?;
+        if saved.manifest != manifest {
+            return Err(boundary(
+                "The stored Source Snapshot differs from Task provenance.",
+            ));
+        }
+        Ok(json!(saved.bytes))
     }
 }
 
@@ -189,7 +284,6 @@ impl DelegationSourceRepository for LocalDelegationStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use work_operations::canonical::parse_json_contract;
     use work_operations::delegation::{build_envelope, validation_result};
 
     fn python_expected(role: &str, storage: &LocalDelegationStorage) -> Value {
@@ -206,69 +300,46 @@ mod tests {
     }
 
     #[test]
-    fn plan_and_task_coordinator_contexts_bind_formal_plan() {
+    fn task_coordinator_context_rejects_retired_plan_role() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let storage = LocalDelegationStorage {
             project_root: repo.join("crates/work-infrastructure/fixtures/task-diagnostics"),
             skill_root: repo.join("../skills/work"),
             skill_configs: vec![],
         };
-        let plan_path = "outputs/work/plans/example.json";
-        let raw = LocalFiles
-            .read_raw(&storage.project_root.join(plan_path))
-            .unwrap();
-        let plan = parse_json_contract(&raw).unwrap();
-        for (role, mode) in [("plan", "plan"), ("task-coordinator", "task")] {
-            let envelope = storage
-                .build_plan_role(&json!({
-                    "schema":"work-delegation-build-request/v1", "role":role,
-                    "request":"Coordinate confirmed work.", "source_plan_path":plan_path,
-                }))
-                .unwrap();
-            assert_eq!(envelope, python_expected(role, &storage));
-            assert_eq!(envelope["role"], role);
-            assert_eq!(envelope["mode"], mode);
-            assert_eq!(
-                envelope["context"]["hierarchy_selection"],
-                plan["hierarchy_selection"]
-            );
-            assert_eq!(
-                envelope["context"]["skill_selection"],
-                plan["skill_selection"]
-            );
-            assert_eq!(
-                envelope["context"]["source_plan"],
-                if role == "task-coordinator" {
-                    plan.clone()
-                } else {
-                    Value::Null
-                }
-            );
-            assert_eq!(
-                envelope["project_root"],
+        let index: Value = serde_json::from_slice(
+            &std::fs::read(
                 storage
                     .project_root
-                    .canonicalize()
-                    .unwrap()
-                    .to_string_lossy()
-                    .as_ref()
-            );
-            assert_eq!(
-                storage
-                    .validate_plan_role(&envelope, role, "parent")
-                    .unwrap(),
-                validation_result(role, mode, false)
-            );
-            let mut drifted = envelope.clone();
-            drifted["context"]["hierarchy_selection"]["selection_sha256"] = json!("0".repeat(64));
-            assert_eq!(
-                storage
-                    .validate_plan_role(&drifted, role, "parent")
-                    .unwrap_err()
-                    .reason_code,
-                "delegation_boundary_mismatch"
-            );
-        }
+                    .join("outputs/work/tasks/example/index.json"),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let request = json!({"schema":"work-delegation-build-request/v1","role":"task-coordinator","request":"Coordinate confirmed work.","planning_source":{"snapshot":index["source"]["manifest"],"artifacts":index["artifacts"],"hierarchy_selection":index["hierarchy_selection"],"skill_selection":index["skill_selection"],"acceptance_criteria":index["acceptance_criteria"]}});
+        let envelope = storage.build_task_coordinator(&request).unwrap();
+        assert_eq!(envelope, python_expected("task-coordinator", &storage));
+        assert_eq!(
+            storage
+                .validate_task_coordinator(&envelope, "task-coordinator", "parent")
+                .unwrap(),
+            validation_result("task-coordinator", "task", false)
+        );
+        let mut drifted = envelope.clone();
+        drifted["context"]["task_source"]["hierarchy_selection"]["selection_sha256"] =
+            json!("0".repeat(64));
+        assert!(
+            storage
+                .validate_task_coordinator(&drifted, "task-coordinator", "parent")
+                .is_err()
+        );
+        let legacy = python_expected("plan", &storage);
+        assert!(
+            storage
+                .validate_task_coordinator(&legacy, "plan", "parent")
+                .is_err()
+        );
+        assert!(storage.build_task_coordinator(&json!({"schema":"work-delegation-build-request/v1","role":"plan","request":"Coordinate confirmed work.","source_plan_path":"missing.json"})).is_err());
     }
 
     #[test]
@@ -283,7 +354,7 @@ mod tests {
             .build_execute_role(&json!({
                 "schema":"work-delegation-build-request/v1","role":"execute",
                 "request":"Execute selected TASK.",
-                "source_plan_path":"outputs/work/plans/example.json","task_id":"TASK-001",
+                "task_path":"outputs/work/tasks/example/index.json","task_id":"TASK-001",
             }))
             .unwrap();
         assert_eq!(envelope, python_expected("execute", &storage));
@@ -299,10 +370,14 @@ mod tests {
         );
         assert_eq!(
             storage.validate_execute_role(&envelope, "parent").unwrap(),
-            validation_result("execute", "execute", false)
+            {
+                let mut value = validation_result("execute", "execute", false);
+                value["source_validation"] = json!("checked");
+                value
+            }
         );
         let mut drifted = envelope.clone();
-        drifted["context"]["hierarchy_selection_sha256"] = json!("0".repeat(64));
+        drifted["context"]["task_collection_sha256"] = json!("0".repeat(64));
         assert_eq!(
             storage
                 .validate_execute_role(&drifted, "parent")
@@ -357,6 +432,80 @@ mod tests {
                 .unwrap(),
             validation_result("progress-saver", "task", false)
         );
+        for change in [
+            "mode",
+            "origin_mode",
+            "source_bytes",
+            "planning_source",
+            "missing_source",
+        ] {
+            let mut wrong = envelope.clone();
+            match change {
+                "mode" => wrong["mode"] = json!("plan"),
+                "origin_mode" => wrong["origin_mode"] = json!("plan"),
+                "source_bytes" => wrong["context"]["task_source"]["source_bytes"][0] = json!(0),
+                "planning_source" => {
+                    wrong["context"]["content"]["context"]["planning_source"]["snapshot"]["source_sha256"] =
+                        json!("0".repeat(64))
+                }
+                _ => {
+                    wrong["context"]
+                        .as_object_mut()
+                        .unwrap()
+                        .remove("task_source");
+                }
+            }
+            assert!(
+                storage.validate_progress_saver(&wrong, "parent").is_err(),
+                "{change}"
+            );
+        }
+        let source_raw = std::fs::read(
+            storage
+                .project_root
+                .join("outputs/work/sources/example/SRC-001/source.txt"),
+        )
+        .unwrap();
+        let root = std::env::temp_dir().join(format!(
+            "work-delegation-progress-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&root).unwrap();
+        let progress_storage = crate::progress_storage::LocalProgressStorage { project_root: root };
+        let preview =
+            work_feature::progress::preview_progress(&progress_storage, &progress, 0).unwrap();
+        work_feature::progress::save_progress(
+            &progress_storage,
+            &progress,
+            0,
+            preview["approved_sha256"].as_str().unwrap(),
+        )
+        .unwrap();
+        let saved =
+            work_feature::progress::read_progress(&progress_storage, "example", "task").unwrap();
+        assert_eq!(
+            saved["progress"]["context"]["planning_source"],
+            progress["context"]["planning_source"]
+        );
+        assert_eq!(
+            std::fs::read(
+                storage
+                    .project_root
+                    .join("outputs/work/sources/example/SRC-001/source.txt")
+            )
+            .unwrap(),
+            source_raw
+        );
+        assert!(
+            !progress_storage
+                .project_root
+                .join("outputs/work/plans")
+                .exists()
+        );
         let mut wrong = envelope.clone();
         wrong["context"]["expected_revision"] = json!(true);
         assert_eq!(
@@ -378,7 +527,7 @@ mod tests {
     }
 
     #[test]
-    fn artifact_editor_context_matches_python_legacy_plan_reference() {
+    fn artifact_editor_rejects_legacy_plan_and_plan_origin() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let storage = LocalDelegationStorage {
             project_root: repo
@@ -386,21 +535,24 @@ mod tests {
             skill_root: repo.join("../skills/work"),
             skill_configs: vec![],
         };
-        let envelope = storage
-            .build_artifact_editor(&json!({
-                "schema":"work-delegation-build-request/v1","role":"artifact-editor",
-                "mode":"execute","request":"Revise confirmed artifact.",
-                "source_plan_path":"outputs/work/plans/example.json",
-                "confirmed_request":{"reason":"Reviewed"},"decisions":["Confirmed revision"],
-                "affected_task_ids":["TASK-001"],"continuation_point":"Return to Execute",
-            }))
-            .unwrap();
-        assert_eq!(envelope, python_expected("artifact-editor", &storage));
+        let request = json!({"schema":"work-delegation-build-request/v1","role":"artifact-editor","mode":"execute","request":"Revise confirmed artifact.","source_plan_path":"outputs/work/plans/example.json","confirmed_request":{"reason":"Reviewed"},"decisions":["Confirmed revision"],"affected_task_ids":["TASK-001"],"continuation_point":"Return to Execute"});
         assert_eq!(
             storage
-                .validate_artifact_editor(&envelope, "parent")
-                .unwrap(),
-            validation_result("artifact-editor", "execute", false)
+                .build_artifact_editor(&request)
+                .unwrap_err()
+                .reason_code,
+            "delegation_boundary_mismatch"
+        );
+        let mut request = request;
+        request.as_object_mut().unwrap().remove("source_plan_path");
+        request["task_path"] = json!("outputs/work/tasks/example/index.json");
+        request["mode"] = json!("plan");
+        assert_eq!(
+            storage
+                .build_artifact_editor(&request)
+                .unwrap_err()
+                .reason_code,
+            "delegation_boundary_mismatch"
         );
     }
 
@@ -416,8 +568,8 @@ mod tests {
             .build_artifact_editor(&json!({
                 "schema":"work-delegation-build-request/v1","role":"artifact-editor",
                 "mode":"execute","request":"Revise confirmed artifact.",
-                "source_plan_path":"outputs/work/plans/example.json",
-                "confirmed_request":{"reason":"Reviewed"},"decisions":["Confirmed revision"],
+                "task_path":"outputs/work/tasks/example/index.json",
+                "confirmed_request":{"schema":"work-spec-prepare-request/v1","requirement_id":"example","reason":"Reviewed","edits":[{"target":{"artifact":"task_item","task_id":"TASK-001"},"field":"goal","after":"Reviewed goal"}]},"decisions":["Confirmed revision"],
                 "affected_task_ids":["TASK-001"],"continuation_point":"Return to Execute",
             }))
             .unwrap();
@@ -429,28 +581,49 @@ mod tests {
             envelope["context"]["artifacts"]["task"],
             "outputs/work/tasks/example/index.json"
         );
-        assert_eq!(
-            storage
-                .validate_artifact_editor(&envelope, "parent")
-                .unwrap(),
-            validation_result("artifact-editor", "execute", false)
-        );
+        let verified = storage
+            .validate_artifact_editor(&envelope, "parent")
+            .unwrap();
+        assert_eq!(verified["source_validation"], "checked");
+        assert_eq!(verified["grants_authorization"], false);
+        for field in ["source_plan", "plan", "origin_mode"] {
+            let mut wrong = envelope.clone();
+            wrong["context"][field] = json!("plan");
+            assert!(storage.validate_artifact_editor(&wrong, "parent").is_err());
+        }
+        let mut wrong = envelope.clone();
+        wrong["context"]["confirmed_request"]["edits"][0]["target"]["artifact"] = json!("plan");
+        assert!(storage.validate_artifact_editor(&wrong, "parent").is_err());
+        let mut wrong = envelope.clone();
+        wrong["context"]["affected_task_ids"] = json!(["TASK-999"]);
+        assert!(storage.validate_artifact_editor(&wrong, "parent").is_err());
+        let mut wrong = envelope.clone();
+        wrong["context"]["task_source"]["source_bytes"][0] = json!(0);
+        assert!(storage.validate_artifact_editor(&wrong, "parent").is_err());
+        let mut wrong = envelope.clone();
+        wrong["context"]["task_collection_sha256"] = json!("0".repeat(64));
+        assert!(storage.validate_artifact_editor(&wrong, "parent").is_err());
     }
 
     #[test]
-    fn task_skill_context_matches_python_formal_skill_reference() {
+    fn task_skill_context_binds_task_owned_skill_and_source() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let storage = LocalDelegationStorage {
             project_root: repo
                 .join("crates/work-infrastructure/fixtures/delegation-role/task-skill"),
             skill_root: repo.join("../skills/work"),
-            skill_configs: vec![],
+            skill_configs: vec![SkillRootConfig {
+                scope: "repo".into(),
+                locator: "delegation-fixture".into(),
+                path: repo
+                    .join("crates/work-infrastructure/fixtures/delegation-role/task-skill/skills"),
+            }],
         };
         let envelope = storage
             .build_task_skill(&json!({
                 "schema":"work-delegation-build-request/v1","role":"task-skill",
                 "request":"Refine selected TASK.",
-                "source_plan_path":"outputs/work/plans/example.json","task_id":"TASK-001",
+                "task_path":"outputs/work/tasks/example/index.json","task_id":"TASK-001",
             }))
             .unwrap();
         assert_eq!(envelope, python_expected("task-skill", &storage));
@@ -472,7 +645,7 @@ mod tests {
     }
 
     #[test]
-    fn plan_and_task_discussion_resume_validate_identity() {
+    fn task_resume_validates_identity_and_rejects_plan_progress() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let storage = LocalDelegationStorage {
             project_root: repo.join("crates/work-infrastructure/fixtures/delegation-role"),
@@ -492,6 +665,20 @@ mod tests {
             if role == "plan" {
                 progress["current_task_id"] = Value::Null;
             }
+            if role == "plan" {
+                assert!(
+                    build_envelope(
+                        role,
+                        mode,
+                        "resume example",
+                        &storage.canonical_project_root().unwrap(),
+                        &storage.canonical_skill_root().unwrap(),
+                        &json!({"saved_progress":progress})
+                    )
+                    .is_err()
+                );
+                continue;
+            }
             let envelope = build_envelope(
                 role,
                 mode,
@@ -505,17 +692,44 @@ mod tests {
                 &json!({"saved_progress":progress}),
             )
             .unwrap();
+            if mode == "plan" {
+                assert_eq!(
+                    storage
+                        .validate_task_coordinator(&envelope, role, "parent")
+                        .unwrap_err()
+                        .reason_code,
+                    "invalid_progress_mode"
+                );
+                continue;
+            }
             assert_eq!(
                 storage
-                    .validate_plan_role(&envelope, role, "parent")
+                    .validate_task_coordinator(&envelope, role, "parent")
                     .unwrap(),
                 validation_result(role, mode, true)
+            );
+            let mut missing_source = envelope.clone();
+            missing_source["context"]["saved_progress"]["context"]
+                .as_object_mut()
+                .unwrap()
+                .remove("planning_source");
+            assert!(
+                storage
+                    .validate_task_coordinator(&missing_source, role, "parent")
+                    .is_err()
+            );
+            let mut old_origin = envelope.clone();
+            old_origin["origin_mode"] = json!("plan");
+            assert!(
+                storage
+                    .validate_task_coordinator(&old_origin, role, "parent")
+                    .is_err()
             );
             let mut wrong = envelope.clone();
             wrong["request"] = json!("resume other");
             assert_eq!(
                 storage
-                    .validate_plan_role(&wrong, role, "parent")
+                    .validate_task_coordinator(&wrong, role, "parent")
                     .unwrap_err()
                     .reason_code,
                 "delegation_boundary_mismatch"
@@ -536,7 +750,7 @@ mod tests {
             (
                 "task-coordinator",
                 "crates/work-infrastructure/fixtures/task-diagnostics",
-                "source_plan",
+                "task_source",
                 "workflow_context must contain exactly the required and optional fields.",
             ),
             (
@@ -553,7 +767,7 @@ mod tests {
             ),
             (
                 "artifact-editor",
-                "crates/work-infrastructure/fixtures/delegation-role/legacy-plan",
+                "crates/work-infrastructure/fixtures/task-diagnostics",
                 "confirmed_request",
                 "maintenance_context must contain exactly the required and optional fields.",
             ),
@@ -569,6 +783,14 @@ mod tests {
                 skill_root: repo.join("../skills/work"),
                 skill_configs: vec![],
             };
+            if role == "plan" {
+                assert!(
+                    storage
+                        .validate_task_coordinator(&python_expected(role, &storage), role, "parent")
+                        .is_err()
+                );
+                continue;
+            }
             let mut envelope = python_expected(role, &storage);
             envelope["context"]
                 .as_object_mut()
@@ -576,7 +798,7 @@ mod tests {
                 .remove(required);
             let outcome = match role {
                 "plan" | "task-coordinator" => {
-                    storage.validate_plan_role(&envelope, role, "parent")
+                    storage.validate_task_coordinator(&envelope, role, "parent")
                 }
                 "execute" => storage.validate_execute_role(&envelope, "parent"),
                 "task-skill" => storage.validate_task_skill(&envelope, "task-coordinator"),
@@ -613,7 +835,7 @@ mod tests {
             ),
             (
                 "artifact-editor",
-                "crates/work-infrastructure/fixtures/delegation-role/legacy-plan",
+                "crates/work-infrastructure/fixtures/task-diagnostics",
             ),
             (
                 "progress-saver",
@@ -625,11 +847,19 @@ mod tests {
                 skill_root: repo.join("../skills/work"),
                 skill_configs: vec![],
             };
+            if role == "plan" {
+                assert!(
+                    storage
+                        .validate_task_coordinator(&python_expected(role, &storage), role, "parent")
+                        .is_err()
+                );
+                continue;
+            }
             let envelope = python_expected(role, &storage);
             let before = envelope.clone();
             let result = match role {
                 "plan" | "task-coordinator" => {
-                    storage.validate_plan_role(&envelope, role, "parent")
+                    storage.validate_task_coordinator(&envelope, role, "parent")
                 }
                 "execute" => storage.validate_execute_role(&envelope, "parent"),
                 "task-skill" => storage.validate_task_skill(&envelope, "task-coordinator"),
@@ -639,7 +869,15 @@ mod tests {
             }
             .unwrap();
             assert_eq!(result["status"], "valid", "{role}");
-            assert_eq!(result["source_validation"], "not_checked", "{role}");
+            assert_eq!(
+                result["source_validation"],
+                if matches!(role, "artifact-editor" | "execute") {
+                    "checked"
+                } else {
+                    "not_checked"
+                },
+                "{role}"
+            );
             assert_eq!(result["grants_authorization"], false, "{role}");
             assert_eq!(envelope, before, "{role}");
         }
@@ -667,10 +905,18 @@ mod tests {
                 skill_root: repo.join("../skills/work"),
                 skill_configs: vec![],
             };
+            if role == "plan" {
+                assert!(
+                    storage
+                        .validate_task_coordinator(&python_expected(role, &storage), role, "parent")
+                        .is_err()
+                );
+                continue;
+            }
             let mut envelope = python_expected(role, &storage);
             envelope["context"]["saved_progress"] = json!({"schema":"work-discussion-progress/v1"});
             let result = match role {
-                "plan" => storage.validate_plan_role(&envelope, role, "parent"),
+                "plan" => storage.validate_task_coordinator(&envelope, role, "parent"),
                 "execute" => storage.validate_execute_role(&envelope, "parent"),
                 "progress-saver" => storage.validate_progress_saver(&envelope, "parent"),
                 _ => unreachable!(),
