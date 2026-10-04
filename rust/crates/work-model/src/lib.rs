@@ -35,19 +35,17 @@ mod remaining_contract_examples {
     fn public_remaining_examples_match_models() {
         let registry: Value = crate::contract_data::registry_value();
         let items = &registry["items"];
-        matches::<delegation::DelegationBuildRequest>(items, "work-delegation-build-request/v1");
-        matches::<delegation::DelegationEnvelope>(items, "work-delegation-envelope/v1");
-        matches::<delegation::DelegationValidation>(items, "work-delegation-validation/v1");
-        matches::<handoff::DiscussionHandoffRequest>(items, "work-discussion-handoff-request/v1");
-        matches::<handoff::DiscussionHandoff>(items, "work-discussion-handoff/v1");
-        matches::<handoff::HandoffSourceValidation>(items, "work-handoff-source-validation/v1");
-        matches::<handoff::HandoffValidation>(items, "work-handoff-validation/v1");
-        matches::<handoff::FormalHandoff>(items, "work-handoff/v1");
-        matches::<invocation::Invocation>(items, "work-invocation/v1");
-        matches::<operation::OperationEnvelope>(items, "work-operation-envelope/v1");
-        matches::<operation::OperationResult>(items, "work-operation-result/v1");
-        matches::<source::SourceImpact>(items, "work-source-impact/v1");
-        matches::<source::SourceRefreshPreview>(items, "work-source-refresh-preview/v1");
-        matches::<source::SourceRefreshPublication>(items, "work-source-refresh-publication/v1");
+        matches::<delegation::DelegationBuildRequest>(items, "work-delegation-build-request");
+        matches::<delegation::DelegationEnvelope>(items, "work-delegation-envelope");
+        matches::<delegation::DelegationValidation>(items, "work-delegation-validation");
+        matches::<handoff::DiscussionHandoffRequest>(items, "work-discussion-handoff-request");
+        matches::<handoff::DiscussionHandoff>(items, "work-discussion-handoff");
+        matches::<handoff::HandoffSourceValidation>(items, "work-handoff-source-validation");
+        matches::<handoff::HandoffValidation>(items, "work-handoff-validation");
+        matches::<handoff::FormalHandoff>(items, "work-handoff");
+        matches::<invocation::Invocation>(items, "work-invocation");
+        matches::<operation::OperationEnvelope>(items, "work-operation-envelope");
+        matches::<operation::OperationResult>(items, "work-operation-result");
+        matches::<source::SourceImpact>(items, "work-source-impact");
     }
 }

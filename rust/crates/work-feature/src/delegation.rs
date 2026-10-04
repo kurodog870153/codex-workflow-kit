@@ -259,7 +259,7 @@ fn task_build_request<'a>(
             !required.contains(&key.as_str())
                 && !["mode", "repository_evidence", "saved_discussion"].contains(&key.as_str())
         })
-        || request["schema"] != "work-delegation-build-request/v1"
+        || request["schema"] != "work-delegation-build-request"
         || request["role"] != role
         || request.get("mode").is_some_and(|mode| mode != "task")
     {
@@ -361,7 +361,7 @@ pub fn validate_progress_saver(
         return Err(boundary("Saved discussion must retain its fixed Source."));
     }
     let mut candidate = Value::Object(content.clone());
-    candidate["schema"] = json!("work-discussion-progress/v1");
+    candidate["schema"] = json!("work-discussion-progress");
     candidate["requirement_id"] = context["requirement_id"].clone();
     candidate["mode"] = json!(mode);
     candidate["revision"] = json!(revision + 1);
@@ -517,7 +517,7 @@ fn execute_context(
     let bytes = repository.source_bytes(collection)?;
     let source = task_source_context(collection, bytes.clone());
     validate_task_source(&source)?;
-    let context = json!({"task_path":path,"task_source":source,"task_collection_sha256":validation["task_collection_sha256"],"task_boundary":item,"target_task":target,"execution_index":execution,"execution_index_sha256":fingerprint::raw(&raw),"execute_skill_selection":{"schema":"work-skill-selection/v1","decision":decision,"skills":skills,"selection_sha256":fingerprint::skill_selection(decision,&skills)}});
+    let context = json!({"task_path":path,"task_source":source,"task_collection_sha256":validation["task_collection_sha256"],"task_boundary":item,"target_task":target,"execution_index":execution,"execution_index_sha256":fingerprint::raw(&raw),"execute_skill_selection":{"schema":"work-skill-selection","decision":decision,"skills":skills,"selection_sha256":fingerprint::skill_selection(decision,&skills)}});
     if repository.task_collection(path)? != validation
         || repository.source_bytes(collection)? != bytes
         || repository.read_raw(&absolute)? != raw
@@ -694,7 +694,7 @@ pub fn validate_artifact_editor(
     let decision = hierarchy["decision"]
         .as_str()
         .ok_or_else(|| boundary("Supply the confirmed hierarchy snapshot."))?;
-    if hierarchy["schema"] != "work-hierarchy-selection/v1"
+    if hierarchy["schema"] != "work-hierarchy-selection"
         || hierarchy["selection_sha256"]
             != fingerprint::hierarchy_selection(decision, &selected, entries, catalog)
     {
@@ -711,7 +711,7 @@ pub fn validate_artifact_editor(
     } else {
         "external_skills"
     };
-    if skills["schema"] != "work-skill-selection/v1"
+    if skills["schema"] != "work-skill-selection"
         || skills["decision"] != decision
         || skills["selection_sha256"]
             != work_operations::derivation::fingerprint::skill_selection(decision, selected_skills)
@@ -743,7 +743,7 @@ pub fn build_task_skill(
         .and_then(|rows| rows.iter().find(|row| row["id"] == id))
         .ok_or_else(|| boundary("The selected TASK is absent from the formal collection."))?
         .clone();
-    item["schema"] = json!("work-task-item/v1");
+    item["schema"] = json!("work-task-item");
     let skill = collection["skill_selection"]["skills"]
         .as_array()
         .and_then(|rows| rows.iter().find(|skill| skill["id"] == item["skill_id"]))
@@ -799,8 +799,7 @@ pub fn build_artifact_editor(
             "The selected role requires only its semantic source and decision fields.",
         ));
     }
-    if request["schema"] != "work-delegation-build-request/v1"
-        || request["role"] != "artifact-editor"
+    if request["schema"] != "work-delegation-build-request" || request["role"] != "artifact-editor"
     {
         return Err(boundary("Unknown delegation role."));
     }
@@ -870,7 +869,7 @@ pub fn build_execute_role(
             "The selected role requires only its semantic source and decision fields.",
         ));
     }
-    if request["schema"] != "work-delegation-build-request/v1"
+    if request["schema"] != "work-delegation-build-request"
         || request["role"] != "execute"
         || request.get("mode").is_some_and(|mode| mode != "execute")
     {
@@ -920,9 +919,7 @@ pub fn build_progress_saver(
             "The selected role requires only its semantic source and decision fields.",
         ));
     }
-    if request["schema"] != "work-delegation-build-request/v1"
-        || request["role"] != "progress-saver"
-    {
+    if request["schema"] != "work-delegation-build-request" || request["role"] != "progress-saver" {
         return Err(boundary("Unknown delegation role."));
     }
     let mode = request["mode"]
@@ -1046,7 +1043,7 @@ mod tests {
     #[test]
     fn progress_builder_propagates_source_port_failure_after_request_validation() {
         let request = json!({
-            "schema":"work-delegation-build-request/v1",
+            "schema":"work-delegation-build-request",
             "role":"progress-saver",
             "mode":"task",
             "request":"Save progress.",

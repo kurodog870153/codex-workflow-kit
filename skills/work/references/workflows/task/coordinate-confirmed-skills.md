@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # Coordinate confirmed skills
 
 1. Discover and recommend skills within Task planning, then obtain explicit confirmation of the Task-owned skill selection before using it. The immutable Source preserves the requirement; it does not select skills or instructions.

@@ -186,7 +186,7 @@ pub fn validate_planning_index(value: &Value) -> Result<Value, TaskIssue> {
         ],
         &["retired_task_ids"],
     )?;
-    identity(value, "work-task-planning-index/v1")?;
+    identity(value, "work-task-planning-index")?;
     let current_revision = revision(&index["revision"], "revision")?;
     let tasks = index["tasks"]
         .as_array()
@@ -338,7 +338,7 @@ pub fn validate_planning_index(value: &Value) -> Result<Value, TaskIssue> {
     Ok(work_model::task::response::typed_response::<
         work_model::task::response::TaskPlanningIndexValidation,
     >(
-        json!({"schema": "work-task-planning-index-validation/v1", "requirement_id": index["requirement_id"], "revision": current_revision, "task_count": ids.len(), "task_order": order.order, "status": "valid"}),
+        json!({"schema": "work-task-planning-index-validation", "requirement_id": index["requirement_id"], "revision": current_revision, "task_count": ids.len(), "task_order": order.order, "status": "valid"}),
     ))
 }
 
@@ -364,7 +364,7 @@ pub fn validate_task_draft(value: &Value, index: &Value) -> Result<Value, TaskIs
         ],
         &["task_candidate"],
     )?;
-    identity(value, "work-task-draft/v1")?;
+    identity(value, "work-task-draft")?;
     let id = task_id(&draft["task_id"], "task_id")?;
     let current_revision = revision(&draft["revision"], "revision")?;
     revision(&draft["boundary_revision"], "boundary_revision")?;
@@ -464,7 +464,7 @@ pub fn validate_task_draft(value: &Value, index: &Value) -> Result<Value, TaskIs
     Ok(work_model::task::response::typed_response::<
         work_model::task::response::TaskDraftValidation,
     >(
-        json!({"schema": "work-task-draft-validation/v1", "requirement_id": draft["requirement_id"], "task_id": id, "revision": current_revision, "planning_status": status, "status": "valid"}),
+        json!({"schema": "work-task-draft-validation", "requirement_id": draft["requirement_id"], "task_id": id, "revision": current_revision, "planning_status": status, "status": "valid"}),
     ))
 }
 
@@ -485,13 +485,13 @@ mod tests {
     #[test]
     fn draft_model_boundaries_keep_nulls_and_reject_invalid_input() {
         let source = crate::task::source::fixture_context();
-        let mut index = json!({"schema":"work-task-planning-index/v1",
+        let mut index = json!({"schema":"work-task-planning-index",
             "requirement_id":"example","revision":1,"source":source,
             "current_task_id":null,"tasks":[{"id":"TASK-001","title":"Example",
                 "goal":"Deliver.","scope":["Implementation"],"skill_id":null,
                 "dependencies":[],"status":"refined","boundary_revision":1,
                 "instructions_sha256":"d".repeat(64)}]});
-        let mut draft = json!({"schema":"work-task-draft/v1","requirement_id":"example",
+        let mut draft = json!({"schema":"work-task-draft","requirement_id":"example",
             "task_id":"TASK-001","revision":1,"boundary_revision":1,"source":source,
             "instructions_sha256":"d".repeat(64),"status":"refined","notes":[],
             "confirmed_decisions":[],"tentative":[],"open_questions":[],
@@ -526,7 +526,7 @@ mod tests {
             validate_task_draft(&draft, &index).unwrap_err().reason_code,
             "invalid_draft_schema"
         );
-        draft["schema"] = json!("work-task-draft/v1");
+        draft["schema"] = json!("work-task-draft");
         draft["unknown"] = json!(true);
         assert_eq!(
             validate_task_draft(&draft, &index).unwrap_err().reason_code,
@@ -536,7 +536,7 @@ mod tests {
 
     #[test]
     fn index_example_and_cycles() {
-        let index = json!({"schema": "work-task-planning-index/v1", "requirement_id": "example", "revision": 1,
+        let index = json!({"schema": "work-task-planning-index", "requirement_id": "example", "revision": 1,
             "source": crate::task::source::fixture_context(),
             "current_task_id": "TASK-001", "tasks": [{"id": "TASK-001", "title": "Example", "goal": "Deliver the result.", "scope": ["Implementation"], "skill_id": null, "dependencies": [], "status": "planned", "boundary_revision": 1, "instructions_sha256": "d".repeat(64)}]});
         assert_eq!(
@@ -577,7 +577,7 @@ mod tests {
         );
         let mut active = index;
         active["tasks"][0]["status"] = json!("in_progress");
-        let draft = json!({"schema": "work-task-draft/v1", "requirement_id": "example", "task_id": "TASK-001", "revision": 1,
+        let draft = json!({"schema": "work-task-draft", "requirement_id": "example", "task_id": "TASK-001", "revision": 1,
             "boundary_revision": 1, "source": active["source"], "instructions_sha256": "d".repeat(64),
             "status": "in_progress", "notes": [], "confirmed_decisions": [], "tentative": [], "open_questions": [],
             "next_discussion_point": "Continue discussion."});
@@ -613,13 +613,13 @@ mod tests {
         }
     }
 
-    fn python_contract_fixture() -> (Value, Value) {
-        let index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
+    fn current_contract_contract_fixture() -> (Value, Value) {
+        let index = json!({"schema":"work-task-planning-index","requirement_id":"example","revision":1,
             "source":crate::task::source::fixture_context(),
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Update source","goal":"Produce the result.",
                 "scope":["Source and its validation."],"skill_id":null,"dependencies":[],"status":"in_progress",
                 "boundary_revision":1,"instructions_sha256":"d".repeat(64)}]});
-        let draft = json!({"schema":"work-task-draft/v1","requirement_id":"example","task_id":"TASK-001",
+        let draft = json!({"schema":"work-task-draft","requirement_id":"example","task_id":"TASK-001",
             "revision":1,"boundary_revision":1,"source":index["source"],"instructions_sha256":"d".repeat(64),
             "status":"in_progress","notes":[],"confirmed_decisions":[{"statement":"Keep the API.","rationale":"Preserve callers."}],
             "tentative":["Consider a focused regression test."],"open_questions":["Which input should the test cover?"],
@@ -628,8 +628,8 @@ mod tests {
     }
 
     #[test]
-    fn python_draft_discussion_states_and_selection_cases() {
-        let (index, draft) = python_contract_fixture();
+    fn current_contract_draft_discussion_states_and_selection_cases() {
+        let (index, draft) = current_contract_contract_fixture();
         let before = (index.clone(), draft.clone());
         let valid = validate_task_draft(&draft, &index).unwrap();
         assert_eq!(valid["status"], "valid");
@@ -704,8 +704,8 @@ mod tests {
     }
 
     #[test]
-    fn python_draft_identity_dependency_and_reference_cases() {
-        let (index, draft) = python_contract_fixture();
+    fn current_contract_draft_identity_dependency_and_reference_cases() {
+        let (index, draft) = current_contract_contract_fixture();
         for timestamp in ["2026-10-04T00:00:00Z", "2026-10-05T00:00:00Z"] {
             let mut changed = draft.clone();
             changed["source"]["snapshot"]["captured_at"] = json!(timestamp);
@@ -826,8 +826,8 @@ mod tests {
     }
 
     #[test]
-    fn python_draft_field_errors_and_formal_boundary() {
-        let (index, draft) = python_contract_fixture();
+    fn current_contract_draft_field_errors_and_formal_boundary() {
+        let (index, draft) = current_contract_contract_fixture();
         for (field, value, code) in [
             ("revision", json!(true), "invalid_draft_revision"),
             ("revision", json!(0), "invalid_draft_revision"),
@@ -843,7 +843,7 @@ mod tests {
             ("notes", json!("text"), "invalid_draft_array"),
             (
                 "schema",
-                json!("work-task-collection-projection/v1"),
+                json!("work-task-collection-projection"),
                 "invalid_draft_schema",
             ),
         ] {

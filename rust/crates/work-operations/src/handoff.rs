@@ -81,7 +81,7 @@ pub fn build_formal_handoff(
     let mut source = source.clone();
     source.insert("stage".into(), json!(from));
     let mut handoff = json!({
-        "schema":"work-handoff/v1","marker":"WORK-HANDOFF","direction":direction,
+        "schema":"work-handoff","marker":"WORK-HANDOFF","direction":direction,
         "requirement_id":requirement_id,"artifacts":artifacts,"source":source,
         "target":{"stage":to},
     });
@@ -124,7 +124,7 @@ pub fn build_discussion_handoff(request: &Value) -> Result<Value, HandoffIssue> 
                 json!({}),
             )
         })?;
-    if object["schema"] != "work-discussion-handoff-request/v1" {
+    if object["schema"] != "work-discussion-handoff-request" {
         return Err(issue(
             "invalid_contract_value",
             "The discussion handoff schema is invalid.",
@@ -197,7 +197,7 @@ pub fn build_discussion_handoff(request: &Value) -> Result<Value, HandoffIssue> 
     let (source, target) = direction_stages(direction).expect("filtered direction");
     let _: work_model::handoff::DiscussionHandoffRequest = serde_json::from_value(request.clone())
         .expect("validated discussion request matches its model");
-    let mut result = json!({"schema":"work-discussion-handoff/v1","marker":"WORK-DISCUSSION-HANDOFF","direction":direction,"requirement_id":requirement_id,"source_stage":source,"target_stage":target,"source_status":"unsaved_discussion","source_validation":"not_checked","grants_authorization":false,"summary":summary});
+    let mut result = json!({"schema":"work-discussion-handoff","marker":"WORK-DISCUSSION-HANDOFF","direction":direction,"requirement_id":requirement_id,"source_stage":source,"target_stage":target,"source_status":"unsaved_discussion","source_validation":"not_checked","grants_authorization":false,"summary":summary});
     for field in [
         "confirmed_approach",
         "requested_changes",
@@ -390,7 +390,7 @@ pub fn validate_handoff_structure(contract: &Value) -> Result<Value, HandoffIssu
         required.extend(return_fields);
     }
     strict(contract, "handoff", &required, &[])?;
-    if contract["schema"] != "work-handoff/v1" {
+    if contract["schema"] != "work-handoff" {
         return Err(issue(
             "invalid_handoff_schema",
             "The Handoff schema is invalid.",
@@ -573,7 +573,7 @@ pub fn validate_handoff_structure(contract: &Value) -> Result<Value, HandoffIssu
             text_array(&contract[field], field)?;
         }
     }
-    let result = json!({"schema":"work-handoff-validation/v1","marker":"WORK-HANDOFF","direction":direction,"requirement_id":requirement_id,"source_stage":source_stage,"target_stage":target_stage,"status":"valid"});
+    let result = json!({"schema":"work-handoff-validation","marker":"WORK-HANDOFF","direction":direction,"requirement_id":requirement_id,"source_stage":source_stage,"target_stage":target_stage,"status":"valid"});
     let _: work_model::handoff::HandoffValidation =
         serde_json::from_value(result.clone()).expect("handoff validation matches its model");
     Ok(result)
@@ -611,8 +611,7 @@ impl Serialize for OrderedDiscussion<'_> {
 }
 
 pub fn render_discussion_handoff(value: &Value) -> Result<Vec<u8>, HandoffIssue> {
-    if value["schema"] != "work-discussion-handoff/v1"
-        || value["marker"] != "WORK-DISCUSSION-HANDOFF"
+    if value["schema"] != "work-discussion-handoff" || value["marker"] != "WORK-DISCUSSION-HANDOFF"
     {
         return Err(issue(
             "invalid_contract_value",
@@ -652,7 +651,7 @@ mod tests {
 
     #[test]
     fn discussion_handoff_never_grants_authorization() {
-        let request = json!({"schema":"work-discussion-handoff-request/v1","direction":"task_to_execute","requirement_id":"example","summary":"Review the unfinished discussion."});
+        let request = json!({"schema":"work-discussion-handoff-request","direction":"task_to_execute","requirement_id":"example","summary":"Review the unfinished discussion."});
         let result = build_discussion_handoff(&request).unwrap();
         assert_eq!(result["source_stage"], "task");
         assert_eq!(result["target_stage"], "execute");
@@ -670,7 +669,7 @@ mod tests {
         }
         assert_eq!(
             crate::canonical::sha256_hex(&render_discussion_handoff(&result).unwrap()),
-            "8927523209edab0803861f0d0cf87720d8fc37e1e3dc030d87133a0fe1cabe1d"
+            "d6ad0e89128bdeb5dd5060aa316602bccb90b159886c08d3331a58b0f32426f3"
         );
         let mut wrong = result.clone();
         wrong["source"] = json!({"sha":"changed"});
@@ -683,7 +682,7 @@ mod tests {
     }
 
     #[test]
-    fn python_formal_handoff_directions_and_rejections() {
+    fn current_contract_formal_handoff_directions_and_rejections() {
         for direction in ["task_to_execute", "execute_to_task"] {
             let (from, to) = direction_stages(direction).unwrap();
             let source = {
@@ -696,7 +695,7 @@ mod tests {
                 }
                 source
             };
-            let mut contract = json!({"schema":"work-handoff/v1","marker":"WORK-HANDOFF","direction":direction,"requirement_id":"example","artifacts":{"source":"outputs/work/sources/example","task":"outputs/work/tasks/example/index.json","execution":"outputs/work/executions/example"},"source":source,"target":{"stage":to},"summary":"Continue the workflow."});
+            let mut contract = json!({"schema":"work-handoff","marker":"WORK-HANDOFF","direction":direction,"requirement_id":"example","artifacts":{"source":"outputs/work/sources/example","task":"outputs/work/tasks/example/index.json","execution":"outputs/work/executions/example"},"source":source,"target":{"stage":to},"summary":"Continue the workflow."});
             if direction == "execute_to_task" {
                 contract["confirmed_approach"] = json!("Update the source artifact.");
                 contract["requested_changes"] = json!(["Clarify the expected behavior."]);

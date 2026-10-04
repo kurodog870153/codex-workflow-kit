@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # 指令維護參考指令
 
 ## 1. Metadata、分類與唯一來源

@@ -80,9 +80,7 @@ fn formal_id(value: &str) -> bool {
         "MILESTONE",
         "DELIVERABLE",
         "ACCEPTANCE",
-        "PLAN-DECISION",
         "TASK-DECISION",
-        "PLAN-CHANGE",
         "TASK-CHANGE",
         "TASK-SPEC",
     ];
@@ -159,10 +157,10 @@ pub fn validate_prepare_request(value: &Value) -> Result<(), SpecificationIssue>
         &["source_update"],
         "spec_prepare",
     )?;
-    if value["schema"] != "work-spec-prepare-request/v1" {
+    if value["schema"] != "work-spec-prepare-request" {
         return Err(artifact(
             "spec_prepare_schema",
-            "Use work-spec-prepare-request/v1.",
+            "Use work-spec-prepare-request.",
         ));
     }
     if value["requirement_id"]
@@ -380,7 +378,7 @@ mod tests {
     use super::*;
 
     fn example() -> Value {
-        json!({"schema":"work-spec-prepare-request/v1","requirement_id":"example",
+        json!({"schema":"work-spec-prepare-request","requirement_id":"example",
             "reason":"Confirmed goal revision","edits":[{"target":{"artifact":"task_item",
                 "task_id":"TASK-001"},"field":"goal","after":"Reviewed goal"}]})
     }
@@ -436,7 +434,10 @@ mod tests {
 
     #[test]
     fn semantic_edits_reject_formal_fields_and_accept_identity_free_addition() {
-        assert!(formal_id("PLAN-DECISION-001"));
+        assert!(formal_id("TASK-DECISION-001"));
+        assert!(formal_id("TASK-CHANGE-001"));
+        assert!(!formal_id("PLAN-DECISION-001"));
+        assert!(!formal_id("PLAN-CHANGE-001"));
         assert!(formal_id("TASK-SPEC-001"));
         for field in ["before", "path", "operation"] {
             let mut value = example();
@@ -451,7 +452,7 @@ mod tests {
             );
         }
         for edit in [
-            json!({"target":{"artifact":"task_item","task_id":"TASK-001"},"field":"/","after":{"schema":"work-task-item/v1"}}),
+            json!({"target":{"artifact":"task_item","task_id":"TASK-001"},"field":"/","after":{"schema":"work-task-item"}}),
             json!({"target":{"artifact":"task_item","task_id":"TASK-001"},"field":"validations","after":[{"id":"VAL-001"}]}),
             json!({"target":{"artifact":"task_item","task_id":"TASK-001"},"field":"validations","semantic_after":[{"key":"verify","id":"VAL-001"}]}),
             json!({"target":{"artifact":"plan"},"field":"constraints","semantic_after":[{"key":"boundary","applies_to":["GOAL-001"]}]}),

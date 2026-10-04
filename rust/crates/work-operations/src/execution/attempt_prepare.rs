@@ -533,7 +533,7 @@ pub fn build_prepare_request(
             directories.push(directory);
         }
     }
-    let authorization = json!({"schema":"work-attempt-authorization/v1",
+    let authorization = json!({"schema":"work-attempt-authorization",
         "task_id":task["id"],"commands":commands,"validations":validations,
         "modifiable_files":files,"working_directories":directories,
         "external_operations":operations,"allowed_deviations":deviations,
@@ -561,7 +561,7 @@ pub fn build_prepare_request(
             json!({}),
         ));
     }
-    let mut request = json!({"schema":"work-attempt-start-request/v1",
+    let mut request = json!({"schema":"work-attempt-start-request",
         "worktree_snapshot_sha256":worktree["snapshot_sha256"],"authorization":authorization});
     let carried_choices = match choice.get("carried_records") {
         None => Vec::new(),
@@ -627,7 +627,7 @@ pub fn build_prepare_request(
     Ok(work_model::execution::response::verified::<
         work_model::execution::response::AttemptStartPrepareResponse,
     >(
-        json!({"schema":"work-attempt-start-prepare/v1","status":"prepared",
+        json!({"schema":"work-attempt-start-prepare","status":"prepared",
         "request":request,"authorization_sha256":authorization_sha256}),
     ))
 }
@@ -735,7 +735,7 @@ mod tests {
         assert!(result["request"].get("continuation").is_none());
         assert_eq!(
             result["authorization_sha256"],
-            "3b4ade41af600f4f4f83d9c59d0b48a267d1424f3738a3e5650fd5ed1247323c"
+            "0cf0f918c8871360d0d3123fdef61bd239ba13306db50511197bf8547109df3b"
         );
         let mut deviation_choice = choice.clone();
         deviation_choice["allowed_deviations"] = json!([{

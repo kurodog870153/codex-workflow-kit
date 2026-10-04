@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # Transaction workspaces
 
 

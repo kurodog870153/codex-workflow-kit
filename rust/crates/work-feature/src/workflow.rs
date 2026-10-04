@@ -82,13 +82,13 @@ pub fn build_operation_context(
         ));
     }
     let mut envelope = json!({
-        "schema":"work-operation-envelope/v1","workflow":identity.mode,"operation":operation,
+        "schema":"work-operation-envelope","workflow":identity.mode,"operation":operation,
         "verified_state_sha256":state_sha256,"selection_sha256":selection["selection_sha256"],
         "artifacts":artifacts,"approval_sha256":approval_sha256,
         "authorization_state":effect.authorization_state(),
         "side_effect_boundary":effect.side_effect_boundary(),
         "transaction_workspace":transaction_workspace,"role":identity.role,
-        "expected_result_contract":"work-operation-result/v1",
+        "expected_result_contract":"work-operation-result",
     });
     envelope["context_sha256"] =
         json!(fingerprint::structured(&envelope).expect("operation context serializes"));
@@ -280,7 +280,7 @@ fn render_state(
     let routed = routing.route(&routing_request)?;
     let guidance = next_action_guidance(&decision.next_action, requirement_id, artifacts);
     let mut state = json!({
-        "schema":"work-workflow-state/v1","requirement_id":requirement_id,
+        "schema":"work-workflow-state","requirement_id":requirement_id,
         "status":decision.status,"next_action":decision.next_action,"target":target,
         "requires_user_confirmation":decision.requires_user_confirmation,
         "required_checks":decision.required_checks,"artifacts":artifacts,"details":decision.details,
@@ -324,7 +324,7 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(envelope["schema"], "work-operation-envelope/v1");
+        assert_eq!(envelope["schema"], "work-operation-envelope");
         assert_eq!(envelope["side_effect_boundary"], "read_only");
         validate_operation_context(&envelope, &selection, &artifacts).unwrap();
         assert_eq!(

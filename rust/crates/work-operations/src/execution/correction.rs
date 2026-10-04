@@ -66,7 +66,7 @@ pub fn validate_correction(value: &Value) -> Result<Value, ExecutionIssue> {
             json!({}),
         )
     })?;
-    if value["schema"] != "work-correction/v1" {
+    if value["schema"] != "work-correction" {
         return Err(issue(
             "correction_invalid_schema",
             "The Correction schema is invalid.",
@@ -155,7 +155,7 @@ pub fn validate_correction(value: &Value) -> Result<Value, ExecutionIssue> {
     let _: work_model::execution::correction::Correction =
         serde_json::from_value(value.clone()).expect("validated Correction matches model");
     Ok(
-        json!({"schema":"work-correction-validation/v1","correction_id":id,
+        json!({"schema":"work-correction-validation","correction_id":id,
         "target_attempt_id":target,"result":"valid"}),
     )
 }
@@ -252,7 +252,7 @@ pub fn build_correction_candidates(
     }
     let affected = affected_task_ids(index, collection, task_id, invalidates)?;
     let artifact = json!({
-        "schema":"work-correction/v1","correction_id":correction_id,
+        "schema":"work-correction","correction_id":correction_id,
         "created_at":created_at,"target_attempt_id":attempt_id,
         "task_collection_sha256":attempt["task_collection_sha256"],
         "task_index_sha256":attempt["task_index_sha256"],
@@ -307,7 +307,7 @@ mod tests {
             "task_index_sha256":"0".repeat(64),"task_item_sha256":"b".repeat(64),
             "task_instructions_sha256":"a".repeat(64),
             "execute_instructions_sha256":"1".repeat(64)});
-        let request = json!({"schema":"work-correction-create-request/v1",
+        let request = json!({"schema":"work-correction-create-request",
             "target_attempt_id":"ATTEMPT-001","field":"records[0].outcome",
             "correct_value":"passed","reason":"Correct recorded outcome.",
             "invalidates_completion":true});
@@ -340,8 +340,8 @@ mod tests {
     }
 
     #[test]
-    fn correction_example_matches_python_bytes_and_scope() {
-        let value = json!({"schema":"work-correction/v1","correction_id":"ATTEMPT-001-CORRECTION-001",
+    fn correction_example_matches_current_contract_bytes_and_scope() {
+        let value = json!({"schema":"work-correction","correction_id":"ATTEMPT-001-CORRECTION-001",
             "created_at":"2026-09-01T10:05+08:00","target_attempt_id":"ATTEMPT-001",
             "task_collection_sha256":"a".repeat(64),"task_index_sha256":"b".repeat(64),
             "task_item_sha256":"c".repeat(64),"task_instructions_sha256":"d".repeat(64),
@@ -349,7 +349,7 @@ mod tests {
             "correct_value":"passed","reason":"Correct the recorded outcome."});
         assert_eq!(
             sha256_hex(&render_correction(&value).unwrap()),
-            "de80fab70437417d51b6b1f51d4dcdc2c8a5f9f24748c1508fba4c914d293943"
+            "1b9231acaf4135911098e74b2dfcaa02f8771b5231eb114d72ba03f1d21a947b"
         );
         assert_eq!(validate_correction(&value).unwrap()["result"], "valid");
         let mut mismatch = value;
@@ -361,8 +361,8 @@ mod tests {
     }
 
     #[test]
-    fn correction_v1_fingerprints_and_legacy_rejections_match_python() {
-        let value = json!({"schema":"work-correction/v1","correction_id":"ATTEMPT-001-CORRECTION-001",
+    fn correction_current_fingerprints_and_legacy_rejections_match_current_contract() {
+        let value = json!({"schema":"work-correction","correction_id":"ATTEMPT-001-CORRECTION-001",
             "created_at":"2026-09-01T10:05+08:00","target_attempt_id":"ATTEMPT-001",
             "task_collection_sha256":"1".repeat(64),"task_index_sha256":"2".repeat(64),
             "task_item_sha256":"3".repeat(64),"task_instructions_sha256":"b".repeat(64),
@@ -370,7 +370,7 @@ mod tests {
             "correct_value":"passed","reason":"Correct the recorded outcome."});
         assert_eq!(
             validate_correction(&value).unwrap()["schema"],
-            "work-correction-validation/v1"
+            "work-correction-validation"
         );
         assert_eq!(value["task_instructions_sha256"], "b".repeat(64));
         assert!(value.get("task_rules_sha256").is_none());

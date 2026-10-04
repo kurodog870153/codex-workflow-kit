@@ -80,7 +80,7 @@ struct InvocationWire {
 impl TryFrom<InvocationWire> for Invocation {
     type Error = &'static str;
     fn try_from(value: InvocationWire) -> Result<Self, Self::Error> {
-        if value.schema != PublicSchema::WorkInvocationV1 || value.request.trim().is_empty() {
+        if value.schema != PublicSchema::WorkInvocation || value.request.trim().is_empty() {
             return Err("Invocation requires its exact schema and a nonempty request.");
         }
         match (value.origin, &value.confirmation) {

@@ -21,29 +21,29 @@
       ],
       "reason": "Reviewed",
       "requirement_id": "example",
-      "schema": "work-spec-prepare-request/v1"
+      "schema": "work-spec-prepare-request"
     },
     "continuation_point": "Return to Execute",
     "decisions": [
       "Confirmed revision"
     ],
     "hierarchy_selection": {
-      "catalog_sha256": "74977ff41dae925d76037c60fcbb6e5c6d950af73416308d5e21ca3b96ef5d54",
+      "catalog_sha256": "3e51eaedbc128afd999c796bd337d9471c15411d3e66677383e6fd188e90f390",
       "decision": "general_only",
       "entries": [],
-      "schema": "work-hierarchy-selection/v1",
+      "schema": "work-hierarchy-selection",
       "selected_paths": [],
-      "selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59"
+      "selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569"
     },
     "repository_evidence": [],
     "requirement_id": "example",
     "skill_selection": {
       "decision": "base_only",
-      "schema": "work-skill-selection/v1",
+      "schema": "work-skill-selection",
       "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
       "skills": []
     },
-    "task_collection_sha256": "d21c60bb7cc40e955e31c40cb819ddd94fdaf38d20bf0cda26b1b4733ac776a8",
+    "task_collection_sha256": "4e3997b468542b7bc5f97d772ae1d7d7f6b347c069e1da8ab2b543224232fa01",
     "task_source": {
       "acceptance_criteria": [
         {
@@ -57,17 +57,17 @@
         "task": "outputs/work/tasks/example/index.json"
       },
       "hierarchy_selection": {
-        "catalog_sha256": "74977ff41dae925d76037c60fcbb6e5c6d950af73416308d5e21ca3b96ef5d54",
+        "catalog_sha256": "3e51eaedbc128afd999c796bd337d9471c15411d3e66677383e6fd188e90f390",
         "decision": "general_only",
         "entries": [],
-        "schema": "work-hierarchy-selection/v1",
+        "schema": "work-hierarchy-selection",
         "selected_paths": [],
-        "selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59"
+        "selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569"
       },
       "requirement_id": "example",
       "skill_selection": {
         "decision": "base_only",
-        "schema": "work-skill-selection/v1",
+        "schema": "work-skill-selection",
         "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
         "skills": []
       },
@@ -81,7 +81,7 @@
             "size": 753
           },
           "requirement_id": "example",
-          "schema": "work-source-snapshot/v1",
+          "schema": "work-source-snapshot",
           "source": {
             "kind": "user_text"
           },
@@ -845,12 +845,12 @@
       ]
     }
   },
-  "marker": "WORK_ARTIFACT_EDIT_V1",
+  "marker": "WORK_ARTIFACT_EDIT",
   "mode": "execute",
   "project_root": "<PROJECT_ROOT>",
   "request": "Revise confirmed artifact.",
   "role": "artifact-editor",
-  "schema": "work-delegation-envelope/v1",
+  "schema": "work-delegation-envelope",
   "sender": "parent",
   "skill": "$work",
   "skill_root": "<SKILL_ROOT>"

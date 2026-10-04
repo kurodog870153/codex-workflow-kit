@@ -40,7 +40,7 @@ pub fn load(
     Ok(work_model::instruction::verified::<
         work_model::instruction::InstructionsResponse,
     >(
-        json!({"schema":"work-instructions/v1","mode":source_set.mode,
+        json!({"schema":"work-instructions","mode":source_set.mode,
         "hierarchy":source_set.hierarchy,"sources":sources,
         "references":source_set.references,
         "instructions_sha256":source_set.instructions_sha256}),
@@ -58,8 +58,8 @@ pub fn select(
     Ok(work_model::instruction::verified::<
         work_model::instruction::InstructionSelectionResponse,
     >(
-        json!({"schema":"work-instruction-selection/v1","mode":mode,
-        "instruction_selection":selection}),
+        json!({"schema":"work-instruction-selection","mode":mode,
+        "instruction_selection":selection})
     ))
 }
 
@@ -82,41 +82,7 @@ pub fn task_select(
     Ok(work_model::instruction::verified::<
         work_model::instruction::InstructionSelectionResponse,
     >(
-        json!({"schema":"work-instruction-selection/v1","mode":"task",
+        json!({"schema":"work-instruction-selection","mode":"task",
         "instruction_selection":selection}),
     ))
-}
-
-pub fn refresh_preview(
-    preview: impl FnOnce() -> Result<Value, WorkError>,
-) -> Result<Value, WorkError> {
-    preview()
-}
-
-pub fn refresh_apply(apply: impl FnOnce() -> Result<Value, WorkError>) -> Result<Value, WorkError> {
-    apply()
-}
-
-pub fn refresh_preview_all(
-    preview: impl FnOnce() -> Result<Value, WorkError>,
-) -> Result<Value, WorkError> {
-    preview()
-}
-
-pub fn refresh_apply_all(
-    apply: impl FnOnce() -> Result<Value, WorkError>,
-) -> Result<Value, WorkError> {
-    apply()
-}
-
-pub fn migration_preview(
-    preview: impl FnOnce() -> Result<Value, WorkError>,
-) -> Result<Value, WorkError> {
-    preview()
-}
-
-pub fn migration_apply(
-    apply: impl FnOnce() -> Result<Value, WorkError>,
-) -> Result<Value, WorkError> {
-    apply()
 }

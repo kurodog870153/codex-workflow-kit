@@ -136,8 +136,7 @@ pub fn parse_revision_semantic(raw: &[u8]) -> Result<RevisionSemantic, WorkError
             "The migration preparation is invalid.",
         )
     })?;
-    if semantic["schema"] != "work-spec-migration-prepare-request/v1"
-        || semantic["mode"] != "revision"
+    if semantic["schema"] != "work-spec-migration-prepare-request" || semantic["mode"] != "revision"
     {
         return Err(fail(
             "migration_prepare_mode",
@@ -145,7 +144,7 @@ pub fn parse_revision_semantic(raw: &[u8]) -> Result<RevisionSemantic, WorkError
         ));
     }
     validate_semantic_request(&semantic)?;
-    let revision = json!({"schema":"work-spec-prepare-request/v1",
+    let revision = json!({"schema":"work-spec-prepare-request",
         "requirement_id":semantic["requirement_id"],"reason":semantic["reason"],
         "edits":semantic["edits"]});
     let revision_raw = serde_json::to_vec(&revision).map_err(|_| {
@@ -246,11 +245,9 @@ pub fn build_revision_request(
     }
     Ok(work_model::specification::verified::<
         work_model::specification::SpecMigrationPreviewRequest,
-    >(
-        json!({"schema":"work-spec-migration-preview-request/v1",
+    >(json!({"schema":"work-spec-migration-preview-request",
         "sources":sources,"candidates":documents,
-        "semantic_decisions":semantic["semantic_decisions"].as_array().cloned().unwrap_or_default()})
-    ))
+        "semantic_decisions":semantic["semantic_decisions"].as_array().cloned().unwrap_or_default()})))
 }
 
 #[cfg(test)]

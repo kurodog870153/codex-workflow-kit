@@ -84,7 +84,7 @@ pub fn capture(
         ));
     }
     let provisional = SourceSnapshot {
-        schema: PublicSchema::WorkSourceSnapshotV1,
+        schema: PublicSchema::WorkSourceSnapshot,
         requirement_id: metadata.requirement_id.clone(),
         source_id: "SRC-001".parse().expect("initial Source ID"),
         captured_at: metadata.captured_at.clone(),
@@ -173,7 +173,7 @@ pub fn read_snapshot(
         )
     })?;
     Ok(SourceRead {
-        schema: PublicSchema::WorkSourceReadV1,
+        schema: PublicSchema::WorkSourceRead,
         manifest: saved.manifest,
         bytes: saved.bytes,
     })
@@ -186,7 +186,7 @@ pub fn validate_snapshot(
 ) -> Result<SourceValidation, WorkError> {
     let read = read_snapshot(repository, raw_id, raw_source_id)?;
     Ok(SourceValidation {
-        schema: PublicSchema::WorkSourceValidationV1,
+        schema: PublicSchema::WorkSourceValidation,
         status: "valid".into(),
         requirement_id: read.manifest.requirement_id,
         source_id: read.manifest.source_id,
@@ -217,7 +217,7 @@ mod tests {
             self.0.set(self.0.get() + 1);
             Ok(SnapshotBytes {
                 manifest: SourceSnapshot {
-                    schema: PublicSchema::WorkSourceSnapshotV1,
+                    schema: PublicSchema::WorkSourceSnapshot,
                     requirement_id: id.as_str().into(),
                     source_id: format!("SRC-{:03}", self.0.get()).parse().unwrap(),
                     captured_at: captured_at.into(),
@@ -281,7 +281,7 @@ mod tests {
             bytes
         );
         let validation = validate_snapshot(&reader, "example", "SRC-001").unwrap();
-        assert_eq!(validation.schema, PublicSchema::WorkSourceValidationV1);
+        assert_eq!(validation.schema, PublicSchema::WorkSourceValidation);
         assert_eq!(validation.content_sha256, fingerprint::raw(bytes));
         for (changed, expected) in [
             (

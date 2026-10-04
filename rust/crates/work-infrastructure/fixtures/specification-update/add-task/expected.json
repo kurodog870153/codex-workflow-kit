@@ -2,7 +2,7 @@
   "affected_task_ids": [
     "TASK-002"
   ],
-  "approved_sha256": "ad53e58009889fa8d65e5eecfe2bc54c9387cd235279f16c09b462aa57e5f1fa",
+  "approved_sha256": "6ea475557f3ec1c04dd0576ba47deb620ce862c777c18447e1ad50bfe3ed51ab",
   "artifacts": {
     "execution": "outputs/work/executions/example",
     "source": "outputs/work/sources/example",
@@ -42,7 +42,7 @@
                 "goal": "Validate the second result.",
                 "id": "TASK-002",
                 "instruction_selection": {
-                  "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+                  "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
                   "references": [
                     "task.general.task-records"
                   ],
@@ -52,32 +52,28 @@
                   "selected_paths": [],
                   "sources": [
                     {
-                      "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
-                      "compatibility_revision": 2,
+                      "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
                       "kind": "workflow",
                       "logical_name": "work.instruction-loading"
                     },
                     {
-                      "canonical_sha256": "32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db",
-                      "compatibility_revision": 2,
+                      "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
                       "kind": "workflow",
                       "logical_name": "work.workflow.task"
                     },
                     {
-                      "canonical_sha256": "f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3",
-                      "compatibility_revision": 1,
+                      "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
                       "kind": "instruction",
                       "logical_name": "task.general"
                     },
                     {
-                      "canonical_sha256": "6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8",
-                      "compatibility_revision": 1,
+                      "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
                       "kind": "reference",
                       "logical_name": "task.general.task-records"
                     }
                   ]
                 },
-                "schema": "work-task-item/v1",
+                "schema": "work-task-item",
                 "skill_id": null,
                 "steps": [
                   {
@@ -124,40 +120,36 @@
         "working_directory": "."
       },
       "hierarchy_selection": {
-        "catalog_sha256": "74977ff41dae925d76037c60fcbb6e5c6d950af73416308d5e21ca3b96ef5d54",
+        "catalog_sha256": "3e51eaedbc128afd999c796bd337d9471c15411d3e66677383e6fd188e90f390",
         "decision": "general_only",
         "entries": [],
-        "schema": "work-hierarchy-selection/v1",
+        "schema": "work-hierarchy-selection",
         "selected_paths": [],
-        "selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59"
+        "selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569"
       },
       "instruction_selection": {
-        "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+        "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
         "references": [
           "task.general.task-records"
         ],
         "sources": [
           {
-            "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
-            "compatibility_revision": 2,
+            "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
             "kind": "workflow",
             "logical_name": "work.instruction-loading"
           },
           {
-            "canonical_sha256": "32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db",
-            "compatibility_revision": 2,
+            "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
             "kind": "workflow",
             "logical_name": "work.workflow.task"
           },
           {
-            "canonical_sha256": "f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3",
-            "compatibility_revision": 1,
+            "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
             "kind": "instruction",
             "logical_name": "task.general"
           },
           {
-            "canonical_sha256": "6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8",
-            "compatibility_revision": 1,
+            "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
             "kind": "reference",
             "logical_name": "task.general.task-records"
           }
@@ -168,10 +160,10 @@
         "status": "passed"
       },
       "requirement_id": "example",
-      "schema": "work-task-index/v1",
+      "schema": "work-task-index",
       "skill_selection": {
         "decision": "base_only",
-        "schema": "work-skill-selection/v1",
+        "schema": "work-skill-selection",
         "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
         "skills": []
       },
@@ -185,7 +177,7 @@
             "size": 753
           },
           "requirement_id": "example",
-          "schema": "work-source-snapshot/v1",
+          "schema": "work-source-snapshot",
           "source": {
             "kind": "user_text"
           },
@@ -197,12 +189,12 @@
       "summary": "Task summary.",
       "tasks": [
         {
-          "canonical_sha256": "38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca",
+          "canonical_sha256": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77",
           "id": "TASK-001",
           "path": "tasks/TASK-001.json"
         },
         {
-          "canonical_sha256": "5ff96f205458678d43cfd72666dd87b478e1850240e4b7b9d752ddb31d42c768",
+          "canonical_sha256": "293d0e21ea7288a0e1eafa3f969a3409292de5d5e3a7e9f363301f33ea681a35",
           "id": "TASK-002",
           "path": "tasks/TASK-002.json"
         }
@@ -237,7 +229,7 @@
         "goal": "Modify the source and validate it.",
         "id": "TASK-001",
         "instruction_selection": {
-          "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+          "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
           "references": [
             "task.general.task-records"
           ],
@@ -247,32 +239,28 @@
           "selected_paths": [],
           "sources": [
             {
-              "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
-              "compatibility_revision": 2,
+              "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
               "kind": "workflow",
               "logical_name": "work.instruction-loading"
             },
             {
-              "canonical_sha256": "32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db",
-              "compatibility_revision": 2,
+              "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
               "kind": "workflow",
               "logical_name": "work.workflow.task"
             },
             {
-              "canonical_sha256": "f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3",
-              "compatibility_revision": 1,
+              "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
               "kind": "instruction",
               "logical_name": "task.general"
             },
             {
-              "canonical_sha256": "6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8",
-              "compatibility_revision": 1,
+              "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
               "kind": "reference",
               "logical_name": "task.general.task-records"
             }
           ]
         },
-        "schema": "work-task-item/v1",
+        "schema": "work-task-item",
         "skill_id": null,
         "steps": [
           {
@@ -325,7 +313,7 @@
         "goal": "Validate the second result.",
         "id": "TASK-002",
         "instruction_selection": {
-          "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+          "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
           "references": [
             "task.general.task-records"
           ],
@@ -335,32 +323,28 @@
           "selected_paths": [],
           "sources": [
             {
-              "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
-              "compatibility_revision": 2,
+              "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
               "kind": "workflow",
               "logical_name": "work.instruction-loading"
             },
             {
-              "canonical_sha256": "32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db",
-              "compatibility_revision": 2,
+              "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
               "kind": "workflow",
               "logical_name": "work.workflow.task"
             },
             {
-              "canonical_sha256": "f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3",
-              "compatibility_revision": 1,
+              "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
               "kind": "instruction",
               "logical_name": "task.general"
             },
             {
-              "canonical_sha256": "6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8",
-              "compatibility_revision": 1,
+              "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
               "kind": "reference",
               "logical_name": "task.general.task-records"
             }
           ]
         },
-        "schema": "work-task-item/v1",
+        "schema": "work-task-item",
         "skill_id": null,
         "steps": [
           {
@@ -396,9 +380,9 @@
     "/task_items/TASK-002"
   ],
   "diff": [
-    "--- outputs/work/tasks/example/tasks/TASK-002.json:source\n+++ outputs/work/tasks/example/tasks/TASK-002.json:candidate\n@@ -0,0 +1,78 @@\n+{\n+  \"schema\": \"work-task-item/v1\",\n+  \"id\": \"TASK-002\",\n+  \"title\": \"Second TASK\",\n+  \"skill_id\": null,\n+  \"instruction_selection\": {\n+    \"selected_paths\": [],\n+    \"resolved_paths\": [\n+      \"general\"\n+    ],\n+    \"sources\": [\n+      {\n+        \"kind\": \"workflow\",\n+        \"logical_name\": \"work.instruction-loading\",\n+        \"canonical_sha256\": \"69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f\",\n+        \"compatibility_revision\": 2\n+      },\n+      {\n+        \"kind\": \"workflow\",\n+        \"logical_name\": \"work.workflow.task\",\n+        \"canonical_sha256\": \"32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db\",\n+        \"compatibility_revision\": 2\n+      },\n+      {\n+        \"kind\": \"instruction\",\n+        \"logical_name\": \"task.general\",\n+        \"canonical_sha256\": \"f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3\",\n+        \"compatibility_revision\": 1\n+      },\n+      {\n+        \"kind\": \"reference\",\n+        \"logical_name\": \"task.general.task-records\",\n+        \"canonical_sha256\": \"6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8\",\n+        \"compatibility_revision\": 1\n+      }\n+    ],\n+    \"references\": [\n+      \"task.general.task-records\"\n+    ],\n+    \"instructions_sha256\": \"571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758\"\n+  },\n+  \"traceability\": {\n+    \"acceptance_ids\": [\n+      \"ACCEPTANCE-001\"\n+    ]\n+  },\n+  \"acceptance_criteria\": [\n+    {\n+      \"id\": \"TASK-002-ACCEPTANCE-001\",\n+      \"criterion\": \"The added result is verified.\"\n+    }\n+  ],\n+  \"dependencies\": [\n+    \"TASK-001\"\n+  ],\n+  \"goal\": \"Validate the second result.\",\n+  \"steps\": [\n+    {\n+      \"id\": \"STEP-001\",\n+      \"action\": \"Validate.\",\n+      \"references\": [\n+        \"VAL-001\"\n+      ]\n+    }\n+  ],\n+  \"validations\": [\n+    {\n+      \"id\": \"VAL-001\",\n+      \"kind\": \"manual\",\n+      \"confirmer\": \"user\",\n+      \"criteria\": \"Approved.\",\n+      \"acceptance_ids\": [\n+        \"ACCEPTANCE-001\",\n+        \"TASK-002-ACCEPTANCE-001\"\n+      ]\n+    }\n+  ]\n+}\n",
-    "--- outputs/work/tasks/example/index.json:source\n+++ outputs/work/tasks/example/index.json:candidate\n@@ -1,7 +1,7 @@\n {\n   \"schema\": \"work-task-index/v1\",\n   \"requirement_id\": \"example\",\n-  \"spec_id\": \"TASK-SPEC-001\",\n+  \"spec_id\": \"TASK-SPEC-002\",\n   \"status\": \"confirmed\",\n   \"title\": \"Example TASK\",\n   \"summary\": \"Task summary.\",\n@@ -89,10 +89,112 @@\n       \"id\": \"TASK-001\",\n       \"path\": \"tasks/TASK-001.json\",\n       \"canonical_sha256\": \"38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca\"\n+    },\n+    {\n+      \"id\": \"TASK-002\",\n+      \"path\": \"tasks/TASK-002.json\",\n+      \"canonical_sha256\": \"5ff96f205458678d43cfd72666dd87b478e1850240e4b7b9d752ddb31d42c768\"\n+    }\n+  ],\n+  \"changes\": [\n+    {\n+      \"id\": \"TASK-CHANGE-001\",\n+      \"spec_id\": \"TASK-SPEC-002\",\n+      \"date\": \"2026-09-26\",\n+      \"reason\": \"Confirmed collection revision\",\n+      \"affected_ids\": [\n+        \"TASK-002\"\n+      ],\n+      \"edits\": [\n+        {\n+          \"artifact\": \"task_item\",\n+          \"task_id\": \"TASK-002\",\n+          \"operation\": \"add\",\n+          \"path\": \"/\",\n+          \"after\": {\n+            \"schema\": \"work-task-item/v1\",\n+            \"id\": \"TASK-002\",\n+            \"title\": \"Second TASK\",\n+            \"goal\": \"Validate the second result.\",\n+            \"skill_id\": null,\n+            \"instruction_selection\": {\n+              \"selected_paths\": [],\n+              \"resolved_paths\": [\n+                \"general\"\n+              ],\n+              \"sources\": [\n+                {\n+                  \"kind\": \"workflow\",\n+                  \"logical_name\": \"work.instruction-loading\",\n+                  \"canonical_sha256\": \"69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f\",\n+                  \"compatibility_revision\": 2\n+                },\n+                {\n+                  \"kind\": \"workflow\",\n+                  \"logical_name\": \"work.workflow.task\",\n+                  \"canonical_sha256\": \"32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db\",\n+                  \"compatibility_revision\": 2\n+                },\n+                {\n+                  \"kind\": \"instruction\",\n+                  \"logical_name\": \"task.general\",\n+                  \"canonical_sha256\": \"f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3\",\n+                  \"compatibility_revision\": 1\n+                },\n+                {\n+                  \"kind\": \"reference\",\n+                  \"logical_name\": \"task.general.task-records\",\n+                  \"canonical_sha256\": \"6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8\",\n+                  \"compatibility_revision\": 1\n+                }\n+              ],\n+              \"references\": [\n+                \"task.general.task-records\"\n+              ],\n+              \"instructions_sha256\": \"571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758\"\n+            },\n+            \"traceability\": {\n+              \"acceptance_ids\": [\n+                \"ACCEPTANCE-001\"\n+              ]\n+            },\n+            \"dependencies\": [\n+              \"TASK-001\"\n+            ],\n+            \"steps\": [\n+              {\n+                \"action\": \"Validate.\",\n+                \"references\": [\n+                  \"VAL-001\"\n+                ],\n+                \"id\": \"STEP-001\"\n+              }\n+            ],\n+            \"validations\": [\n+              {\n+                \"kind\": \"manual\",\n+                \"confirmer\": \"user\",\n+                \"criteria\": \"Approved.\",\n+                \"id\": \"VAL-001\",\n+                \"acceptance_ids\": [\n+                  \"ACCEPTANCE-001\",\n+                  \"TASK-002-ACCEPTANCE-001\"\n+                ]\n+              }\n+            ],\n+            \"acceptance_criteria\": [\n+              {\n+                \"id\": \"TASK-002-ACCEPTANCE-001\",\n+                \"criterion\": \"The added result is verified.\"\n+              }\n+            ]\n+          }\n+        }\n+      ]\n     }\n   ],\n   \"readiness\": {\n     \"status\": \"passed\",\n-    \"spec_id\": \"TASK-SPEC-001\"\n+    \"spec_id\": \"TASK-SPEC-002\"\n   }\n }\n",
-    "--- outputs/work/executions/example/index.json:source\n+++ outputs/work/executions/example/index.json:candidate\n@@ -2,9 +2,9 @@\n   \"schema\": \"work-execution-index/v1\",\n   \"requirement_id\": \"example\",\n   \"title\": \"Execution\",\n-  \"task_spec_id\": \"TASK-SPEC-001\",\n-  \"task_collection_sha256\": \"d21c60bb7cc40e955e31c40cb819ddd94fdaf38d20bf0cda26b1b4733ac776a8\",\n-  \"task_index_sha256\": \"c643a96b52b4246dd174cc97394ae145cb20b5b9946cf45016b469210295ab32\",\n+  \"task_spec_id\": \"TASK-SPEC-002\",\n+  \"task_collection_sha256\": \"0fefcd5c3f7452f3e3199010ad3e55cd06f608e743d6d401f96b92c80470e612\",\n+  \"task_index_sha256\": \"96273f4045e5317cde3759a2fb1c011199a5dc50aada18c02f6d3093e423a772\",\n   \"task_instructions_sha256\": \"571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758\",\n   \"hierarchy_selection_sha256\": \"e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59\",\n   \"skill_selection_sha256\": \"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959\",\n@@ -35,6 +35,25 @@\n           \"evidence\": []\n         }\n       ]\n+    },\n+    {\n+      \"id\": \"TASK-002\",\n+      \"status\": \"pending\",\n+      \"skill_id\": null,\n+      \"task_item_sha256\": \"5ff96f205458678d43cfd72666dd87b478e1850240e4b7b9d752ddb31d42c768\",\n+      \"instructions_sha256\": \"571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758\",\n+      \"acceptance_results\": [\n+        {\n+          \"id\": \"ACCEPTANCE-001\",\n+          \"status\": \"pending\",\n+          \"evidence\": []\n+        },\n+        {\n+          \"id\": \"TASK-002-ACCEPTANCE-001\",\n+          \"status\": \"pending\",\n+          \"evidence\": []\n+        }\n+      ]\n     }\n   ]\n }\n"
+    "--- outputs/work/tasks/example/tasks/TASK-002.json:source\n+++ outputs/work/tasks/example/tasks/TASK-002.json:candidate\n@@ -0,0 +1,74 @@\n+{\n+  \"schema\": \"work-task-item\",\n+  \"id\": \"TASK-002\",\n+  \"title\": \"Second TASK\",\n+  \"skill_id\": null,\n+  \"instruction_selection\": {\n+    \"selected_paths\": [],\n+    \"resolved_paths\": [\n+      \"general\"\n+    ],\n+    \"sources\": [\n+      {\n+        \"kind\": \"workflow\",\n+        \"logical_name\": \"work.instruction-loading\",\n+        \"canonical_sha256\": \"816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649\"\n+      },\n+      {\n+        \"kind\": \"workflow\",\n+        \"logical_name\": \"work.workflow.task\",\n+        \"canonical_sha256\": \"542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83\"\n+      },\n+      {\n+        \"kind\": \"instruction\",\n+        \"logical_name\": \"task.general\",\n+        \"canonical_sha256\": \"56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0\"\n+      },\n+      {\n+        \"kind\": \"reference\",\n+        \"logical_name\": \"task.general.task-records\",\n+        \"canonical_sha256\": \"c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593\"\n+      }\n+    ],\n+    \"references\": [\n+      \"task.general.task-records\"\n+    ],\n+    \"instructions_sha256\": \"99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16\"\n+  },\n+  \"traceability\": {\n+    \"acceptance_ids\": [\n+      \"ACCEPTANCE-001\"\n+    ]\n+  },\n+  \"acceptance_criteria\": [\n+    {\n+      \"id\": \"TASK-002-ACCEPTANCE-001\",\n+      \"criterion\": \"The added result is verified.\"\n+    }\n+  ],\n+  \"dependencies\": [\n+    \"TASK-001\"\n+  ],\n+  \"goal\": \"Validate the second result.\",\n+  \"steps\": [\n+    {\n+      \"id\": \"STEP-001\",\n+      \"action\": \"Validate.\",\n+      \"references\": [\n+        \"VAL-001\"\n+      ]\n+    }\n+  ],\n+  \"validations\": [\n+    {\n+      \"id\": \"VAL-001\",\n+      \"kind\": \"manual\",\n+      \"confirmer\": \"user\",\n+      \"criteria\": \"Approved.\",\n+      \"acceptance_ids\": [\n+        \"ACCEPTANCE-001\",\n+        \"TASK-002-ACCEPTANCE-001\"\n+      ]\n+    }\n+  ]\n+}\n",
+    "--- outputs/work/tasks/example/index.json:source\n+++ outputs/work/tasks/example/index.json:candidate\n@@ -1,7 +1,7 @@\n {\n   \"schema\": \"work-task-index\",\n   \"requirement_id\": \"example\",\n-  \"spec_id\": \"TASK-SPEC-001\",\n+  \"spec_id\": \"TASK-SPEC-002\",\n   \"status\": \"confirmed\",\n   \"title\": \"Example TASK\",\n   \"summary\": \"Task summary.\",\n@@ -85,10 +85,108 @@\n       \"id\": \"TASK-001\",\n       \"path\": \"tasks/TASK-001.json\",\n       \"canonical_sha256\": \"dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77\"\n+    },\n+    {\n+      \"id\": \"TASK-002\",\n+      \"path\": \"tasks/TASK-002.json\",\n+      \"canonical_sha256\": \"293d0e21ea7288a0e1eafa3f969a3409292de5d5e3a7e9f363301f33ea681a35\"\n+    }\n+  ],\n+  \"changes\": [\n+    {\n+      \"id\": \"TASK-CHANGE-001\",\n+      \"spec_id\": \"TASK-SPEC-002\",\n+      \"date\": \"2026-09-26\",\n+      \"reason\": \"Confirmed collection revision\",\n+      \"affected_ids\": [\n+        \"TASK-002\"\n+      ],\n+      \"edits\": [\n+        {\n+          \"artifact\": \"task_item\",\n+          \"task_id\": \"TASK-002\",\n+          \"operation\": \"add\",\n+          \"path\": \"/\",\n+          \"after\": {\n+            \"schema\": \"work-task-item\",\n+            \"id\": \"TASK-002\",\n+            \"title\": \"Second TASK\",\n+            \"goal\": \"Validate the second result.\",\n+            \"skill_id\": null,\n+            \"instruction_selection\": {\n+              \"selected_paths\": [],\n+              \"resolved_paths\": [\n+                \"general\"\n+              ],\n+              \"sources\": [\n+                {\n+                  \"kind\": \"workflow\",\n+                  \"logical_name\": \"work.instruction-loading\",\n+                  \"canonical_sha256\": \"816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649\"\n+                },\n+                {\n+                  \"kind\": \"workflow\",\n+                  \"logical_name\": \"work.workflow.task\",\n+                  \"canonical_sha256\": \"542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83\"\n+                },\n+                {\n+                  \"kind\": \"instruction\",\n+                  \"logical_name\": \"task.general\",\n+                  \"canonical_sha256\": \"56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0\"\n+                },\n+                {\n+                  \"kind\": \"reference\",\n+                  \"logical_name\": \"task.general.task-records\",\n+                  \"canonical_sha256\": \"c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593\"\n+                }\n+              ],\n+              \"references\": [\n+                \"task.general.task-records\"\n+              ],\n+              \"instructions_sha256\": \"99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16\"\n+            },\n+            \"traceability\": {\n+              \"acceptance_ids\": [\n+                \"ACCEPTANCE-001\"\n+              ]\n+            },\n+            \"dependencies\": [\n+              \"TASK-001\"\n+            ],\n+            \"steps\": [\n+              {\n+                \"action\": \"Validate.\",\n+                \"references\": [\n+                  \"VAL-001\"\n+                ],\n+                \"id\": \"STEP-001\"\n+              }\n+            ],\n+            \"validations\": [\n+              {\n+                \"kind\": \"manual\",\n+                \"confirmer\": \"user\",\n+                \"criteria\": \"Approved.\",\n+                \"id\": \"VAL-001\",\n+                \"acceptance_ids\": [\n+                  \"ACCEPTANCE-001\",\n+                  \"TASK-002-ACCEPTANCE-001\"\n+                ]\n+              }\n+            ],\n+            \"acceptance_criteria\": [\n+              {\n+                \"id\": \"TASK-002-ACCEPTANCE-001\",\n+                \"criterion\": \"The added result is verified.\"\n+              }\n+            ]\n+          }\n+        }\n+      ]\n     }\n   ],\n   \"readiness\": {\n     \"status\": \"passed\",\n-    \"spec_id\": \"TASK-SPEC-001\"\n+    \"spec_id\": \"TASK-SPEC-002\"\n   }\n }\n",
+    "--- outputs/work/executions/example/index.json:source\n+++ outputs/work/executions/example/index.json:candidate\n@@ -2,9 +2,9 @@\n   \"schema\": \"work-execution-index\",\n   \"requirement_id\": \"example\",\n   \"title\": \"Execution\",\n-  \"task_spec_id\": \"TASK-SPEC-001\",\n-  \"task_collection_sha256\": \"4e3997b468542b7bc5f97d772ae1d7d7f6b347c069e1da8ab2b543224232fa01\",\n-  \"task_index_sha256\": \"c514f4cebc7539b4d54832711869aa958bd50cdee89259fa806e0be52edf3161\",\n+  \"task_spec_id\": \"TASK-SPEC-002\",\n+  \"task_collection_sha256\": \"3948268361872de471a5f7e6e1fd5308a750d74d87602ff027ace2cd3f09fb5e\",\n+  \"task_index_sha256\": \"490220d6f7b8a347cae12c79ee7c60759af4fca6146c705b1c88492306591ac3\",\n   \"task_instructions_sha256\": \"99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16\",\n   \"hierarchy_selection_sha256\": \"05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569\",\n   \"skill_selection_sha256\": \"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959\",\n@@ -35,6 +35,25 @@\n           \"evidence\": []\n         }\n       ]\n+    },\n+    {\n+      \"id\": \"TASK-002\",\n+      \"status\": \"pending\",\n+      \"skill_id\": null,\n+      \"task_item_sha256\": \"293d0e21ea7288a0e1eafa3f969a3409292de5d5e3a7e9f363301f33ea681a35\",\n+      \"instructions_sha256\": \"99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16\",\n+      \"acceptance_results\": [\n+        {\n+          \"id\": \"ACCEPTANCE-001\",\n+          \"status\": \"pending\",\n+          \"evidence\": []\n+        },\n+        {\n+          \"id\": \"TASK-002-ACCEPTANCE-001\",\n+          \"status\": \"pending\",\n+          \"evidence\": []\n+        }\n+      ]\n     }\n   ]\n }\n"
   ],
   "file_readiness": "requires_execute_preflight",
   "lifecycle_impact": [
@@ -411,21 +395,21 @@
     }
   ],
   "next_step": {
-    "approved_sha256": "ad53e58009889fa8d65e5eecfe2bc54c9387cd235279f16c09b462aa57e5f1fa",
+    "approved_sha256": "6ea475557f3ec1c04dd0576ba47deb620ce862c777c18447e1ad50bfe3ed51ab",
     "command": "specification apply",
     "input": "same_request"
   },
-  "record_id": "SPEC-UPDATE-AD53E5800988",
+  "record_id": "SPEC-UPDATE-6EA475557F3E",
   "requirement_id": "example",
-  "schema": "work-spec-update/v1",
+  "schema": "work-spec-update",
   "status": "valid",
   "transaction": {
-    "approval_sha256": "ad53e58009889fa8d65e5eecfe2bc54c9387cd235279f16c09b462aa57e5f1fa",
+    "approval_sha256": "6ea475557f3ec1c04dd0576ba47deb620ce862c777c18447e1ad50bfe3ed51ab",
     "files": [
       {
         "after": {
-          "base64": "ewogICJzY2hlbWEiOiAid29yay10YXNrLWl0ZW0vdjEiLAogICJpZCI6ICJUQVNLLTAwMiIsCiAgInRpdGxlIjogIlNlY29uZCBUQVNLIiwKICAic2tpbGxfaWQiOiBudWxsLAogICJpbnN0cnVjdGlvbl9zZWxlY3Rpb24iOiB7CiAgICAic2VsZWN0ZWRfcGF0aHMiOiBbXSwKICAgICJyZXNvbHZlZF9wYXRocyI6IFsKICAgICAgImdlbmVyYWwiCiAgICBdLAogICAgInNvdXJjZXMiOiBbCiAgICAgIHsKICAgICAgICAia2luZCI6ICJ3b3JrZmxvdyIsCiAgICAgICAgImxvZ2ljYWxfbmFtZSI6ICJ3b3JrLmluc3RydWN0aW9uLWxvYWRpbmciLAogICAgICAgICJjYW5vbmljYWxfc2hhMjU2IjogIjY5YzM2NjM1NmJhNWJjMjc1M2E1NDBiNWUzNmVhNGQxNjM4MDViMmZlMTgzMjk3OWRiYTBmM2JjMWVkYTZlN2YiLAogICAgICAgICJjb21wYXRpYmlsaXR5X3JldmlzaW9uIjogMgogICAgICB9LAogICAgICB7CiAgICAgICAgImtpbmQiOiAid29ya2Zsb3ciLAogICAgICAgICJsb2dpY2FsX25hbWUiOiAid29yay53b3JrZmxvdy50YXNrIiwKICAgICAgICAiY2Fub25pY2FsX3NoYTI1NiI6ICIzMmY2NWRlZjgwOGNhMDllNTNjYTU2NDlhMzRjODQzNGQwZGVmZjBlOGI4Y2IyM2YyZjNkMGEzOTA4OTkzMmRiIiwKICAgICAgICAiY29tcGF0aWJpbGl0eV9yZXZpc2lvbiI6IDIKICAgICAgfSwKICAgICAgewogICAgICAgICJraW5kIjogImluc3RydWN0aW9uIiwKICAgICAgICAibG9naWNhbF9uYW1lIjogInRhc2suZ2VuZXJhbCIsCiAgICAgICAgImNhbm9uaWNhbF9zaGEyNTYiOiAiZjY5YzI2OWZhNGNmZjM0YmZlZjFlZmY2YmE4ZTYyNjA2MTZjOGI0ODgwYTg3ZmNhZDFiZWM5OGViYTVmNTJhMyIsCiAgICAgICAgImNvbXBhdGliaWxpdHlfcmV2aXNpb24iOiAxCiAgICAgIH0sCiAgICAgIHsKICAgICAgICAia2luZCI6ICJyZWZlcmVuY2UiLAogICAgICAgICJsb2dpY2FsX25hbWUiOiAidGFzay5nZW5lcmFsLnRhc2stcmVjb3JkcyIsCiAgICAgICAgImNhbm9uaWNhbF9zaGEyNTYiOiAiNjI3NWMzMDNhYzA1NTNmOGZkN2RmOGMwYmI1OWI2MjNmOTQzMTQzM2FjNDJiNDYzZDU3ZmYxNWM0MGY0ZDhiOCIsCiAgICAgICAgImNvbXBhdGliaWxpdHlfcmV2aXNpb24iOiAxCiAgICAgIH0KICAgIF0sCiAgICAicmVmZXJlbmNlcyI6IFsKICAgICAgInRhc2suZ2VuZXJhbC50YXNrLXJlY29yZHMiCiAgICBdLAogICAgImluc3RydWN0aW9uc19zaGEyNTYiOiAiNTcxYzZmNGE4YWQ1MTE5M2RhNDlmNTg2MDc4OGU5YmNmZjhkYmY0MDBkZTc2ZGFmNWY0YWI2OTJmOTU0Zjc1OCIKICB9LAogICJ0cmFjZWFiaWxpdHkiOiB7CiAgICAiYWNjZXB0YW5jZV9pZHMiOiBbCiAgICAgICJBQ0NFUFRBTkNFLTAwMSIKICAgIF0KICB9LAogICJhY2NlcHRhbmNlX2NyaXRlcmlhIjogWwogICAgewogICAgICAiaWQiOiAiVEFTSy0wMDItQUNDRVBUQU5DRS0wMDEiLAogICAgICAiY3JpdGVyaW9uIjogIlRoZSBhZGRlZCByZXN1bHQgaXMgdmVyaWZpZWQuIgogICAgfQogIF0sCiAgImRlcGVuZGVuY2llcyI6IFsKICAgICJUQVNLLTAwMSIKICBdLAogICJnb2FsIjogIlZhbGlkYXRlIHRoZSBzZWNvbmQgcmVzdWx0LiIsCiAgInN0ZXBzIjogWwogICAgewogICAgICAiaWQiOiAiU1RFUC0wMDEiLAogICAgICAiYWN0aW9uIjogIlZhbGlkYXRlLiIsCiAgICAgICJyZWZlcmVuY2VzIjogWwogICAgICAgICJWQUwtMDAxIgogICAgICBdCiAgICB9CiAgXSwKICAidmFsaWRhdGlvbnMiOiBbCiAgICB7CiAgICAgICJpZCI6ICJWQUwtMDAxIiwKICAgICAgImtpbmQiOiAibWFudWFsIiwKICAgICAgImNvbmZpcm1lciI6ICJ1c2VyIiwKICAgICAgImNyaXRlcmlhIjogIkFwcHJvdmVkLiIsCiAgICAgICJhY2NlcHRhbmNlX2lkcyI6IFsKICAgICAgICAiQUNDRVBUQU5DRS0wMDEiLAogICAgICAgICJUQVNLLTAwMi1BQ0NFUFRBTkNFLTAwMSIKICAgICAgXQogICAgfQogIF0KfQo=",
-          "raw_sha256": "5ff96f205458678d43cfd72666dd87b478e1850240e4b7b9d752ddb31d42c768"
+          "base64": "ewogICJzY2hlbWEiOiAid29yay10YXNrLWl0ZW0iLAogICJpZCI6ICJUQVNLLTAwMiIsCiAgInRpdGxlIjogIlNlY29uZCBUQVNLIiwKICAic2tpbGxfaWQiOiBudWxsLAogICJpbnN0cnVjdGlvbl9zZWxlY3Rpb24iOiB7CiAgICAic2VsZWN0ZWRfcGF0aHMiOiBbXSwKICAgICJyZXNvbHZlZF9wYXRocyI6IFsKICAgICAgImdlbmVyYWwiCiAgICBdLAogICAgInNvdXJjZXMiOiBbCiAgICAgIHsKICAgICAgICAia2luZCI6ICJ3b3JrZmxvdyIsCiAgICAgICAgImxvZ2ljYWxfbmFtZSI6ICJ3b3JrLmluc3RydWN0aW9uLWxvYWRpbmciLAogICAgICAgICJjYW5vbmljYWxfc2hhMjU2IjogIjgxNjI4MzcxOWY1ODY0ZDIzNWNkNDFjOTFhMzE2NDM0MjUzNTI4OGRiYjY2ZWRiZjYwM2YzZTEwNzNmNzk2NDkiCiAgICAgIH0sCiAgICAgIHsKICAgICAgICAia2luZCI6ICJ3b3JrZmxvdyIsCiAgICAgICAgImxvZ2ljYWxfbmFtZSI6ICJ3b3JrLndvcmtmbG93LnRhc2siLAogICAgICAgICJjYW5vbmljYWxfc2hhMjU2IjogIjU0MmIyMDcwMTgwNDAzNGRiMTliMjdlNTdlNTZkZmRmNDczN2MwM2FhMDY3YjNmNzA5NzJjYTdjYzg4MTViODMiCiAgICAgIH0sCiAgICAgIHsKICAgICAgICAia2luZCI6ICJpbnN0cnVjdGlvbiIsCiAgICAgICAgImxvZ2ljYWxfbmFtZSI6ICJ0YXNrLmdlbmVyYWwiLAogICAgICAgICJjYW5vbmljYWxfc2hhMjU2IjogIjU2YThkYTE5NWUxMjk5YzBmYmIzYjA0MTgwNzBjYjkzMmQ4Njk5ZmRlM2RiZjZjYmU3NDdiN2E1MmM1YTY0YzAiCiAgICAgIH0sCiAgICAgIHsKICAgICAgICAia2luZCI6ICJyZWZlcmVuY2UiLAogICAgICAgICJsb2dpY2FsX25hbWUiOiAidGFzay5nZW5lcmFsLnRhc2stcmVjb3JkcyIsCiAgICAgICAgImNhbm9uaWNhbF9zaGEyNTYiOiAiYzdhMGE3OGY5YmY5NDNlZTUxZGY2OGZiZjA3MGNmODNhNGZlZTNiOWZkYmI4ODE1ZGFmNTk2ZGY3NTdiYjU5MyIKICAgICAgfQogICAgXSwKICAgICJyZWZlcmVuY2VzIjogWwogICAgICAidGFzay5nZW5lcmFsLnRhc2stcmVjb3JkcyIKICAgIF0sCiAgICAiaW5zdHJ1Y3Rpb25zX3NoYTI1NiI6ICI5OWFjMmVlYjM4ZDQ0NThkN2MwNjNiY2MyYmNjM2NmY2IxNTFmZmI3MzY2ZDNjZjY0NmIzNmQwMzNkZmNjZTE2IgogIH0sCiAgInRyYWNlYWJpbGl0eSI6IHsKICAgICJhY2NlcHRhbmNlX2lkcyI6IFsKICAgICAgIkFDQ0VQVEFOQ0UtMDAxIgogICAgXQogIH0sCiAgImFjY2VwdGFuY2VfY3JpdGVyaWEiOiBbCiAgICB7CiAgICAgICJpZCI6ICJUQVNLLTAwMi1BQ0NFUFRBTkNFLTAwMSIsCiAgICAgICJjcml0ZXJpb24iOiAiVGhlIGFkZGVkIHJlc3VsdCBpcyB2ZXJpZmllZC4iCiAgICB9CiAgXSwKICAiZGVwZW5kZW5jaWVzIjogWwogICAgIlRBU0stMDAxIgogIF0sCiAgImdvYWwiOiAiVmFsaWRhdGUgdGhlIHNlY29uZCByZXN1bHQuIiwKICAic3RlcHMiOiBbCiAgICB7CiAgICAgICJpZCI6ICJTVEVQLTAwMSIsCiAgICAgICJhY3Rpb24iOiAiVmFsaWRhdGUuIiwKICAgICAgInJlZmVyZW5jZXMiOiBbCiAgICAgICAgIlZBTC0wMDEiCiAgICAgIF0KICAgIH0KICBdLAogICJ2YWxpZGF0aW9ucyI6IFsKICAgIHsKICAgICAgImlkIjogIlZBTC0wMDEiLAogICAgICAia2luZCI6ICJtYW51YWwiLAogICAgICAiY29uZmlybWVyIjogInVzZXIiLAogICAgICAiY3JpdGVyaWEiOiAiQXBwcm92ZWQuIiwKICAgICAgImFjY2VwdGFuY2VfaWRzIjogWwogICAgICAgICJBQ0NFUFRBTkNFLTAwMSIsCiAgICAgICAgIlRBU0stMDAyLUFDQ0VQVEFOQ0UtMDAxIgogICAgICBdCiAgICB9CiAgXQp9Cg==",
+          "raw_sha256": "293d0e21ea7288a0e1eafa3f969a3409292de5d5e3a7e9f363301f33ea681a35"
         },
         "operation": "add",
         "path": "outputs/work/tasks/example/tasks/TASK-002.json",
@@ -433,12 +417,12 @@
       },
       {
         "after": {
-          "base64": "ewogICJzY2hlbWEiOiAid29yay10YXNrLWluZGV4L3YxIiwKICAicmVxdWlyZW1lbnRfaWQiOiAiZXhhbXBsZSIsCiAgInNwZWNfaWQiOiAiVEFTSy1TUEVDLTAwMiIsCiAgInN0YXR1cyI6ICJjb25maXJtZWQiLAogICJ0aXRsZSI6ICJFeGFtcGxlIFRBU0siLAogICJzdW1tYXJ5IjogIlRhc2sgc3VtbWFyeS4iLAogICJhcnRpZmFjdHMiOiB7CiAgICAic291cmNlIjogIm91dHB1dHMvd29yay9zb3VyY2VzL2V4YW1wbGUiLAogICAgInRhc2siOiAib3V0cHV0cy93b3JrL3Rhc2tzL2V4YW1wbGUvaW5kZXguanNvbiIsCiAgICAiZXhlY3V0aW9uIjogIm91dHB1dHMvd29yay9leGVjdXRpb25zL2V4YW1wbGUiCiAgfSwKICAic291cmNlIjogewogICAgImtpbmQiOiAic25hcHNob3QiLAogICAgIm1hbmlmZXN0IjogewogICAgICAic2NoZW1hIjogIndvcmstc291cmNlLXNuYXBzaG90L3YxIiwKICAgICAgInJlcXVpcmVtZW50X2lkIjogImV4YW1wbGUiLAogICAgICAic291cmNlX2lkIjogIlNSQy0wMDEiLAogICAgICAiY2FwdHVyZWRfYXQiOiAiMjAyNi0xMC0wM1QwMDowMDowMFoiLAogICAgICAic291cmNlIjogewogICAgICAgICJraW5kIjogInVzZXJfdGV4dCIKICAgICAgfSwKICAgICAgImNvbnRlbnQiOiB7CiAgICAgICAgInBhdGgiOiAic291cmNlLnR4dCIsCiAgICAgICAgInNoYTI1NiI6ICJjMDAyNTY0MWFkNTVmNDVlMDAyZWYzMzA3Y2JlOTc2MDYwNTQ4Y2Q0ZjNhMGYwNjhmMWJmNGQ2MTRlYTdhOWE4IiwKICAgICAgICAic2l6ZSI6IDc1MwogICAgICB9CiAgICB9CiAgfSwKICAiaGllcmFyY2h5X3NlbGVjdGlvbiI6IHsKICAgICJzY2hlbWEiOiAid29yay1oaWVyYXJjaHktc2VsZWN0aW9uL3YxIiwKICAgICJkZWNpc2lvbiI6ICJnZW5lcmFsX29ubHkiLAogICAgInNlbGVjdGVkX3BhdGhzIjogW10sCiAgICAiZW50cmllcyI6IFtdLAogICAgImNhdGFsb2dfc2hhMjU2IjogIjc0OTc3ZmY0MWRhZTkyNWQ3NjAzN2M2MGZjYmI2ZTVjNmQ5NTBhZjczNDE2MzA4ZDVlMjFjYTNiOTZlZjVkNTQiLAogICAgInNlbGVjdGlvbl9zaGEyNTYiOiAiZTQxNGI2NDVhNGQ2MTMwZTc1MGZlZGRkMTdkMzFlYTY1NmMyMGM0OGEwNTdmNjhlZWRhN2VkNmQ2MzZlZGI1OSIKICB9LAogICJza2lsbF9zZWxlY3Rpb24iOiB7CiAgICAic2NoZW1hIjogIndvcmstc2tpbGwtc2VsZWN0aW9uL3YxIiwKICAgICJkZWNpc2lvbiI6ICJiYXNlX29ubHkiLAogICAgInNraWxscyI6IFtdLAogICAgInNlbGVjdGlvbl9zaGEyNTYiOiAiYTA5MzU3ZWY5ZjIyYzQzZGNhMTZiNDg5ZGE2MWIyODc4MzhiZjY0OTYzYTU5NTZiZjUyYWUwMzI3ZTA0YTk1OSIKICB9LAogICJhY2NlcHRhbmNlX2NyaXRlcmlhIjogWwogICAgewogICAgICAiaWQiOiAiQUNDRVBUQU5DRS0wMDEiLAogICAgICAiY3JpdGVyaW9uIjogIlRoZSByZXN1bHQgaXMgb2JzZXJ2YWJsZS4iCiAgICB9CiAgXSwKICAiaW5zdHJ1Y3Rpb25fc2VsZWN0aW9uIjogewogICAgInNvdXJjZXMiOiBbCiAgICAgIHsKICAgICAgICAia2luZCI6ICJ3b3JrZmxvdyIsCiAgICAgICAgImxvZ2ljYWxfbmFtZSI6ICJ3b3JrLmluc3RydWN0aW9uLWxvYWRpbmciLAogICAgICAgICJjYW5vbmljYWxfc2hhMjU2IjogIjY5YzM2NjM1NmJhNWJjMjc1M2E1NDBiNWUzNmVhNGQxNjM4MDViMmZlMTgzMjk3OWRiYTBmM2JjMWVkYTZlN2YiLAogICAgICAgICJjb21wYXRpYmlsaXR5X3JldmlzaW9uIjogMgogICAgICB9LAogICAgICB7CiAgICAgICAgImtpbmQiOiAid29ya2Zsb3ciLAogICAgICAgICJsb2dpY2FsX25hbWUiOiAid29yay53b3JrZmxvdy50YXNrIiwKICAgICAgICAiY2Fub25pY2FsX3NoYTI1NiI6ICIzMmY2NWRlZjgwOGNhMDllNTNjYTU2NDlhMzRjODQzNGQwZGVmZjBlOGI4Y2IyM2YyZjNkMGEzOTA4OTkzMmRiIiwKICAgICAgICAiY29tcGF0aWJpbGl0eV9yZXZpc2lvbiI6IDIKICAgICAgfSwKICAgICAgewogICAgICAgICJraW5kIjogImluc3RydWN0aW9uIiwKICAgICAgICAibG9naWNhbF9uYW1lIjogInRhc2suZ2VuZXJhbCIsCiAgICAgICAgImNhbm9uaWNhbF9zaGEyNTYiOiAiZjY5YzI2OWZhNGNmZjM0YmZlZjFlZmY2YmE4ZTYyNjA2MTZjOGI0ODgwYTg3ZmNhZDFiZWM5OGViYTVmNTJhMyIsCiAgICAgICAgImNvbXBhdGliaWxpdHlfcmV2aXNpb24iOiAxCiAgICAgIH0sCiAgICAgIHsKICAgICAgICAia2luZCI6ICJyZWZlcmVuY2UiLAogICAgICAgICJsb2dpY2FsX25hbWUiOiAidGFzay5nZW5lcmFsLnRhc2stcmVjb3JkcyIsCiAgICAgICAgImNhbm9uaWNhbF9zaGEyNTYiOiAiNjI3NWMzMDNhYzA1NTNmOGZkN2RmOGMwYmI1OWI2MjNmOTQzMTQzM2FjNDJiNDYzZDU3ZmYxNWM0MGY0ZDhiOCIsCiAgICAgICAgImNvbXBhdGliaWxpdHlfcmV2aXNpb24iOiAxCiAgICAgIH0KICAgIF0sCiAgICAicmVmZXJlbmNlcyI6IFsKICAgICAgInRhc2suZ2VuZXJhbC50YXNrLXJlY29yZHMiCiAgICBdLAogICAgImluc3RydWN0aW9uc19zaGEyNTYiOiAiNTcxYzZmNGE4YWQ1MTE5M2RhNDlmNTg2MDc4OGU5YmNmZjhkYmY0MDBkZTc2ZGFmNWY0YWI2OTJmOTU0Zjc1OCIKICB9LAogICJleGVjdXRpb25fZGVmYXVsdHMiOiB7CiAgICAid29ya2luZ19kaXJlY3RvcnkiOiAiLiIsCiAgICAib3MiOiAid2luZG93cyIsCiAgICAic2hlbGwiOiAicG93ZXJzaGVsbCIKICB9LAogICJ0YXNrcyI6IFsKICAgIHsKICAgICAgImlkIjogIlRBU0stMDAxIiwKICAgICAgInBhdGgiOiAidGFza3MvVEFTSy0wMDEuanNvbiIsCiAgICAgICJjYW5vbmljYWxfc2hhMjU2IjogIjM4YzdmMWZhNjRjMDgwNjAxYTg2Njg5MWU1YzA2MjllMjMzYjM0YWQzZjVkNTU5ZWQyYTAyNjU1OWQwN2I0Y2EiCiAgICB9LAogICAgewogICAgICAiaWQiOiAiVEFTSy0wMDIiLAogICAgICAicGF0aCI6ICJ0YXNrcy9UQVNLLTAwMi5qc29uIiwKICAgICAgImNhbm9uaWNhbF9zaGEyNTYiOiAiNWZmOTZmMjA1NDU4Njc4ZDQzY2ZkNzI2NjZkZDg3YjQ3OGUxODUwMjQwZTRiN2I5ZDc1MmRkYjMxZDQyYzc2OCIKICAgIH0KICBdLAogICJjaGFuZ2VzIjogWwogICAgewogICAgICAiaWQiOiAiVEFTSy1DSEFOR0UtMDAxIiwKICAgICAgInNwZWNfaWQiOiAiVEFTSy1TUEVDLTAwMiIsCiAgICAgICJkYXRlIjogIjIwMjYtMDktMjYiLAogICAgICAicmVhc29uIjogIkNvbmZpcm1lZCBjb2xsZWN0aW9uIHJldmlzaW9uIiwKICAgICAgImFmZmVjdGVkX2lkcyI6IFsKICAgICAgICAiVEFTSy0wMDIiCiAgICAgIF0sCiAgICAgICJlZGl0cyI6IFsKICAgICAgICB7CiAgICAgICAgICAiYXJ0aWZhY3QiOiAidGFza19pdGVtIiwKICAgICAgICAgICJ0YXNrX2lkIjogIlRBU0stMDAyIiwKICAgICAgICAgICJvcGVyYXRpb24iOiAiYWRkIiwKICAgICAgICAgICJwYXRoIjogIi8iLAogICAgICAgICAgImFmdGVyIjogewogICAgICAgICAgICAic2NoZW1hIjogIndvcmstdGFzay1pdGVtL3YxIiwKICAgICAgICAgICAgImlkIjogIlRBU0stMDAyIiwKICAgICAgICAgICAgInRpdGxlIjogIlNlY29uZCBUQVNLIiwKICAgICAgICAgICAgImdvYWwiOiAiVmFsaWRhdGUgdGhlIHNlY29uZCByZXN1bHQuIiwKICAgICAgICAgICAgInNraWxsX2lkIjogbnVsbCwKICAgICAgICAgICAgImluc3RydWN0aW9uX3NlbGVjdGlvbiI6IHsKICAgICAgICAgICAgICAic2VsZWN0ZWRfcGF0aHMiOiBbXSwKICAgICAgICAgICAgICAicmVzb2x2ZWRfcGF0aHMiOiBbCiAgICAgICAgICAgICAgICAiZ2VuZXJhbCIKICAgICAgICAgICAgICBdLAogICAgICAgICAgICAgICJzb3VyY2VzIjogWwogICAgICAgICAgICAgICAgewogICAgICAgICAgICAgICAgICAia2luZCI6ICJ3b3JrZmxvdyIsCiAgICAgICAgICAgICAgICAgICJsb2dpY2FsX25hbWUiOiAid29yay5pbnN0cnVjdGlvbi1sb2FkaW5nIiwKICAgICAgICAgICAgICAgICAgImNhbm9uaWNhbF9zaGEyNTYiOiAiNjljMzY2MzU2YmE1YmMyNzUzYTU0MGI1ZTM2ZWE0ZDE2MzgwNWIyZmUxODMyOTc5ZGJhMGYzYmMxZWRhNmU3ZiIsCiAgICAgICAgICAgICAgICAgICJjb21wYXRpYmlsaXR5X3JldmlzaW9uIjogMgogICAgICAgICAgICAgICAgfSwKICAgICAgICAgICAgICAgIHsKICAgICAgICAgICAgICAgICAgImtpbmQiOiAid29ya2Zsb3ciLAogICAgICAgICAgICAgICAgICAibG9naWNhbF9uYW1lIjogIndvcmsud29ya2Zsb3cudGFzayIsCiAgICAgICAgICAgICAgICAgICJjYW5vbmljYWxfc2hhMjU2IjogIjMyZjY1ZGVmODA4Y2EwOWU1M2NhNTY0OWEzNGM4NDM0ZDBkZWZmMGU4YjhjYjIzZjJmM2QwYTM5MDg5OTMyZGIiLAogICAgICAgICAgICAgICAgICAiY29tcGF0aWJpbGl0eV9yZXZpc2lvbiI6IDIKICAgICAgICAgICAgICAgIH0sCiAgICAgICAgICAgICAgICB7CiAgICAgICAgICAgICAgICAgICJraW5kIjogImluc3RydWN0aW9uIiwKICAgICAgICAgICAgICAgICAgImxvZ2ljYWxfbmFtZSI6ICJ0YXNrLmdlbmVyYWwiLAogICAgICAgICAgICAgICAgICAiY2Fub25pY2FsX3NoYTI1NiI6ICJmNjljMjY5ZmE0Y2ZmMzRiZmVmMWVmZjZiYThlNjI2MDYxNmM4YjQ4ODBhODdmY2FkMWJlYzk4ZWJhNWY1MmEzIiwKICAgICAgICAgICAgICAgICAgImNvbXBhdGliaWxpdHlfcmV2aXNpb24iOiAxCiAgICAgICAgICAgICAgICB9LAogICAgICAgICAgICAgICAgewogICAgICAgICAgICAgICAgICAia2luZCI6ICJyZWZlcmVuY2UiLAogICAgICAgICAgICAgICAgICAibG9naWNhbF9uYW1lIjogInRhc2suZ2VuZXJhbC50YXNrLXJlY29yZHMiLAogICAgICAgICAgICAgICAgICAiY2Fub25pY2FsX3NoYTI1NiI6ICI2Mjc1YzMwM2FjMDU1M2Y4ZmQ3ZGY4YzBiYjU5YjYyM2Y5NDMxNDMzYWM0MmI0NjNkNTdmZjE1YzQwZjRkOGI4IiwKICAgICAgICAgICAgICAgICAgImNvbXBhdGliaWxpdHlfcmV2aXNpb24iOiAxCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgXSwKICAgICAgICAgICAgICAicmVmZXJlbmNlcyI6IFsKICAgICAgICAgICAgICAgICJ0YXNrLmdlbmVyYWwudGFzay1yZWNvcmRzIgogICAgICAgICAgICAgIF0sCiAgICAgICAgICAgICAgImluc3RydWN0aW9uc19zaGEyNTYiOiAiNTcxYzZmNGE4YWQ1MTE5M2RhNDlmNTg2MDc4OGU5YmNmZjhkYmY0MDBkZTc2ZGFmNWY0YWI2OTJmOTU0Zjc1OCIKICAgICAgICAgICAgfSwKICAgICAgICAgICAgInRyYWNlYWJpbGl0eSI6IHsKICAgICAgICAgICAgICAiYWNjZXB0YW5jZV9pZHMiOiBbCiAgICAgICAgICAgICAgICAiQUNDRVBUQU5DRS0wMDEiCiAgICAgICAgICAgICAgXQogICAgICAgICAgICB9LAogICAgICAgICAgICAiZGVwZW5kZW5jaWVzIjogWwogICAgICAgICAgICAgICJUQVNLLTAwMSIKICAgICAgICAgICAgXSwKICAgICAgICAgICAgInN0ZXBzIjogWwogICAgICAgICAgICAgIHsKICAgICAgICAgICAgICAgICJhY3Rpb24iOiAiVmFsaWRhdGUuIiwKICAgICAgICAgICAgICAgICJyZWZlcmVuY2VzIjogWwogICAgICAgICAgICAgICAgICAiVkFMLTAwMSIKICAgICAgICAgICAgICAgIF0sCiAgICAgICAgICAgICAgICAiaWQiOiAiU1RFUC0wMDEiCiAgICAgICAgICAgICAgfQogICAgICAgICAgICBdLAogICAgICAgICAgICAidmFsaWRhdGlvbnMiOiBbCiAgICAgICAgICAgICAgewogICAgICAgICAgICAgICAgImtpbmQiOiAibWFudWFsIiwKICAgICAgICAgICAgICAgICJjb25maXJtZXIiOiAidXNlciIsCiAgICAgICAgICAgICAgICAiY3JpdGVyaWEiOiAiQXBwcm92ZWQuIiwKICAgICAgICAgICAgICAgICJpZCI6ICJWQUwtMDAxIiwKICAgICAgICAgICAgICAgICJhY2NlcHRhbmNlX2lkcyI6IFsKICAgICAgICAgICAgICAgICAgIkFDQ0VQVEFOQ0UtMDAxIiwKICAgICAgICAgICAgICAgICAgIlRBU0stMDAyLUFDQ0VQVEFOQ0UtMDAxIgogICAgICAgICAgICAgICAgXQogICAgICAgICAgICAgIH0KICAgICAgICAgICAgXSwKICAgICAgICAgICAgImFjY2VwdGFuY2VfY3JpdGVyaWEiOiBbCiAgICAgICAgICAgICAgewogICAgICAgICAgICAgICAgImlkIjogIlRBU0stMDAyLUFDQ0VQVEFOQ0UtMDAxIiwKICAgICAgICAgICAgICAgICJjcml0ZXJpb24iOiAiVGhlIGFkZGVkIHJlc3VsdCBpcyB2ZXJpZmllZC4iCiAgICAgICAgICAgICAgfQogICAgICAgICAgICBdCiAgICAgICAgICB9CiAgICAgICAgfQogICAgICBdCiAgICB9CiAgXSwKICAicmVhZGluZXNzIjogewogICAgInN0YXR1cyI6ICJwYXNzZWQiLAogICAgInNwZWNfaWQiOiAiVEFTSy1TUEVDLTAwMiIKICB9Cn0K",
-          "raw_sha256": "96273f4045e5317cde3759a2fb1c011199a5dc50aada18c02f6d3093e423a772"
+          "base64": "ewogICJzY2hlbWEiOiAid29yay10YXNrLWluZGV4IiwKICAicmVxdWlyZW1lbnRfaWQiOiAiZXhhbXBsZSIsCiAgInNwZWNfaWQiOiAiVEFTSy1TUEVDLTAwMiIsCiAgInN0YXR1cyI6ICJjb25maXJtZWQiLAogICJ0aXRsZSI6ICJFeGFtcGxlIFRBU0siLAogICJzdW1tYXJ5IjogIlRhc2sgc3VtbWFyeS4iLAogICJhcnRpZmFjdHMiOiB7CiAgICAic291cmNlIjogIm91dHB1dHMvd29yay9zb3VyY2VzL2V4YW1wbGUiLAogICAgInRhc2siOiAib3V0cHV0cy93b3JrL3Rhc2tzL2V4YW1wbGUvaW5kZXguanNvbiIsCiAgICAiZXhlY3V0aW9uIjogIm91dHB1dHMvd29yay9leGVjdXRpb25zL2V4YW1wbGUiCiAgfSwKICAic291cmNlIjogewogICAgImtpbmQiOiAic25hcHNob3QiLAogICAgIm1hbmlmZXN0IjogewogICAgICAic2NoZW1hIjogIndvcmstc291cmNlLXNuYXBzaG90IiwKICAgICAgInJlcXVpcmVtZW50X2lkIjogImV4YW1wbGUiLAogICAgICAic291cmNlX2lkIjogIlNSQy0wMDEiLAogICAgICAiY2FwdHVyZWRfYXQiOiAiMjAyNi0xMC0wM1QwMDowMDowMFoiLAogICAgICAic291cmNlIjogewogICAgICAgICJraW5kIjogInVzZXJfdGV4dCIKICAgICAgfSwKICAgICAgImNvbnRlbnQiOiB7CiAgICAgICAgInBhdGgiOiAic291cmNlLnR4dCIsCiAgICAgICAgInNoYTI1NiI6ICJjMDAyNTY0MWFkNTVmNDVlMDAyZWYzMzA3Y2JlOTc2MDYwNTQ4Y2Q0ZjNhMGYwNjhmMWJmNGQ2MTRlYTdhOWE4IiwKICAgICAgICAic2l6ZSI6IDc1MwogICAgICB9CiAgICB9CiAgfSwKICAiaGllcmFyY2h5X3NlbGVjdGlvbiI6IHsKICAgICJzY2hlbWEiOiAid29yay1oaWVyYXJjaHktc2VsZWN0aW9uIiwKICAgICJkZWNpc2lvbiI6ICJnZW5lcmFsX29ubHkiLAogICAgInNlbGVjdGVkX3BhdGhzIjogW10sCiAgICAiZW50cmllcyI6IFtdLAogICAgImNhdGFsb2dfc2hhMjU2IjogIjNlNTFlYWVkYmMxMjhhZmQ5OTljNzk2YmQzMzdkOTQ3MWMxNTQxMWQzZTY2Njc3MzgzZTZmZDE4OGU5MGYzOTAiLAogICAgInNlbGVjdGlvbl9zaGEyNTYiOiAiMDVmMWExNTY2Njc2MWI0NzAyNmMyNmZkYjc1YTY5ZWU0MzYyM2VjMzBhNWMwOTQ4ODdiMzI4N2JmMmFiYzU2OSIKICB9LAogICJza2lsbF9zZWxlY3Rpb24iOiB7CiAgICAic2NoZW1hIjogIndvcmstc2tpbGwtc2VsZWN0aW9uIiwKICAgICJkZWNpc2lvbiI6ICJiYXNlX29ubHkiLAogICAgInNraWxscyI6IFtdLAogICAgInNlbGVjdGlvbl9zaGEyNTYiOiAiYTA5MzU3ZWY5ZjIyYzQzZGNhMTZiNDg5ZGE2MWIyODc4MzhiZjY0OTYzYTU5NTZiZjUyYWUwMzI3ZTA0YTk1OSIKICB9LAogICJhY2NlcHRhbmNlX2NyaXRlcmlhIjogWwogICAgewogICAgICAiaWQiOiAiQUNDRVBUQU5DRS0wMDEiLAogICAgICAiY3JpdGVyaW9uIjogIlRoZSByZXN1bHQgaXMgb2JzZXJ2YWJsZS4iCiAgICB9CiAgXSwKICAiaW5zdHJ1Y3Rpb25fc2VsZWN0aW9uIjogewogICAgInNvdXJjZXMiOiBbCiAgICAgIHsKICAgICAgICAia2luZCI6ICJ3b3JrZmxvdyIsCiAgICAgICAgImxvZ2ljYWxfbmFtZSI6ICJ3b3JrLmluc3RydWN0aW9uLWxvYWRpbmciLAogICAgICAgICJjYW5vbmljYWxfc2hhMjU2IjogIjgxNjI4MzcxOWY1ODY0ZDIzNWNkNDFjOTFhMzE2NDM0MjUzNTI4OGRiYjY2ZWRiZjYwM2YzZTEwNzNmNzk2NDkiCiAgICAgIH0sCiAgICAgIHsKICAgICAgICAia2luZCI6ICJ3b3JrZmxvdyIsCiAgICAgICAgImxvZ2ljYWxfbmFtZSI6ICJ3b3JrLndvcmtmbG93LnRhc2siLAogICAgICAgICJjYW5vbmljYWxfc2hhMjU2IjogIjU0MmIyMDcwMTgwNDAzNGRiMTliMjdlNTdlNTZkZmRmNDczN2MwM2FhMDY3YjNmNzA5NzJjYTdjYzg4MTViODMiCiAgICAgIH0sCiAgICAgIHsKICAgICAgICAia2luZCI6ICJpbnN0cnVjdGlvbiIsCiAgICAgICAgImxvZ2ljYWxfbmFtZSI6ICJ0YXNrLmdlbmVyYWwiLAogICAgICAgICJjYW5vbmljYWxfc2hhMjU2IjogIjU2YThkYTE5NWUxMjk5YzBmYmIzYjA0MTgwNzBjYjkzMmQ4Njk5ZmRlM2RiZjZjYmU3NDdiN2E1MmM1YTY0YzAiCiAgICAgIH0sCiAgICAgIHsKICAgICAgICAia2luZCI6ICJyZWZlcmVuY2UiLAogICAgICAgICJsb2dpY2FsX25hbWUiOiAidGFzay5nZW5lcmFsLnRhc2stcmVjb3JkcyIsCiAgICAgICAgImNhbm9uaWNhbF9zaGEyNTYiOiAiYzdhMGE3OGY5YmY5NDNlZTUxZGY2OGZiZjA3MGNmODNhNGZlZTNiOWZkYmI4ODE1ZGFmNTk2ZGY3NTdiYjU5MyIKICAgICAgfQogICAgXSwKICAgICJyZWZlcmVuY2VzIjogWwogICAgICAidGFzay5nZW5lcmFsLnRhc2stcmVjb3JkcyIKICAgIF0sCiAgICAiaW5zdHJ1Y3Rpb25zX3NoYTI1NiI6ICI5OWFjMmVlYjM4ZDQ0NThkN2MwNjNiY2MyYmNjM2NmY2IxNTFmZmI3MzY2ZDNjZjY0NmIzNmQwMzNkZmNjZTE2IgogIH0sCiAgImV4ZWN1dGlvbl9kZWZhdWx0cyI6IHsKICAgICJ3b3JraW5nX2RpcmVjdG9yeSI6ICIuIiwKICAgICJvcyI6ICJ3aW5kb3dzIiwKICAgICJzaGVsbCI6ICJwb3dlcnNoZWxsIgogIH0sCiAgInRhc2tzIjogWwogICAgewogICAgICAiaWQiOiAiVEFTSy0wMDEiLAogICAgICAicGF0aCI6ICJ0YXNrcy9UQVNLLTAwMS5qc29uIiwKICAgICAgImNhbm9uaWNhbF9zaGEyNTYiOiAiZGNjMTVjMDM5YzRkZTNhYWMyMjljZDVlMTM2NGQ1ZGM5ZmI2N2VkMjQ3NjdiYmVmNjYwNjU2ZGZjMjUwNmU3NyIKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJUQVNLLTAwMiIsCiAgICAgICJwYXRoIjogInRhc2tzL1RBU0stMDAyLmpzb24iLAogICAgICAiY2Fub25pY2FsX3NoYTI1NiI6ICIyOTNkMGUyMWVhNzI4OGEwZTFlYWZhM2Y5NjlhMzQwOTI5MmRlNWQ1ZTNhN2U5ZjM2MzMwMWYzM2VhNjgxYTM1IgogICAgfQogIF0sCiAgImNoYW5nZXMiOiBbCiAgICB7CiAgICAgICJpZCI6ICJUQVNLLUNIQU5HRS0wMDEiLAogICAgICAic3BlY19pZCI6ICJUQVNLLVNQRUMtMDAyIiwKICAgICAgImRhdGUiOiAiMjAyNi0wOS0yNiIsCiAgICAgICJyZWFzb24iOiAiQ29uZmlybWVkIGNvbGxlY3Rpb24gcmV2aXNpb24iLAogICAgICAiYWZmZWN0ZWRfaWRzIjogWwogICAgICAgICJUQVNLLTAwMiIKICAgICAgXSwKICAgICAgImVkaXRzIjogWwogICAgICAgIHsKICAgICAgICAgICJhcnRpZmFjdCI6ICJ0YXNrX2l0ZW0iLAogICAgICAgICAgInRhc2tfaWQiOiAiVEFTSy0wMDIiLAogICAgICAgICAgIm9wZXJhdGlvbiI6ICJhZGQiLAogICAgICAgICAgInBhdGgiOiAiLyIsCiAgICAgICAgICAiYWZ0ZXIiOiB7CiAgICAgICAgICAgICJzY2hlbWEiOiAid29yay10YXNrLWl0ZW0iLAogICAgICAgICAgICAiaWQiOiAiVEFTSy0wMDIiLAogICAgICAgICAgICAidGl0bGUiOiAiU2Vjb25kIFRBU0siLAogICAgICAgICAgICAiZ29hbCI6ICJWYWxpZGF0ZSB0aGUgc2Vjb25kIHJlc3VsdC4iLAogICAgICAgICAgICAic2tpbGxfaWQiOiBudWxsLAogICAgICAgICAgICAiaW5zdHJ1Y3Rpb25fc2VsZWN0aW9uIjogewogICAgICAgICAgICAgICJzZWxlY3RlZF9wYXRocyI6IFtdLAogICAgICAgICAgICAgICJyZXNvbHZlZF9wYXRocyI6IFsKICAgICAgICAgICAgICAgICJnZW5lcmFsIgogICAgICAgICAgICAgIF0sCiAgICAgICAgICAgICAgInNvdXJjZXMiOiBbCiAgICAgICAgICAgICAgICB7CiAgICAgICAgICAgICAgICAgICJraW5kIjogIndvcmtmbG93IiwKICAgICAgICAgICAgICAgICAgImxvZ2ljYWxfbmFtZSI6ICJ3b3JrLmluc3RydWN0aW9uLWxvYWRpbmciLAogICAgICAgICAgICAgICAgICAiY2Fub25pY2FsX3NoYTI1NiI6ICI4MTYyODM3MTlmNTg2NGQyMzVjZDQxYzkxYTMxNjQzNDI1MzUyODhkYmI2NmVkYmY2MDNmM2UxMDczZjc5NjQ5IgogICAgICAgICAgICAgICAgfSwKICAgICAgICAgICAgICAgIHsKICAgICAgICAgICAgICAgICAgImtpbmQiOiAid29ya2Zsb3ciLAogICAgICAgICAgICAgICAgICAibG9naWNhbF9uYW1lIjogIndvcmsud29ya2Zsb3cudGFzayIsCiAgICAgICAgICAgICAgICAgICJjYW5vbmljYWxfc2hhMjU2IjogIjU0MmIyMDcwMTgwNDAzNGRiMTliMjdlNTdlNTZkZmRmNDczN2MwM2FhMDY3YjNmNzA5NzJjYTdjYzg4MTViODMiCiAgICAgICAgICAgICAgICB9LAogICAgICAgICAgICAgICAgewogICAgICAgICAgICAgICAgICAia2luZCI6ICJpbnN0cnVjdGlvbiIsCiAgICAgICAgICAgICAgICAgICJsb2dpY2FsX25hbWUiOiAidGFzay5nZW5lcmFsIiwKICAgICAgICAgICAgICAgICAgImNhbm9uaWNhbF9zaGEyNTYiOiAiNTZhOGRhMTk1ZTEyOTljMGZiYjNiMDQxODA3MGNiOTMyZDg2OTlmZGUzZGJmNmNiZTc0N2I3YTUyYzVhNjRjMCIKICAgICAgICAgICAgICAgIH0sCiAgICAgICAgICAgICAgICB7CiAgICAgICAgICAgICAgICAgICJraW5kIjogInJlZmVyZW5jZSIsCiAgICAgICAgICAgICAgICAgICJsb2dpY2FsX25hbWUiOiAidGFzay5nZW5lcmFsLnRhc2stcmVjb3JkcyIsCiAgICAgICAgICAgICAgICAgICJjYW5vbmljYWxfc2hhMjU2IjogImM3YTBhNzhmOWJmOTQzZWU1MWRmNjhmYmYwNzBjZjgzYTRmZWUzYjlmZGJiODgxNWRhZjU5NmRmNzU3YmI1OTMiCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgXSwKICAgICAgICAgICAgICAicmVmZXJlbmNlcyI6IFsKICAgICAgICAgICAgICAgICJ0YXNrLmdlbmVyYWwudGFzay1yZWNvcmRzIgogICAgICAgICAgICAgIF0sCiAgICAgICAgICAgICAgImluc3RydWN0aW9uc19zaGEyNTYiOiAiOTlhYzJlZWIzOGQ0NDU4ZDdjMDYzYmNjMmJjYzNjZmNiMTUxZmZiNzM2NmQzY2Y2NDZiMzZkMDMzZGZjY2UxNiIKICAgICAgICAgICAgfSwKICAgICAgICAgICAgInRyYWNlYWJpbGl0eSI6IHsKICAgICAgICAgICAgICAiYWNjZXB0YW5jZV9pZHMiOiBbCiAgICAgICAgICAgICAgICAiQUNDRVBUQU5DRS0wMDEiCiAgICAgICAgICAgICAgXQogICAgICAgICAgICB9LAogICAgICAgICAgICAiZGVwZW5kZW5jaWVzIjogWwogICAgICAgICAgICAgICJUQVNLLTAwMSIKICAgICAgICAgICAgXSwKICAgICAgICAgICAgInN0ZXBzIjogWwogICAgICAgICAgICAgIHsKICAgICAgICAgICAgICAgICJhY3Rpb24iOiAiVmFsaWRhdGUuIiwKICAgICAgICAgICAgICAgICJyZWZlcmVuY2VzIjogWwogICAgICAgICAgICAgICAgICAiVkFMLTAwMSIKICAgICAgICAgICAgICAgIF0sCiAgICAgICAgICAgICAgICAiaWQiOiAiU1RFUC0wMDEiCiAgICAgICAgICAgICAgfQogICAgICAgICAgICBdLAogICAgICAgICAgICAidmFsaWRhdGlvbnMiOiBbCiAgICAgICAgICAgICAgewogICAgICAgICAgICAgICAgImtpbmQiOiAibWFudWFsIiwKICAgICAgICAgICAgICAgICJjb25maXJtZXIiOiAidXNlciIsCiAgICAgICAgICAgICAgICAiY3JpdGVyaWEiOiAiQXBwcm92ZWQuIiwKICAgICAgICAgICAgICAgICJpZCI6ICJWQUwtMDAxIiwKICAgICAgICAgICAgICAgICJhY2NlcHRhbmNlX2lkcyI6IFsKICAgICAgICAgICAgICAgICAgIkFDQ0VQVEFOQ0UtMDAxIiwKICAgICAgICAgICAgICAgICAgIlRBU0stMDAyLUFDQ0VQVEFOQ0UtMDAxIgogICAgICAgICAgICAgICAgXQogICAgICAgICAgICAgIH0KICAgICAgICAgICAgXSwKICAgICAgICAgICAgImFjY2VwdGFuY2VfY3JpdGVyaWEiOiBbCiAgICAgICAgICAgICAgewogICAgICAgICAgICAgICAgImlkIjogIlRBU0stMDAyLUFDQ0VQVEFOQ0UtMDAxIiwKICAgICAgICAgICAgICAgICJjcml0ZXJpb24iOiAiVGhlIGFkZGVkIHJlc3VsdCBpcyB2ZXJpZmllZC4iCiAgICAgICAgICAgICAgfQogICAgICAgICAgICBdCiAgICAgICAgICB9CiAgICAgICAgfQogICAgICBdCiAgICB9CiAgXSwKICAicmVhZGluZXNzIjogewogICAgInN0YXR1cyI6ICJwYXNzZWQiLAogICAgInNwZWNfaWQiOiAiVEFTSy1TUEVDLTAwMiIKICB9Cn0K",
+          "raw_sha256": "490220d6f7b8a347cae12c79ee7c60759af4fca6146c705b1c88492306591ac3"
         },
         "before": {
-          "base64": "ewogICJzY2hlbWEiOiAid29yay10YXNrLWluZGV4L3YxIiwKICAicmVxdWlyZW1lbnRfaWQiOiAiZXhhbXBsZSIsCiAgInNwZWNfaWQiOiAiVEFTSy1TUEVDLTAwMSIsCiAgInN0YXR1cyI6ICJjb25maXJtZWQiLAogICJ0aXRsZSI6ICJFeGFtcGxlIFRBU0siLAogICJzdW1tYXJ5IjogIlRhc2sgc3VtbWFyeS4iLAogICJhcnRpZmFjdHMiOiB7CiAgICAic291cmNlIjogIm91dHB1dHMvd29yay9zb3VyY2VzL2V4YW1wbGUiLAogICAgInRhc2siOiAib3V0cHV0cy93b3JrL3Rhc2tzL2V4YW1wbGUvaW5kZXguanNvbiIsCiAgICAiZXhlY3V0aW9uIjogIm91dHB1dHMvd29yay9leGVjdXRpb25zL2V4YW1wbGUiCiAgfSwKICAic291cmNlIjogewogICAgImtpbmQiOiAic25hcHNob3QiLAogICAgIm1hbmlmZXN0IjogewogICAgICAic2NoZW1hIjogIndvcmstc291cmNlLXNuYXBzaG90L3YxIiwKICAgICAgInJlcXVpcmVtZW50X2lkIjogImV4YW1wbGUiLAogICAgICAic291cmNlX2lkIjogIlNSQy0wMDEiLAogICAgICAiY2FwdHVyZWRfYXQiOiAiMjAyNi0xMC0wM1QwMDowMDowMFoiLAogICAgICAic291cmNlIjogewogICAgICAgICJraW5kIjogInVzZXJfdGV4dCIKICAgICAgfSwKICAgICAgImNvbnRlbnQiOiB7CiAgICAgICAgInBhdGgiOiAic291cmNlLnR4dCIsCiAgICAgICAgInNoYTI1NiI6ICJjMDAyNTY0MWFkNTVmNDVlMDAyZWYzMzA3Y2JlOTc2MDYwNTQ4Y2Q0ZjNhMGYwNjhmMWJmNGQ2MTRlYTdhOWE4IiwKICAgICAgICAic2l6ZSI6IDc1MwogICAgICB9CiAgICB9CiAgfSwKICAiaGllcmFyY2h5X3NlbGVjdGlvbiI6IHsKICAgICJzY2hlbWEiOiAid29yay1oaWVyYXJjaHktc2VsZWN0aW9uL3YxIiwKICAgICJkZWNpc2lvbiI6ICJnZW5lcmFsX29ubHkiLAogICAgInNlbGVjdGVkX3BhdGhzIjogW10sCiAgICAiZW50cmllcyI6IFtdLAogICAgImNhdGFsb2dfc2hhMjU2IjogIjc0OTc3ZmY0MWRhZTkyNWQ3NjAzN2M2MGZjYmI2ZTVjNmQ5NTBhZjczNDE2MzA4ZDVlMjFjYTNiOTZlZjVkNTQiLAogICAgInNlbGVjdGlvbl9zaGEyNTYiOiAiZTQxNGI2NDVhNGQ2MTMwZTc1MGZlZGRkMTdkMzFlYTY1NmMyMGM0OGEwNTdmNjhlZWRhN2VkNmQ2MzZlZGI1OSIKICB9LAogICJza2lsbF9zZWxlY3Rpb24iOiB7CiAgICAic2NoZW1hIjogIndvcmstc2tpbGwtc2VsZWN0aW9uL3YxIiwKICAgICJkZWNpc2lvbiI6ICJiYXNlX29ubHkiLAogICAgInNraWxscyI6IFtdLAogICAgInNlbGVjdGlvbl9zaGEyNTYiOiAiYTA5MzU3ZWY5ZjIyYzQzZGNhMTZiNDg5ZGE2MWIyODc4MzhiZjY0OTYzYTU5NTZiZjUyYWUwMzI3ZTA0YTk1OSIKICB9LAogICJhY2NlcHRhbmNlX2NyaXRlcmlhIjogWwogICAgewogICAgICAiaWQiOiAiQUNDRVBUQU5DRS0wMDEiLAogICAgICAiY3JpdGVyaW9uIjogIlRoZSByZXN1bHQgaXMgb2JzZXJ2YWJsZS4iCiAgICB9CiAgXSwKICAiaW5zdHJ1Y3Rpb25fc2VsZWN0aW9uIjogewogICAgInNvdXJjZXMiOiBbCiAgICAgIHsKICAgICAgICAia2luZCI6ICJ3b3JrZmxvdyIsCiAgICAgICAgImxvZ2ljYWxfbmFtZSI6ICJ3b3JrLmluc3RydWN0aW9uLWxvYWRpbmciLAogICAgICAgICJjYW5vbmljYWxfc2hhMjU2IjogIjY5YzM2NjM1NmJhNWJjMjc1M2E1NDBiNWUzNmVhNGQxNjM4MDViMmZlMTgzMjk3OWRiYTBmM2JjMWVkYTZlN2YiLAogICAgICAgICJjb21wYXRpYmlsaXR5X3JldmlzaW9uIjogMgogICAgICB9LAogICAgICB7CiAgICAgICAgImtpbmQiOiAid29ya2Zsb3ciLAogICAgICAgICJsb2dpY2FsX25hbWUiOiAid29yay53b3JrZmxvdy50YXNrIiwKICAgICAgICAiY2Fub25pY2FsX3NoYTI1NiI6ICIzMmY2NWRlZjgwOGNhMDllNTNjYTU2NDlhMzRjODQzNGQwZGVmZjBlOGI4Y2IyM2YyZjNkMGEzOTA4OTkzMmRiIiwKICAgICAgICAiY29tcGF0aWJpbGl0eV9yZXZpc2lvbiI6IDIKICAgICAgfSwKICAgICAgewogICAgICAgICJraW5kIjogImluc3RydWN0aW9uIiwKICAgICAgICAibG9naWNhbF9uYW1lIjogInRhc2suZ2VuZXJhbCIsCiAgICAgICAgImNhbm9uaWNhbF9zaGEyNTYiOiAiZjY5YzI2OWZhNGNmZjM0YmZlZjFlZmY2YmE4ZTYyNjA2MTZjOGI0ODgwYTg3ZmNhZDFiZWM5OGViYTVmNTJhMyIsCiAgICAgICAgImNvbXBhdGliaWxpdHlfcmV2aXNpb24iOiAxCiAgICAgIH0sCiAgICAgIHsKICAgICAgICAia2luZCI6ICJyZWZlcmVuY2UiLAogICAgICAgICJsb2dpY2FsX25hbWUiOiAidGFzay5nZW5lcmFsLnRhc2stcmVjb3JkcyIsCiAgICAgICAgImNhbm9uaWNhbF9zaGEyNTYiOiAiNjI3NWMzMDNhYzA1NTNmOGZkN2RmOGMwYmI1OWI2MjNmOTQzMTQzM2FjNDJiNDYzZDU3ZmYxNWM0MGY0ZDhiOCIsCiAgICAgICAgImNvbXBhdGliaWxpdHlfcmV2aXNpb24iOiAxCiAgICAgIH0KICAgIF0sCiAgICAicmVmZXJlbmNlcyI6IFsKICAgICAgInRhc2suZ2VuZXJhbC50YXNrLXJlY29yZHMiCiAgICBdLAogICAgImluc3RydWN0aW9uc19zaGEyNTYiOiAiNTcxYzZmNGE4YWQ1MTE5M2RhNDlmNTg2MDc4OGU5YmNmZjhkYmY0MDBkZTc2ZGFmNWY0YWI2OTJmOTU0Zjc1OCIKICB9LAogICJleGVjdXRpb25fZGVmYXVsdHMiOiB7CiAgICAid29ya2luZ19kaXJlY3RvcnkiOiAiLiIsCiAgICAib3MiOiAid2luZG93cyIsCiAgICAic2hlbGwiOiAicG93ZXJzaGVsbCIKICB9LAogICJ0YXNrcyI6IFsKICAgIHsKICAgICAgImlkIjogIlRBU0stMDAxIiwKICAgICAgInBhdGgiOiAidGFza3MvVEFTSy0wMDEuanNvbiIsCiAgICAgICJjYW5vbmljYWxfc2hhMjU2IjogIjM4YzdmMWZhNjRjMDgwNjAxYTg2Njg5MWU1YzA2MjllMjMzYjM0YWQzZjVkNTU5ZWQyYTAyNjU1OWQwN2I0Y2EiCiAgICB9CiAgXSwKICAicmVhZGluZXNzIjogewogICAgInN0YXR1cyI6ICJwYXNzZWQiLAogICAgInNwZWNfaWQiOiAiVEFTSy1TUEVDLTAwMSIKICB9Cn0K",
-          "raw_sha256": "c643a96b52b4246dd174cc97394ae145cb20b5b9946cf45016b469210295ab32"
+          "base64": "ewogICJzY2hlbWEiOiAid29yay10YXNrLWluZGV4IiwKICAicmVxdWlyZW1lbnRfaWQiOiAiZXhhbXBsZSIsCiAgInNwZWNfaWQiOiAiVEFTSy1TUEVDLTAwMSIsCiAgInN0YXR1cyI6ICJjb25maXJtZWQiLAogICJ0aXRsZSI6ICJFeGFtcGxlIFRBU0siLAogICJzdW1tYXJ5IjogIlRhc2sgc3VtbWFyeS4iLAogICJhcnRpZmFjdHMiOiB7CiAgICAic291cmNlIjogIm91dHB1dHMvd29yay9zb3VyY2VzL2V4YW1wbGUiLAogICAgInRhc2siOiAib3V0cHV0cy93b3JrL3Rhc2tzL2V4YW1wbGUvaW5kZXguanNvbiIsCiAgICAiZXhlY3V0aW9uIjogIm91dHB1dHMvd29yay9leGVjdXRpb25zL2V4YW1wbGUiCiAgfSwKICAic291cmNlIjogewogICAgImtpbmQiOiAic25hcHNob3QiLAogICAgIm1hbmlmZXN0IjogewogICAgICAic2NoZW1hIjogIndvcmstc291cmNlLXNuYXBzaG90IiwKICAgICAgInJlcXVpcmVtZW50X2lkIjogImV4YW1wbGUiLAogICAgICAic291cmNlX2lkIjogIlNSQy0wMDEiLAogICAgICAiY2FwdHVyZWRfYXQiOiAiMjAyNi0xMC0wM1QwMDowMDowMFoiLAogICAgICAic291cmNlIjogewogICAgICAgICJraW5kIjogInVzZXJfdGV4dCIKICAgICAgfSwKICAgICAgImNvbnRlbnQiOiB7CiAgICAgICAgInBhdGgiOiAic291cmNlLnR4dCIsCiAgICAgICAgInNoYTI1NiI6ICJjMDAyNTY0MWFkNTVmNDVlMDAyZWYzMzA3Y2JlOTc2MDYwNTQ4Y2Q0ZjNhMGYwNjhmMWJmNGQ2MTRlYTdhOWE4IiwKICAgICAgICAic2l6ZSI6IDc1MwogICAgICB9CiAgICB9CiAgfSwKICAiaGllcmFyY2h5X3NlbGVjdGlvbiI6IHsKICAgICJzY2hlbWEiOiAid29yay1oaWVyYXJjaHktc2VsZWN0aW9uIiwKICAgICJkZWNpc2lvbiI6ICJnZW5lcmFsX29ubHkiLAogICAgInNlbGVjdGVkX3BhdGhzIjogW10sCiAgICAiZW50cmllcyI6IFtdLAogICAgImNhdGFsb2dfc2hhMjU2IjogIjNlNTFlYWVkYmMxMjhhZmQ5OTljNzk2YmQzMzdkOTQ3MWMxNTQxMWQzZTY2Njc3MzgzZTZmZDE4OGU5MGYzOTAiLAogICAgInNlbGVjdGlvbl9zaGEyNTYiOiAiMDVmMWExNTY2Njc2MWI0NzAyNmMyNmZkYjc1YTY5ZWU0MzYyM2VjMzBhNWMwOTQ4ODdiMzI4N2JmMmFiYzU2OSIKICB9LAogICJza2lsbF9zZWxlY3Rpb24iOiB7CiAgICAic2NoZW1hIjogIndvcmstc2tpbGwtc2VsZWN0aW9uIiwKICAgICJkZWNpc2lvbiI6ICJiYXNlX29ubHkiLAogICAgInNraWxscyI6IFtdLAogICAgInNlbGVjdGlvbl9zaGEyNTYiOiAiYTA5MzU3ZWY5ZjIyYzQzZGNhMTZiNDg5ZGE2MWIyODc4MzhiZjY0OTYzYTU5NTZiZjUyYWUwMzI3ZTA0YTk1OSIKICB9LAogICJhY2NlcHRhbmNlX2NyaXRlcmlhIjogWwogICAgewogICAgICAiaWQiOiAiQUNDRVBUQU5DRS0wMDEiLAogICAgICAiY3JpdGVyaW9uIjogIlRoZSByZXN1bHQgaXMgb2JzZXJ2YWJsZS4iCiAgICB9CiAgXSwKICAiaW5zdHJ1Y3Rpb25fc2VsZWN0aW9uIjogewogICAgInNvdXJjZXMiOiBbCiAgICAgIHsKICAgICAgICAia2luZCI6ICJ3b3JrZmxvdyIsCiAgICAgICAgImxvZ2ljYWxfbmFtZSI6ICJ3b3JrLmluc3RydWN0aW9uLWxvYWRpbmciLAogICAgICAgICJjYW5vbmljYWxfc2hhMjU2IjogIjgxNjI4MzcxOWY1ODY0ZDIzNWNkNDFjOTFhMzE2NDM0MjUzNTI4OGRiYjY2ZWRiZjYwM2YzZTEwNzNmNzk2NDkiCiAgICAgIH0sCiAgICAgIHsKICAgICAgICAia2luZCI6ICJ3b3JrZmxvdyIsCiAgICAgICAgImxvZ2ljYWxfbmFtZSI6ICJ3b3JrLndvcmtmbG93LnRhc2siLAogICAgICAgICJjYW5vbmljYWxfc2hhMjU2IjogIjU0MmIyMDcwMTgwNDAzNGRiMTliMjdlNTdlNTZkZmRmNDczN2MwM2FhMDY3YjNmNzA5NzJjYTdjYzg4MTViODMiCiAgICAgIH0sCiAgICAgIHsKICAgICAgICAia2luZCI6ICJpbnN0cnVjdGlvbiIsCiAgICAgICAgImxvZ2ljYWxfbmFtZSI6ICJ0YXNrLmdlbmVyYWwiLAogICAgICAgICJjYW5vbmljYWxfc2hhMjU2IjogIjU2YThkYTE5NWUxMjk5YzBmYmIzYjA0MTgwNzBjYjkzMmQ4Njk5ZmRlM2RiZjZjYmU3NDdiN2E1MmM1YTY0YzAiCiAgICAgIH0sCiAgICAgIHsKICAgICAgICAia2luZCI6ICJyZWZlcmVuY2UiLAogICAgICAgICJsb2dpY2FsX25hbWUiOiAidGFzay5nZW5lcmFsLnRhc2stcmVjb3JkcyIsCiAgICAgICAgImNhbm9uaWNhbF9zaGEyNTYiOiAiYzdhMGE3OGY5YmY5NDNlZTUxZGY2OGZiZjA3MGNmODNhNGZlZTNiOWZkYmI4ODE1ZGFmNTk2ZGY3NTdiYjU5MyIKICAgICAgfQogICAgXSwKICAgICJyZWZlcmVuY2VzIjogWwogICAgICAidGFzay5nZW5lcmFsLnRhc2stcmVjb3JkcyIKICAgIF0sCiAgICAiaW5zdHJ1Y3Rpb25zX3NoYTI1NiI6ICI5OWFjMmVlYjM4ZDQ0NThkN2MwNjNiY2MyYmNjM2NmY2IxNTFmZmI3MzY2ZDNjZjY0NmIzNmQwMzNkZmNjZTE2IgogIH0sCiAgImV4ZWN1dGlvbl9kZWZhdWx0cyI6IHsKICAgICJ3b3JraW5nX2RpcmVjdG9yeSI6ICIuIiwKICAgICJvcyI6ICJ3aW5kb3dzIiwKICAgICJzaGVsbCI6ICJwb3dlcnNoZWxsIgogIH0sCiAgInRhc2tzIjogWwogICAgewogICAgICAiaWQiOiAiVEFTSy0wMDEiLAogICAgICAicGF0aCI6ICJ0YXNrcy9UQVNLLTAwMS5qc29uIiwKICAgICAgImNhbm9uaWNhbF9zaGEyNTYiOiAiZGNjMTVjMDM5YzRkZTNhYWMyMjljZDVlMTM2NGQ1ZGM5ZmI2N2VkMjQ3NjdiYmVmNjYwNjU2ZGZjMjUwNmU3NyIKICAgIH0KICBdLAogICJyZWFkaW5lc3MiOiB7CiAgICAic3RhdHVzIjogInBhc3NlZCIsCiAgICAic3BlY19pZCI6ICJUQVNLLVNQRUMtMDAxIgogIH0KfQo=",
+          "raw_sha256": "c514f4cebc7539b4d54832711869aa958bd50cdee89259fa806e0be52edf3161"
         },
         "operation": "replace",
         "path": "outputs/work/tasks/example/index.json",
@@ -446,12 +430,12 @@
       },
       {
         "after": {
-          "base64": "ewogICJzY2hlbWEiOiAid29yay1leGVjdXRpb24taW5kZXgvdjEiLAogICJyZXF1aXJlbWVudF9pZCI6ICJleGFtcGxlIiwKICAidGl0bGUiOiAiRXhlY3V0aW9uIiwKICAidGFza19zcGVjX2lkIjogIlRBU0stU1BFQy0wMDIiLAogICJ0YXNrX2NvbGxlY3Rpb25fc2hhMjU2IjogIjBmZWZjZDVjM2Y3NDUyZjNlMzE5OTAxMGFkM2U1NWNkMDZmNjA4ZTc0M2Q2ZDQwMWY5NmI5MmM4MDQ3MGU2MTIiLAogICJ0YXNrX2luZGV4X3NoYTI1NiI6ICI5NjI3M2Y0MDQ1ZTUzMTdjZGUzNzU5YTJmYjFjMDExMTk5YTVkYzUwYWFkYTE4YzAyZjZkMzA5M2U0MjNhNzcyIiwKICAidGFza19pbnN0cnVjdGlvbnNfc2hhMjU2IjogIjU3MWM2ZjRhOGFkNTExOTNkYTQ5ZjU4NjA3ODhlOWJjZmY4ZGJmNDAwZGU3NmRhZjVmNGFiNjkyZjk1NGY3NTgiLAogICJoaWVyYXJjaHlfc2VsZWN0aW9uX3NoYTI1NiI6ICJlNDE0YjY0NWE0ZDYxMzBlNzUwZmVkZGQxN2QzMWVhNjU2YzIwYzQ4YTA1N2Y2OGVlZGE3ZWQ2ZDYzNmVkYjU5IiwKICAic2tpbGxfc2VsZWN0aW9uX3NoYTI1NiI6ICJhMDkzNTdlZjlmMjJjNDNkY2ExNmI0ODlkYTYxYjI4NzgzOGJmNjQ5NjNhNTk1NmJmNTJhZTAzMjdlMDRhOTU5IiwKICAib3ZlcmFsbF9zdGF0dXMiOiAicGVuZGluZyIsCiAgImFjY2VwdGFuY2VfcmVzdWx0cyI6IFsKICAgIHsKICAgICAgImlkIjogIkFDQ0VQVEFOQ0UtMDAxIiwKICAgICAgInN0YXR1cyI6ICJwZW5kaW5nIiwKICAgICAgImV2aWRlbmNlIjogW10KICAgIH0KICBdLAogICJ0YXNrcyI6IFsKICAgIHsKICAgICAgImlkIjogIlRBU0stMDAxIiwKICAgICAgInN0YXR1cyI6ICJwZW5kaW5nIiwKICAgICAgInNraWxsX2lkIjogbnVsbCwKICAgICAgInRhc2tfaXRlbV9zaGEyNTYiOiAiMzhjN2YxZmE2NGMwODA2MDFhODY2ODkxZTVjMDYyOWUyMzNiMzRhZDNmNWQ1NTllZDJhMDI2NTU5ZDA3YjRjYSIsCiAgICAgICJpbnN0cnVjdGlvbnNfc2hhMjU2IjogIjU3MWM2ZjRhOGFkNTExOTNkYTQ5ZjU4NjA3ODhlOWJjZmY4ZGJmNDAwZGU3NmRhZjVmNGFiNjkyZjk1NGY3NTgiLAogICAgICAiYWNjZXB0YW5jZV9yZXN1bHRzIjogWwogICAgICAgIHsKICAgICAgICAgICJpZCI6ICJBQ0NFUFRBTkNFLTAwMSIsCiAgICAgICAgICAic3RhdHVzIjogInBlbmRpbmciLAogICAgICAgICAgImV2aWRlbmNlIjogW10KICAgICAgICB9LAogICAgICAgIHsKICAgICAgICAgICJpZCI6ICJUQVNLLTAwMS1BQ0NFUFRBTkNFLTAwMSIsCiAgICAgICAgICAic3RhdHVzIjogInBlbmRpbmciLAogICAgICAgICAgImV2aWRlbmNlIjogW10KICAgICAgICB9CiAgICAgIF0KICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJUQVNLLTAwMiIsCiAgICAgICJzdGF0dXMiOiAicGVuZGluZyIsCiAgICAgICJza2lsbF9pZCI6IG51bGwsCiAgICAgICJ0YXNrX2l0ZW1fc2hhMjU2IjogIjVmZjk2ZjIwNTQ1ODY3OGQ0M2NmZDcyNjY2ZGQ4N2I0NzhlMTg1MDI0MGU0YjdiOWQ3NTJkZGIzMWQ0MmM3NjgiLAogICAgICAiaW5zdHJ1Y3Rpb25zX3NoYTI1NiI6ICI1NzFjNmY0YThhZDUxMTkzZGE0OWY1ODYwNzg4ZTliY2ZmOGRiZjQwMGRlNzZkYWY1ZjRhYjY5MmY5NTRmNzU4IiwKICAgICAgImFjY2VwdGFuY2VfcmVzdWx0cyI6IFsKICAgICAgICB7CiAgICAgICAgICAiaWQiOiAiQUNDRVBUQU5DRS0wMDEiLAogICAgICAgICAgInN0YXR1cyI6ICJwZW5kaW5nIiwKICAgICAgICAgICJldmlkZW5jZSI6IFtdCiAgICAgICAgfSwKICAgICAgICB7CiAgICAgICAgICAiaWQiOiAiVEFTSy0wMDItQUNDRVBUQU5DRS0wMDEiLAogICAgICAgICAgInN0YXR1cyI6ICJwZW5kaW5nIiwKICAgICAgICAgICJldmlkZW5jZSI6IFtdCiAgICAgICAgfQogICAgICBdCiAgICB9CiAgXQp9Cg==",
-          "raw_sha256": "ce256c1e1ea9d8b2e309b20ef7b7e0148e2e484124782afabb0be4709f3bb593"
+          "base64": "ewogICJzY2hlbWEiOiAid29yay1leGVjdXRpb24taW5kZXgiLAogICJyZXF1aXJlbWVudF9pZCI6ICJleGFtcGxlIiwKICAidGl0bGUiOiAiRXhlY3V0aW9uIiwKICAidGFza19zcGVjX2lkIjogIlRBU0stU1BFQy0wMDIiLAogICJ0YXNrX2NvbGxlY3Rpb25fc2hhMjU2IjogIjM5NDgyNjgzNjE4NzJkZTQ3MWE1ZjdlNmUxZmQ1MzA4YTc1MGQ3NGQ4NzYwMmZmMDI3YWNlMmNkM2YwOWZiNWUiLAogICJ0YXNrX2luZGV4X3NoYTI1NiI6ICI0OTAyMjBkNmY3YjhhMzQ3Y2FlMTJjNzllZTdjNjA3NTlhZjRmY2E2MTQ2YzcwNWIxYzg4NDkyMzA2NTkxYWMzIiwKICAidGFza19pbnN0cnVjdGlvbnNfc2hhMjU2IjogIjk5YWMyZWViMzhkNDQ1OGQ3YzA2M2JjYzJiY2MzY2ZjYjE1MWZmYjczNjZkM2NmNjQ2YjM2ZDAzM2RmY2NlMTYiLAogICJoaWVyYXJjaHlfc2VsZWN0aW9uX3NoYTI1NiI6ICIwNWYxYTE1NjY2NzYxYjQ3MDI2YzI2ZmRiNzVhNjllZTQzNjIzZWMzMGE1YzA5NDg4N2IzMjg3YmYyYWJjNTY5IiwKICAic2tpbGxfc2VsZWN0aW9uX3NoYTI1NiI6ICJhMDkzNTdlZjlmMjJjNDNkY2ExNmI0ODlkYTYxYjI4NzgzOGJmNjQ5NjNhNTk1NmJmNTJhZTAzMjdlMDRhOTU5IiwKICAib3ZlcmFsbF9zdGF0dXMiOiAicGVuZGluZyIsCiAgImFjY2VwdGFuY2VfcmVzdWx0cyI6IFsKICAgIHsKICAgICAgImlkIjogIkFDQ0VQVEFOQ0UtMDAxIiwKICAgICAgInN0YXR1cyI6ICJwZW5kaW5nIiwKICAgICAgImV2aWRlbmNlIjogW10KICAgIH0KICBdLAogICJ0YXNrcyI6IFsKICAgIHsKICAgICAgImlkIjogIlRBU0stMDAxIiwKICAgICAgInN0YXR1cyI6ICJwZW5kaW5nIiwKICAgICAgInNraWxsX2lkIjogbnVsbCwKICAgICAgInRhc2tfaXRlbV9zaGEyNTYiOiAiZGNjMTVjMDM5YzRkZTNhYWMyMjljZDVlMTM2NGQ1ZGM5ZmI2N2VkMjQ3NjdiYmVmNjYwNjU2ZGZjMjUwNmU3NyIsCiAgICAgICJpbnN0cnVjdGlvbnNfc2hhMjU2IjogIjk5YWMyZWViMzhkNDQ1OGQ3YzA2M2JjYzJiY2MzY2ZjYjE1MWZmYjczNjZkM2NmNjQ2YjM2ZDAzM2RmY2NlMTYiLAogICAgICAiYWNjZXB0YW5jZV9yZXN1bHRzIjogWwogICAgICAgIHsKICAgICAgICAgICJpZCI6ICJBQ0NFUFRBTkNFLTAwMSIsCiAgICAgICAgICAic3RhdHVzIjogInBlbmRpbmciLAogICAgICAgICAgImV2aWRlbmNlIjogW10KICAgICAgICB9LAogICAgICAgIHsKICAgICAgICAgICJpZCI6ICJUQVNLLTAwMS1BQ0NFUFRBTkNFLTAwMSIsCiAgICAgICAgICAic3RhdHVzIjogInBlbmRpbmciLAogICAgICAgICAgImV2aWRlbmNlIjogW10KICAgICAgICB9CiAgICAgIF0KICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJUQVNLLTAwMiIsCiAgICAgICJzdGF0dXMiOiAicGVuZGluZyIsCiAgICAgICJza2lsbF9pZCI6IG51bGwsCiAgICAgICJ0YXNrX2l0ZW1fc2hhMjU2IjogIjI5M2QwZTIxZWE3Mjg4YTBlMWVhZmEzZjk2OWEzNDA5MjkyZGU1ZDVlM2E3ZTlmMzYzMzAxZjMzZWE2ODFhMzUiLAogICAgICAiaW5zdHJ1Y3Rpb25zX3NoYTI1NiI6ICI5OWFjMmVlYjM4ZDQ0NThkN2MwNjNiY2MyYmNjM2NmY2IxNTFmZmI3MzY2ZDNjZjY0NmIzNmQwMzNkZmNjZTE2IiwKICAgICAgImFjY2VwdGFuY2VfcmVzdWx0cyI6IFsKICAgICAgICB7CiAgICAgICAgICAiaWQiOiAiQUNDRVBUQU5DRS0wMDEiLAogICAgICAgICAgInN0YXR1cyI6ICJwZW5kaW5nIiwKICAgICAgICAgICJldmlkZW5jZSI6IFtdCiAgICAgICAgfSwKICAgICAgICB7CiAgICAgICAgICAiaWQiOiAiVEFTSy0wMDItQUNDRVBUQU5DRS0wMDEiLAogICAgICAgICAgInN0YXR1cyI6ICJwZW5kaW5nIiwKICAgICAgICAgICJldmlkZW5jZSI6IFtdCiAgICAgICAgfQogICAgICBdCiAgICB9CiAgXQp9Cg==",
+          "raw_sha256": "92c6e7642335ebc2d94e7cc8606140afa8bdd6ae465f6570a87b8748563bd1a4"
         },
         "before": {
-          "base64": "ewogICJzY2hlbWEiOiAid29yay1leGVjdXRpb24taW5kZXgvdjEiLAogICJyZXF1aXJlbWVudF9pZCI6ICJleGFtcGxlIiwKICAidGl0bGUiOiAiRXhlY3V0aW9uIiwKICAidGFza19zcGVjX2lkIjogIlRBU0stU1BFQy0wMDEiLAogICJ0YXNrX2NvbGxlY3Rpb25fc2hhMjU2IjogImQyMWM2MGJiN2NjNDBlOTU1ZTMxYzQwY2I4MTlkZGQ5NGZkYWYzOGQyMGJmMGNkYTI2YjFiNDczM2FjNzc2YTgiLAogICJ0YXNrX2luZGV4X3NoYTI1NiI6ICJjNjQzYTk2YjUyYjQyNDZkZDE3NGNjOTczOTRhZTE0NWNiMjBiNWI5OTQ2Y2Y0NTAxNmI0NjkyMTAyOTVhYjMyIiwKICAidGFza19pbnN0cnVjdGlvbnNfc2hhMjU2IjogIjU3MWM2ZjRhOGFkNTExOTNkYTQ5ZjU4NjA3ODhlOWJjZmY4ZGJmNDAwZGU3NmRhZjVmNGFiNjkyZjk1NGY3NTgiLAogICJoaWVyYXJjaHlfc2VsZWN0aW9uX3NoYTI1NiI6ICJlNDE0YjY0NWE0ZDYxMzBlNzUwZmVkZGQxN2QzMWVhNjU2YzIwYzQ4YTA1N2Y2OGVlZGE3ZWQ2ZDYzNmVkYjU5IiwKICAic2tpbGxfc2VsZWN0aW9uX3NoYTI1NiI6ICJhMDkzNTdlZjlmMjJjNDNkY2ExNmI0ODlkYTYxYjI4NzgzOGJmNjQ5NjNhNTk1NmJmNTJhZTAzMjdlMDRhOTU5IiwKICAib3ZlcmFsbF9zdGF0dXMiOiAicGVuZGluZyIsCiAgImFjY2VwdGFuY2VfcmVzdWx0cyI6IFsKICAgIHsKICAgICAgImlkIjogIkFDQ0VQVEFOQ0UtMDAxIiwKICAgICAgInN0YXR1cyI6ICJwZW5kaW5nIiwKICAgICAgImV2aWRlbmNlIjogW10KICAgIH0KICBdLAogICJ0YXNrcyI6IFsKICAgIHsKICAgICAgImlkIjogIlRBU0stMDAxIiwKICAgICAgInN0YXR1cyI6ICJwZW5kaW5nIiwKICAgICAgInNraWxsX2lkIjogbnVsbCwKICAgICAgInRhc2tfaXRlbV9zaGEyNTYiOiAiMzhjN2YxZmE2NGMwODA2MDFhODY2ODkxZTVjMDYyOWUyMzNiMzRhZDNmNWQ1NTllZDJhMDI2NTU5ZDA3YjRjYSIsCiAgICAgICJpbnN0cnVjdGlvbnNfc2hhMjU2IjogIjU3MWM2ZjRhOGFkNTExOTNkYTQ5ZjU4NjA3ODhlOWJjZmY4ZGJmNDAwZGU3NmRhZjVmNGFiNjkyZjk1NGY3NTgiLAogICAgICAiYWNjZXB0YW5jZV9yZXN1bHRzIjogWwogICAgICAgIHsKICAgICAgICAgICJpZCI6ICJBQ0NFUFRBTkNFLTAwMSIsCiAgICAgICAgICAic3RhdHVzIjogInBlbmRpbmciLAogICAgICAgICAgImV2aWRlbmNlIjogW10KICAgICAgICB9LAogICAgICAgIHsKICAgICAgICAgICJpZCI6ICJUQVNLLTAwMS1BQ0NFUFRBTkNFLTAwMSIsCiAgICAgICAgICAic3RhdHVzIjogInBlbmRpbmciLAogICAgICAgICAgImV2aWRlbmNlIjogW10KICAgICAgICB9CiAgICAgIF0KICAgIH0KICBdCn0K",
-          "raw_sha256": "280eeada977f69c29810f0dfc8948172d1cff95d8c9b981a3ef71db9c5f01069"
+          "base64": "ewogICJzY2hlbWEiOiAid29yay1leGVjdXRpb24taW5kZXgiLAogICJyZXF1aXJlbWVudF9pZCI6ICJleGFtcGxlIiwKICAidGl0bGUiOiAiRXhlY3V0aW9uIiwKICAidGFza19zcGVjX2lkIjogIlRBU0stU1BFQy0wMDEiLAogICJ0YXNrX2NvbGxlY3Rpb25fc2hhMjU2IjogIjRlMzk5N2I0Njg1NDJiN2JjNWY5N2Q3NzJhZTFkN2Q3ZjZiMzQ3YzA2OWUxZGE4YWIyYjU0MzIyNDIzMmZhMDEiLAogICJ0YXNrX2luZGV4X3NoYTI1NiI6ICJjNTE0ZjRjZWJjNzUzOWI0ZDU0ODMyNzExODY5YWE5NThiZDUwY2RlZTg5MjU5ZmE4MDZlMGJlNTJlZGYzMTYxIiwKICAidGFza19pbnN0cnVjdGlvbnNfc2hhMjU2IjogIjk5YWMyZWViMzhkNDQ1OGQ3YzA2M2JjYzJiY2MzY2ZjYjE1MWZmYjczNjZkM2NmNjQ2YjM2ZDAzM2RmY2NlMTYiLAogICJoaWVyYXJjaHlfc2VsZWN0aW9uX3NoYTI1NiI6ICIwNWYxYTE1NjY2NzYxYjQ3MDI2YzI2ZmRiNzVhNjllZTQzNjIzZWMzMGE1YzA5NDg4N2IzMjg3YmYyYWJjNTY5IiwKICAic2tpbGxfc2VsZWN0aW9uX3NoYTI1NiI6ICJhMDkzNTdlZjlmMjJjNDNkY2ExNmI0ODlkYTYxYjI4NzgzOGJmNjQ5NjNhNTk1NmJmNTJhZTAzMjdlMDRhOTU5IiwKICAib3ZlcmFsbF9zdGF0dXMiOiAicGVuZGluZyIsCiAgImFjY2VwdGFuY2VfcmVzdWx0cyI6IFsKICAgIHsKICAgICAgImlkIjogIkFDQ0VQVEFOQ0UtMDAxIiwKICAgICAgInN0YXR1cyI6ICJwZW5kaW5nIiwKICAgICAgImV2aWRlbmNlIjogW10KICAgIH0KICBdLAogICJ0YXNrcyI6IFsKICAgIHsKICAgICAgImlkIjogIlRBU0stMDAxIiwKICAgICAgInN0YXR1cyI6ICJwZW5kaW5nIiwKICAgICAgInNraWxsX2lkIjogbnVsbCwKICAgICAgInRhc2tfaXRlbV9zaGEyNTYiOiAiZGNjMTVjMDM5YzRkZTNhYWMyMjljZDVlMTM2NGQ1ZGM5ZmI2N2VkMjQ3NjdiYmVmNjYwNjU2ZGZjMjUwNmU3NyIsCiAgICAgICJpbnN0cnVjdGlvbnNfc2hhMjU2IjogIjk5YWMyZWViMzhkNDQ1OGQ3YzA2M2JjYzJiY2MzY2ZjYjE1MWZmYjczNjZkM2NmNjQ2YjM2ZDAzM2RmY2NlMTYiLAogICAgICAiYWNjZXB0YW5jZV9yZXN1bHRzIjogWwogICAgICAgIHsKICAgICAgICAgICJpZCI6ICJBQ0NFUFRBTkNFLTAwMSIsCiAgICAgICAgICAic3RhdHVzIjogInBlbmRpbmciLAogICAgICAgICAgImV2aWRlbmNlIjogW10KICAgICAgICB9LAogICAgICAgIHsKICAgICAgICAgICJpZCI6ICJUQVNLLTAwMS1BQ0NFUFRBTkNFLTAwMSIsCiAgICAgICAgICAic3RhdHVzIjogInBlbmRpbmciLAogICAgICAgICAgImV2aWRlbmNlIjogW10KICAgICAgICB9CiAgICAgIF0KICAgIH0KICBdCn0K",
+          "raw_sha256": "90f453ce1e747525290f52a99d00fa21e15c754de1f3771855382ffc0d5a74af"
         },
         "operation": "replace",
         "path": "outputs/work/executions/example/index.json",
@@ -468,26 +452,26 @@
         "task": "outputs/work/tasks/example/index.json"
       },
       "candidate_sha256": {
-        "outputs/work/executions/example/index.json": "ce256c1e1ea9d8b2e309b20ef7b7e0148e2e484124782afabb0be4709f3bb593",
-        "outputs/work/sources/example/SRC-001/manifest.json": "d4dccc5fccd534c4169945de5de03787455254992d7fe334ea794ce74c7e8e30",
-        "outputs/work/sources/example/SRC-001/manifest.json.done": "1fb5d0015b0b3b4c6c3c10582c97137748935d242301f732c2bf1d3a1e83002b",
+        "outputs/work/executions/example/index.json": "92c6e7642335ebc2d94e7cc8606140afa8bdd6ae465f6570a87b8748563bd1a4",
+        "outputs/work/sources/example/SRC-001/manifest.json": "c15b2c4f911a87c52c3698a5a7429548b95e644bcabcff82004d85f47c99cc5a",
+        "outputs/work/sources/example/SRC-001/manifest.json.done": "5818313a9964e7207c4832583bc410b4a1edc8043d01b2613b3433c3edb0d5b2",
         "outputs/work/sources/example/SRC-001/source.txt": "c0025641ad55f45e002ef3307cbe976060548cd4f3a0f068f1bf4d614ea7a9a8",
-        "outputs/work/tasks/example/index.json": "96273f4045e5317cde3759a2fb1c011199a5dc50aada18c02f6d3093e423a772",
-        "outputs/work/tasks/example/tasks/TASK-001.json": "38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca",
-        "outputs/work/tasks/example/tasks/TASK-002.json": "5ff96f205458678d43cfd72666dd87b478e1850240e4b7b9d752ddb31d42c768"
+        "outputs/work/tasks/example/index.json": "490220d6f7b8a347cae12c79ee7c60759af4fca6146c705b1c88492306591ac3",
+        "outputs/work/tasks/example/tasks/TASK-001.json": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77",
+        "outputs/work/tasks/example/tasks/TASK-002.json": "293d0e21ea7288a0e1eafa3f969a3409292de5d5e3a7e9f363301f33ea681a35"
       },
       "history_sha256": {},
       "request": {
         "expected": {
-          "execution_index_sha256": "280eeada977f69c29810f0dfc8948172d1cff95d8c9b981a3ef71db9c5f01069",
-          "source_sha256": "2da42c71cf7ba14844e784d6f81ba13b1b77aede84408b829d573e3e36f8647a",
-          "task_index_sha256": "c643a96b52b4246dd174cc97394ae145cb20b5b9946cf45016b469210295ab32",
+          "execution_index_sha256": "90f453ce1e747525290f52a99d00fa21e15c754de1f3771855382ffc0d5a74af",
+          "source_sha256": "1d269f69453e9d8c3da1c45b96d97807277f763725bd22b9ee1c9f22212f6f50",
+          "task_index_sha256": "c514f4cebc7539b4d54832711869aa958bd50cdee89259fa806e0be52edf3161",
           "task_item_sha256": {
-            "TASK-001": "38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca"
+            "TASK-001": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77"
           }
         },
         "reason": "Confirmed collection revision",
-        "schema": "work-spec-update-request/v1",
+        "schema": "work-spec-update-request",
         "task_index": {
           "acceptance_criteria": [
             {
@@ -521,7 +505,7 @@
                     "goal": "Validate the second result.",
                     "id": "TASK-002",
                     "instruction_selection": {
-                      "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+                      "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
                       "references": [
                         "task.general.task-records"
                       ],
@@ -531,32 +515,28 @@
                       "selected_paths": [],
                       "sources": [
                         {
-                          "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
-                          "compatibility_revision": 2,
+                          "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
                           "kind": "workflow",
                           "logical_name": "work.instruction-loading"
                         },
                         {
-                          "canonical_sha256": "32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db",
-                          "compatibility_revision": 2,
+                          "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
                           "kind": "workflow",
                           "logical_name": "work.workflow.task"
                         },
                         {
-                          "canonical_sha256": "f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3",
-                          "compatibility_revision": 1,
+                          "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
                           "kind": "instruction",
                           "logical_name": "task.general"
                         },
                         {
-                          "canonical_sha256": "6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8",
-                          "compatibility_revision": 1,
+                          "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
                           "kind": "reference",
                           "logical_name": "task.general.task-records"
                         }
                       ]
                     },
-                    "schema": "work-task-item/v1",
+                    "schema": "work-task-item",
                     "skill_id": null,
                     "steps": [
                       {
@@ -603,40 +583,36 @@
             "working_directory": "."
           },
           "hierarchy_selection": {
-            "catalog_sha256": "74977ff41dae925d76037c60fcbb6e5c6d950af73416308d5e21ca3b96ef5d54",
+            "catalog_sha256": "3e51eaedbc128afd999c796bd337d9471c15411d3e66677383e6fd188e90f390",
             "decision": "general_only",
             "entries": [],
-            "schema": "work-hierarchy-selection/v1",
+            "schema": "work-hierarchy-selection",
             "selected_paths": [],
-            "selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59"
+            "selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569"
           },
           "instruction_selection": {
-            "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+            "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
             "references": [
               "task.general.task-records"
             ],
             "sources": [
               {
-                "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
-                "compatibility_revision": 2,
+                "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
                 "kind": "workflow",
                 "logical_name": "work.instruction-loading"
               },
               {
-                "canonical_sha256": "32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db",
-                "compatibility_revision": 2,
+                "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
                 "kind": "workflow",
                 "logical_name": "work.workflow.task"
               },
               {
-                "canonical_sha256": "f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3",
-                "compatibility_revision": 1,
+                "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
                 "kind": "instruction",
                 "logical_name": "task.general"
               },
               {
-                "canonical_sha256": "6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8",
-                "compatibility_revision": 1,
+                "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
                 "kind": "reference",
                 "logical_name": "task.general.task-records"
               }
@@ -647,10 +623,10 @@
             "status": "passed"
           },
           "requirement_id": "example",
-          "schema": "work-task-index/v1",
+          "schema": "work-task-index",
           "skill_selection": {
             "decision": "base_only",
-            "schema": "work-skill-selection/v1",
+            "schema": "work-skill-selection",
             "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
             "skills": []
           },
@@ -664,7 +640,7 @@
                 "size": 753
               },
               "requirement_id": "example",
-              "schema": "work-source-snapshot/v1",
+              "schema": "work-source-snapshot",
               "source": {
                 "kind": "user_text"
               },
@@ -676,12 +652,12 @@
           "summary": "Task summary.",
           "tasks": [
             {
-              "canonical_sha256": "38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca",
+              "canonical_sha256": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77",
               "id": "TASK-001",
               "path": "tasks/TASK-001.json"
             },
             {
-              "canonical_sha256": "5ff96f205458678d43cfd72666dd87b478e1850240e4b7b9d752ddb31d42c768",
+              "canonical_sha256": "293d0e21ea7288a0e1eafa3f969a3409292de5d5e3a7e9f363301f33ea681a35",
               "id": "TASK-002",
               "path": "tasks/TASK-002.json"
             }
@@ -716,7 +692,7 @@
             "goal": "Modify the source and validate it.",
             "id": "TASK-001",
             "instruction_selection": {
-              "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+              "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
               "references": [
                 "task.general.task-records"
               ],
@@ -726,32 +702,28 @@
               "selected_paths": [],
               "sources": [
                 {
-                  "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
-                  "compatibility_revision": 2,
+                  "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
                   "kind": "workflow",
                   "logical_name": "work.instruction-loading"
                 },
                 {
-                  "canonical_sha256": "32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db",
-                  "compatibility_revision": 2,
+                  "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
                   "kind": "workflow",
                   "logical_name": "work.workflow.task"
                 },
                 {
-                  "canonical_sha256": "f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3",
-                  "compatibility_revision": 1,
+                  "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
                   "kind": "instruction",
                   "logical_name": "task.general"
                 },
                 {
-                  "canonical_sha256": "6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8",
-                  "compatibility_revision": 1,
+                  "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
                   "kind": "reference",
                   "logical_name": "task.general.task-records"
                 }
               ]
             },
-            "schema": "work-task-item/v1",
+            "schema": "work-task-item",
             "skill_id": null,
             "steps": [
               {
@@ -804,7 +776,7 @@
             "goal": "Validate the second result.",
             "id": "TASK-002",
             "instruction_selection": {
-              "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+              "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
               "references": [
                 "task.general.task-records"
               ],
@@ -814,32 +786,28 @@
               "selected_paths": [],
               "sources": [
                 {
-                  "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
-                  "compatibility_revision": 2,
+                  "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
                   "kind": "workflow",
                   "logical_name": "work.instruction-loading"
                 },
                 {
-                  "canonical_sha256": "32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db",
-                  "compatibility_revision": 2,
+                  "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
                   "kind": "workflow",
                   "logical_name": "work.workflow.task"
                 },
                 {
-                  "canonical_sha256": "f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3",
-                  "compatibility_revision": 1,
+                  "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
                   "kind": "instruction",
                   "logical_name": "task.general"
                 },
                 {
-                  "canonical_sha256": "6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8",
-                  "compatibility_revision": 1,
+                  "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
                   "kind": "reference",
                   "logical_name": "task.general.task-records"
                 }
               ]
             },
-            "schema": "work-task-item/v1",
+            "schema": "work-task-item",
             "skill_id": null,
             "steps": [
               {
@@ -872,18 +840,18 @@
         }
       },
       "source_sha256": {
-        "outputs/work/executions/example/index.json": "280eeada977f69c29810f0dfc8948172d1cff95d8c9b981a3ef71db9c5f01069",
-        "outputs/work/sources/example/SRC-001/manifest.json": "d4dccc5fccd534c4169945de5de03787455254992d7fe334ea794ce74c7e8e30",
-        "outputs/work/sources/example/SRC-001/manifest.json.done": "1fb5d0015b0b3b4c6c3c10582c97137748935d242301f732c2bf1d3a1e83002b",
+        "outputs/work/executions/example/index.json": "90f453ce1e747525290f52a99d00fa21e15c754de1f3771855382ffc0d5a74af",
+        "outputs/work/sources/example/SRC-001/manifest.json": "c15b2c4f911a87c52c3698a5a7429548b95e644bcabcff82004d85f47c99cc5a",
+        "outputs/work/sources/example/SRC-001/manifest.json.done": "5818313a9964e7207c4832583bc410b4a1edc8043d01b2613b3433c3edb0d5b2",
         "outputs/work/sources/example/SRC-001/source.txt": "c0025641ad55f45e002ef3307cbe976060548cd4f3a0f068f1bf4d614ea7a9a8",
-        "outputs/work/tasks/example/index.json": "c643a96b52b4246dd174cc97394ae145cb20b5b9946cf45016b469210295ab32",
-        "outputs/work/tasks/example/tasks/TASK-001.json": "38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca"
+        "outputs/work/tasks/example/index.json": "c514f4cebc7539b4d54832711869aa958bd50cdee89259fa806e0be52edf3161",
+        "outputs/work/tasks/example/tasks/TASK-001.json": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77"
       }
     },
     "published_count": 0,
-    "schema": "work-spec-transaction/v1",
+    "schema": "work-spec-transaction",
     "state": "prepared",
-    "transaction_id": "SPEC-UPDATE-AD53E5800988"
+    "transaction_id": "SPEC-UPDATE-6EA475557F3E"
   },
   "validation": {
     "execution_index": "valid",
@@ -922,7 +890,7 @@
                   "goal": "Validate the second result.",
                   "id": "TASK-002",
                   "instruction_selection": {
-                    "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+                    "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
                     "references": [
                       "task.general.task-records"
                     ],
@@ -932,32 +900,28 @@
                     "selected_paths": [],
                     "sources": [
                       {
-                        "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
-                        "compatibility_revision": 2,
+                        "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
                         "kind": "workflow",
                         "logical_name": "work.instruction-loading"
                       },
                       {
-                        "canonical_sha256": "32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db",
-                        "compatibility_revision": 2,
+                        "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
                         "kind": "workflow",
                         "logical_name": "work.workflow.task"
                       },
                       {
-                        "canonical_sha256": "f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3",
-                        "compatibility_revision": 1,
+                        "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
                         "kind": "instruction",
                         "logical_name": "task.general"
                       },
                       {
-                        "canonical_sha256": "6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8",
-                        "compatibility_revision": 1,
+                        "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
                         "kind": "reference",
                         "logical_name": "task.general.task-records"
                       }
                     ]
                   },
-                  "schema": "work-task-item/v1",
+                  "schema": "work-task-item",
                   "skill_id": null,
                   "steps": [
                     {
@@ -1002,40 +966,36 @@
           "working_directory": "."
         },
         "hierarchy_selection": {
-          "catalog_sha256": "74977ff41dae925d76037c60fcbb6e5c6d950af73416308d5e21ca3b96ef5d54",
+          "catalog_sha256": "3e51eaedbc128afd999c796bd337d9471c15411d3e66677383e6fd188e90f390",
           "decision": "general_only",
           "entries": [],
-          "schema": "work-hierarchy-selection/v1",
+          "schema": "work-hierarchy-selection",
           "selected_paths": [],
-          "selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59"
+          "selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569"
         },
         "instruction_selection": {
-          "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+          "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
           "references": [
             "task.general.task-records"
           ],
           "sources": [
             {
-              "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
-              "compatibility_revision": 2,
+              "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
               "kind": "workflow",
               "logical_name": "work.instruction-loading"
             },
             {
-              "canonical_sha256": "32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db",
-              "compatibility_revision": 2,
+              "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
               "kind": "workflow",
               "logical_name": "work.workflow.task"
             },
             {
-              "canonical_sha256": "f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3",
-              "compatibility_revision": 1,
+              "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
               "kind": "instruction",
               "logical_name": "task.general"
             },
             {
-              "canonical_sha256": "6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8",
-              "compatibility_revision": 1,
+              "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
               "kind": "reference",
               "logical_name": "task.general.task-records"
             }
@@ -1046,10 +1006,10 @@
           "status": "passed"
         },
         "requirement_id": "example",
-        "schema": "work-task-collection-projection/v1",
+        "schema": "work-task-collection-projection",
         "skill_selection": {
           "decision": "base_only",
-          "schema": "work-skill-selection/v1",
+          "schema": "work-skill-selection",
           "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
           "skills": []
         },
@@ -1063,7 +1023,7 @@
               "size": 753
             },
             "requirement_id": "example",
-            "schema": "work-source-snapshot/v1",
+            "schema": "work-source-snapshot",
             "source": {
               "kind": "user_text"
             },
@@ -1101,7 +1061,7 @@
             "goal": "Modify the source and validate it.",
             "id": "TASK-001",
             "instruction_selection": {
-              "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+              "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
               "references": [
                 "task.general.task-records"
               ],
@@ -1111,26 +1071,22 @@
               "selected_paths": [],
               "sources": [
                 {
-                  "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
-                  "compatibility_revision": 2,
+                  "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
                   "kind": "workflow",
                   "logical_name": "work.instruction-loading"
                 },
                 {
-                  "canonical_sha256": "32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db",
-                  "compatibility_revision": 2,
+                  "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
                   "kind": "workflow",
                   "logical_name": "work.workflow.task"
                 },
                 {
-                  "canonical_sha256": "f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3",
-                  "compatibility_revision": 1,
+                  "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
                   "kind": "instruction",
                   "logical_name": "task.general"
                 },
                 {
-                  "canonical_sha256": "6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8",
-                  "compatibility_revision": 1,
+                  "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
                   "kind": "reference",
                   "logical_name": "task.general.task-records"
                 }
@@ -1188,7 +1144,7 @@
             "goal": "Validate the second result.",
             "id": "TASK-002",
             "instruction_selection": {
-              "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+              "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
               "references": [
                 "task.general.task-records"
               ],
@@ -1198,26 +1154,22 @@
               "selected_paths": [],
               "sources": [
                 {
-                  "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
-                  "compatibility_revision": 2,
+                  "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
                   "kind": "workflow",
                   "logical_name": "work.instruction-loading"
                 },
                 {
-                  "canonical_sha256": "32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db",
-                  "compatibility_revision": 2,
+                  "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
                   "kind": "workflow",
                   "logical_name": "work.workflow.task"
                 },
                 {
-                  "canonical_sha256": "f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3",
-                  "compatibility_revision": 1,
+                  "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
                   "kind": "instruction",
                   "logical_name": "task.general"
                 },
                 {
-                  "canonical_sha256": "6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8",
-                  "compatibility_revision": 1,
+                  "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
                   "kind": "reference",
                   "logical_name": "task.general.task-records"
                 }
@@ -1255,27 +1207,27 @@
         ],
         "title": "Example TASK"
       },
-      "hierarchy_selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59",
-      "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+      "hierarchy_selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569",
+      "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
       "requirement_id": "example",
-      "schema": "work-task-collection-validation/v1",
+      "schema": "work-task-collection-validation",
       "skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
-      "source_sha256": "2da42c71cf7ba14844e784d6f81ba13b1b77aede84408b829d573e3e36f8647a",
+      "source_sha256": "1d269f69453e9d8c3da1c45b96d97807277f763725bd22b9ee1c9f22212f6f50",
       "spec_id": "TASK-SPEC-002",
-      "task_collection_sha256": "0fefcd5c3f7452f3e3199010ad3e55cd06f608e743d6d401f96b92c80470e612",
+      "task_collection_sha256": "3948268361872de471a5f7e6e1fd5308a750d74d87602ff027ace2cd3f09fb5e",
       "task_count": 2,
       "task_ids": [
         "TASK-001",
         "TASK-002"
       ],
-      "task_index_sha256": "96273f4045e5317cde3759a2fb1c011199a5dc50aada18c02f6d3093e423a772",
+      "task_index_sha256": "490220d6f7b8a347cae12c79ee7c60759af4fca6146c705b1c88492306591ac3",
       "task_instructions_sha256": {
-        "TASK-001": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
-        "TASK-002": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758"
+        "TASK-001": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+        "TASK-002": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16"
       },
       "task_item_sha256": {
-        "TASK-001": "38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca",
-        "TASK-002": "5ff96f205458678d43cfd72666dd87b478e1850240e4b7b9d752ddb31d42c768"
+        "TASK-001": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77",
+        "TASK-002": "293d0e21ea7288a0e1eafa3f969a3409292de5d5e3a7e9f363301f33ea681a35"
       },
       "task_skill_ids": {
         "TASK-001": null,

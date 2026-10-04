@@ -1,12 +1,12 @@
 {
-  "schema": "work-execution-index/v1",
+  "schema": "work-execution-index",
   "requirement_id": "example",
   "title": "Execution",
   "task_spec_id": "TASK-SPEC-001",
-  "task_collection_sha256": "ea9aea1bbcfbb9810cb609190e13a375c632ef49817b95343e6011a367adb697",
-  "task_index_sha256": "05d25d7ab362f18b5be4a4cd9990bab6460c8fa7dad9c092f9e0572faefe9982",
-  "task_instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
-  "hierarchy_selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59",
+  "task_collection_sha256": "1cc8037b3004cd6407e6780182614f93388d2948837846dd4c70872992d04798",
+  "task_index_sha256": "002c2cc79c1a6d2a7473c5b562a510d055cd64141b9383e59cc688319d64d3e5",
+  "task_instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+  "hierarchy_selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569",
   "skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
   "overall_status": "pending",
   "acceptance_results": [
@@ -21,8 +21,8 @@
       "id": "TASK-001",
       "status": "pending",
       "skill_id": null,
-      "task_item_sha256": "38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca",
-      "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+      "task_item_sha256": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77",
+      "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
       "acceptance_results": [
         {
           "id": "ACCEPTANCE-001",

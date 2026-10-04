@@ -162,7 +162,7 @@ fn build_invocation(
     confirmation: Option<InvocationConfirmation>,
 ) -> Result<Value, InvocationIssue> {
     let invocation = Invocation {
-        schema: PublicSchema::WorkInvocationV1,
+        schema: PublicSchema::WorkInvocation,
         mode,
         origin,
         request: request.into(),
@@ -249,13 +249,13 @@ mod tests {
     }
 
     #[test]
-    fn python_invocation_preserves_opaque_requests_and_rejects_bad_headers() {
+    fn current_contract_invocation_preserves_opaque_requests_and_rejects_bad_headers() {
         let tail =
             "  建立 e\u{0301}\r\n\"quoted\" -- $HOME $(command)\n$work execute -- embedded\n";
         for mode in ["task", "revise", "execute"] {
             assert_eq!(
                 parse_invocation(&format!("$work {mode} --{tail}")).unwrap(),
-                json!({"schema":"work-invocation/v1","mode":mode,"origin":"explicit","request":tail,"entry":{"kind":"workflow"}})
+                json!({"schema":"work-invocation","mode":mode,"origin":"explicit","request":tail,"entry":{"kind":"workflow"}})
             );
         }
         for (text, code) in [
@@ -325,7 +325,7 @@ mod tests {
             let explicit = parse_invocation(&format!("$work {mode} -- {request}")).unwrap();
             let implicit = confirm_invocation(&json!({"mode":mode,"request":request,
                 "confirmation":{"mode":mode,"request":request,"confirmed":true,"evidence":"Approved exact input."}})).unwrap();
-            assert_eq!(implicit["schema"], "work-invocation/v1");
+            assert_eq!(implicit["schema"], "work-invocation");
             assert_eq!(implicit["entry"], explicit["entry"]);
             assert_eq!(implicit["request"], request);
         }

@@ -1,5 +1,5 @@
 {
-  "schema": "work-source-snapshot/v1",
+  "schema": "work-source-snapshot",
   "requirement_id": "example",
   "source_id": "SRC-001",
   "captured_at": "2026-10-03T00:00:00Z",

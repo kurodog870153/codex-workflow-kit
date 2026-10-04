@@ -9,10 +9,9 @@
             "status": "pending"
           }
         ],
-        "hierarchy_selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59",
+        "hierarchy_selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569",
         "instruction_selection_manifest": {
           "confirmation_required": false,
-          "router_compatibility_revision": 3,
           "routing_input": {
             "artifact_lifecycle": "confirmed",
             "authorization_state": "authorized",
@@ -24,54 +23,46 @@
             "verified_state_sha256": "05901e7faebe637742df17172ffabd5e77e538c924e712f5646f5667ecd51b5e"
           },
           "routing_status": "VALID",
-          "schema": "work-instruction-selection-manifest/v1",
-          "selection_sha256": "e470dfc20e0a5f29014374540dbf8cea0f98d1936f7c59d96bcf5a21ae316c86",
+          "schema": "work-instruction-selection-manifest",
+          "selection_sha256": "99687424b71acf9c9a9fc565394871d27d0839fe4079047a0d7d8f24f229752b",
           "sources": [
             {
-              "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
-              "compatibility_revision": 2,
+              "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
               "logical_name": "work.instruction-loading",
               "path": "references/instruction-loading.md"
             },
             {
-              "canonical_sha256": "353d0138c8feaabec98ee8108b11a2037a768c12f6bba3963e57a780471d3f62",
-              "compatibility_revision": 1,
+              "canonical_sha256": "dec478985173768e9fb19a5dce9639799723a319cbe85e3801fd83b418a281b2",
               "logical_name": "work.shared.formal-task-validation",
               "path": "references/instruction-loading/formal-task-validation.md"
             },
             {
-              "canonical_sha256": "c3f8c28372d57bc303992fc7173f4f9275165bcd98e5cdda2da77d793e2d7e98",
-              "compatibility_revision": 1,
+              "canonical_sha256": "6f0c15ba27a369b972efb93b2e8120809c2af92165feb6850ce2266ee3646b28",
               "logical_name": "work.shared.source-loading",
               "path": "references/instruction-loading/source-loading.md"
             },
             {
-              "canonical_sha256": "3e2724177a35b6968effb7186035a7df1eaca97a52ebcfde416cd2809ad194ba",
-              "compatibility_revision": 1,
+              "canonical_sha256": "73310b679b1c1059f1e99121699d80f8b0f48e97e33c64f9f4f4e37df5147624",
               "logical_name": "work.shared.artifact-paths",
               "path": "references/instruction-loading/artifact-paths.md"
             },
             {
-              "canonical_sha256": "d84827cf6d5c2df995a94cb2bc6f36d1857a33d81f6f5921a43f0dd6a2c45eba",
-              "compatibility_revision": 1,
+              "canonical_sha256": "fb41d17c58fd4a425d725c364fe6e225a2bfaee254c474dbc1198edcae611642",
               "logical_name": "work.shared.fingerprints",
               "path": "references/instruction-loading/fingerprints.md"
             },
             {
-              "canonical_sha256": "7b4182014913d07b4203213a7ccf07269388d98861e66f5ebf37598b650a26eb",
-              "compatibility_revision": 2,
+              "canonical_sha256": "a54b5b6859a23ea118b75962bad8957fedd5aee2242e11746c914db15165185a",
               "logical_name": "work.workflow.execute",
               "path": "references/workflows/execute.md"
             },
             {
-              "canonical_sha256": "b40b45ec97358312a5b82caeffa1a6321b80ec76e3fa8d853ef1eea9195c963e",
-              "compatibility_revision": 1,
+              "canonical_sha256": "70d22e49bd2a246213a8b113eeeeaca379707f13a4fe5ddf4cdffd36344dfaf5",
               "logical_name": "work.workflow.execute.identify-the-execution-target",
               "path": "references/workflows/execute/identify-the-execution-target.md"
             },
             {
-              "canonical_sha256": "6d6faeeb72f507a1986363474f2cbfea5d2647b24425a778513e5a6b0077a189",
-              "compatibility_revision": 1,
+              "canonical_sha256": "7f128483051a387532ae0849675689afc5ec86b111105082e14933235343236b",
               "logical_name": "work.workflow.execute.run-deterministic-read-only-eligibility-checks",
               "path": "references/workflows/execute/run-deterministic-read-only-eligibility-checks.md"
             }
@@ -79,11 +70,11 @@
         },
         "overall_status": "pending",
         "requirement_id": "example",
-        "schema": "work-execution-index/v1",
+        "schema": "work-execution-index",
         "skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
         "task_collection_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-        "task_index_sha256": "7c0425d01d2c1a93e0d2a2f3388040ebf5dda799509862d322e7b8409220d56f",
-        "task_instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+        "task_index_sha256": "6a5885201540af2f738611519801b90387b2dbaeb1b5bc2547e30b66e2044a25",
+        "task_instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
         "task_spec_id": "TASK-SPEC-001",
         "tasks": [
           {
@@ -100,10 +91,10 @@
               }
             ],
             "id": "TASK-001",
-            "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+            "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
             "skill_id": null,
             "status": "pending",
-            "task_item_sha256": "3e5d86d87172a1eddd2c68c6c4dbb44253d30ebbcb8092cf7fd96f7d400634dc"
+            "task_item_sha256": "a2c37f39daa85c0181498a568eef356db4a6e4ca1fa30d718dce7f5ba557b6cf"
           }
         ],
         "title": "Execution"
@@ -130,21 +121,20 @@
           "working_directory": "."
         },
         "hierarchy_selection": {
-          "catalog_sha256": "74977ff41dae925d76037c60fcbb6e5c6d950af73416308d5e21ca3b96ef5d54",
+          "catalog_sha256": "3e51eaedbc128afd999c796bd337d9471c15411d3e66677383e6fd188e90f390",
           "decision": "general_only",
           "entries": [],
-          "schema": "work-hierarchy-selection/v1",
+          "schema": "work-hierarchy-selection",
           "selected_paths": [],
-          "selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59"
+          "selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569"
         },
         "instruction_selection": {
-          "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+          "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
           "references": [
             "task.general.task-records"
           ],
           "routing_manifest": {
             "confirmation_required": false,
-            "router_compatibility_revision": 3,
             "routing_input": {
               "artifact_lifecycle": "confirmed",
               "authorization_state": "authorized",
@@ -156,54 +146,46 @@
               "verified_state_sha256": "222cbd932163e0d01d66569d7f3cfab38e2b7840b3caa7b31b07bdfcd7506e43"
             },
             "routing_status": "VALID",
-            "schema": "work-instruction-selection-manifest/v1",
-            "selection_sha256": "eff97a85920478595c96673e7aba2a12f906de5f783d9db2791ab5a83ee4ec25",
+            "schema": "work-instruction-selection-manifest",
+            "selection_sha256": "22793179fa6f42192ee596df4ff7c61fd2ea1a2f5d04ad02b63435dea5823123",
             "sources": [
               {
-                "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
-                "compatibility_revision": 2,
+                "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
                 "logical_name": "work.instruction-loading",
                 "path": "references/instruction-loading.md"
               },
               {
-                "canonical_sha256": "344247e0ecbe973ccf217efc2d979260c85fa4a6a7641ba04cc086bf0f43bef8",
-                "compatibility_revision": 1,
+                "canonical_sha256": "10c81e1d0c857e90a49cab5c2ee62ac564110b352f368130d735fa8ca5f35471",
                 "logical_name": "work.shared.invocation",
                 "path": "references/instruction-loading/invocation.md"
               },
               {
-                "canonical_sha256": "c3f8c28372d57bc303992fc7173f4f9275165bcd98e5cdda2da77d793e2d7e98",
-                "compatibility_revision": 1,
+                "canonical_sha256": "6f0c15ba27a369b972efb93b2e8120809c2af92165feb6850ce2266ee3646b28",
                 "logical_name": "work.shared.source-loading",
                 "path": "references/instruction-loading/source-loading.md"
               },
               {
-                "canonical_sha256": "3e2724177a35b6968effb7186035a7df1eaca97a52ebcfde416cd2809ad194ba",
-                "compatibility_revision": 1,
+                "canonical_sha256": "73310b679b1c1059f1e99121699d80f8b0f48e97e33c64f9f4f4e37df5147624",
                 "logical_name": "work.shared.artifact-paths",
                 "path": "references/instruction-loading/artifact-paths.md"
               },
               {
-                "canonical_sha256": "d84827cf6d5c2df995a94cb2bc6f36d1857a33d81f6f5921a43f0dd6a2c45eba",
-                "compatibility_revision": 1,
+                "canonical_sha256": "fb41d17c58fd4a425d725c364fe6e225a2bfaee254c474dbc1198edcae611642",
                 "logical_name": "work.shared.fingerprints",
                 "path": "references/instruction-loading/fingerprints.md"
               },
               {
-                "canonical_sha256": "32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db",
-                "compatibility_revision": 2,
+                "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
                 "logical_name": "work.workflow.task",
                 "path": "references/workflows/task.md"
               },
               {
-                "canonical_sha256": "e6b8a1836e1303d11ca93ac61c6be9a2a004e336147cf8f334c5ac3e9b0b6471",
-                "compatibility_revision": 1,
+                "canonical_sha256": "6be90284f7b89abe04c9e8216ca183450c23194cac6de01645dfea3658e55d7d",
                 "logical_name": "work.workflow.task.complete-the-request",
                 "path": "references/workflows/task/complete-the-request.md"
               },
               {
-                "canonical_sha256": "d4bc1059ef0498ca9d5dc87920839c3c679ef04752c8cb2e35d8689cb53bf79c",
-                "compatibility_revision": 1,
+                "canonical_sha256": "0ce85e0825a859761dc625aab6714fd84df7d4017bf98c9f99722634f3c9a98f",
                 "logical_name": "work.workflow.task.formalization-boundary",
                 "path": "references/workflows/task/formalization-boundary.md"
               }
@@ -211,26 +193,22 @@
           },
           "sources": [
             {
-              "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
-              "compatibility_revision": 2,
+              "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
               "kind": "workflow",
               "logical_name": "work.instruction-loading"
             },
             {
-              "canonical_sha256": "32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db",
-              "compatibility_revision": 2,
+              "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
               "kind": "workflow",
               "logical_name": "work.workflow.task"
             },
             {
-              "canonical_sha256": "f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3",
-              "compatibility_revision": 1,
+              "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
               "kind": "instruction",
               "logical_name": "task.general"
             },
             {
-              "canonical_sha256": "6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8",
-              "compatibility_revision": 1,
+              "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
               "kind": "reference",
               "logical_name": "task.general.task-records"
             }
@@ -241,10 +219,10 @@
           "status": "passed"
         },
         "requirement_id": "example",
-        "schema": "work-task-index/v1",
+        "schema": "work-task-index",
         "skill_selection": {
           "decision": "base_only",
-          "schema": "work-skill-selection/v1",
+          "schema": "work-skill-selection",
           "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
           "skills": []
         },
@@ -8005,7 +7983,7 @@
         "summary": "Task summary.",
         "tasks": [
           {
-            "canonical_sha256": "3e5d86d87172a1eddd2c68c6c4dbb44253d30ebbcb8092cf7fd96f7d400634dc",
+            "canonical_sha256": "a2c37f39daa85c0181498a568eef356db4a6e4ca1fa30d718dce7f5ba557b6cf",
             "id": "TASK-001",
             "path": "tasks/TASK-001.json"
           }
@@ -8043,7 +8021,7 @@
         "goal": "Modify the source and validate it.",
         "id": "TASK-001",
         "instruction_selection": {
-          "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+          "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
           "references": [
             "task.general.task-records"
           ],
@@ -8052,7 +8030,6 @@
           ],
           "routing_manifest": {
             "confirmation_required": false,
-            "router_compatibility_revision": 3,
             "routing_input": {
               "artifact_lifecycle": "confirmed",
               "authorization_state": "authorized",
@@ -8064,54 +8041,46 @@
               "verified_state_sha256": "710f1329816a7e5609466ca1b27ed7ad8477968e2ca6bbf2805aa2035befd624"
             },
             "routing_status": "VALID",
-            "schema": "work-instruction-selection-manifest/v1",
-            "selection_sha256": "a4e58bc29d27053cbc3668a5e7fbbfc593f5e1feed466e5b6d656269ab1c2ea8",
+            "schema": "work-instruction-selection-manifest",
+            "selection_sha256": "2f54bd90eabb4ea8a6be7633c605d126ce04305a80c1f8d9693971fb142755aa",
             "sources": [
               {
-                "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
-                "compatibility_revision": 2,
+                "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
                 "logical_name": "work.instruction-loading",
                 "path": "references/instruction-loading.md"
               },
               {
-                "canonical_sha256": "344247e0ecbe973ccf217efc2d979260c85fa4a6a7641ba04cc086bf0f43bef8",
-                "compatibility_revision": 1,
+                "canonical_sha256": "10c81e1d0c857e90a49cab5c2ee62ac564110b352f368130d735fa8ca5f35471",
                 "logical_name": "work.shared.invocation",
                 "path": "references/instruction-loading/invocation.md"
               },
               {
-                "canonical_sha256": "c3f8c28372d57bc303992fc7173f4f9275165bcd98e5cdda2da77d793e2d7e98",
-                "compatibility_revision": 1,
+                "canonical_sha256": "6f0c15ba27a369b972efb93b2e8120809c2af92165feb6850ce2266ee3646b28",
                 "logical_name": "work.shared.source-loading",
                 "path": "references/instruction-loading/source-loading.md"
               },
               {
-                "canonical_sha256": "3e2724177a35b6968effb7186035a7df1eaca97a52ebcfde416cd2809ad194ba",
-                "compatibility_revision": 1,
+                "canonical_sha256": "73310b679b1c1059f1e99121699d80f8b0f48e97e33c64f9f4f4e37df5147624",
                 "logical_name": "work.shared.artifact-paths",
                 "path": "references/instruction-loading/artifact-paths.md"
               },
               {
-                "canonical_sha256": "d84827cf6d5c2df995a94cb2bc6f36d1857a33d81f6f5921a43f0dd6a2c45eba",
-                "compatibility_revision": 1,
+                "canonical_sha256": "fb41d17c58fd4a425d725c364fe6e225a2bfaee254c474dbc1198edcae611642",
                 "logical_name": "work.shared.fingerprints",
                 "path": "references/instruction-loading/fingerprints.md"
               },
               {
-                "canonical_sha256": "32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db",
-                "compatibility_revision": 2,
+                "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
                 "logical_name": "work.workflow.task",
                 "path": "references/workflows/task.md"
               },
               {
-                "canonical_sha256": "3d6500dd342ec19b29f61a616d1531149f0450b2948d50ed89ea49f01bed7106",
-                "compatibility_revision": 1,
+                "canonical_sha256": "425a6dd2761b1eaa766051ac3173d7d185a540370217ab1e9f44206f907fedfc",
                 "logical_name": "work.workflow.task.coordinate-confirmed-skills",
                 "path": "references/workflows/task/coordinate-confirmed-skills.md"
               },
               {
-                "canonical_sha256": "6f7aaed61d4f16ffdd80ef7f025c35fc0afcf4c65d44ea28ef989fb16ac453a8",
-                "compatibility_revision": 1,
+                "canonical_sha256": "ab1c5a31d96997f5a117954dafb333e0110dd600289d9b1210e7c61905b928f5",
                 "logical_name": "work.workflow.task.read-and-verify",
                 "path": "references/workflows/task/read-and-verify.md"
               }
@@ -8120,32 +8089,28 @@
           "selected_paths": [],
           "sources": [
             {
-              "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
-              "compatibility_revision": 2,
+              "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
               "kind": "workflow",
               "logical_name": "work.instruction-loading"
             },
             {
-              "canonical_sha256": "32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db",
-              "compatibility_revision": 2,
+              "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
               "kind": "workflow",
               "logical_name": "work.workflow.task"
             },
             {
-              "canonical_sha256": "f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3",
-              "compatibility_revision": 1,
+              "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
               "kind": "instruction",
               "logical_name": "task.general"
             },
             {
-              "canonical_sha256": "6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8",
-              "compatibility_revision": 1,
+              "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
               "kind": "reference",
               "logical_name": "task.general.task-records"
             }
           ]
         },
-        "schema": "work-task-item/v1",
+        "schema": "work-task-item",
         "skill_id": null,
         "steps": [
           {
@@ -8190,7 +8155,7 @@
       "task_id": "TASK-001"
     }
   ],
-  "schema": "work-spec-migration-preview-request/v1",
+  "schema": "work-spec-migration-preview-request",
   "semantic_decisions": [],
   "sources": [
     {
@@ -8199,15 +8164,15 @@
     },
     {
       "path": "outputs/work/tasks/example/index.json",
-      "raw_sha256": "7143f35d00f9b943a01fdde20b65e48a718928377374984c98e5bff67c7303d3"
+      "raw_sha256": "db90e77d69bc2b58a3a5e6a148c8cae1df5c8b5863a2b9ab65b2bd4e0317ec65"
     },
     {
       "path": "outputs/work/tasks/example/tasks/TASK-001.json",
-      "raw_sha256": "38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca"
+      "raw_sha256": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77"
     },
     {
       "path": "outputs/work/executions/example/index.json",
-      "raw_sha256": "2bda2b838440d0f84f2fc57d054147754381076705554196edeb1c330a61f989"
+      "raw_sha256": "18b074d50d7ebe7e5a567eea160c3c995fb0afa84f1bb98e761261799b0ceea9"
     }
   ]
 }

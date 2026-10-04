@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # Independent discussion progress
 
 1. For `$work task -- resume <requirement-id>`, restore the saved Task discussion and its fixed `context.planning_source` before the structured planning entry point. Validate its identity and fixed Source before relying on source-dependent decisions; only Task continues discussion.

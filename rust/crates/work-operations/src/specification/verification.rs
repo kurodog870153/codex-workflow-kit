@@ -54,7 +54,7 @@ pub fn validate_request(value: &Value) -> Result<(), VerificationIssue> {
         &["schema", "requirement_id", "artifacts", "record_id"],
         "spec_verification",
     )?;
-    if value["schema"] != "work-spec-verification-request/v1" {
+    if value["schema"] != "work-spec-verification-request" {
         return Err(issue(
             "invalid_contract_value",
             "The verification request schema is invalid.",
@@ -106,7 +106,7 @@ mod tests {
     use super::*;
 
     fn example() -> Value {
-        json!({"schema":"work-spec-verification-request/v1","requirement_id":"example",
+        json!({"schema":"work-spec-verification-request","requirement_id":"example",
             "artifacts":{"source":"outputs/work/sources/example",
                 "task":"outputs/work/tasks/example/index.json",
                 "execution":"outputs/work/executions/example"},

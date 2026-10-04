@@ -148,7 +148,7 @@ pub fn verify_semantic_migration(
     request: &Value,
     approved_sha256: &str,
 ) -> Result<Value, WorkError> {
-    if request["schema"] != "work-spec-migration-preview-request/v1" {
+    if request["schema"] != "work-spec-migration-preview-request" {
         return Err(fail(
             "migration_verify_request_invalid",
             "A semantic Migration preview request is required.",
@@ -265,7 +265,7 @@ pub fn verify_semantic_migration(
         .collect::<BTreeMap<_, _>>();
     let chain = json!({"status":"valid", "installed_sha256":installed});
     Ok(
-        json!({"schema":"work-spec-migration-verification/v1","status":"valid",
+        json!({"schema":"work-spec-migration-verification","status":"valid",
         "mode":"semantic","fingerprint":approved_sha256,"result":result,"final_chain":chain}),
     )
 }

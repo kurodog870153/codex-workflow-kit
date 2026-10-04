@@ -146,16 +146,15 @@ where
     } else {
         names.push(BOOTSTRAP.into());
     }
-    names.sort_by_key(|name| catalog["sources"][name][2].as_u64().expect("source order"));
+    names.sort_by_key(|name| catalog["sources"][name][1].as_u64().expect("source order"));
     let sources: Result<Vec<Value>, E> = names.iter().map(|name| {
         let entry = &catalog["sources"][name];
         let path = entry[0].as_str().expect("source path");
-        Ok(json!({"logical_name": name, "path": path, "compatibility_revision": entry[1], "canonical_sha256": fingerprint(name, path)?}))
+        Ok(json!({"logical_name": name, "path": path, "canonical_sha256": fingerprint(name, path)?}))
     }).collect();
     let routing_status = if valid { "VALID" } else { "REVIEW_REQUIRED" };
     let mut manifest = json!({
-        "schema": "work-instruction-selection-manifest/v1",
-        "router_compatibility_revision": 3,
+        "schema": "work-instruction-selection-manifest",
         "routing_input": {
             "mode": mode, "status": request.status, "operation": request.operation,
             "artifact_lifecycle": request.artifact_lifecycle, "formal_events": events,
@@ -170,7 +169,7 @@ where
     let _: work_model::instruction::InstructionSelectionManifest =
         serde_json::from_value(manifest.clone()).expect("routing manifest matches its model");
     Ok(json!({
-        "routing_status": routing_status, "router_compatibility_revision": 3,
+        "routing_status": routing_status,
         "required_instruction_sources": names, "source_order": names,
         "selection_sha256": selection_sha256, "routing_reasons": reasons,
         "selection_manifest": manifest,
@@ -377,7 +376,7 @@ mod tests {
     }
 
     #[test]
-    fn routing_task_unknown_events_and_fingerprints_match_python() {
+    fn routing_task_unknown_events_and_fingerprints_match_current_contract() {
         let plan = route_fixture("choose_task", None, &[], "main", false, None, None).unwrap();
         assert_eq!(plan["routing_status"], "VALID");
         assert_eq!(
@@ -483,7 +482,7 @@ mod tests {
     }
 
     #[test]
-    fn routing_catalog_operations_events_and_source_reachability_match_python() {
+    fn routing_catalog_operations_events_and_source_reachability_match_current_contract() {
         use std::collections::BTreeSet;
         let catalog: Value = serde_json::from_str(CATALOG).unwrap();
         let root = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
@@ -592,5 +591,42 @@ mod tests {
                 .cloned()
                 .collect()
         );
+    }
+    #[test]
+    fn current_manifest_rejects_revision_fields_and_retains_exact_hash_binding() {
+        let result = route_fixture("choose_task", None, &[], "main", false, None, None).unwrap();
+        let current = &result["selection_manifest"];
+        let mut raw = current.clone();
+        raw.as_object_mut().unwrap().remove("selection_sha256");
+        assert_eq!(
+            current["selection_sha256"],
+            serde_json::json!(crate::derivation::fingerprint::structured(&raw).unwrap())
+        );
+        for revision in [
+            serde_json::json!(0),
+            serde_json::json!(1),
+            serde_json::Value::Null,
+        ] {
+            let mut legacy = current.clone();
+            legacy["router_compatibility_revision"] = revision.clone();
+            assert!(
+                serde_json::from_value::<work_model::instruction::InstructionSelectionManifest>(
+                    legacy
+                )
+                .is_err()
+            );
+            let mut source = current["sources"][0].clone();
+            source["compatibility_revision"] = revision;
+            assert!(
+                serde_json::from_value::<work_model::instruction::ManifestSource>(source).is_err()
+            );
+        }
+        let catalog: Value = serde_json::from_str(CATALOG).unwrap();
+        let sources = catalog["sources"].as_object().unwrap();
+        for entry in sources.values() {
+            assert_eq!(entry.as_array().unwrap().len(), 2);
+            assert!(entry[0].as_str().unwrap().starts_with("references/"));
+            assert!(entry[1].as_u64().is_some());
+        }
     }
 }

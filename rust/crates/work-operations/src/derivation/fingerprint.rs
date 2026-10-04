@@ -172,7 +172,7 @@ mod tests {
         let index = "c".repeat(64);
         assert_eq!(
             task_collection(&index, &[first.clone(), second.clone()]),
-            "87e0e7695438c2e22ca4ad7e1e23ece55be20dcc995bc76174ed4d479c7f0efc"
+            "36f7a8d7b942cd29739fa1950700271e32f7bc1edba9cf8adf33d2f39afa96f7"
         );
         assert_ne!(
             task_collection(&index, &[first.clone(), second.clone()]),

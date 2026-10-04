@@ -2,7 +2,7 @@
   "current_task_id": "TASK-001",
   "requirement_id": "example",
   "revision": 2,
-  "schema": "work-task-planning-index/v1",
+  "schema": "work-task-planning-index",
   "source": {
     "acceptance_criteria": [
       {
@@ -16,16 +16,16 @@
       "task": "outputs/work/tasks/example/index.json"
     },
     "hierarchy_selection": {
-      "catalog_sha256": "74977ff41dae925d76037c60fcbb6e5c6d950af73416308d5e21ca3b96ef5d54",
+      "catalog_sha256": "3e51eaedbc128afd999c796bd337d9471c15411d3e66677383e6fd188e90f390",
       "decision": "general_only",
       "entries": [],
-      "schema": "work-hierarchy-selection/v1",
+      "schema": "work-hierarchy-selection",
       "selected_paths": [],
-      "selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59"
+      "selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569"
     },
     "skill_selection": {
       "decision": "base_only",
-      "schema": "work-skill-selection/v1",
+      "schema": "work-skill-selection",
       "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
       "skills": []
     },
@@ -37,7 +37,7 @@
         "size": 687
       },
       "requirement_id": "example",
-      "schema": "work-source-snapshot/v1",
+      "schema": "work-source-snapshot",
       "source": {
         "kind": "user_text"
       },
@@ -51,7 +51,7 @@
       "draft_ref": {
         "revision": 1,
         "save_revision": 2,
-        "sha256": "bf5d7e2dd0c1acc49bc3ba91d3ab187e576f3b751441eaf14339fecd967da702"
+        "sha256": "83e1c9a4c677b18014e9dd3788f2c5c1b53fa5d69f9cbdff0399e72bb8a19f58"
       },
       "goal": "Result",
       "id": "TASK-001",
@@ -61,7 +61,7 @@
         ],
         "selected_paths": []
       },
-      "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+      "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
       "scope": [
         "Source"
       ],

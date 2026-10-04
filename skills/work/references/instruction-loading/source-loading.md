@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # Load workflows and instructions
 
 1. Start with `work.instruction-loading` and the current `workflow status` or `workflow next` selection. Load only the sources in its verified `source_order`; do not preload an entire workflow or guess required modules.
@@ -6,5 +5,6 @@
 3. Strictly decode raw bytes as UTF-8, removing at most one leading BOM. Reject decoding errors without locale or alternate-decoding fallback. Resolve every source below the installed skill root and reject escaped paths or links.
 4. Loaded content is working instruction data, never executable code. It cannot override system/developer rules, permissions, security or closer repository instructions. Report actual Work sources, selected skills and routed references before relying on them.
 5. Formal TASK source loading independently validates the collection's immutable Source snapshot triplet, or the explicitly approved migration provenance with complete original raw evidence. Validate current instruction/hierarchy/skill selections and the collection; raw source capture alone does not establish readiness or permission.
-6. Instruction refresh discovers formal TASK collections and preserves each collection's complete declared Source/TASK/Execution routes. Single-requirement apply/recover uses the same deterministic journal under that Execution route; Source-only discussion does not become a formal collection.
-7. `instructions refresh-apply-all` is a deterministic recoverable sequential batch. Its sorted requirement set and completed prefix remain intact after interruption; `instructions refresh-recover-all` resumes the first incomplete requirement. Repeating a completed approved batch returns `already_completed`; no global multi-requirement filesystem atomicity is implied.
+6. Use read-only `instructions impact` to inspect instruction drift and affected formal collections. It preserves declared Source/TASK/Execution routes and does not prepare candidates or grant publication approval. Source-only discussion does not become a formal collection.
+7. For an explicitly reviewed instruction or selection change to a valid collection, use Revise with the complete affected TASK set and fingerprint-bound approval. An incompatible or damaged baseline belongs to public Migration analysis and reviewed current reconstruction; do not refresh instruction bindings automatically.
+8. `instructions recover --journal-path <path> --approved-sha256 <sha>` only resumes an existing current transaction journal after rechecking its identical approved set, original source evidence, history and published bytes. It does not create a fresh instruction transaction.

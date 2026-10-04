@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # Invocation contract
 
 1. Public modes are task, revise, migration and execute. Explicit invocation uses `$work <mode> -- <request>`; reject extra header tokens, private/unknown modes and an empty request. Ask for a missing mode or request instead of inventing one.

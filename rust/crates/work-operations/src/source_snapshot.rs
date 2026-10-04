@@ -20,7 +20,7 @@ fn issue(reason_code: &'static str, message: &'static str) -> SnapshotIssue {
 }
 
 pub fn validate_metadata(manifest: &SourceSnapshot) -> Result<(), SnapshotIssue> {
-    if manifest.schema != PublicSchema::WorkSourceSnapshotV1 {
+    if manifest.schema != PublicSchema::WorkSourceSnapshot {
         return Err(issue(
             "invalid_source_schema",
             "The Source Snapshot schema is required.",
@@ -201,7 +201,7 @@ mod tests {
     use super::*;
 
     fn manifest(bytes: &[u8]) -> SourceSnapshot {
-        let value = work_model::contract_data::registry_value()["items"]["work-source-snapshot/v1"]
+        let value = work_model::contract_data::registry_value()["items"]["work-source-snapshot"]
             ["description"]["example"]
             .clone();
         let mut manifest: SourceSnapshot = serde_json::from_value(value).unwrap();
@@ -353,12 +353,12 @@ mod tests {
         }
         assert!(valid_timestamp("2024-02-29T23:59:59Z"));
         let mut saved = manifest(b"");
-        saved.schema = PublicSchema::WorkTaskIndexV1;
+        saved.schema = PublicSchema::WorkTaskIndex;
         assert_eq!(
             validate_metadata(&saved).unwrap_err().reason_code,
             "invalid_source_schema"
         );
-        saved.schema = PublicSchema::WorkSourceSnapshotV1;
+        saved.schema = PublicSchema::WorkSourceSnapshot;
         saved.content.sha256 = "X".repeat(64);
         assert_eq!(
             validate_metadata(&saved).unwrap_err().reason_code,

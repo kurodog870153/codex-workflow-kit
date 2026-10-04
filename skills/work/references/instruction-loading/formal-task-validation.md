@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 2 -->
 # Validate before relying on a formal TASK
 
 1. Run `task validate` for the confirmed formal index and configured skill roots before relying on a collection. Validate all canonical items, both acceptance layers, Source snapshot or approved migration provenance, instruction/hierarchy/skill selections and complete fingerprints independently; no legacy artifact is an authoritative prerequisite.

@@ -44,40 +44,36 @@
             "working_directory": "."
           },
           "hierarchy_selection": {
-            "catalog_sha256": "74977ff41dae925d76037c60fcbb6e5c6d950af73416308d5e21ca3b96ef5d54",
+            "catalog_sha256": "3e51eaedbc128afd999c796bd337d9471c15411d3e66677383e6fd188e90f390",
             "decision": "general_only",
             "entries": [],
-            "schema": "work-hierarchy-selection/v1",
+            "schema": "work-hierarchy-selection",
             "selected_paths": [],
-            "selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59"
+            "selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569"
           },
           "instruction_selection": {
-            "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+            "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
             "references": [
               "task.general.task-records"
             ],
             "sources": [
               {
-                "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
-                "compatibility_revision": 2,
+                "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
                 "kind": "workflow",
                 "logical_name": "work.instruction-loading"
               },
               {
-                "canonical_sha256": "32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db",
-                "compatibility_revision": 2,
+                "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
                 "kind": "workflow",
                 "logical_name": "work.workflow.task"
               },
               {
-                "canonical_sha256": "f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3",
-                "compatibility_revision": 1,
+                "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
                 "kind": "instruction",
                 "logical_name": "task.general"
               },
               {
-                "canonical_sha256": "6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8",
-                "compatibility_revision": 1,
+                "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
                 "kind": "reference",
                 "logical_name": "task.general.task-records"
               }
@@ -88,10 +84,10 @@
             "status": "passed"
           },
           "requirement_id": "example",
-          "schema": "work-task-index/v1",
+          "schema": "work-task-index",
           "skill_selection": {
             "decision": "base_only",
-            "schema": "work-skill-selection/v1",
+            "schema": "work-skill-selection",
             "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
             "skills": []
           },
@@ -7895,7 +7891,7 @@
           "summary": "Task summary.",
           "tasks": [
             {
-              "canonical_sha256": "97796375b3e86ee424bfa90cce6f33a53ac51d5ac07d228cb524c18c8a21990f",
+              "canonical_sha256": "d9f78aea608875ebadc1270e8686b5e5d88fbeb144e255fa3b4d7f53410ae7c6",
               "id": "TASK-001",
               "path": "tasks/TASK-001.json"
             }
@@ -7914,14 +7910,14 @@
               "status": "pending"
             }
           ],
-          "hierarchy_selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59",
+          "hierarchy_selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569",
           "overall_status": "pending",
           "requirement_id": "example",
-          "schema": "work-execution-index/v1",
+          "schema": "work-execution-index",
           "skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
-          "task_collection_sha256": "d62a89166ea7618e417daae1312647fe2f1b3462e9f10dfc89c58c6a95d6670e",
-          "task_index_sha256": "95d7c2c6e96ef02b585c85ce28d748946925e2ae6144e4991a471ab58c7d8cd3",
-          "task_instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+          "task_collection_sha256": "dad1ad1f13efb2c9ad38de50c4c2c1e4d997a165069e8202fe29025a673cbefc",
+          "task_index_sha256": "5ac926e6b924edc0f0532724b170c0a51ae382c317e5291b2733f72a7f2aad73",
+          "task_instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
           "task_spec_id": "TASK-SPEC-002",
           "tasks": [
             {
@@ -7938,7 +7934,7 @@
                 }
               ],
               "id": "TASK-001",
-              "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+              "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
               "latest_attempt": "ATTEMPT-001",
               "skill_id": null,
               "status": "pending_retry",
@@ -7946,7 +7942,7 @@
                 "kind": "task_change",
                 "ref": "TASK-CHANGE-001"
               },
-              "task_item_sha256": "97796375b3e86ee424bfa90cce6f33a53ac51d5ac07d228cb524c18c8a21990f"
+              "task_item_sha256": "d9f78aea608875ebadc1270e8686b5e5d88fbeb144e255fa3b4d7f53410ae7c6"
             }
           ],
           "title": "Execution"
@@ -7982,7 +7978,7 @@
           "goal": "Review the approved runtime deviation.",
           "id": "TASK-001",
           "instruction_selection": {
-            "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+            "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
             "references": [
               "task.general.task-records"
             ],
@@ -7992,32 +7988,28 @@
             "selected_paths": [],
             "sources": [
               {
-                "canonical_sha256": "69c366356ba5bc2753a540b5e36ea4d163805b2fe1832979dba0f3bc1eda6e7f",
-                "compatibility_revision": 2,
+                "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
                 "kind": "workflow",
                 "logical_name": "work.instruction-loading"
               },
               {
-                "canonical_sha256": "32f65def808ca09e53ca5649a34c8434d0deff0e8b8cb23f2f3d0a39089932db",
-                "compatibility_revision": 2,
+                "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
                 "kind": "workflow",
                 "logical_name": "work.workflow.task"
               },
               {
-                "canonical_sha256": "f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3",
-                "compatibility_revision": 1,
+                "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
                 "kind": "instruction",
                 "logical_name": "task.general"
               },
               {
-                "canonical_sha256": "6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8",
-                "compatibility_revision": 1,
+                "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
                 "kind": "reference",
                 "logical_name": "task.general.task-records"
               }
             ]
           },
-          "schema": "work-task-item/v1",
+          "schema": "work-task-item",
           "skill_id": null,
           "steps": [
             {
@@ -8062,22 +8054,22 @@
         "task_id": "TASK-001"
       }
     ],
-    "schema": "work-spec-migration-preview-request/v1",
+    "schema": "work-spec-migration-preview-request",
     "semantic_decisions": [],
     "sources": [
       {
         "path": "outputs/work/executions/example/index.json",
-        "raw_sha256": "7a7023345bbee2f50b27212a81300f1fbf0e9709e112f64fce329c64374017a2"
+        "raw_sha256": "4b69ad0fcab0a9d8b52107cbf5cd39d8d23cc84a64bb346bdd5eb8f3970a187e"
       },
       {
         "path": "outputs/work/tasks/example/index.json",
-        "raw_sha256": "4d5b79571c2d895600e4b0debe5ab61c30075748d1ac1789e6cecb141f2c61c3"
+        "raw_sha256": "acb61621263e85161a3a46e82602db1e6563273611bad4f52c8ea15709d9d211"
       },
       {
         "path": "outputs/work/tasks/example/tasks/TASK-001.json",
-        "raw_sha256": "38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca"
+        "raw_sha256": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77"
       }
     ]
   },
-  "schema": "work-spec-reconciliation-preview-request/v1"
+  "schema": "work-spec-reconciliation-preview-request"
 }

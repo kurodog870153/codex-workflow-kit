@@ -16,7 +16,7 @@ pub fn text(raw: &[u8], relative: &str, source: &Path) -> Result<Value, WorkErro
             json!({"source":source,"byte_offset":error.valid_up_to()}),
         )
     })?;
-    Ok(json!({"schema":"work-fingerprint/v1","path":relative,
+    Ok(json!({"schema":"work-fingerprint","path":relative,
         "canonical_sha256":canonical,"raw_sha256":fingerprint::raw(raw)}))
 }
 
@@ -31,7 +31,7 @@ mod tests {
     fn text_fingerprint_preserves_raw_canonical_and_utf8_error() {
         let raw = b"first\r\nsecond\n";
         let result = text(raw, "source.md", Path::new("source.md")).unwrap();
-        assert_eq!(result["schema"], "work-fingerprint/v1");
+        assert_eq!(result["schema"], "work-fingerprint");
         assert_eq!(result["path"], "source.md");
         assert_eq!(result["raw_sha256"], sha256_hex(raw));
         assert_eq!(result["canonical_sha256"], canonical_sha256(raw).unwrap());

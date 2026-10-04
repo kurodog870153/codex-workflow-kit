@@ -451,7 +451,7 @@ impl LocalExecutionStorage {
         Ok(work_model::execution::response::verified::<
             work_model::execution::response::AttemptStartRecoveryResponse,
         >(
-            json!({"schema":"work-attempt-start-recovery/v1","task_id":target.task_id,
+            json!({"schema":"work-attempt-start-recovery","task_id":target.task_id,
             "attempt_id":attempt_id,"attempt_path":attempt_relative,
             "index_path":format!("{}/index.json", target.execution_dir),
             "status":"recovered","lock_status":"held"}),
@@ -788,7 +788,7 @@ impl LocalExecutionStorage {
                 json!({}),
             ));
         }
-        let request = json!({"schema":"work-correction-create-request/v1",
+        let request = json!({"schema":"work-correction-create-request",
             "target_attempt_id":input.attempt_id,"field":artifact["field"],
             "correct_value":artifact["correct_value"],"reason":artifact["reason"],
             "invalidates_completion":transaction_lock["invalidates_completion"]});
@@ -874,7 +874,7 @@ impl LocalExecutionStorage {
         Ok(work_model::execution::response::verified::<
             work_model::execution::response::ExecutionRecoveryResponse,
         >(
-            json!({"schema":"work-execution-recovery/v1","transaction":"correction",
+            json!({"schema":"work-execution-recovery","transaction":"correction",
             "task_id":input.task_id,"attempt_id":input.attempt_id,
             "correction_id":input.correction_id,"correction_path":correction_relative,
             "index_path":format!("{}/index.json", input.execution_dir),
@@ -993,7 +993,7 @@ impl LocalExecutionStorage {
         Ok(work_model::execution::response::verified::<
             work_model::execution::response::ExecutionRecoveryResponse,
         >(
-            json!({"schema":"work-execution-recovery/v1","status":"recovered",
+            json!({"schema":"work-execution-recovery","status":"recovered",
             "transaction":"deviation_record","task_id":input.task_id,
             "attempt_id":input.attempt_id,"record_id":record_id,
             "lock_status":"record_reserved"}),
@@ -1120,7 +1120,7 @@ impl LocalExecutionStorage {
         Ok(work_model::execution::response::verified::<
             work_model::execution::response::ExecutionRecoveryResponse,
         >(
-            json!({"schema":"work-execution-recovery/v1","status":"recovered",
+            json!({"schema":"work-execution-recovery","status":"recovered",
             "transaction":"command_correction","task_id":input.task_id,
             "attempt_id":input.attempt_id,"record_id":record_id,
             "lock_status":"record_reserved"}),
@@ -1410,7 +1410,7 @@ impl LocalExecutionStorage {
         Ok(work_model::execution::response::verified::<
             work_model::execution::response::ExecutionRecoveryResponse,
         >(
-            json!({"schema":"work-execution-recovery/v1","status":"recovered",
+            json!({"schema":"work-execution-recovery","status":"recovered",
             "transaction":"attempt_close","task_id":input.task_id,
             "attempt_id":input.attempt_id,"attempt_status":target.status,
             "attempt_path":format!("{execution}/{}/{}/attempt.json", input.task_id, input.attempt_id),
@@ -1524,7 +1524,7 @@ impl LocalExecutionStorage {
         Ok(work_model::execution::response::verified::<
             work_model::execution::response::ExecutionRecoveryResponse,
         >(
-            json!({"schema":"work-execution-recovery/v1","status":"recovered",
+            json!({"schema":"work-execution-recovery","status":"recovered",
             "transaction":"record_finish","task_id":input.task_id,
             "attempt_id":input.attempt_id,"record_id":target.record_id,
             "attempt_path":format!("{execution}/{}/{}/attempt.json", input.task_id, input.attempt_id),
@@ -1675,7 +1675,7 @@ impl LocalExecutionStorage {
         Ok(work_model::execution::response::verified::<
             work_model::execution::response::ExecutionRecoveryResponse,
         >(
-            json!({"schema":"work-execution-recovery/v1","status":"recovered",
+            json!({"schema":"work-execution-recovery","status":"recovered",
             "transaction":"record_begin","task_id":input.task_id,
             "attempt_id":input.attempt_id,"record_id":record_id,
             "lock_status":"record_reserved"}),
@@ -3509,7 +3509,7 @@ mod tests {
         let attempt_dir = root.join("execution/TASK-001/ATTEMPT-001");
         fs::create_dir_all(&attempt_dir).unwrap();
         let preview = build_command_preview(CommandPreviewInput {
-            request: &json!({"schema":"work-command-run-request/v1","timeout_seconds":60}),
+            request: &json!({"schema":"work-command-run-request","timeout_seconds":60}),
             task_id: "TASK-001",
             attempt_id: "ATTEMPT-001",
             record_id: "CMD-001",
@@ -3724,7 +3724,7 @@ mod tests {
                 &root,
             )
             .unwrap();
-        let request = json!({"schema":"work-command-run-request/v1","timeout_seconds":60});
+        let request = json!({"schema":"work-command-run-request","timeout_seconds":60});
         let preview = build_command_preview(CommandPreviewInput {
             request: &request,
             task_id: "TASK-001",
@@ -3780,7 +3780,7 @@ mod tests {
                 project_root: root.clone(),
             };
             fs::create_dir_all(root.join("execution/TASK-001/ATTEMPT-001")).unwrap();
-            let request = json!({"schema":"work-command-run-request/v1","timeout_seconds":60});
+            let request = json!({"schema":"work-command-run-request","timeout_seconds":60});
             let execution = json!({"os":"macos","working_directory":"."});
             let invocation = json!({"kind":"direct","executable":"/usr/bin/printf",
                 "executable_sha256":"a".repeat(64),"argv":["printf","ok"]});
@@ -3959,7 +3959,7 @@ mod tests {
             locked_index: b"locked\n",
             attempt: b"attempt\n",
             started_index: b"started\n",
-            expected_snapshot: "0aeba5399596c359343ed836e0cf15a88e0f3643a5495992a39c07aae7cdfe4d",
+            expected_snapshot: "ddda6f7ea41371550f146888805ee13aad40bcf55280881fb378b18e333b755d",
         };
         storage.publish_attempt_start(&publication).unwrap();
         assert_eq!(LocalFiles.read_raw(&index).unwrap(), b"started\n");
@@ -4038,7 +4038,7 @@ mod tests {
             locked_index: b"locked\n",
             attempt: b"attempt\n",
             started_index: b"started\n",
-            expected_snapshot: "0aeba5399596c359343ed836e0cf15a88e0f3643a5495992a39c07aae7cdfe4d",
+            expected_snapshot: "ddda6f7ea41371550f146888805ee13aad40bcf55280881fb378b18e333b755d",
         };
         let failure = storage.publish_attempt_start(&publication).unwrap_err();
         fs::set_permissions(&task_directory, original_permissions).unwrap();
@@ -4068,7 +4068,7 @@ mod tests {
             locked_index: b"locked\n",
             attempt: b"attempt\n",
             started_index: b"started\n",
-            expected_snapshot: "0aeba5399596c359343ed836e0cf15a88e0f3643a5495992a39c07aae7cdfe4d",
+            expected_snapshot: "ddda6f7ea41371550f146888805ee13aad40bcf55280881fb378b18e333b755d",
         };
         fs::create_dir(root.join("execution/TASK-001")).unwrap();
         fs::write(root.join("execution/TASK-001/ATTEMPT-001"), b"blocked").unwrap();
@@ -4101,7 +4101,7 @@ mod tests {
             locked_index: b"locked\n",
             attempt: b"attempt\n",
             started_index: b"started\n",
-            expected_snapshot: "0aeba5399596c359343ed836e0cf15a88e0f3643a5495992a39c07aae7cdfe4d",
+            expected_snapshot: "ddda6f7ea41371550f146888805ee13aad40bcf55280881fb378b18e333b755d",
         };
         let mismatch = storage.publish_attempt_start(&publication).unwrap_err();
         assert_eq!(
@@ -4180,7 +4180,7 @@ mod tests {
             locked_index: b"locked\n",
             attempt: b"attempt\n",
             started_index: b"started\n",
-            expected_snapshot: "0aeba5399596c359343ed836e0cf15a88e0f3643a5495992a39c07aae7cdfe4d",
+            expected_snapshot: "ddda6f7ea41371550f146888805ee13aad40bcf55280881fb378b18e333b755d",
         };
         assert_eq!(
             storage
@@ -4476,13 +4476,13 @@ mod tests {
         let storage = LocalExecutionStorage {
             project_root: root.clone(),
         };
-        let authorization = json!({"schema":"work-attempt-authorization/v1",
+        let authorization = json!({"schema":"work-attempt-authorization",
             "task_id":"TASK-001","commands":[],"validations":[{"id":"VAL-001","acceptance_ids":["ACCEPTANCE-001","TASK-001-ACCEPTANCE-001"]}],
             "modifiable_files":[],"working_directories":[],"external_operations":[],
             "allowed_deviations":[],"reapproval_conditions":["scope_expansion",
                 "source_or_worktree_drift","failure_divergence","retry","recovery","unknown_result"],
             "authorization_evidence":"Approved"});
-        let attempt = json!({"acceptance_results":work_operations::execution::acceptance::pending(["ACCEPTANCE-001".to_owned(),"TASK-001-ACCEPTANCE-001".to_owned()]),"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
+        let attempt = json!({"acceptance_results":work_operations::execution::acceptance::pending(["ACCEPTANCE-001".to_owned(),"TASK-001-ACCEPTANCE-001".to_owned()]),"schema":"work-attempt","attempt_id":"ATTEMPT-001",
             "task_spec_id":"TASK-SPEC-001","task_id":"TASK-001","skill_id":null,
             "status":"in_progress","task_collection_sha256":"a".repeat(64),
             "task_index_sha256":"b".repeat(64),"task_item_sha256":"c".repeat(64),
@@ -4507,7 +4507,7 @@ mod tests {
         index["lock"] = build_execution_lock("TASK-001", "ATTEMPT-001", &"e".repeat(64));
         index["lock"]["record_id"] = json!("VAL-001");
         let task = json!({"id":"TASK-001","traceability":{"acceptance_ids":["ACCEPTANCE-001"]},"acceptance_criteria":[{"id":"TASK-001-ACCEPTANCE-001"}],"commands":[],"operations":[],"validations":[{"id":"VAL-001","acceptance_ids":["ACCEPTANCE-001","TASK-001-ACCEPTANCE-001"]}]});
-        let request = json!({"schema":"work-record-finish-request/v1","record":{"outcome":"passed","evidence":"Passed actual VAL"}});
+        let request = json!({"schema":"work-record-finish-request","record":{"outcome":"passed","evidence":"Passed actual VAL"}});
         let candidate = work_operations::execution::record_finish::build_record_finish_candidates(
             &task, &attempt, &index, "TASK-001", &request,
         )
@@ -4611,7 +4611,7 @@ mod tests {
         assert_eq!(resumed_finish["record_id"], "VAL-001");
         assert_eq!(LocalFiles.read_raw(&index_path).unwrap(), installed_index);
 
-        let close_request = json!({"schema":"work-attempt-close-request/v1",
+        let close_request = json!({"schema":"work-attempt-close-request",
             "status":"completed"});
         let (closed, closed_index) = build_close_candidates(
             &task,
@@ -4641,7 +4641,7 @@ mod tests {
         assert_eq!(LocalFiles.read_raw(&attempt_path).unwrap(), closed_raw);
         let recovered_attempt =
             parse_json_contract(&LocalFiles.read_raw(&attempt_path).unwrap()).unwrap();
-        assert_eq!(recovered_attempt["schema"], "work-attempt/v1");
+        assert_eq!(recovered_attempt["schema"], "work-attempt");
         assert_eq!(recovered_attempt["status"], "completed");
         assert_eq!(
             recovered_attempt["acceptance_results"],

@@ -85,3 +85,9 @@ metadata:
 2. 維持有效的 frontmatter、祖先節點及 reference 路由。
 3. 路徑或來源名稱變更時，檢查安裝器、引用、測試及既有正式文件的階層選擇與指紋。
 4. 依既有驗證流程確認目錄、選擇及來源載入結果。
+
+## 7. Current 指令與來源完整性
+
+1. 指令來源只保存目前的 kind、logical name 與 canonical SHA；frontmatter、routing manifest 與 instruction selection 不以 compatibility revision 或 router revision 判斷相容性。
+2. 路徑、實際 canonical bytes、載入順序與 SHA drift 仍是必要驗證。明確變更有效集合的指令或選擇須經 Revise 審查與核准；不相容或損毀 artifact 以 Migration 保留原始證據並建立 current candidate，不提供舊格式 parser 或自動 refresh。
+3. 安裝器的 active tree 僅包含 current base、本次選取 hierarchy 與 binary。重新安裝不沿用未選分支或舊 Python 檔案；完整舊 tree 保留於 recovery directory 的 previous，發布失敗依原交易回復。

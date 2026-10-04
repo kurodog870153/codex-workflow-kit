@@ -1,12 +1,10 @@
 {
-  "schema": "work-discussion-progress/v1",
-  "requirement_id": "example",
-  "mode": "task",
-  "revision": 1,
-  "status": "discussion_only",
-  "title": "Discussion",
-  "request": "Retain unfinished decisions",
-  "current_task_id": "TASK-001",
+  "confirmed_decisions": [
+    {
+      "rationale": "User decision",
+      "statement": "Keep scope"
+    }
+  ],
   "context": {
     "planning_source": {
       "acceptance_criteria": [
@@ -21,16 +19,16 @@
         "task": "outputs/work/tasks/example/index.json"
       },
       "hierarchy_selection": {
-        "catalog_sha256": "74977ff41dae925d76037c60fcbb6e5c6d950af73416308d5e21ca3b96ef5d54",
+        "catalog_sha256": "3e51eaedbc128afd999c796bd337d9471c15411d3e66677383e6fd188e90f390",
         "decision": "general_only",
         "entries": [],
-        "schema": "work-hierarchy-selection/v1",
+        "schema": "work-hierarchy-selection",
         "selected_paths": [],
-        "selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59"
+        "selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569"
       },
       "skill_selection": {
         "decision": "base_only",
-        "schema": "work-skill-selection/v1",
+        "schema": "work-skill-selection",
         "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
         "skills": []
       },
@@ -42,7 +40,7 @@
           "size": 753
         },
         "requirement_id": "example",
-        "schema": "work-source-snapshot/v1",
+        "schema": "work-source-snapshot",
         "source": {
           "kind": "user_text"
         },
@@ -50,23 +48,25 @@
       }
     }
   },
-  "source_status": [
-    "Revision pending"
-  ],
+  "current_task_id": "TASK-001",
+  "mode": "task",
+  "next_discussion_point": "Confirm validation",
   "notes": [
     "Reviewed evidence"
-  ],
-  "confirmed_decisions": [
-    {
-      "statement": "Keep scope",
-      "rationale": "User decision"
-    }
-  ],
-  "tentative": [
-    "Proposed approach"
   ],
   "open_questions": [
     "Which validation?"
   ],
-  "next_discussion_point": "Confirm validation"
+  "request": "Retain unfinished decisions",
+  "requirement_id": "example",
+  "revision": 1,
+  "schema": "work-discussion-progress",
+  "source_status": [
+    "Revision pending"
+  ],
+  "status": "discussion_only",
+  "tentative": [
+    "Proposed approach"
+  ],
+  "title": "Discussion"
 }

@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # Formalization boundary
 
 Before a confirmed addition, split, merge or boundary edit, run `task prepare --expected-revision <revision> --input-file <request-path> --requirement-id <requirement-id> --user-config-root <user-config-root>` with confirmed skill roots. Supply semantic `upsert`, `remove_task_ids`, `current_task` and a non-empty `reason`; reference existing boundaries by `existing_task_id` and new boundaries by one-based `upsert_position`. The CLI allocates IDs above active and retired IDs, preserves unchanged selections and checks dependencies. Source replacement uses the complete source-confirmation request described in read-and-verify.

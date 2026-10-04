@@ -1,34 +1,34 @@
 {
-  "schema": "work-spec-reconciliation-prepare-request/v1",
-  "requirement_id": "example",
-  "task_position": 1,
   "attempt_position": 1,
   "choice": "all",
   "deviation_positions": [],
-  "reason": "Incorporate the approved runtime deviation.",
   "edits": [
     {
+      "after": "Review the approved runtime deviation.",
+      "field": "goal",
       "target": {
         "artifact": "task_item",
         "task_id": "TASK-001"
-      },
-      "field": "goal",
-      "after": "Review the approved runtime deviation."
+      }
     }
   ],
+  "reason": "Incorporate the approved runtime deviation.",
+  "requirement_id": "example",
+  "schema": "work-spec-reconciliation-prepare-request",
   "semantic_decisions": [],
   "sources": [
     {
       "path": "outputs/work/executions/example/index.json",
-      "raw_sha256": "7a7023345bbee2f50b27212a81300f1fbf0e9709e112f64fce329c64374017a2"
+      "raw_sha256": "4b69ad0fcab0a9d8b52107cbf5cd39d8d23cc84a64bb346bdd5eb8f3970a187e"
     },
     {
       "path": "outputs/work/tasks/example/index.json",
-      "raw_sha256": "4d5b79571c2d895600e4b0debe5ab61c30075748d1ac1789e6cecb141f2c61c3"
+      "raw_sha256": "acb61621263e85161a3a46e82602db1e6563273611bad4f52c8ea15709d9d211"
     },
     {
       "path": "outputs/work/tasks/example/tasks/TASK-001.json",
-      "raw_sha256": "38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca"
+      "raw_sha256": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77"
     }
-  ]
+  ],
+  "task_position": 1
 }

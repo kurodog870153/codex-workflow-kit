@@ -30,13 +30,13 @@ metadata:
 
 1. [強制] 每個 `TASK-*` 產生一個可獨立驗收的單一成果；可分割成果須拆分，不可分割多檔修改視為同一完整變更集。相依順序須讓每項任務具備所需輸入及可執行的前置成果。
 2. [強制] Execute 所需的全部檔案、有序步驟、`CMD-*`、`OP-*`、`VAL-*`、失敗處理與授權邊界必須在 Task 確定；同一路徑由多個 TASK 處理時明列相依順序，檔案生命週期符合目前專案狀態。
-3. [強制] 正式 v1 規格由單一 `work-task-index/v1` 純 JSON index 與每個 TASK 的 `work-task-item/v1` 純 JSON item 組成，固定使用 `status: confirmed` 與 `TASK-SPEC-nnn`；item 位於 index 旁的 `tasks/TASK-NNN.json`，index 不重複 item 內容。
+3. [強制] 目前正式規格由單一 `work-task-index` 純 JSON index 與每個 TASK 的 `work-task-item` 純 JSON item 組成，固定使用 `status: confirmed` 與 `TASK-SPEC-nnn`；item 位於 index 旁的 `tasks/TASK-NNN.json`，index 不重複 item 內容。
 4. [強制] keys、enums、IDs、statuses、paths、references 及 hashes 使用英文，語意字串可使用繁體中文。必要欄位、optional fields、nested contract references、canonical key order 與引用規則以 Work CLI registry／validator 為準，不另訂同義欄位或複製完整 JSON 結構。
 5. [強制] 每個 TASK 保存單一 `goal`、技能與 instruction 選擇、traceability、有序 `steps` 及至少一個 `VAL-*`；驗收由 TASK 自有的穩定識別與 coverage 表達，完整覆蓋固定來源，不依賴另一份需求成品的 ordinal。沒有內容的選用欄位省略。
 6. [強制] TASK 的 hierarchy 路徑須為已確認 Task selection 的有效子集，非空路徑完整存在於 Task 與 Execute catalog；instruction sources 只保存 `kind`、`logical_name`、`canonical_sha256`，不保存來源 layer 或絕對路徑。
 7. [強制] Source、正式 TASK 入口與 Execution 預設位於 `outputs/work/sources/<requirement-id>/`、`outputs/work/tasks/<requirement-id>/index.json`、`outputs/work/executions/<requirement-id>/`。非預設路徑須同時確認三個專案相對位置與同一需求編號；每次讀寫完整套用共用路徑安全檢查。
 8. [強制] 需求編號使用合法且可攜的識別；沿用使用者目前輸入或正式交接明列的值，不由檔名或其他對話推測。首次 Source capture 前缺少編號時，先詢問使用者提供並確認，再進行 capture 預覽與核准；不得延到完整候選後才確認。進度保存或編號確認不代表 capture 或正式核准。
-9. [強制] 結構化規劃進度使用 `work-task-planning-index/v1` 與 `work-task-draft/v1` 保存；獨立討論進度依共用 discussion progress 流程記錄。進度、草稿、`refined` 或保存確認均不是正式核准，不得交給 Execute。
+9. [強制] 結構化規劃進度使用 `work-task-planning-index` 與 `work-task-draft` 保存；獨立討論進度依共用 discussion progress 流程記錄。進度、草稿、`refined` 或保存確認均不是正式核准，不得交給 Execute。
 10. [強制] 所有必要決策完成後以 `task preview` 驗證並展示完整初版候選；正式核准綁定 `approval_sha256`，再以 `task apply` 一次發布完整集合，不由 AI 手動寫入正式 JSON。
 
 ## 4. 驗證與交接

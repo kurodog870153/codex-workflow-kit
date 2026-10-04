@@ -3,5 +3,5 @@
   "choice": "retain_only",
   "deviation_ids": [],
   "migration": null,
-  "schema": "work-spec-reconciliation-preview-request/v1"
+  "schema": "work-spec-reconciliation-preview-request"
 }

@@ -96,9 +96,30 @@ mod tests {
     use serde_json::json;
 
     fn example() -> serde_json::Value {
-        crate::contract_data::registry_value()["items"]["work-source-snapshot/v1"]
+        crate::contract_data::registry_value()["items"]["work-source-snapshot"]
             ["description"]["example"]
             .clone()
+    }
+
+    #[test]
+    fn current_snapshot_id_rejects_versioned_aliases() {
+        assert!(serde_json::from_value::<SourceSnapshot>(example()).is_ok());
+        for schema in ["work-source-snapshot/v1", "work-source-snapshot/v2"] {
+            let mut old = example();
+            old["schema"] = json!(schema);
+            assert!(serde_json::from_value::<SourceSnapshot>(old).is_err());
+            assert!(serde_json::from_value::<PublicSchema>(json!(schema)).is_err());
+        }
+    }
+
+    #[test]
+    fn current_source_response_ids_reject_versioned_aliases() {
+        for schema in ["work-source-read/v1", "work-source-validation/v1"] {
+            assert!(serde_json::from_value::<PublicSchema>(json!(schema)).is_err());
+        }
+        for schema in ["work-source-read", "work-source-validation"] {
+            assert!(serde_json::from_value::<PublicSchema>(json!(schema)).is_ok());
+        }
     }
 
     #[test]
@@ -115,7 +136,7 @@ mod tests {
     fn read_and_validation_examples_match_models_and_binary_transport_is_lossless() {
         let registry = crate::contract_data::registry_value();
         let mut read: SourceRead = serde_json::from_value(
-            registry["items"]["work-source-read/v1"]["description"]["example"].clone(),
+            registry["items"]["work-source-read"]["description"]["example"].clone(),
         )
         .unwrap();
         read.bytes = vec![255, 0, 239, 187, 191, 13, 10];
@@ -124,7 +145,7 @@ mod tests {
             read
         );
         let validation: SourceValidation = serde_json::from_value(
-            registry["items"]["work-source-validation/v1"]["description"]["example"].clone(),
+            registry["items"]["work-source-validation"]["description"]["example"].clone(),
         )
         .unwrap();
         assert_eq!(validation.status, "valid");
@@ -158,7 +179,7 @@ mod tests {
             assert!(serde_json::from_value::<SnapshotSource>(source).is_err());
         }
         let registry = crate::contract_data::registry_value();
-        let source = registry["items"]["work-source-snapshot/v1"]["description"]["fields"]
+        let source = registry["items"]["work-source-snapshot"]["description"]["fields"]
             .as_array()
             .unwrap()
             .iter()

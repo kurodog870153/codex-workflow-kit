@@ -5,7 +5,7 @@
   "deviation_classifications": {
     "DEVIATION-001": "retain_only"
   },
-  "fingerprint": "68a83825310a3eb34e274906e55bc1e4871f4058f72fd3515a745e3480de3013",
+  "fingerprint": "5e3206e73088e975ea7665dc6c48fbd2143ce12d3d355fa2f1c575c7f78ded57",
   "ledger": {
     "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
     "entries": [
@@ -13,11 +13,11 @@
         "attempt_sha256": "1d566b34bf20c67837166d44cfb00f4b9a2a3fbaf3b31d67caf0dffba52f18a7",
         "deviation_id": "DEVIATION-001",
         "outcome": "retained",
-        "reconciliation_fingerprint": "68a83825310a3eb34e274906e55bc1e4871f4058f72fd3515a745e3480de3013",
+        "reconciliation_fingerprint": "5e3206e73088e975ea7665dc6c48fbd2143ce12d3d355fa2f1c575c7f78ded57",
         "target": "retain_only"
       }
     ],
-    "schema": "work-spec-reconciliation-ledger/v1"
+    "schema": "work-spec-reconciliation-ledger"
   },
   "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
   "migration_preview": null,
@@ -29,7 +29,7 @@
   "retained_deviation_ids": [
     "DEVIATION-001"
   ],
-  "schema": "work-spec-reconciliation-preview/v1",
+  "schema": "work-spec-reconciliation-preview",
   "selected_deviation_ids": [],
   "status": "ready"
 }

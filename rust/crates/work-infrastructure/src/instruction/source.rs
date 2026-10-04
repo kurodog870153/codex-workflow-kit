@@ -75,14 +75,7 @@ fn load_file(
     if kind == "reference" && canonical_content.starts_with(b"---\n") {
         validate_reference_metadata(&canonical_content, logical_name, &path)?;
     }
-    let summary = source_summary(kind, logical_name, &canonical_content).map_err(|reason| {
-        error(
-            ExitCode::InputFormat,
-            reason,
-            "An instruction source may declare at most one compatibility revision.",
-            json!({}),
-        )
-    })?;
+    let summary = source_summary(kind, logical_name, &canonical_content);
     Ok(LoadedSource {
         summary,
         canonical_content,
@@ -472,7 +465,12 @@ mod tests {
                 "task.programming-language.java.spring-boot"
             ]
         );
-        assert_eq!(loaded.sources[0].summary.compatibility_revision, 2);
+        assert!(
+            serde_json::to_value(&loaded.sources[0].summary)
+                .unwrap()
+                .get("compatibility_revision")
+                .is_none()
+        );
         validate_selection(&repository, "task", &selection(&loaded)).unwrap();
         let mut stale = selection(&loaded);
         stale.sources[0].canonical_sha256 = "0".repeat(64);
@@ -843,7 +841,10 @@ mod tests {
         )
         .unwrap();
         assert_eq!(loaded.sources[0].canonical_content, b"loading\n");
-        assert_eq!(loaded.sources[0].summary.compatibility_revision, 1);
+        assert_eq!(
+            loaded.sources[0].summary.canonical_sha256,
+            work_operations::derivation::fingerprint::raw(b"loading\n")
+        );
         assert_eq!(loaded.instructions_sha256.len(), 64);
         assert_eq!(
             loaded
@@ -876,7 +877,7 @@ mod tests {
                 .as_object()
                 .unwrap()
                 .len(),
-            4
+            3
         );
         assert_eq!(
             load(
@@ -948,7 +949,12 @@ mod tests {
             b"<!-- work-compatibility-revision: 3 -->\nworkflow\n",
         );
         let plan = load(&repository, "execute", &[], &[]).unwrap();
-        assert_eq!(plan.sources[1].summary.compatibility_revision, 3);
+        assert_eq!(
+            plan.sources[1].summary.canonical_sha256,
+            work_operations::derivation::fingerprint::raw(
+                b"<!-- work-compatibility-revision: 3 -->\nworkflow\n"
+            )
+        );
         write("references/workflows/execute.md", b"\xff");
         assert_eq!(
             load(&repository, "execute", &[], &[])
@@ -1040,7 +1046,7 @@ mod tests {
     }
 
     #[test]
-    fn task_document_union_and_validation_match_python_selection_cases() {
+    fn task_document_union_and_validation_match_current_contract_selection_cases() {
         let repository = LocalHierarchyCatalog {
             skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
         };

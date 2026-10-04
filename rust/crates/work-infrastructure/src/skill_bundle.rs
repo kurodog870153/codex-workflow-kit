@@ -151,7 +151,7 @@ pub fn snapshot_skill_bundle(skill_root: &Path) -> Result<Value, WorkError> {
         .collect();
     Ok(
         work_model::skill::verified::<work_model::skill::SkillBundle>(
-            json!({"schema": "work-skill-bundle/v1", "files": files, "bundle_sha256": fingerprint::skill_bundle(&entries)}),
+            json!({"schema": "work-skill-bundle", "files": files, "bundle_sha256": fingerprint::skill_bundle(&entries)}),
         ),
     )
 }
@@ -192,7 +192,7 @@ mod tests {
     fn current_rust_skill_bundle_has_expected_contents() {
         let root = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         let bundle = snapshot_skill_bundle(root).unwrap();
-        assert_eq!(bundle["schema"], "work-skill-bundle/v1");
+        assert_eq!(bundle["schema"], "work-skill-bundle");
         let files = bundle["files"].as_array().unwrap();
         assert!(files.iter().any(|file| file["path"] == "SKILL.md"));
         assert!(

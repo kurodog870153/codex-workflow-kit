@@ -82,17 +82,17 @@ mod tests {
 
     #[test]
     fn frozen_catalog_keeps_public_descriptions_and_scaffolds() {
-        assert_eq!(list()["contracts"].as_array().unwrap().len(), 112);
+        assert_eq!(list()["contracts"].as_array().unwrap().len(), 108);
         assert_eq!(
-            describe("work-task-semantic-request/v1").unwrap()["kind"],
+            describe("work-task-semantic-request").unwrap()["kind"],
             "semantic_request"
         );
         assert_eq!(
-            scaffold("work-task-semantic-request/v1").unwrap()["schema"],
-            "work-contract-scaffold/v1"
+            scaffold("work-task-semantic-request").unwrap()["schema"],
+            "work-contract-scaffold"
         );
         assert_eq!(
-            scaffold("work-attempt/v1").unwrap_err().reason_code,
+            scaffold("work-attempt").unwrap_err().reason_code,
             "contract_scaffold_requires_request"
         );
     }
@@ -129,7 +129,7 @@ mod tests {
 
     #[test]
     fn reconciliation_prepare_example_uses_semantic_positions() {
-        let id = "work-spec-reconciliation-prepare-request/v1";
+        let id = "work-spec-reconciliation-prepare-request";
         let description = describe(id).unwrap();
         let example = &description["example"];
         assert_eq!(example["schema"], id);
@@ -144,11 +144,11 @@ mod tests {
     #[test]
     fn execution_deviation_examples_validate_with_declared_field_order() {
         for id in [
-            "work-execution-deviation-proposal/v1",
-            "work-execution-deviation/v1",
-            "work-execution-deviation-preview/v1",
-            "work-execution-deviation-record/v1",
-            "work-execution-deviation-semantic-request/v1",
+            "work-execution-deviation-proposal",
+            "work-execution-deviation",
+            "work-execution-deviation-preview",
+            "work-execution-deviation-record",
+            "work-execution-deviation-semantic-request",
         ] {
             let description = describe(id).unwrap();
             let example = &description["example"];
@@ -161,11 +161,11 @@ mod tests {
                 .count();
             assert_eq!(projected, example.as_object().unwrap().len(), "{id}");
         }
-        let artifact = describe("work-execution-deviation/v1").unwrap()["example"].clone();
+        let artifact = describe("work-execution-deviation").unwrap()["example"].clone();
         let authorization = &artifact["supplemental_authorization"];
         assert_eq!(
             authorization["schema"],
-            "work-execution-deviation-authorization/v1"
+            "work-execution-deviation-authorization"
         );
         assert_eq!(
             authorization["preview_sha256"],
@@ -174,16 +174,16 @@ mod tests {
         assert_eq!(authorization["action"], artifact["proposal"]["action"]);
         assert_eq!(authorization.as_object().unwrap().len(), 5);
         work_infrastructure::fixture_support::validate_contract_example(
-            "work-execution-deviation/v1",
+            "work-execution-deviation",
             &artifact,
         )
         .unwrap();
     }
 
     #[test]
-    fn public_registry_catalog_scaffolds_and_errors_match_python() {
+    fn public_registry_catalog_scaffolds_and_errors_match_current_contract() {
         let catalog = list();
-        assert_eq!(catalog["schema"], "work-contract-catalog/v1");
+        assert_eq!(catalog["schema"], "work-contract-catalog");
         let entries = catalog["contracts"].as_array().unwrap();
         let ids: Vec<_> = entries
             .iter()
@@ -209,8 +209,8 @@ mod tests {
             ])
         );
         assert_eq!(ids.len(), registry()["items"].as_object().unwrap().len());
-        assert!(ids.contains(&"work-contract-description/v1"));
-        assert!(ids.contains(&"work-contract-scaffold/v1"));
+        assert!(ids.contains(&"work-contract-description"));
+        assert!(ids.contains(&"work-contract-scaffold"));
         for entry in entries {
             let id = entry["id"].as_str().unwrap();
             let description = describe(id).unwrap();
@@ -236,9 +236,9 @@ mod tests {
                 assert_eq!(scaffold["example"], description["example"]);
             }
         }
-        let task = scaffold("work-task-semantic-request/v1").unwrap();
+        let task = scaffold("work-task-semantic-request").unwrap();
         assert!(task["example"]["upsert"][0].get("id").is_none());
-        let generated = "work-spec-update-request/v1";
+        let generated = "work-spec-update-request";
         let description = describe(generated).unwrap();
         assert_eq!(description["kind"], "generated_request");
         assert_eq!(description["caller_constructible"], false);
@@ -247,9 +247,7 @@ mod tests {
             "generated_request_not_caller_constructible"
         );
         assert_eq!(
-            scaffold("work-contract-catalog/v1")
-                .unwrap_err()
-                .reason_code,
+            scaffold("work-contract-catalog").unwrap_err().reason_code,
             "contract_scaffold_requires_request"
         );
         let unknown = describe("work-unknown/v1").unwrap_err();
@@ -259,7 +257,7 @@ mod tests {
 
     #[test]
     fn command_correction_description_discriminates_strict_command_modes() {
-        let description = describe("work-command-correction-request/v1").unwrap();
+        let description = describe("work-command-correction-request").unwrap();
         let command = description["fields"]
             .as_array()
             .unwrap()
@@ -282,7 +280,7 @@ mod tests {
     fn hierarchy_instruction_and_skill_examples_keep_canonical_fields() {
         for (id, fields) in [
             (
-                "work-hierarchy/v1",
+                "work-hierarchy",
                 vec![
                     "schema",
                     "work_directory",
@@ -293,7 +291,7 @@ mod tests {
                 ],
             ),
             (
-                "work-instruction-catalog/v1",
+                "work-instruction-catalog",
                 vec![
                     "schema",
                     "mode",
@@ -304,22 +302,22 @@ mod tests {
                 ],
             ),
             (
-                "work-skill-bundle/v1",
+                "work-skill-bundle",
                 vec!["schema", "files", "bundle_sha256"],
             ),
             (
-                "work-skill-catalog/v1",
+                "work-skill-catalog",
                 vec!["schema", "skills", "unavailable"],
             ),
             (
-                "work-skill-selection/v1",
+                "work-skill-selection",
                 vec!["schema", "decision", "skills", "selection_sha256"],
             ),
             (
-                "work-skill-selection-validation/v1",
+                "work-skill-selection-validation",
                 vec!["schema", "status", "skill_selection"],
             ),
-            ("work-skill-snapshot/v1", vec!["schema", "skill", "bundle"]),
+            ("work-skill-snapshot", vec!["schema", "skill", "bundle"]),
         ] {
             let description = describe(id).unwrap();
             assert_eq!(description["canonical_order"], json!(fields), "{id}");
@@ -337,7 +335,7 @@ mod tests {
     fn delegation_examples_keep_canonical_order_and_optional_projection() {
         for (id, fields) in [
             (
-                "work-delegation-build-request/v1",
+                "work-delegation-build-request",
                 vec![
                     "schema",
                     "role",
@@ -358,7 +356,7 @@ mod tests {
                 ],
             ),
             (
-                "work-delegation-envelope/v1",
+                "work-delegation-envelope",
                 vec![
                     "schema",
                     "marker",
@@ -373,7 +371,7 @@ mod tests {
                 ],
             ),
             (
-                "work-delegation-validation/v1",
+                "work-delegation-validation",
                 vec![
                     "schema",
                     "status",
@@ -401,7 +399,7 @@ mod tests {
             }
         }
         assert_eq!(
-            describe("work-delegation-build-request/v1").unwrap()["example"]
+            describe("work-delegation-build-request").unwrap()["example"]
                 .as_object()
                 .unwrap()
                 .len(),
@@ -411,9 +409,9 @@ mod tests {
 
     #[test]
     fn operation_result_example_preserves_context_and_success_status() {
-        let description = describe("work-operation-result/v1").unwrap();
+        let description = describe("work-operation-result").unwrap();
         let example = &description["example"];
-        assert_eq!(example["schema"], "work-operation-result/v1");
+        assert_eq!(example["schema"], "work-operation-result");
         assert_eq!(example["status"], "success");
         assert_eq!(example["context_sha256"], "0".repeat(64));
         for required in description["required"].as_array().unwrap() {
@@ -423,27 +421,27 @@ mod tests {
 
     #[test]
     fn specification_request_descriptions_validate_examples_and_nested_references() {
-        let prepare = describe("work-spec-prepare-request/v1").unwrap();
+        let prepare = describe("work-spec-prepare-request").unwrap();
         assert_eq!(
             prepare["required"],
             json!(["schema", "requirement_id", "reason", "edits"])
         );
         work_infrastructure::fixture_support::validate_contract_example(
-            "work-spec-prepare-request/v1",
+            "work-spec-prepare-request",
             &prepare["example"],
         )
         .unwrap();
-        let verify = describe("work-spec-verification-request/v1").unwrap();
+        let verify = describe("work-spec-verification-request").unwrap();
         assert_eq!(
             verify["required"],
             json!(["schema", "requirement_id", "artifacts", "record_id"])
         );
         work_infrastructure::fixture_support::validate_contract_example(
-            "work-spec-verification-request/v1",
+            "work-spec-verification-request",
             &verify["example"],
         )
         .unwrap();
-        let update = describe("work-spec-update-request/v1").unwrap();
+        let update = describe("work-spec-update-request").unwrap();
         let references = update["fields"]
             .as_array()
             .unwrap()
@@ -457,17 +455,17 @@ mod tests {
         assert_eq!(
             references,
             std::collections::BTreeMap::from([
-                ("task_index", "work-task-index/v1"),
-                ("task_items", "work-task-item/v1"),
+                ("task_index", "work-task-index"),
+                ("task_items", "work-task-item"),
             ])
         );
         let example = &update["example"];
-        assert_eq!(example["schema"], "work-spec-update-request/v1");
+        assert_eq!(example["schema"], "work-spec-update-request");
         assert!(example.get("plan").is_none());
-        assert_eq!(example["task_index"]["schema"], "work-task-index/v1");
+        assert_eq!(example["task_index"]["schema"], "work-task-index");
         assert_eq!(
             example["task_items"]["TASK-001"]["schema"],
-            "work-task-item/v1"
+            "work-task-item"
         );
         for value in [
             prepare["example"].clone(),

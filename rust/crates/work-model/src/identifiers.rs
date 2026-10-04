@@ -145,7 +145,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn identifier_policy_matches_python() {
+    fn identifier_policy_matches_current_contract() {
         assert!("example_1".parse::<RequirementId>().is_ok());
         assert_eq!(
             "feature-1.2".parse::<RequirementId>().unwrap().as_str(),

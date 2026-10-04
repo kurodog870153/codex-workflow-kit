@@ -45,10 +45,10 @@ pub fn prepare_collection(
     index_path: &str,
     source_root: &str,
 ) -> Result<PreparedCollection, TaskIssue> {
-    if projection["schema"] != "work-task-collection-projection/v1" {
+    if projection["schema"] != "work-task-collection-projection" {
         return Err(issue(
             "task_create_schema",
-            "TASK create input must be a complete work-task-collection-projection/v1 contract.",
+            "TASK create input must be a complete work-task-collection-projection contract.",
         ));
     }
     if projection["artifacts"]["task"] != index_path
@@ -84,7 +84,7 @@ pub fn prepare_collection(
             ));
         };
         let mut item = task_object.clone();
-        item.insert("schema".into(), json!("work-task-item/v1"));
+        item.insert("schema".into(), json!("work-task-item"));
         let item = Value::Object(item);
         let raw = render_task(&item, TaskDocumentKind::Item).map_err(|_| {
             issue(
@@ -102,7 +102,7 @@ pub fn prepare_collection(
         .as_object()
         .ok_or_else(|| issue("task_create_schema", "TASK create input must be an object."))?
         .clone();
-    index.insert("schema".into(), json!("work-task-index/v1"));
+    index.insert("schema".into(), json!("work-task-index"));
     index.insert("tasks".into(), Value::Array(references));
     let index = Value::Object(index);
     let index_raw = render_task(&index, TaskDocumentKind::Index).map_err(|_| {

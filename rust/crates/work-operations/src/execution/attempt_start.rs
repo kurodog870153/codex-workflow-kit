@@ -219,7 +219,7 @@ pub fn build_attempt_candidate(
     let status = row["status"].as_str().unwrap_or("");
     let continuation = request.get("continuation").filter(|value| !value.is_null());
     let mut attempt = json!({
-        "schema":"work-attempt/v1", "attempt_id":attempt_id,
+        "schema":"work-attempt", "attempt_id":attempt_id,
         "task_spec_id":preflight["task_spec_id"], "task_id":task_id,
         "skill_id":preflight["skill_id"], "status":"in_progress",
         "task_collection_sha256":preflight["task_collection_sha256"],
@@ -481,7 +481,7 @@ mod tests {
 
     #[test]
     fn initial_and_retry_attempts_preserve_source_selection_and_records() {
-        let authorization = json!({"schema":"work-attempt-authorization/v1",
+        let authorization = json!({"schema":"work-attempt-authorization",
             "task_id":"TASK-001","commands":[],"validations":[],"modifiable_files":[],
             "working_directories":[],"external_operations":[],"allowed_deviations":[],
             "reapproval_conditions":["scope_expansion","source_or_worktree_drift",
@@ -505,7 +505,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(initial["status"], "in_progress");
-        assert_eq!(initial["schema"], "work-attempt/v1");
+        assert_eq!(initial["schema"], "work-attempt");
         for (field, expected) in [
             ("task_collection_sha256", "a"),
             ("task_index_sha256", "b"),

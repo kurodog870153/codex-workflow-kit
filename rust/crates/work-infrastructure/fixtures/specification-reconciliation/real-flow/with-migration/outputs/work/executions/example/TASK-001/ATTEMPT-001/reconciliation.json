@@ -1,13 +1,13 @@
 {
-  "schema": "work-spec-reconciliation-ledger/v1",
+  "schema": "work-spec-reconciliation-ledger",
   "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
   "entries": [
     {
       "deviation_id": "DEVIATION-001",
       "outcome": "incorporated",
       "target": "task_only",
-      "attempt_sha256": "2ae0e20ec5913132a1fe9b6e04ac9bc0c1adecbc1db250cdd3273324f82d80d8",
-      "reconciliation_fingerprint": "548a4fc87d13029587fe5a011b7447ff513cb67c6764253840c493cd30615983"
+      "attempt_sha256": "d0034312a3ef3f6ad0d6839aca77e4bf3f8db090f27099f2125a6fc14f3f9f1f",
+      "reconciliation_fingerprint": "336aa7736f8af1675aaf111ac4d7ab7215379de6c601f9803cf2620f896cfe3b"
     }
   ]
 }

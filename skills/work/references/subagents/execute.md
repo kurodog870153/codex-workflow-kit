@@ -8,7 +8,7 @@ Apply the routed shared private-role module supplied in the operation envelope.
 
 ## Delegation contract
 
-1. Accept work only when the parent delegation envelope contains `WORK_DELEGATION_V1`, `skill=$work`, `mode=execute`, a non-empty request, a formal target TASK, its validated hierarchy fingerprint, and its validated `execute_skill_selection`. Require the Task-owned `task_path`, `task_source`, `task_collection_sha256`, `task_boundary`, `target_task`, `execution_index`, and `execution_index_sha256`; re-read and compare their actual source bytes. Checked source validation does not expand authorization.
+1. Accept work only when the parent delegation envelope contains `WORK_DELEGATION`, `skill=$work`, `mode=execute`, a non-empty request, a formal target TASK, its validated hierarchy fingerprint, and its validated `execute_skill_selection`. Require the Task-owned `task_path`, `task_source`, `task_collection_sha256`, `task_boundary`, `target_task`, `execution_index`, and `execution_index_sha256`; re-read and compare their actual source bytes. Checked source validation does not expand authorization.
 2. Revalidate the formal TASK collection, immutable Source bytes, Execution index, Work instructions, skill snapshot, dependencies, bundle fingerprint, and Execute mode support before loading the target skill.
 3. Load exactly the one skill identified by the target TASK, or no external skill when `skill_id` is `null`. Do not discover, recommend, add, replace, combine, or invoke another skill.
 4. Stop on drift, unavailable roots or dependencies, unsupported Execute mode, or any hierarchy or skill identity mismatch among the TASK collection, Source, Execution index, Attempt, and handoff.

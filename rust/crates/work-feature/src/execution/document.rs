@@ -51,7 +51,7 @@ pub fn validate_attempt_document(
         validate_attempt_bytes(value, raw).map_err(issue)?
     } else {
         validate_attempt_identity(value).map_err(issue)?;
-        json!({"schema":"work-attempt-validation/v1","attempt_id":value["attempt_id"],
+        json!({"schema":"work-attempt-validation","attempt_id":value["attempt_id"],
             "task_spec_id":value["task_spec_id"],"task_id":value["task_id"],
             "status":value["status"],"record_count":value["records"].as_array().map_or(0,Vec::len),
             "result":"valid"})

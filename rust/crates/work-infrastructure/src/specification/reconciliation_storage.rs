@@ -67,7 +67,7 @@ fn execution_source(root: &Path, requirement: &str) -> Result<String, WorkError>
                 let Ok(index) = serde_json::from_slice::<Value>(&raw) else {
                     continue;
                 };
-                if index["schema"] == "work-execution-index/v1"
+                if index["schema"] == "work-execution-index"
                     && index["requirement_id"] == requirement
                 {
                     matches.push(relative.clone());
@@ -104,7 +104,7 @@ pub fn prepare_from_semantic(
     let migration = if selection.choice == "retain_only" {
         Value::Null
     } else {
-        let request = json!({"schema":"work-spec-migration-prepare-request/v1",
+        let request = json!({"schema":"work-spec-migration-prepare-request",
             "mode":"revision","requirement_id":selection.requirement,
             "reason":selection.reason,"edits":selection.edits,"sources":semantic["sources"],
             "semantic_decisions":selection.decisions});
@@ -123,11 +123,9 @@ pub fn prepare_from_semantic(
     };
     let request = work_model::specification::verified::<
         work_model::specification::SpecReconciliationPreviewRequest,
-    >(
-        json!({"schema":"work-spec-reconciliation-preview-request/v1",
+    >(json!({"schema":"work-spec-reconciliation-preview-request",
         "attempt_path":selection.attempt_path,"choice":selection.choice,
-        "deviation_ids":selection.selected,"migration":migration}),
-    );
+        "deviation_ids":selection.selected,"migration":migration}));
     let preview = preview_from_project(root, skill_root, configs, &request)?;
     Ok(json!({"request":request,"preview":preview,"output_file":null}))
 }
@@ -238,7 +236,7 @@ pub fn publish_ledger_only(
             "The installed reconciliation ledger differs from approval.",
         ));
     }
-    let publication = json!({"schema":"work-spec-migration-publication/v1",
+    let publication = json!({"schema":"work-spec-migration-publication",
         "status":"updated","fingerprint":approved_sha256,
         "transaction_approval_sha256":approval,"journal":journal_path,
         "completion_marker":marker_path,"documents":[ledger_path],
@@ -246,7 +244,7 @@ pub fn publish_ledger_only(
     Ok(work_model::specification::verified::<
         work_model::specification::SpecReconciliationPublication,
     >(
-        json!({"schema":"work-spec-reconciliation-publication/v1","status":"updated",
+        json!({"schema":"work-spec-reconciliation-publication","status":"updated",
         "reconciliation_fingerprint":approved_sha256,"attempt_path":preview["attempt_path"],
         "attempt_sha256":preview["attempt_sha256"],
         "selected_deviation_ids":preview["selected_deviation_ids"],
@@ -417,9 +415,9 @@ pub fn recover_ledger_only(
         ));
     }
     Ok(
-        json!({"schema":"work-spec-reconciliation-publication/v1","status":"recovered","reconciliation_fingerprint":approved_sha256,"attempt_path":attempt_path,"attempt_sha256":preview["attempt_sha256"],
+        json!({"schema":"work-spec-reconciliation-publication","status":"recovered","reconciliation_fingerprint":approved_sha256,"attempt_path":attempt_path,"attempt_sha256":preview["attempt_sha256"],
         "selected_deviation_ids":preview["selected_deviation_ids"],"retained_deviation_ids":preview["retained_deviation_ids"],"ledger_path":ledger_path,"ledger_sha256":fingerprint::ledger(&after),"deviation_classifications":preview["deviation_classifications"],
-        "publication":{"schema":"work-spec-migration-publication/v1","status":"recovered","fingerprint":approved_sha256,"transaction_approval_sha256":candidate.approval,"journal":journal_path,"completion_marker":marker,"documents":[ledger_path],"publication_status":publication["status"],"validator_results":[],"relationship_results":[]}}),
+        "publication":{"schema":"work-spec-migration-publication","status":"recovered","fingerprint":approved_sha256,"transaction_approval_sha256":candidate.approval,"journal":journal_path,"completion_marker":marker,"documents":[ledger_path],"publication_status":publication["status"],"validator_results":[],"relationship_results":[]}}),
     )
 }
 
@@ -469,7 +467,7 @@ pub fn publish_with_migration(
     Ok(work_model::specification::verified::<
         work_model::specification::SpecReconciliationPublication,
     >(
-        json!({"schema":"work-spec-reconciliation-publication/v1","status":"updated",
+        json!({"schema":"work-spec-reconciliation-publication","status":"updated",
         "reconciliation_fingerprint":approved_sha256,"attempt_path":preview["attempt_path"],
         "attempt_sha256":preview["attempt_sha256"],
         "selected_deviation_ids":preview["selected_deviation_ids"],
@@ -689,7 +687,7 @@ pub fn recover_with_migration(
     Ok(work_model::specification::verified::<
         work_model::specification::SpecReconciliationPublication,
     >(json!({
-        "schema":"work-spec-reconciliation-publication/v1", "status":"recovered", "reconciliation_fingerprint":approved_sha256,
+        "schema":"work-spec-reconciliation-publication", "status":"recovered", "reconciliation_fingerprint":approved_sha256,
         "attempt_path":attempt_path,"attempt_sha256":preview["attempt_sha256"],"selected_deviation_ids":preview["selected_deviation_ids"],
         "retained_deviation_ids":preview["retained_deviation_ids"],"ledger_path":ledger_path,"ledger_sha256":fingerprint::ledger(&ledger_raw),
         "publication":publication,"deviation_classifications":preview["deviation_classifications"]})))
@@ -705,7 +703,7 @@ mod tests {
     #[test]
     fn retain_only_preview_rejects_candidate_ids_or_migration() {
         let mut request = json!({
-            "schema": "work-spec-reconciliation-preview-request/v1",
+            "schema": "work-spec-reconciliation-preview-request",
             "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
             "choice": "retain_only",
             "deviation_ids": [],
@@ -726,7 +724,7 @@ mod tests {
     }
 
     #[test]
-    fn closed_attempt_preview_and_ledger_publication_match_python() {
+    fn closed_attempt_preview_and_ledger_publication_match_current_contract() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture =
             repo.join("crates/work-infrastructure/fixtures/specification-reconciliation/real-flow");
@@ -782,7 +780,7 @@ mod tests {
                 .map(|(line, (left, right))| (line, left.to_owned(), right.to_owned()))
         );
         let correction = json!({
-            "schema":"work-correction/v1",
+            "schema":"work-correction",
             "correction_id":"ATTEMPT-001-CORRECTION-001",
             "created_at":"2026-09-26T10:05+08:00",
             "target_attempt_id":"ATTEMPT-001",
@@ -1062,7 +1060,7 @@ mod tests {
     }
 
     #[test]
-    fn incorporated_deviation_preview_matches_python_migration() {
+    fn incorporated_deviation_preview_matches_current_contract_migration() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture =
             repo.join("crates/work-infrastructure/fixtures/specification-reconciliation/real-flow/with-migration");

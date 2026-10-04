@@ -114,11 +114,11 @@ mod tests {
         serde_json::from_value::<ContractRegistrySnapshot>(snapshot.clone()).unwrap();
         let items = &snapshot["items"];
         for (id, model) in [
-            ("work-cli-result/v1", "cli"),
-            ("work-error/v1", "error"),
-            ("work-contract-catalog/v1", "catalog"),
-            ("work-contract-description/v1", "description"),
-            ("work-contract-scaffold/v1", "scaffold"),
+            ("work-cli-result", "cli"),
+            ("work-error", "error"),
+            ("work-contract-catalog", "catalog"),
+            ("work-contract-description", "description"),
+            ("work-contract-scaffold", "scaffold"),
         ] {
             let example = items[id]["description"]["example"].clone();
             match model {
@@ -146,28 +146,28 @@ mod tests {
         let snapshot = crate::contract_data::registry_value();
         let items = &snapshot["items"];
         assert_eq!(
-            items["work-hierarchy/v1"]["description"]["example"]["work_directory"],
+            items["work-hierarchy"]["description"]["example"]["work_directory"],
             "task"
         );
         assert_eq!(
-            items["work-instructions/v1"]["description"]["example"]["hierarchy"]["work_directory"],
+            items["work-instructions"]["description"]["example"]["hierarchy"]["work_directory"],
             "task"
         );
         assert_eq!(
-            items["work-delegation-validation/v1"]["description"]["example"]["role"],
+            items["work-delegation-validation"]["description"]["example"]["role"],
             "task-coordinator"
         );
-        let route = &items["work-instruction-selection-manifest/v1"]["description"]["example"]["routing_input"];
+        let route = &items["work-instruction-selection-manifest"]["description"]["example"]["routing_input"];
         assert_eq!(route["mode"], "task");
         assert_eq!(route["status"], "source_required");
         assert_eq!(route["operation"], "capture_source");
         assert_eq!(
-            items["work-operation-envelope/v1"]["description"]["example"]["operation"],
+            items["work-operation-envelope"]["description"]["example"]["operation"],
             route["operation"]
         );
         for publication in [
-            &items["work-spec-migration-publication/v1"]["description"]["example"],
-            &items["work-spec-reconciliation-publication/v1"]["description"]["example"]["publication"],
+            &items["work-spec-migration-publication"]["description"]["example"],
+            &items["work-spec-reconciliation-publication"]["description"]["example"]["publication"],
         ] {
             serde_json::from_value::<crate::specification::SpecMigrationPublication>(
                 publication.clone(),
@@ -182,8 +182,8 @@ mod tests {
             }
         }
         assert_eq!(
-            items["work-spec-reconciliation-prepare-request/v1"]["scaffold"]["scaffold"]["edits"]
-                [0]["target"]["artifact"],
+            items["work-spec-reconciliation-prepare-request"]["scaffold"]["scaffold"]["edits"][0]["target"]
+                ["artifact"],
             "task_index"
         );
     }

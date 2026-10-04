@@ -1,5 +1,5 @@
 {
-  "schema": "work-migration-fixtures/v1",
+  "schema": "work-migration-fixtures",
   "canonical_text": [
     {
       "name": "bom_crlf_nfc",
@@ -66,7 +66,7 @@
       "name": "missing_arguments",
       "argv": [],
       "exit_code": 2,
-      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"rejected\",\n  \"reason_code\": \"cli_usage_error\",\n  \"message\": \"The CLI arguments are invalid.\",\n  \"data\": {\n    \"reason\": \"the following arguments are required: --project-root, command\"\n  }\n}\n",
+      "stdout": "{\n  \"schema\": \"work-cli-result\",\n  \"status\": \"rejected\",\n  \"reason_code\": \"cli_usage_error\",\n  \"message\": \"The CLI arguments are invalid.\",\n  \"data\": {\n    \"reason\": \"the following arguments are required: --project-root, command\"\n  }\n}\n",
       "stderr": ""
     },
     {
@@ -75,7 +75,7 @@
         "--stdin"
       ],
       "exit_code": 2,
-      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"rejected\",\n  \"reason_code\": \"stdin_removed\",\n  \"message\": \"Write the JSON request to a UTF-8 file and use --input-file <path>.\",\n  \"data\": {\n    \"replacement\": \"--input-file\"\n  }\n}\n",
+      "stdout": "{\n  \"schema\": \"work-cli-result\",\n  \"status\": \"rejected\",\n  \"reason_code\": \"stdin_removed\",\n  \"message\": \"Write the JSON request to a UTF-8 file and use --input-file <path>.\",\n  \"data\": {\n    \"replacement\": \"--input-file\"\n  }\n}\n",
       "stderr": ""
     },
     {
@@ -89,7 +89,7 @@
         "example"
       ],
       "exit_code": 0,
-      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"paths\": {\n      \"execution\": \"outputs/work/executions/example\",\n      \"source\": \"outputs/work/sources/example\",\n      \"task\": \"outputs/work/tasks/example/index.json\"\n    },\n    \"requirement_id\": \"example\",\n    \"schema\": \"work-paths/v1\"\n  }\n}\n",
+      "stdout": "{\n  \"schema\": \"work-cli-result\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"paths\": {\n      \"execution\": \"outputs/work/executions/example\",\n      \"source\": \"outputs/work/sources/example\",\n      \"task\": \"outputs/work/tasks/example/index.json\"\n    },\n    \"requirement_id\": \"example\",\n    \"schema\": \"work-paths\"\n  }\n}\n",
       "stderr": ""
     },
     {
@@ -104,7 +104,7 @@
         "example"
       ],
       "exit_code": 0,
-      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"paths\": {\n      \"execution\": \"outputs/work/executions/example\",\n      \"source\": \"outputs/work/sources/example\",\n      \"task\": \"outputs/work/tasks/example/index.json\"\n    },\n    \"project_root\": \"<PROJECT_ROOT>\",\n    \"requirement_id\": \"example\",\n    \"schema\": \"work-paths/v1\"\n  }\n}\n",
+      "stdout": "{\n  \"schema\": \"work-cli-result\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"paths\": {\n      \"execution\": \"outputs/work/executions/example\",\n      \"source\": \"outputs/work/sources/example\",\n      \"task\": \"outputs/work/tasks/example/index.json\"\n    },\n    \"project_root\": \"<PROJECT_ROOT>\",\n    \"requirement_id\": \"example\",\n    \"schema\": \"work-paths\"\n  }\n}\n",
       "stderr": ""
     },
     {
@@ -116,7 +116,7 @@
         "list"
       ],
       "exit_code": 0,
-      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"schema\": \"work-contract-catalog/v1\"\n  }\n}\n",
+      "stdout": "{\n  \"schema\": \"work-cli-result\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"schema\": \"work-contract-catalog\"\n  }\n}\n",
       "stderr": ""
     }
   ],
@@ -133,7 +133,7 @@
     ],
     "exit_code": 0,
     "data": {
-      "schema": "work-transaction-workspace/v1",
+      "schema": "work-transaction-workspace",
       "requirement_id": "example",
       "workflow_id": "task"
     },

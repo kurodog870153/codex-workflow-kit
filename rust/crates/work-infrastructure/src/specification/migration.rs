@@ -138,7 +138,7 @@ pub fn preview_revision_from_prepared(
     migration_request: &Value,
     specification_prepared: &Value,
 ) -> Result<Value, WorkError> {
-    if migration_request["schema"] != "work-spec-migration-preview-request/v1" {
+    if migration_request["schema"] != "work-spec-migration-preview-request" {
         return Err(fail(
             "migration_preview_schema",
             "A migration preview request is required.",
@@ -255,7 +255,7 @@ pub fn preview_revision_from_prepared(
     })?;
     Ok(work_model::specification::verified::<
         work_model::specification::SpecMigrationPreview,
-    >(json!({"schema":"work-spec-migration-preview/v1",
+    >(json!({"schema":"work-spec-migration-preview",
         "status":if ready {"ready"} else {"blocked"},"documents":all_paths,
         "diffs":diffs,"validator_results":validators,"relationship_results":relationships,
         "unresolved_items":unresolved,"fingerprint":fingerprint,"writable_ready":ready})))
@@ -512,7 +512,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
-    fn independent_preview_matches_python_complete_unchanged_collection() {
+    fn independent_preview_matches_current_contract_complete_unchanged_collection() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo.join("crates/work-infrastructure/fixtures/specification-migration");
         let root = std::env::temp_dir().join(format!(
@@ -622,7 +622,7 @@ mod tests {
     }
 
     #[test]
-    fn revision_migration_request_matches_python_candidate_set() {
+    fn revision_migration_request_matches_current_contract_candidate_set() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo
             .join("crates/work-infrastructure/fixtures/specification-update/revision-migration");
@@ -698,7 +698,7 @@ mod tests {
                 .reason_code,
             "invalid_contract_value"
         );
-        let revision = json!({"schema":"work-spec-prepare-request/v1",
+        let revision = json!({"schema":"work-spec-prepare-request",
             "requirement_id":semantic["requirement_id"],"reason":semantic["reason"],"edits":semantic["edits"]});
         let prepared = prepare_simple_update(
             &root,

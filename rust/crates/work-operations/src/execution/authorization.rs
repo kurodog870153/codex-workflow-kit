@@ -382,7 +382,7 @@ mod tests {
     }
 
     #[test]
-    fn original_scope_and_retry_evidence_follow_python() {
+    fn original_scope_and_retry_evidence_follow_current_contract() {
         let attempt = json!({"authorization":{"commands":[{"id":"CMD-001"}],"validations":[],
             "external_operations":[],"modifiable_files":["src/lib.rs"],"allowed_deviations":[],
             "authorization_evidence":"Initial approval"}});
@@ -454,7 +454,7 @@ mod tests {
     }
 
     #[test]
-    fn original_scope_deviation_retry_and_result_evidence_match_python_flow() {
+    fn original_scope_deviation_retry_and_result_evidence_match_current_contract_flow() {
         let action = json!({"kind":"skip_record","record_id":"VAL-001",
             "reason":"Covered by equivalent evidence."});
         let attempt = json!({"authorization":{"commands":[{"id":"CMD-001"}],

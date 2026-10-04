@@ -567,8 +567,7 @@ mod tests {
     #[test]
     fn shared_and_owned_acceptance_require_all_actual_latest_validations() {
         let registry = work_model::contract_data::registry_value();
-        let mut index =
-            registry["items"]["work-execution-index/v1"]["description"]["example"].clone();
+        let mut index = registry["items"]["work-execution-index"]["description"]["example"].clone();
         index["acceptance_results"] = pending(["ACCEPTANCE-001".into()]);
         index["overall_status"] = json!("in_progress");
         let mut tasks = Vec::new();
@@ -577,8 +576,7 @@ mod tests {
         for id in ["TASK-001", "TASK-002"] {
             let own = format!("{id}-ACCEPTANCE-001");
             let task = json!({"id":id,"traceability":{"acceptance_ids":["ACCEPTANCE-001"]},"acceptance_criteria":[{"id":own}],"validations":[{"id":"VAL-001","acceptance_ids":["ACCEPTANCE-001",own]},{"id":"VAL-002","acceptance_ids":["ACCEPTANCE-001"]}]});
-            let mut attempt =
-                registry["items"]["work-attempt/v1"]["description"]["example"].clone();
+            let mut attempt = registry["items"]["work-attempt"]["description"]["example"].clone();
             attempt["task_id"] = json!(id);
             attempt["authorization"]["task_id"] = json!(id);
             attempt["authorization"]["validations"] = json!([{"id":"VAL-001","kind":"manual","confirmer":"user","criteria":"Verified.","acceptance_ids":["ACCEPTANCE-001",own]},{"id":"VAL-002","kind":"manual","confirmer":"user","criteria":"Verified.","acceptance_ids":["ACCEPTANCE-001"]}]);
@@ -651,13 +649,13 @@ mod tests {
             &collection["tasks"][1],
             &complete,
             &attempts["TASK-002"],
-            &json!({"schema":"work-attempt-close-request/v1","status":"completed"}),
+            &json!({"schema":"work-attempt-close-request","status":"completed"}),
             "2026-10-04T12:00+08:00",
         )
         .unwrap();
         assert_eq!(closed["acceptance_results"][0]["status"], "completed");
         assert_eq!(closed_index["acceptance_results"][0]["status"], "completed");
-        let (stopped, stopped_index) = super::super::attempt_close::build_close_candidates(&collection["tasks"][1], &complete, &attempts["TASK-002"], &json!({"schema":"work-attempt-close-request/v1","status":"stopped","final_type":"validation_failed","reason":"Failed verification.","authorization_evidence":"Approved stop."}), "2026-10-04T12:00+08:00").unwrap();
+        let (stopped, stopped_index) = super::super::attempt_close::build_close_candidates(&collection["tasks"][1], &complete, &attempts["TASK-002"], &json!({"schema":"work-attempt-close-request","status":"stopped","final_type":"validation_failed","reason":"Failed verification.","authorization_evidence":"Approved stop."}), "2026-10-04T12:00+08:00").unwrap();
         assert_eq!(stopped["acceptance_results"][0]["status"], "pending");
         assert_eq!(stopped_index["acceptance_results"][0]["status"], "pending");
         let mut logical = collection.clone();

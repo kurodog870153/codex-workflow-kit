@@ -196,10 +196,8 @@ fn feature_and_infrastructure_cannot_bypass_derivation_facade() {
             );
         }
     }
-    for file in [
-        "work-feature/src/instruction/migration_build.rs",
-        "work-feature/src/instruction/refresh_build.rs",
-    ] {
+    {
+        let file = "work-feature/src/instruction/refresh_build.rs";
         let text = source(file);
         assert!(!text.contains("fn hash("), "local hash in {file}");
         assert!(
@@ -208,8 +206,6 @@ fn feature_and_infrastructure_cannot_bypass_derivation_facade() {
         );
     }
     for file in [
-        "work-feature/src/instruction/migration_publication.rs",
-        "work-feature/src/instruction/refresh_publication.rs",
         "work-feature/src/specification/mod.rs",
         "work-feature/src/specification/migration_transaction.rs",
         "work-feature/src/specification/reconciliation_publication.rs",
@@ -364,4 +360,120 @@ fn guard_accepts_facade_usage() {
         facade_usage
     ));
     assert!(!caller_local_propagation(facade_usage));
+}
+
+#[test]
+fn fixture_staging_preserves_evidence_and_rejects_partial_derivation() {
+    use std::collections::{BTreeMap, BTreeSet};
+    use work_infrastructure::fixture_support::{raw_sha256, stage_fixture_case};
+
+    let original = BTreeMap::from([
+        ("current.json".into(), b"old current".to_vec()),
+        (
+            "history.json".into(),
+            b"{\"schema\":\"unsupported\"}\r\n".to_vec(),
+        ),
+        ("payload.bin".into(), vec![0, 255, 13, 10]),
+        (
+            "negative.done".into(),
+            b"deliberately damaged digest\n".to_vec(),
+        ),
+    ]);
+    let protected = BTreeSet::from([
+        "history.json".into(),
+        "payload.bin".into(),
+        "negative.done".into(),
+    ]);
+    let derive = |files: &mut BTreeMap<String, Vec<u8>>| {
+        files.insert("current.json".into(), b"new current".to_vec());
+        Ok(())
+    };
+    let first = stage_fixture_case(&original, &protected, derive).unwrap();
+    let second = stage_fixture_case(&first, &protected, derive).unwrap();
+    assert_eq!(first, second);
+    for path in &protected {
+        assert_eq!(raw_sha256(&first[path]), raw_sha256(&original[path]));
+    }
+    for path in &protected {
+        assert!(
+            stage_fixture_case(&original, &protected, |files| {
+                files.insert(path.clone(), b"changed evidence".to_vec());
+                Ok(())
+            })
+            .is_err()
+        );
+        assert!(
+            stage_fixture_case(&original, &protected, |files| {
+                files.remove(path);
+                Ok(())
+            })
+            .is_err()
+        );
+    }
+    assert!(
+        stage_fixture_case(&original, &protected, |files| {
+            files.insert("current.json".into(), b"partial".to_vec());
+            Err("binding failed".into())
+        })
+        .is_err()
+    );
+    assert_eq!(original["current.json"], b"old current");
+    assert!(stage_fixture_case(&original, &BTreeSet::from(["missing".into()]), derive).is_err());
+}
+
+#[test]
+fn fixture_binding_rebuild_is_deterministic_and_rejects_damaged_items() {
+    use serde_json::Value;
+    use std::collections::{BTreeMap, BTreeSet};
+    use work_infrastructure::fixture_support::{
+        ArtifactNode, raw_sha256, rebuild_fixture_bindings,
+    };
+
+    let root = crates_root().join("work-infrastructure/fixtures/task-diagnostics/outputs/work");
+    let index: Value =
+        serde_json::from_slice(&fs::read(root.join("tasks/example/index.json")).unwrap()).unwrap();
+    let execution: Value =
+        serde_json::from_slice(&fs::read(root.join("executions/example/index.json")).unwrap())
+            .unwrap();
+    let mut item: Value =
+        serde_json::from_slice(&fs::read(root.join("tasks/example/tasks/TASK-001.json")).unwrap())
+            .unwrap();
+    item["title"] = serde_json::json!("Reviewed fixture update");
+    let items = BTreeMap::from([("TASK-001".into(), serde_json::to_vec(&item).unwrap())]);
+    let roots = BTreeSet::from([ArtifactNode::TaskItemBytes("TASK-001".into())]);
+    let first = rebuild_fixture_bindings(&index, &items, Some(&execution), &roots).unwrap();
+    let rebuilt_index: Value = serde_json::from_slice(&first.0).unwrap();
+    let rebuilt_execution: Value = serde_json::from_slice(first.1.as_ref().unwrap()).unwrap();
+    let second =
+        rebuild_fixture_bindings(&rebuilt_index, &items, Some(&rebuilt_execution), &roots).unwrap();
+    assert_eq!(first, second);
+    assert_eq!(rebuilt_execution["task_index_sha256"], raw_sha256(&first.0));
+    assert_eq!(rebuilt_index["source"], index["source"]);
+    assert_eq!(
+        rebuilt_execution["tasks"][0]["task_item_sha256"],
+        rebuilt_index["tasks"][0]["canonical_sha256"]
+    );
+    let damaged = BTreeMap::from([("TASK-001".into(), vec![255])]);
+    assert_eq!(
+        rebuild_fixture_bindings(&index, &damaged, Some(&execution), &roots),
+        Err("invalid_utf8".into())
+    );
+    assert!(rebuild_fixture_bindings(&index, &BTreeMap::new(), Some(&execution), &roots).is_err());
+}
+
+#[test]
+fn retired_source_refresh_writers_cannot_return() {
+    for path in [
+        "work-feature/src/instruction/refresh_publication.rs",
+        "work-feature/src/instruction/refresh_batch.rs",
+        "work-feature/src/instruction/migration.rs",
+        "work-feature/src/instruction/migration_build.rs",
+        "work-feature/src/instruction/migration_publication.rs",
+        "work-infrastructure/src/instruction/migration.rs",
+    ] {
+        assert!(
+            !crates_root().join(path).exists(),
+            "retired writer returned: {path}"
+        );
+    }
 }

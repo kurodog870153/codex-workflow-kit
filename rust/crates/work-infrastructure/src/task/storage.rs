@@ -418,12 +418,12 @@ mod tests {
             &json!([{"id":"ACCEPTANCE-001","criterion":"Result is verified."}]),
         )
         .unwrap();
-        let item = json!({"schema":"work-task-item/v1","id":"TASK-001","title":"Implement result","skill_id":null,
+        let item = json!({"schema":"work-task-item","id":"TASK-001","title":"Implement result","skill_id":null,
             "instruction_selection":selection,"traceability":{"acceptance_ids":["ACCEPTANCE-001"]},"acceptance_criteria":[{"id":"TASK-001-ACCEPTANCE-001","criterion":"Result is verified."}],
             "goal":"Deliver result.","steps":[{"id":"STEP-001","action":"Verify result.","references":["VAL-001"]}],
             "validations":[{"id":"VAL-001","kind":"manual","confirmer":"user","criteria":"Result is verified.","acceptance_ids":["ACCEPTANCE-001","TASK-001-ACCEPTANCE-001"]}]});
         let item_raw = render_task(&item, TaskDocumentKind::Item).unwrap();
-        let index = json!({"schema":"work-task-index/v1","requirement_id":"issue55-task-parity","spec_id":"TASK-SPEC-001","status":"confirmed",
+        let index = json!({"schema":"work-task-index","requirement_id":"issue55-task-parity","spec_id":"TASK-SPEC-001","status":"confirmed",
             "title":"Task parity","summary":"Verify collection.","artifacts":source["artifacts"],
             "source":{"kind":"snapshot","manifest":source["snapshot"]},"hierarchy_selection":source["hierarchy_selection"],"skill_selection":source["skill_selection"],"acceptance_criteria":source["acceptance_criteria"],
             "instruction_selection":document,"tasks":[{"id":"TASK-001","path":"tasks/TASK-001.json","canonical_sha256":sha256_hex(&item_raw)}],
@@ -502,15 +502,15 @@ mod tests {
             "TASK-001",
         )
         .unwrap();
-        assert_eq!(context.contract["schema"], "work-task-execution-view/v1");
+        assert_eq!(context.contract["schema"], "work-task-execution-view");
         assert_eq!(context.contract["tasks"][0]["id"], "TASK-001");
         assert_eq!(
             canonical_json_sha256(&context.contract).unwrap(),
-            "82bf788882ca7d4d25a729d8925c6a5ebe80628d03395edf0462bc772b639305"
+            "a63c7e8cbcbf8e43284a3fff6246b164849bc48beae47c810c770a3e07d48314"
         );
         assert_eq!(
             canonical_json_sha256(&context.validation).unwrap(),
-            "3c479e4c8f384726be3bad8531276127cc6227c61821e6f7cacd7e37006fecb0"
+            "55ff42f60f8ffcd116ed023935ca8d1b4a357e75f9d5fde5d099fed87ed9e145"
         );
         assert_eq!(
             context.validation["task_collection_sha256"],
@@ -761,13 +761,13 @@ mod tests {
         .unwrap();
         let execute_sha = execute.instructions_sha256.clone();
         let skill_sha = skill_selection_sha256("base_only", &[]);
-        let authorization = json!({"schema":"work-attempt-authorization/v1",
+        let authorization = json!({"schema":"work-attempt-authorization",
             "task_id":"TASK-001","commands":[],"validations":[item["validations"][0]],
             "modifiable_files":[],"working_directories":[],"external_operations":[],
             "allowed_deviations":[],"reapproval_conditions":["scope_expansion",
                 "source_or_worktree_drift","failure_divergence","retry","recovery","unknown_result"],
             "authorization_evidence":"Approved"});
-        let attempt = json!({"acceptance_results":work_operations::execution::acceptance::pending(work_operations::execution::acceptance::task_ids(&item)),"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
+        let attempt = json!({"acceptance_results":work_operations::execution::acceptance::pending(work_operations::execution::acceptance::task_ids(&item)),"schema":"work-attempt","attempt_id":"ATTEMPT-001",
             "task_spec_id":"TASK-SPEC-001","task_id":"TASK-001","skill_id":null,
             "status":"in_progress","task_collection_sha256":context.validation["task_collection_sha256"],
             "task_index_sha256":context.validation["task_index_sha256"],
@@ -873,7 +873,7 @@ mod tests {
             &start_storage,
             start_target,
             &[],
-            &json!({"schema":"work-attempt-start-request/v1",
+            &json!({"schema":"work-attempt-start-request",
                 "worktree_snapshot_sha256":worktree["snapshot_sha256"],
                 "authorization":expanded.clone()}),
             "2026-09-01T10:00+08:00",
@@ -889,7 +889,7 @@ mod tests {
             &start_storage,
             start_target,
             &[],
-            &json!({"schema":"work-attempt-start-request/v1",
+            &json!({"schema":"work-attempt-start-request",
                 "worktree_snapshot_sha256":worktree["snapshot_sha256"],
                 "authorization":expanded}),
             "2026-09-01T10:00+08:00",
@@ -903,7 +903,7 @@ mod tests {
             fs::read(&execution_index_file).unwrap(),
             render_execution_index(&initial_index).unwrap()
         );
-        let start_request = json!({"schema":"work-attempt-start-request/v1",
+        let start_request = json!({"schema":"work-attempt-start-request",
             "worktree_snapshot_sha256":worktree["snapshot_sha256"],
             "authorization":authorization});
         let started = start_attempt_from_project(
@@ -1012,7 +1012,7 @@ mod tests {
             fs::read(&execution_index_file).unwrap(),
             started_index_bytes
         );
-        let mut execution_index = json!({"acceptance_results":initial_index["acceptance_results"],"schema":"work-execution-index/v1",
+        let mut execution_index = json!({"acceptance_results":initial_index["acceptance_results"],"schema":"work-execution-index",
             "requirement_id":"issue55-task-parity","title":"Execution",
             "task_spec_id":"TASK-SPEC-001",
             "task_collection_sha256":context.validation["task_collection_sha256"],
@@ -1044,7 +1044,7 @@ mod tests {
             task_repository: &repository,
             skill_roots: &[],
         };
-        let missing_request = json!({"schema":"work-command-run-request/v1","timeout_seconds":60});
+        let missing_request = json!({"schema":"work-command-run-request","timeout_seconds":60});
         let input = CommandProjectRequest {
             task_path,
             execution_dir,
@@ -1134,7 +1134,7 @@ mod tests {
         )
         .unwrap();
         fs::write(&attempt_path, render_attempt(&command_attempt).unwrap()).unwrap();
-        let command_request = json!({"schema":"work-command-run-request/v1","timeout_seconds":60});
+        let command_request = json!({"schema":"work-command-run-request","timeout_seconds":60});
         let input = CommandProjectRequest {
             task_path,
             execution_dir,
@@ -1199,13 +1199,13 @@ mod tests {
                 execution_dir,
                 task_id: "TASK-001",
             },
-            &json!({"schema":"work-command-correction-request/v1",
+            &json!({"schema":"work-command-correction-request",
                 "actual_command":{"mode":"argv","argv":reviewed_argv},
                 "reason":"Use reviewed command."}),
         )
         .unwrap();
         assert_eq!(corrected["correction_status"], "recorded");
-        let proposal = json!({"schema":"work-execution-deviation-proposal/v1",
+        let proposal = json!({"schema":"work-execution-deviation-proposal",
             "task_id":"TASK-001","attempt_id":"ATTEMPT-001","anchor_record_id":"CMD-001",
             "task_basis":["CMD-001"],"gap":"An equivalent command was approved.",
             "action":deviation_action,"modifiable_files":[],
@@ -1387,14 +1387,14 @@ mod tests {
                 execution_dir,
                 task_id: "TASK-001",
             },
-            &json!({"schema":"work-execution-recovery-prepare-request/v1",
+            &json!({"schema":"work-execution-recovery-prepare-request",
                 "transaction":"deviation_record","attempt_id":"ATTEMPT-001"}),
         )
         .unwrap_err();
         assert_eq!(mixed.reason_code, "recovery_prepare_mixed_transactions");
         assert_eq!(fs::read(&foreign).unwrap(), b"preserved");
         fs::remove_file(&foreign).unwrap();
-        let recovery_request = json!({"schema":"work-execution-recovery-prepare-request/v1",
+        let recovery_request = json!({"schema":"work-execution-recovery-prepare-request",
             "transaction":"deviation_record","attempt_id":"ATTEMPT-001"});
         assert!(
             prepare_recovery_from_project(
@@ -1508,7 +1508,7 @@ mod tests {
                 execution_dir,
                 task_id: "TASK-001",
             },
-            &json!({"schema":"work-execution-recovery-prepare-request/v1",
+            &json!({"schema":"work-execution-recovery-prepare-request",
                 "transaction":"deviation_record","attempt_id":"ATTEMPT-001"}),
         )
         .unwrap();
@@ -1557,7 +1557,7 @@ mod tests {
             &sources,
             &execution_storage,
             target,
-            &json!({"schema":"work-record-finish-request/v1",
+            &json!({"schema":"work-record-finish-request",
                 "record":{"exit_code":0,"result":"Command verified."}}),
         )
         .unwrap();
@@ -1570,7 +1570,7 @@ mod tests {
             &sources,
             &execution_storage,
             target,
-            &json!({"schema":"work-record-finish-request/v1",
+            &json!({"schema":"work-record-finish-request",
                 "record":{"outcome":"passed","evidence":"Reviewed."}}),
         )
         .unwrap();
@@ -1596,7 +1596,7 @@ mod tests {
             &sources,
             &execution_storage,
             target,
-            &json!({"schema":"work-attempt-close-request/v1","status":"stopped",
+            &json!({"schema":"work-attempt-close-request","status":"stopped",
                 "final_type":"user_stopped","reason":"Stop after review.",
                 "authorization_evidence":"Fresh close approval"}),
             "2026-09-01T11:00+08:00",
@@ -1625,7 +1625,7 @@ mod tests {
             &sources,
             &execution_storage,
             target,
-            &json!({"schema":"work-correction-create-request/v1",
+            &json!({"schema":"work-correction-create-request",
                 "target_attempt_id":"ATTEMPT-001","field":"records[0].result",
                 "correct_value":"Reviewed","reason":"Correct the record narrative.",
                 "invalidates_completion":false}),
@@ -1689,7 +1689,7 @@ mod tests {
             retry_prepared["request"]["continuation"]["carried_records"][0]["record_id"],
             "VAL-001"
         );
-        let second_request = json!({"schema":"work-correction-create-request/v1",
+        let second_request = json!({"schema":"work-correction-create-request",
             "target_attempt_id":"ATTEMPT-001","field":"records[1].evidence",
             "correct_value":"Reviewed again","reason":"Correct validation narrative.",
             "invalidates_completion":false});
@@ -1724,7 +1724,7 @@ mod tests {
             &sources,
             &execution_storage,
             target,
-            &json!({"schema":"work-execution-recovery-prepare-request/v1",
+            &json!({"schema":"work-execution-recovery-prepare-request",
                 "transaction":"correction","attempt_id":"ATTEMPT-001"}),
         )
         .unwrap();
@@ -1796,7 +1796,7 @@ mod tests {
             &sources,
             &execution_storage,
             target,
-            &json!({"schema":"work-execution-recovery-prepare-request/v1",
+            &json!({"schema":"work-execution-recovery-prepare-request",
                 "transaction":"correction","attempt_id":"ATTEMPT-001"}),
         )
         .unwrap();

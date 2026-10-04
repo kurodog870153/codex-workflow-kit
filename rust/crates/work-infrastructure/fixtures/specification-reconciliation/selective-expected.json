@@ -5,7 +5,7 @@
   "deviation_classifications": {
     "DEVIATION-001": "task_only"
   },
-  "fingerprint": "a524c62c61e73fd92aa68ca73be7891d939554287d724cfde077f2b5afdeb90a",
+  "fingerprint": "fe6dc178b80ed10e916daf73220ec4031bc223171e4afc836ba092e25ea4d334",
   "ledger": {
     "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
     "entries": [
@@ -13,11 +13,11 @@
         "attempt_sha256": "1d566b34bf20c67837166d44cfb00f4b9a2a3fbaf3b31d67caf0dffba52f18a7",
         "deviation_id": "DEVIATION-001",
         "outcome": "incorporated",
-        "reconciliation_fingerprint": "a524c62c61e73fd92aa68ca73be7891d939554287d724cfde077f2b5afdeb90a",
+        "reconciliation_fingerprint": "fe6dc178b80ed10e916daf73220ec4031bc223171e4afc836ba092e25ea4d334",
         "target": "task_only"
       }
     ],
-    "schema": "work-spec-reconciliation-ledger/v1"
+    "schema": "work-spec-reconciliation-ledger"
   },
   "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
   "migration_preview": {
@@ -25,7 +25,7 @@
     "documents": [],
     "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "relationship_results": [],
-    "schema": "work-spec-migration-preview/v1",
+    "schema": "work-spec-migration-preview",
     "status": "ready",
     "unresolved_items": [],
     "validator_results": [],
@@ -37,7 +37,7 @@
   "publication_ready": true,
   "publication_required": true,
   "retained_deviation_ids": [],
-  "schema": "work-spec-reconciliation-preview/v1",
+  "schema": "work-spec-reconciliation-preview",
   "selected_deviation_ids": [
     "DEVIATION-001"
   ],

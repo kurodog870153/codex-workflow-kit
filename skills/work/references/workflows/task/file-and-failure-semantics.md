@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # File and failure semantics
 
 1. Planning uses `outputs/work/tasks/<requirement-id>/drafts/index.json`. Each `draft_ref` records `save_revision`, draft `revision` and `sha256`; its historical file is `history/<save_revision>/<TASK-ID>.json`. The saved context binds one complete Source snapshot plus independent TASK decisions and selections.

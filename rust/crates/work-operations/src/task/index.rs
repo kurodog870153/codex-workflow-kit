@@ -105,7 +105,7 @@ pub fn validate_task_index(
     ];
     let optional = ["execution_defaults", "decisions", "changes"];
     let index = strict(value, "task_index", &required, &optional)?;
-    if index["schema"] != "work-task-index/v1" {
+    if index["schema"] != "work-task-index" {
         return Err(issue(
             "invalid_task_index_schema",
             "The TASK index schema is invalid.",
@@ -291,7 +291,7 @@ pub fn validate_task_index(
     Ok(work_model::task::response::typed_response::<
         work_model::task::response::TaskIndexValidation,
     >(
-        json!({"schema": "work-task-index-validation/v1", "requirement_id": requirement, "spec_id": spec, "task_ids": ids, "task_paths": paths, "task_item_sha256": hashes, "task_index_sha256": sha256_hex(raw)}),
+        json!({"schema": "work-task-index-validation", "requirement_id": requirement, "spec_id": spec, "task_ids": ids, "task_paths": paths, "task_item_sha256": hashes, "task_index_sha256": sha256_hex(raw)}),
     ))
 }
 
@@ -300,9 +300,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn example_index_matches_python_fingerprint() {
+    fn example_index_matches_current_contract_fingerprint() {
         let context = crate::task::source::fixture_context();
-        let index = json!({"schema": "work-task-index/v1", "requirement_id": "example", "spec_id": "TASK-SPEC-001", "status": "confirmed", "title": "Example", "summary": "Example tasks.",
+        let index = json!({"schema": "work-task-index", "requirement_id": "example", "spec_id": "TASK-SPEC-001", "status": "confirmed", "title": "Example", "summary": "Example tasks.",
             "artifacts": context["artifacts"],
             "source": {"kind":"snapshot","manifest":context["snapshot"]},
             "hierarchy_selection":context["hierarchy_selection"],"skill_selection":context["skill_selection"],"acceptance_criteria":context["acceptance_criteria"],
@@ -352,7 +352,7 @@ mod tests {
         assert_eq!(error.reason_code, "invalid_object_fields");
         assert_eq!(error.details["missing"], json!(["instruction_selection"]));
         assert_eq!(error.details["unknown"], json!(["rule_selection"]));
-        assert!(raw.starts_with(b"{\n  \"schema\": \"work-task-index/v1\""));
+        assert!(raw.starts_with(b"{\n  \"schema\": \"work-task-index\""));
         assert!(raw.windows(b"\"id\": \"TASK-001\",\n      \"path\": \"tasks/TASK-001.json\",\n      \"canonical_sha256\"".len()).any(|window| window == b"\"id\": \"TASK-001\",\n      \"path\": \"tasks/TASK-001.json\",\n      \"canonical_sha256\""));
         let mut noncanonical = b" ".to_vec();
         noncanonical.extend_from_slice(&raw);

@@ -1,30 +1,30 @@
 {
   "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
-  "attempt_sha256": "2ae0e20ec5913132a1fe9b6e04ac9bc0c1adecbc1db250cdd3273324f82d80d8",
+  "attempt_sha256": "d0034312a3ef3f6ad0d6839aca77e4bf3f8db090f27099f2125a6fc14f3f9f1f",
   "deviation_classifications": {
     "DEVIATION-001": "retain_only"
   },
   "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
-  "ledger_sha256": "f153d9aa71e1a8117735d7162a7b299ca449a1636303bfed25a2809252fde394",
+  "ledger_sha256": "7ccecd6bb9b91253882810250c3cb1946b48f65be2fd32d48cdbf3577b3a5c6e",
   "publication": {
-    "completion_marker": "outputs/work/executions/example/.work-spec-migration-51F75BD5B318.json.done",
+    "completion_marker": "outputs/work/executions/example/.work-spec-migration-8B03F4BA79C4.json.done",
     "documents": [
       "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json"
     ],
-    "fingerprint": "51f75bd5b3187fda1d39b311da088085349fe1874c7f0994cb58b89d7f03f25b",
-    "journal": "outputs/work/executions/example/.work-spec-migration-51F75BD5B318.json",
+    "fingerprint": "8b03f4ba79c40da3da6f7f2b36b00333f63d58a11455573675bd6e96ddcd6ab3",
+    "journal": "outputs/work/executions/example/.work-spec-migration-8B03F4BA79C4.json",
     "publication_status": "published",
     "relationship_results": [],
-    "schema": "work-spec-migration-publication/v1",
+    "schema": "work-spec-migration-publication",
     "status": "updated",
-    "transaction_approval_sha256": "0719fe93d7b1b0d1b74200148eea50d2a7bb7c9d45ed56691864709308aac208",
+    "transaction_approval_sha256": "2ae29465ae424ba6c43fb00787a456130b2d367888bfac1ed7ed7ab8f76d66b2",
     "validator_results": []
   },
-  "reconciliation_fingerprint": "51f75bd5b3187fda1d39b311da088085349fe1874c7f0994cb58b89d7f03f25b",
+  "reconciliation_fingerprint": "8b03f4ba79c40da3da6f7f2b36b00333f63d58a11455573675bd6e96ddcd6ab3",
   "retained_deviation_ids": [
     "DEVIATION-001"
   ],
-  "schema": "work-spec-reconciliation-publication/v1",
+  "schema": "work-spec-reconciliation-publication",
   "selected_deviation_ids": [],
   "status": "updated"
 }

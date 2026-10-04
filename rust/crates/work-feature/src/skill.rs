@@ -68,7 +68,7 @@ pub fn catalog(
     }
     Ok(
         work_model::skill::verified::<work_model::skill::SkillCatalog>(
-            json!({"schema": "work-skill-catalog/v1", "skills": skills, "unavailable": unavailable}),
+            json!({"schema": "work-skill-catalog", "skills": skills, "unavailable": unavailable}),
         ),
     )
 }
@@ -532,7 +532,7 @@ pub fn build_selection(
         serde_json::from_value(Value::Object(request.clone()))
             .expect("validated Skill request matches its model");
     let digest = fingerprint::skill_selection(decision, &skills);
-    let selection = json!({"schema": "work-skill-selection/v1", "decision": decision, "skills": skills, "selection_sha256": digest});
+    let selection = json!({"schema": "work-skill-selection", "decision": decision, "skills": skills, "selection_sha256": digest});
     validate_selection(repository, roots, &selection)?;
     Ok(selection)
 }
@@ -548,7 +548,7 @@ pub fn validate_selection(
         &["schema", "decision", "skills", "selection_sha256"],
         &[],
     )?;
-    if object["schema"] != "work-skill-selection/v1" {
+    if object["schema"] != "work-skill-selection" {
         return Err(error(
             ExitCode::Contract,
             "invalid_skill_selection_schema",
@@ -757,7 +757,7 @@ pub fn validate_selection(
     Ok(work_model::skill::verified::<
         work_model::skill::SkillSelectionValidation,
     >(
-        json!({"schema": "work-skill-selection-validation/v1", "status": "valid", "skill_selection": selection}),
+        json!({"schema": "work-skill-selection-validation", "status": "valid", "skill_selection": selection}),
     ))
 }
 

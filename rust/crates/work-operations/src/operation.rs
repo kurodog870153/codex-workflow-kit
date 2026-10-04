@@ -188,7 +188,7 @@ mod tests {
     }
 
     #[test]
-    fn routing_identity_tracks_python_command_categories() {
+    fn routing_identity_tracks_current_contract_command_categories() {
         assert_eq!(
             routing_identity("migration", "apply", None).unwrap(),
             OperationRouting {

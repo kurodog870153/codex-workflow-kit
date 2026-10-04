@@ -12,7 +12,7 @@ use work_feature::instruction::{
 use work_feature::ports::{ArtifactStore, WriterLock};
 use work_feature::skill::SkillRoot;
 use work_feature::specification::{SpecificationBaseline, preview_update};
-use work_feature::task::load_collection_with_file_state;
+use work_feature::task::{load_collection_with_file_state, load_revision_baseline};
 use work_operations::canonical::parse_json_contract;
 use work_operations::derivation::fingerprint;
 use work_operations::derivation::graph::{ArtifactNode, reconcile_artifact_bindings};
@@ -335,9 +335,7 @@ fn resolve_task_path(root: &Path, requirement_id: &str) -> Result<String, WorkEr
         let Ok(document) = serde_json::from_slice::<Value>(&raw) else {
             continue;
         };
-        if document["schema"] != "work-task-index/v1"
-            || document["requirement_id"] != requirement_id
-        {
+        if document["schema"] != "work-task-index" || document["requirement_id"] != requirement_id {
             continue;
         }
         if document["artifacts"]["task"] != relative {
@@ -429,14 +427,13 @@ fn sources(
     let repository = LocalTaskStorage {
         project_root: root.to_path_buf(),
     };
-    let collection = load_collection_with_file_state(
+    let collection = load_revision_baseline(
         &instructions,
         &skills,
         &paths,
         &repository,
         &roots,
         task_path,
-        true,
     )
     .map_err(with_migration_route)?;
     let source_sha256 = collection["source_sha256"]
@@ -514,10 +511,10 @@ pub fn prepare_simple_update(
             issue.details,
         )
     })?;
-    if semantic["schema"] != "work-spec-prepare-request/v1" {
+    if semantic["schema"] != "work-spec-prepare-request" {
         return Err(fail(
             "spec_prepare_schema",
-            "Use work-spec-prepare-request/v1.",
+            "Use work-spec-prepare-request.",
         ));
     }
     let requirement = semantic["requirement_id"]
@@ -764,7 +761,7 @@ pub fn prepare_simple_update(
                     issue.details,
                 )
             })?;
-            let mut item = json!({"schema":"work-task-item/v1","id":id,
+            let mut item = json!({"schema":"work-task-item","id":id,
                 "title":candidate["title"],"goal":candidate["goal"],"skill_id":candidate["skill_id"],
                 "instruction_selection":selection,
                 "traceability":{"acceptance_ids":candidate["candidate"]["acceptance_ids"]},
@@ -1051,6 +1048,29 @@ pub fn prepare_simple_update(
     let spec_id = format!("TASK-SPEC-{:03}", old_spec + 1);
     index["spec_id"] = json!(spec_id);
     index["readiness"]["spec_id"] = json!(spec_id);
+    if semantic.get("source_update").is_some() {
+        let mut routing =
+            crate::routing_sources::RoutingSourceSession::new(skill_root.to_path_buf());
+        for item in items.values_mut() {
+            item["instruction_selection"]["routing_manifest"] =
+                work_feature::instruction::migration_manifest(
+                    &mut routing,
+                    "task",
+                    "task_confirmed",
+                    "choose_task",
+                    item,
+                )?;
+        }
+        index["instruction_selection"]["routing_manifest"] =
+            work_feature::instruction::migration_manifest(
+                &mut routing,
+                "task",
+                "task_confirmed",
+                "confirm_review",
+                &index,
+            )?;
+        routing.recheck()?;
+    }
     let mut updated_references = Vec::new();
     let mut item_raw = BTreeMap::new();
     for (id, item) in &items {
@@ -1146,7 +1166,7 @@ pub fn prepare_simple_update(
         &baseline.execution_raw,
         &baseline.items,
     );
-    let mut request = json!({"schema":"work-spec-update-request/v1","reason":reason,
+    let mut request = json!({"schema":"work-spec-update-request","reason":reason,
         "expected":expected,"task_index":index,"task_items":items});
     if let Some(update) = semantic.get("source_update") {
         request["source_confirmation"] = update["source_confirmation"].clone();
@@ -1167,6 +1187,7 @@ pub fn prepare_simple_update(
     let paths = crate::artifact_paths::LocalArtifactPaths {
         project_root: root.to_path_buf(),
     };
+    let mut routing = crate::routing_sources::RoutingSourceSession::new(skill_root.to_path_buf());
     let preview = preview_update(
         &instructions,
         &skills,
@@ -1174,8 +1195,10 @@ pub fn prepare_simple_update(
         &roots,
         &request,
         baseline.borrow(),
+        &mut routing,
     )?
     .result;
+    routing.recheck()?;
     if let Some(output) = input.output_file {
         let raw = render_task(&request, TaskDocumentKind::SpecificationRequest).map_err(|_| {
             fail(
@@ -1188,9 +1211,9 @@ pub fn prepare_simple_update(
     Ok(work_model::specification::verified::<
         work_model::specification::SpecPrepare,
     >(
-        json!({"schema":"work-spec-prepare/v1","request":request,"preview":preview,
+        json!({"schema":"work-spec-prepare","request":request,"preview":preview,
         "output_file":input.output_file.map(|path| path.to_string_lossy().to_string()),
-        "transport":{"request_field":"request","request_schema":"work-spec-update-request/v1",
+        "transport":{"request_field":"request","request_schema":"work-spec-update-request",
             "output_file":input.output_file.map(|path| path.to_string_lossy().to_string())},
         "next_step":{"command":"specification preview","input":"request"}}),
     ))
@@ -1343,7 +1366,7 @@ pub fn update_from_project(
             ));
         }
         let result = work_model::specification::verified::<work_model::specification::SpecUpdate>(
-            json!({"schema":"work-spec-update/v1","status":"valid",
+            json!({"schema":"work-spec-update","status":"valid",
             "requirement_id":request["task_index"]["requirement_id"],"record_id":id,
             "approved_sha256":journal["approval_sha256"],
             "affected_task_ids":journal["metadata"]["affected_task_ids"],"artifacts":artifacts}),
@@ -1368,6 +1391,8 @@ pub fn update_from_project(
         let paths = crate::artifact_paths::LocalArtifactPaths {
             project_root: root.to_path_buf(),
         };
+        let mut routing =
+            crate::routing_sources::RoutingSourceSession::new(skill_root.to_path_buf());
         let preview = preview_update(
             &instructions,
             &skills,
@@ -1375,7 +1400,9 @@ pub fn update_from_project(
             &roots,
             &request,
             baseline.borrow(),
+            &mut routing,
         )?;
+        routing.recheck()?;
         (preview.transaction, preview.result)
     };
     if matches!(input.operation, SpecOperation::Validate) {
@@ -1461,7 +1488,7 @@ pub fn update_from_project(
         "updated"
     });
     result["publication_status"] = published["status"].clone();
-    let verification = json!({"schema":"work-spec-verification-request/v1",
+    let verification = json!({"schema":"work-spec-verification-request",
         "requirement_id":request["task_index"]["requirement_id"],"artifacts":artifacts,
         "record_id":transaction["transaction_id"]});
     result["verification_request"] = verification;
@@ -1489,7 +1516,7 @@ pub fn verify_from_project(
             issue.details,
         )
     })?;
-    if request["schema"] != "work-spec-verification-request/v1" {
+    if request["schema"] != "work-spec-verification-request" {
         return Err(fail(
             "invalid_contract_value",
             "The verification request schema is invalid.",
@@ -1597,7 +1624,7 @@ pub fn verify_from_project(
     Ok(work_model::specification::verified::<
         work_model::specification::SpecVerification,
     >(
-        json!({"schema":"work-spec-verification/v1","status":"verified","verified":true,
+        json!({"schema":"work-spec-verification","status":"verified","verified":true,
         "record_id":id,"requirement_id":request["requirement_id"],"artifacts":artifacts,
         "task_collection_sha256":collection["task_collection_sha256"],"journal_sha256":fingerprint::journal(&raw),
         "verification_scope":"exact_specification_result","execution_authorized":false,
@@ -1617,7 +1644,7 @@ mod tests {
             rows,
             json!([{"id":"TASK-DECISION-001","statement":"Confirmed boundary","rationale":"Reviewed","task_ids":["TASK-001"]}])
         );
-        let request = json!({"schema":"work-spec-prepare-request/v1","requirement_id":"example","reason":"review","edits":[{"target":{"artifact":"plan"},"field":"summary","after":"Rejected"}]});
+        let request = json!({"schema":"work-spec-prepare-request","requirement_id":"example","reason":"review","edits":[{"target":{"artifact":"plan"},"field":"summary","after":"Rejected"}]});
         assert!(validate_prepare_request(&request).is_err());
     }
 
@@ -1672,7 +1699,7 @@ mod tests {
         let execution_path = root.join("outputs/work/executions/example/index.json");
         fs::create_dir_all(execution_path.parent().unwrap()).unwrap();
         fs::write(&execution_path, render_execution_index(&execution).unwrap()).unwrap();
-        let semantic = serde_json::to_vec(&json!({"schema":"work-spec-prepare-request/v1",
+        let semantic = serde_json::to_vec(&json!({"schema":"work-spec-prepare-request",
             "requirement_id":"example","reason":"Confirm the constraint wording.",
             "edits":[{"target":{"artifact":"task_item","task_id":"TASK-001"},"field":"goal",
                 "after":"Confirmed boundary"}]}))
@@ -1749,7 +1776,7 @@ mod tests {
     #[test]
     fn invalid_update_requests_are_rejected_before_source_lookup_for_every_operation() {
         let registry: Value = work_model::contract_data::registry_value();
-        let example = &registry["items"]["work-spec-update-request/v1"]["description"]["example"];
+        let example = &registry["items"]["work-spec-update-request"]["description"]["example"];
         let root = std::env::temp_dir().join(format!(
             "work-spec-update-invalid-before-io-{}-{}",
             std::process::id(),
@@ -1816,7 +1843,7 @@ mod tests {
         ));
         let skill = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         for edits in [json!([]), json!({})] {
-            let raw = serde_json::to_vec(&json!({"schema":"work-spec-prepare-request/v1",
+            let raw = serde_json::to_vec(&json!({"schema":"work-spec-prepare-request",
                 "requirement_id":"example","reason":"Review","edits":edits}))
             .unwrap();
             let error = prepare_simple_update(
@@ -1846,7 +1873,7 @@ mod tests {
                 .as_nanos()
         ));
         let skill = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
-        let raw = serde_json::to_vec(&json!({"schema":"work-spec-verification-request/v1",
+        let raw = serde_json::to_vec(&json!({"schema":"work-spec-verification-request",
             "requirement_id":"example","artifacts":{"plan":"p"},
             "record_id":"SPEC-UPDATE-ABCDEF012345"}))
         .unwrap();
@@ -1877,7 +1904,7 @@ mod tests {
         std::fs::write(
             &first,
             serde_json::to_vec(
-                &json!({"schema":"work-task-index/v1","requirement_id":"example",
+                &json!({"schema":"work-task-index","requirement_id":"example",
                 "artifacts":{"task":custom,
                     "execution":"outputs/work/custom/execution"}}),
             )
@@ -1889,7 +1916,7 @@ mod tests {
         std::fs::write(
             root.join(other),
             serde_json::to_vec(
-                &json!({"schema":"work-task-index/v1","requirement_id":"example",
+                &json!({"schema":"work-task-index","requirement_id":"example",
                 "artifacts":{"task":other}}),
             )
             .unwrap(),
@@ -1901,7 +1928,7 @@ mod tests {
         std::fs::write(
             root.join(other),
             serde_json::to_vec(
-                &json!({"schema":"work-task-index/v1","requirement_id":"example",
+                &json!({"schema":"work-task-index","requirement_id":"example",
                 "artifacts":{"task":"outputs/work/wrong.json"}}),
             )
             .unwrap(),
@@ -1959,7 +1986,7 @@ mod tests {
             "requirement_sha256":source["snapshot"]["content"]["sha256"],
             "retained_acceptance_ids":["ACCEPTANCE-001"], "removed_acceptance":[], "added_acceptance_ids":[],
             "task_reviews":{"TASK-001":review}});
-        let request = json!({"schema":"work-spec-prepare-request/v1", "requirement_id":"example", "reason":"Confirm replacement context", "edits":[],
+        let request = json!({"schema":"work-spec-prepare-request", "requirement_id":"example", "reason":"Confirm replacement context", "edits":[],
             "source_update":{"source":source,"selections":selections,"source_confirmation":confirmation}});
         let prepare = |request: &Value| {
             prepare_simple_update(
@@ -2054,6 +2081,161 @@ mod tests {
         );
     }
 
+    #[test]
+    fn instruction_drift_requires_reviewed_revise_and_preserves_current_source() {
+        let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+        let fixture =
+            repo.join("crates/work-infrastructure/fixtures/specification-update/item-goal");
+        let root = std::env::temp_dir().join(format!(
+            "work-revise-instruction-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        for path in [
+            "outputs/work/tasks/example/index.json",
+            "outputs/work/tasks/example/tasks/TASK-001.json",
+            "outputs/work/executions/example/index.json",
+        ] {
+            let target = root.join(path);
+            fs::create_dir_all(target.parent().unwrap()).unwrap();
+            fs::copy(fixture.join(path), target).unwrap();
+        }
+        crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
+        fs::write(root.join("src.txt"), b"source\n").unwrap();
+        let index_path = "outputs/work/tasks/example/index.json";
+        let original = fs::read(root.join(index_path)).unwrap();
+        let index: Value = serde_json::from_slice(&original).unwrap();
+        let current_skill = repo.join("../skills/work");
+        fn copy_tree(source: &Path, target: &Path) {
+            fs::create_dir_all(target).unwrap();
+            for entry in fs::read_dir(source).unwrap() {
+                let entry = entry.unwrap();
+                let target = target.join(entry.file_name());
+                if entry.file_type().unwrap().is_dir() {
+                    copy_tree(&entry.path(), &target);
+                } else {
+                    fs::copy(entry.path(), target).unwrap();
+                }
+            }
+        }
+        let skill = root.join("isolated-work");
+        copy_tree(&current_skill, &skill);
+        let changed_source = skill.join("references/instructions/task/general/instructions.md");
+        let mut changed = fs::read(&changed_source).unwrap();
+        changed.extend_from_slice(b"\nReviewed instruction change.\n");
+        fs::write(changed_source, changed).unwrap();
+        let instructions = LocalHierarchyCatalog {
+            skill_root: skill.clone(),
+        };
+        let paths = crate::artifact_paths::LocalArtifactPaths {
+            project_root: root.clone(),
+        };
+        let storage = LocalTaskStorage {
+            project_root: root.clone(),
+        };
+        let skills = LocalSkillCatalog { roots: vec![] };
+        // This fixture is structurally current with intact bindings, but its
+        // instruction sources differ from the installed current instructions.
+        assert!(
+            load_collection_with_file_state(
+                &instructions,
+                &skills,
+                &paths,
+                &storage,
+                &[],
+                index_path,
+                true
+            )
+            .is_err()
+        );
+        load_revision_baseline(&instructions, &skills, &paths, &storage, &[], index_path).unwrap();
+        let context = json!({"snapshot":index["source"]["manifest"],"artifacts":index["artifacts"],
+            "hierarchy_selection":index["hierarchy_selection"],"skill_selection":index["skill_selection"],
+            "acceptance_criteria":index["acceptance_criteria"]});
+        let confirmation = json!({"complete_requirement_review":true,
+            "previous_planning_sha256":fingerprint::structured(&index).unwrap(),
+            "new_source_sha256":fingerprint::structured(&context).unwrap(),
+            "requirement_sha256":context["snapshot"]["content"]["sha256"],
+            "retained_acceptance_ids":["ACCEPTANCE-001"],"removed_acceptance":[],"added_acceptance_ids":[],
+            "task_reviews":{"TASK-001":{"outcome_decisions":"Reviewed","technical_decisions":"Reviewed",
+                "boundary":"Reviewed","acceptance":"Reviewed","skills":"Reviewed","hierarchy":"Reviewed","instructions":"Reviewed current instructions"}}});
+        let semantic = json!({"schema":"work-spec-prepare-request","requirement_id":"example",
+            "reason":"Reviewed current instruction changes","edits":[],"source_update":{"source":context,
+            "selections":{"TASK-001":{"selected_paths":[],"references":["task.general.task-records"]}},
+            "source_confirmation":confirmation}});
+        let prepared = prepare_simple_update(
+            &root,
+            &skill,
+            &[],
+            SpecificationPrepareInput {
+                raw: &serde_json::to_vec(&semantic).unwrap(),
+                date: "2026-10-04",
+                output_file: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(fs::read(root.join(index_path)).unwrap(), original);
+        let request = serde_json::to_vec(&prepared["request"]).unwrap();
+        let approval = prepared["preview"]["approved_sha256"].as_str().unwrap();
+        assert!(
+            update_from_project(
+                &root,
+                &skill,
+                &[],
+                SpecificationProjectRequest {
+                    raw: &request,
+                    operation: SpecOperation::Apply,
+                    approved_sha256: Some(&"0".repeat(64)),
+                }
+            )
+            .is_err()
+        );
+        assert_eq!(fs::read(root.join(index_path)).unwrap(), original);
+        update_from_project(
+            &root,
+            &skill,
+            &[],
+            SpecificationProjectRequest {
+                raw: &request,
+                operation: SpecOperation::Apply,
+                approved_sha256: Some(approval),
+            },
+        )
+        .unwrap();
+        load_collection_with_file_state(
+            &instructions,
+            &skills,
+            &paths,
+            &storage,
+            &[],
+            index_path,
+            true,
+        )
+        .unwrap();
+        assert_eq!(
+            crate::instruction::refresh::source_impact(&root, &skill).unwrap()["status"],
+            "valid"
+        );
+        assert_eq!(
+            fs::read(root.join("outputs/work/sources/example/SRC-001/source.txt")).unwrap(),
+            fs::read(fixture.join("outputs/work/sources/example/SRC-001/source.txt")).unwrap()
+        );
+        let mut noncurrent = index;
+        noncurrent["schema"] = json!("unsupported-schema");
+        fs::write(
+            root.join(index_path),
+            serde_json::to_vec(&noncurrent).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            load_revision_baseline(&instructions, &skills, &paths, &storage, &[], index_path)
+                .is_err()
+        );
+    }
+
     fn assert_request_bytes(value: &Value, expected: &[u8]) {
         let actual = render_task(value, TaskDocumentKind::SpecificationRequest).unwrap();
         let actual_text = String::from_utf8(actual.clone()).unwrap();
@@ -2095,7 +2277,7 @@ mod tests {
         }
         fs::write(root.join("src.txt"), b"source\n").unwrap();
         let semantic = serde_json::to_vec(&json!({
-            "schema":"work-spec-prepare-request/v1",
+            "schema":"work-spec-prepare-request",
             "requirement_id":"example",
             "reason":"Confirmed semantic revision",
             "edits":[
@@ -2275,7 +2457,7 @@ mod tests {
         }
         fs::write(root.join("src.txt"), b"source\n").unwrap();
         let semantic = serde_json::to_vec(&json!({
-            "schema":"work-spec-prepare-request/v1",
+            "schema":"work-spec-prepare-request",
             "requirement_id":"example",
             "reason":"Confirmed dependency and default revision",
             "edits":[
@@ -2316,7 +2498,7 @@ mod tests {
     }
 
     #[test]
-    fn index_revision_preview_publication_and_verify_match_python() {
+    fn index_revision_preview_publication_and_verify_match_current_contract() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo.join("crates/work-infrastructure/fixtures/specification-update");
         let root = std::env::temp_dir().join(format!(
@@ -2455,7 +2637,7 @@ mod tests {
     }
 
     #[test]
-    fn item_and_plan_revisions_match_python_requests_and_transactions() {
+    fn item_and_plan_revisions_match_current_contract_requests_and_transactions() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         for variant in ["item-goal", "task-summary", "add-task", "remove-task"] {
             let fixture = repo

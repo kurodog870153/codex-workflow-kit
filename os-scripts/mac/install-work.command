@@ -363,21 +363,6 @@ install_selected_instructions() {
     fi
 }
 
-refresh_existing_instructions() {
-    local source_file relative branch
-    while IFS= read -r -d '' source_file; do
-        relative="${source_file#"$source_work/"}"
-        if [[ ! -f "$target_work/$relative" ]]; then
-            continue
-        fi
-        copy_file "$relative" || return 1
-        branch="${relative%/instructions.md}"
-        if [[ -d "$source_work/$branch/references" ]]; then
-            copy_tree "$branch/references" || return 1
-        fi
-    done < <(find "$source_work/references/instructions" -name instructions.md -type f -print0)
-}
-
 if ! validate_rust_toolchain; then
     exit 1
 fi
@@ -449,7 +434,7 @@ while true; do
     printf '  11. tailwind\n'
     printf '  12. spring-boot\n'
     printf 'Select multiple branches with spaces. Parent branches are included automatically.\n'
-    printf 'Previously installed branches and stale files will be kept, even with general only.\n'
+    printf 'Only selected branches will be installed; previous files remain in the recovery directory.\n'
     if ! read -r -p 'Select hierarchy numbers, enter "all", or press Enter for general only: ' hierarchy_selection; then
         printf 'Error: installation input ended before a selection was completed.\n' >&2
         exit 1
@@ -500,13 +485,7 @@ mkdir -p -- "$parent_work" || exit 1
 transaction_directory="$(mktemp -d "$parent_work/.work-install.XXXXXX")" || exit 1
 target_work="$transaction_directory/prepared"
 mkdir -- "$target_work" || exit 1
-if [[ -e "$final_work" ]]; then
-    if ! cp -R -p -- "$final_work/." "$target_work/"; then
-        printf 'Error: failed to stage existing Work files; installation was not changed. Recovery directory: "%s".\n' "$transaction_directory" >&2
-        exit 1
-    fi
-fi
-if ! install_base || ! refresh_existing_instructions || ! install_selected_instructions || ! install_binary; then
+if ! install_base || ! install_selected_instructions || ! install_binary || ! cmp -s -- "$built_work" "$target_work/scripts/work" || ! "$target_work/scripts/work" --help >/dev/null 2>&1; then
     printf 'Error: failed to prepare Work; installation was not changed. Recovery directory: "%s".\n' "$transaction_directory" >&2
     exit 1
 fi
@@ -530,4 +509,4 @@ target_work="$final_work"
 printf 'Installation recovery directory: "%s".\n' "$transaction_directory"
 
 printf 'Work skill installed in "%s".\n' "$target_work"
-printf 'Existing matching files were overwritten. Stale files were not removed.\n'
+printf 'Work was replaced with a clean installation. Previous files remain in the recovery directory.\n'

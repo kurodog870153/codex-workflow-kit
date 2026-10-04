@@ -54,6 +54,8 @@ flowchart TB
 
 ### 公開資料契約的型別化實作
 
+公開 schema ID、PublicSchema variants、ALL、serde、registry 與 producer/validator 只定義目前的無版本契約，不保留版本 alias 或舊 DTO 分支。一般 Task／Revise／Execute 輸入仍須通過 unknown-field、canonical bytes、路徑、layout 與跨檔案 binding 驗證。Migration 只把不相容或損毀內容當作 exact raw evidence；經審查的替代內容必須重新通過 current candidate 驗證，沒有歷史 parser 或 upgrade chain。
+
 1. `work-model/src/` 按 Source、Task、Execution、Specification 等業務概念，定義已登錄公開 request、artifact、response 與 envelope 的 Rust `struct`／`enum` 及固定巢狀物件。契約允許任意 JSON 的欄位保留 `Value`；其餘欄位以 `serde` 表達欄名、可選、`null` 與 enum 字面值。
 2. `work-model/src/contract_data.rs` 以 Rust 程式碼保存公開契約的描述、範例、scaffold 及欄位順序，並建構型別化的契約目錄。CLI 的 `contract list`、`describe`、`scaffold` 從該目錄取資料，仍負責輸出映射與呈現。
 3. Operations 仍負責跨欄位驗證、canonical bytes、SHA 與指紋；Feature／Flow 保留 ports、功能及流程所需的暫時性輸入。已知的公開資料形狀由 Model 表達，生產路徑於邊界解析／產生對應型別。型別化不得改變 schema、輸出欄位順序、缺漏／未知／`null` 行為、exit code、reason code、持久化內容或復原語意。
@@ -122,6 +124,10 @@ sequenceDiagram
 3. 先執行受影響的 Task／Specification 測試，確認衍生值與資料契約一致；通過後再執行第 5 點所列的 workspace 完整驗證。僅修改文件且未影響 artifact 或指紋規則時，確認沒有需要重算的測試資料即可。
 
 ## 8. Source、驗收與維護入口
+
+Instruction routing/source selections 不保存 compatibility revision 或 router revision；canonical source bytes 與 SHA drift 仍須檢核。有效集合的明確 instruction/selection 變更走 Revise，無可信 current baseline 時使用 public Migration。已移除的 instruction refresh/migration fresh writer 不再產生交易；instruction recover 只完成既有且核准綁定一致的 current journal。
+
+macOS／Windows installer 從空的 prepared 目錄建立 current base、本次選取 hierarchy 與 binary，驗證後以目錄 rename 發布。完整舊安裝保留於 previous；準備／備份失敗不改 active tree，發布失敗嘗試回復，回復失敗保留 previous。Windows 本輪僅靜態檢查，不能據此宣稱 cmd.exe、權限或 rename 已實測。
 
 1. 四種 public invocation mode 為 task／revise／migration／execute；explicit 與 implicit_confirmed 都保留精確 request，後者需要使用者確認證據。私人 role envelope 和 invocation 都不授權寫入或執行。
 2. Source capture 保存精確原始 bytes、manifest 與完成標記，使用 exclusive create、writer lock 及 readback；Task 的 planning_source 固定指向同一 snapshot，獨立保存 hierarchy、skill selection 與主驗收。正式集合是 index 加每個 TASK item，item 另有子驗收；VAL 必須覆蓋兩層驗收。

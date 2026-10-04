@@ -175,7 +175,7 @@ fn choose(repository: &BranchCatalog, path: &str) -> serde_json::Value {
 }
 
 #[test]
-fn cross_mode_leaf_and_intermediate_selection_match_python() {
+fn cross_mode_leaf_and_intermediate_selection_match_current_contract() {
     let repository = BranchCatalog { missing_mode: None };
     let leaf = choose(&repository, "web/frontend/component/astro");
     assert_eq!(

@@ -11,20 +11,20 @@
   "mode": "revision",
   "reason": "Confirmed collection revision",
   "requirement_id": "example",
-  "schema": "work-spec-migration-prepare-request/v1",
+  "schema": "work-spec-migration-prepare-request",
   "semantic_decisions": [],
   "sources": [
     {
       "path": "outputs/work/executions/example/index.json",
-      "raw_sha256": "861e234cc652a1f2f3b617b620b20e6e11c9b1dc040cfa080e47e9d3bbc111dd"
+      "raw_sha256": "187e03c0e7e3c040324f954443046cc1f1d4930e7e072261a1b65ba94d26973a"
     },
     {
       "path": "outputs/work/tasks/example/index.json",
-      "raw_sha256": "05d25d7ab362f18b5be4a4cd9990bab6460c8fa7dad9c092f9e0572faefe9982"
+      "raw_sha256": "002c2cc79c1a6d2a7473c5b562a510d055cd64141b9383e59cc688319d64d3e5"
     },
     {
       "path": "outputs/work/tasks/example/tasks/TASK-001.json",
-      "raw_sha256": "38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca"
+      "raw_sha256": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77"
     }
   ]
 }

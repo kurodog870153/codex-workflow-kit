@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # Coordinated formal artifact revision
 
 1. Use Revise for approved changes to an independently valid formal TASK collection, its Source provenance and Execution bindings. Initial Task planning, draft checkpoints, independent progress, external skill confirmation, handoffs and execution authorization keep their own workflows; a checkpoint is not a formal TASK.

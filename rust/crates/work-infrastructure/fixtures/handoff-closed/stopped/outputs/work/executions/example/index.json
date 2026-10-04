@@ -1,12 +1,12 @@
 {
-  "schema": "work-execution-index/v1",
+  "schema": "work-execution-index",
   "requirement_id": "example",
   "title": "Execution",
   "task_spec_id": "TASK-SPEC-001",
-  "task_collection_sha256": "14f480ef6582ca3359a8c284a4648214b8ccef2856841c4e1b4866318173c5d8",
-  "task_index_sha256": "0f23bcda95d41c7d908a5c5c1dfe058029d0f82f8bbb81a5bb6b43a41273bc31",
-  "task_instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
-  "hierarchy_selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59",
+  "task_collection_sha256": "bf96bff1dd62ce53c9616fdd546bbedb19d1c1e30f6879c5c97fe1d22aa9990c",
+  "task_index_sha256": "ab205d17ceda46970edd207965c60e96f5ff42735046eab1cfcbe27830fdd530",
+  "task_instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+  "hierarchy_selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569",
   "skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
   "overall_status": "pending",
   "acceptance_results": [
@@ -21,8 +21,8 @@
       "id": "TASK-001",
       "status": "blocked",
       "skill_id": null,
-      "task_item_sha256": "4bedcceb18c974eabb4656f0586e078058f4d4eead9e349ffbdab729d413bed8",
-      "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+      "task_item_sha256": "a49a2399ffb755915b7c0f94e97258aca936cc930340054dd50da4af90a5fbca",
+      "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
       "acceptance_results": [
         {
           "id": "ACCEPTANCE-001",
@@ -45,8 +45,8 @@
       "id": "TASK-002",
       "status": "pending",
       "skill_id": null,
-      "task_item_sha256": "48c8bd8b70ddb4fbba344446d505c33f30f59b6ac15076cb8576df57fb455830",
-      "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+      "task_item_sha256": "1fa8dac195d0981c013617f1575049f632a3eea69ad4ad8bdd4b07e73c0ec2d3",
+      "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
       "acceptance_results": [
         {
           "id": "ACCEPTANCE-001",

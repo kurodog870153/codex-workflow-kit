@@ -41,10 +41,10 @@ pub fn validate_command_run_request(request: &Value) -> Result<(), ExecutionIssu
             json!({"location":"command_run","missing":missing,"unknown":unknown}),
         ));
     }
-    if request["schema"] != "work-command-run-request/v1" {
+    if request["schema"] != "work-command-run-request" {
         return Err(issue(
             "command_run_schema",
-            "Use work-command-run-request/v1.",
+            "Use work-command-run-request.",
             json!({}),
         ));
     }
@@ -227,7 +227,7 @@ pub struct CommandPreviewInput<'a> {
 
 pub fn build_command_preview(input: CommandPreviewInput<'_>) -> Result<Value, ExecutionIssue> {
     validate_command_run_request(input.request)?;
-    let mut preview = json!({"schema":"work-command-preview/v1",
+    let mut preview = json!({"schema":"work-command-preview",
         "request":input.request,"task_id":input.task_id,
         "attempt_id":input.attempt_id,"record_id":input.record_id,
         "working_directory":input.working_directory,
@@ -240,12 +240,12 @@ pub fn build_command_preview(input: CommandPreviewInput<'_>) -> Result<Value, Ex
 }
 
 pub fn build_command_started(preview: &Value, authorization_evidence: &str) -> Value {
-    json!({"schema":"work-command-started/v1","preview":preview,
+    json!({"schema":"work-command-started","preview":preview,
         "authorization_evidence":authorization_evidence})
 }
 
 pub fn build_command_result(preview: &Value, process: &Value, with_receipt: bool) -> Value {
-    let mut result = json!({"schema":"work-command-result/v1",
+    let mut result = json!({"schema":"work-command-result",
         "approved_sha256":preview["approved_sha256"],
         "record_id":preview["record_id"],
         "status":process["status"],"exit_code":process["exit_code"],
@@ -258,7 +258,7 @@ pub fn build_command_result(preview: &Value, process: &Value, with_receipt: bool
         result["record_finish_required"] = json!(true);
         if process["status"] == "exited" {
             let code = process["exit_code"].as_i64().unwrap_or(0);
-            result["record_finish_request"] = json!({"schema":"work-record-finish-request/v1",
+            result["record_finish_request"] = json!({"schema":"work-record-finish-request",
                 "record":{"exit_code":code,
                     "result":format!("Command exited with code {code}; inspect retained execution evidence.")}});
         }
@@ -368,7 +368,7 @@ mod tests {
         );
         assert_eq!(
             validate_command_run_request(&json!({
-                "schema":"work-command-run-request/v1",
+                "schema":"work-command-run-request",
                 "timeout_seconds":60,
                 "record_id":"CMD-001"
             }))
@@ -384,34 +384,34 @@ mod tests {
             "command_run_schema"
         );
         assert_eq!(
-            validate_command_run_request(&json!({"schema":"work-command-run-request/v1",
+            validate_command_run_request(&json!({"schema":"work-command-run-request",
             "timeout_seconds":0}))
             .unwrap_err()
             .reason_code,
             "command_run_timeout"
         );
-        validate_command_run_request(&json!({"schema":"work-command-run-request/v1",
+        validate_command_run_request(&json!({"schema":"work-command-run-request",
             "timeout_seconds":60}))
         .unwrap();
     }
 
     #[test]
-    fn approval_hash_matches_python_ascii_sorted_pretty_json() {
-        let preview = json!({"schema":"work-command-preview/v1",
-            "request":{"schema":"work-command-run-request/v1","timeout_seconds":60},
+    fn approval_hash_matches_current_contract_ascii_sorted_pretty_json() {
+        let preview = json!({"schema":"work-command-preview",
+            "request":{"schema":"work-command-run-request","timeout_seconds":60},
             "sources":{"任務/ß.json":"a".repeat(64)},"record_id":"CMD-001",
             "argv":["print","中文😀"]});
         assert_eq!(
             command_preview_approval_sha256(&preview),
-            "64bfc33feda2a5d096e01c8c7c3bd2319e2a535800bc568937bd39c7bc8d36bf"
+            "d6dec18302ff23dae5a29fc4078e508cda27c4e72d6a0881e492407cf09613f7"
         );
         let raw = String::from_utf8(command_json_bytes(&preview)).unwrap();
         assert!(raw.contains("\\u4e2d\\u6587\\ud83d\\ude00"));
     }
 
     #[test]
-    fn full_preview_approval_matches_python_example() {
-        let request = json!({"schema":"work-command-run-request/v1","timeout_seconds":60});
+    fn full_preview_approval_matches_current_contract_example() {
+        let request = json!({"schema":"work-command-run-request","timeout_seconds":60});
         let execution = json!({"os":"macos","working_directory":"."});
         let invocation = json!({"kind":"direct","executable":"/usr/bin/printf",
             "executable_sha256":"a".repeat(64),"argv":["printf","中文"]});
@@ -430,13 +430,13 @@ mod tests {
         .unwrap();
         assert_eq!(
             preview["approved_sha256"],
-            "863f4bc83ee82087a5b2bc857da1d2219925099908a0a9de8b20754474a47f09"
+            "796eefe879904280bc3564eca0eed98675b0573ad3a3cdc121ee126e67acacec"
         );
     }
 
     #[test]
     fn windows_batch_preview_keeps_discriminated_invocation() {
-        let request = json!({"schema":"work-command-run-request/v1","timeout_seconds":60});
+        let request = json!({"schema":"work-command-run-request","timeout_seconds":60});
         let execution = json!({"os":"windows","working_directory":"."});
         let invocation = json!({"kind":"windows_batch",
             "launcher":"C:/Windows/System32/cmd.exe","launcher_sha256":"1".repeat(64),
@@ -492,7 +492,7 @@ mod tests {
     }
 
     #[test]
-    fn windows_batch_quoting_matches_python_without_running_windows() {
+    fn windows_batch_quoting_matches_current_contract_without_running_windows() {
         let (line, argv) = windows_batch_command_line(
             "C:\\tools\\run.cmd",
             &["one two".into(), "100% \"ready\"".into()],

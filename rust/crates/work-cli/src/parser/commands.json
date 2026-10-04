@@ -1,5 +1,5 @@
 {
-  "schema": "work-command-tree/v1",
+  "schema": "work-command-tree",
   "root": {
     "name": "work",
     "help": "usage: work [-h] --project-root PROJECT_ROOT [--verbose]\n               {contract,paths,hierarchy,instructions,fingerprint,skills,handoff,attempt,correction,progress,task,specification,workflow,workspace,execute,invocation,migration,delegation,source} ...\n\npositional arguments:\n  {contract,paths,hierarchy,instructions,fingerprint,skills,handoff,attempt,correction,progress,task,specification,workflow,workspace,execute,invocation,migration,delegation,source}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --project-root PROJECT_ROOT\n  --verbose             Return the complete canonical success payload instead\n                        of the brief projection.\n",
@@ -193,7 +193,7 @@
       },
       {
         "name": "instructions",
-        "help": "usage: work instructions [-h]\n                            {catalog,resolve,load,select,impact,refresh-preview,refresh-apply,refresh-recover,refresh-preview-all,refresh-apply-all,refresh-recover-all,migration-preview,migration-apply} ...\n\npositional arguments:\n  {catalog,resolve,load,select,impact,refresh-preview,refresh-apply,refresh-recover,refresh-preview-all,refresh-apply-all,refresh-recover-all,migration-preview,migration-apply}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n",
+        "help": "usage: work instructions [-h]\n                            {catalog,resolve,load,select,impact,recover} ...\n\npositional arguments:\n  {catalog,resolve,load,select,impact,recover}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n",
         "arguments": [],
         "exclusive_groups": [],
         "children": [
@@ -352,164 +352,13 @@
             "children": []
           },
           {
-            "name": "refresh-preview",
-            "help": "usage: work instructions refresh-preview [-h]\n                                            --requirement-id REQUIREMENT_ID\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n",
+            "name": "recover",
+            "help": "usage: work instructions recover [-h] --journal-path JOURNAL_PATH --approved-sha256 APPROVED_SHA256\n",
             "arguments": [
               {
-                "name": "requirement_id",
+                "name": "journal_path",
                 "flags": [
-                  "--requirement-id"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [],
-            "children": []
-          },
-          {
-            "name": "refresh-apply",
-            "help": "usage: work instructions refresh-apply [-h] --requirement-id REQUIREMENT_ID\n                                          --approved-sha256 APPROVED_SHA256\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n  --approved-sha256 APPROVED_SHA256\n",
-            "arguments": [
-              {
-                "name": "requirement_id",
-                "flags": [
-                  "--requirement-id"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "approved_sha256",
-                "flags": [
-                  "--approved-sha256"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [],
-            "children": []
-          },
-          {
-            "name": "refresh-recover",
-            "help": "usage: work instructions refresh-recover [-h]\n                                            --requirement-id REQUIREMENT_ID\n                                            --approved-sha256 APPROVED_SHA256\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n  --approved-sha256 APPROVED_SHA256\n",
-            "arguments": [
-              {
-                "name": "requirement_id",
-                "flags": [
-                  "--requirement-id"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "approved_sha256",
-                "flags": [
-                  "--approved-sha256"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [],
-            "children": []
-          },
-          {
-            "name": "refresh-preview-all",
-            "help": "usage: work instructions refresh-preview-all [-h]\n\noptions:\n  -h, --help  Return command help in a JSON response.\n",
-            "arguments": [],
-            "exclusive_groups": [],
-            "children": []
-          },
-          {
-            "name": "refresh-apply-all",
-            "help": "usage: work instructions refresh-apply-all [-h]\n                                              --approved-sha256 APPROVED_SHA256\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --approved-sha256 APPROVED_SHA256\n",
-            "arguments": [
-              {
-                "name": "approved_sha256",
-                "flags": [
-                  "--approved-sha256"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [],
-            "children": []
-          },
-          {
-            "name": "refresh-recover-all",
-            "help": "usage: work instructions refresh-recover-all [-h]\n                                                --approved-sha256 APPROVED_SHA256\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --approved-sha256 APPROVED_SHA256\n",
-            "arguments": [
-              {
-                "name": "approved_sha256",
-                "flags": [
-                  "--approved-sha256"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [],
-            "children": []
-          },
-          {
-            "name": "migration-preview",
-            "help": "usage: work instructions migration-preview [-h]\n                                              --requirement-id REQUIREMENT_ID\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n",
-            "arguments": [
-              {
-                "name": "requirement_id",
-                "flags": [
-                  "--requirement-id"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [],
-            "children": []
-          },
-          {
-            "name": "migration-apply",
-            "help": "usage: work instructions migration-apply [-h]\n                                            --requirement-id REQUIREMENT_ID\n                                            --approved-sha256 APPROVED_SHA256\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n  --approved-sha256 APPROVED_SHA256\n",
-            "arguments": [
-              {
-                "name": "requirement_id",
-                "flags": [
-                  "--requirement-id"
+                  "--journal-path"
                 ],
                 "required": true,
                 "nargs": null,
@@ -2634,7 +2483,7 @@
       },
       {
         "name": "workspace",
-        "help": "usage: work workspace [-h] {create} ...\n\npositional arguments:\n  {create}\n    create    Allocate a Python-owned transaction workspace.\n\noptions:\n  -h, --help  Return command help in a JSON response.\n",
+        "help": "usage: work workspace [-h] {create} ...\n\npositional arguments:\n  {create}\n    create    Allocate a current transaction workspace.\n\noptions:\n  -h, --help  Return command help in a JSON response.\n",
         "arguments": [],
         "exclusive_groups": [],
         "children": [

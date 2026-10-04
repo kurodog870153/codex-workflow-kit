@@ -332,7 +332,7 @@ impl ArtifactMigrationRequest {
     pub fn validate(&self) -> Result<(), &'static str> {
         use std::collections::BTreeSet;
 
-        if self.schema != PublicSchema::WorkArtifactMigrationRequestV1
+        if self.schema != PublicSchema::WorkArtifactMigrationRequest
             || self.requirement_id.is_empty()
             || !valid_migration_hash(&self.analysis_fingerprint)
             || self.decisions.is_empty()
@@ -348,10 +348,10 @@ impl ArtifactMigrationRequest {
                 || item.issue.is_empty()
                 || item.target_schema
                     != match item.kind.as_str() {
-                        "source" => "work-source-snapshot/v1",
-                        "task_index" => "work-task-index/v1",
-                        "task_item" => "work-task-item/v1",
-                        "execution_index" => "work-execution-index/v1",
+                        "source" => "work-source-snapshot",
+                        "task_index" => "work-task-index",
+                        "task_item" => "work-task-item",
+                        "execution_index" => "work-execution-index",
                         _ => return Err("invalid_migration_item"),
                     }
                 || (item.resolution_status == ArtifactMigrationItemStatus::Proposed)
@@ -713,17 +713,17 @@ mod tests {
             id: "MIGRATION-task-index".into(),
             path: "outputs/work/tasks/example/index.json".into(),
             kind: "task_index".into(),
-            target_schema: "work-task-index/v1".into(),
+            target_schema: "work-task-index".into(),
             required: true,
             source_sha256: "a".repeat(64),
             source_size: 3,
             raw: b"old".to_vec(),
             issue: "legacy schema".into(),
             resolution_status: ArtifactMigrationItemStatus::Proposed,
-            proposed_content: Some(serde_json::json!({"schema":"work-task-index/v1"})),
+            proposed_content: Some(serde_json::json!({"schema":"work-task-index"})),
         };
         let mut request = ArtifactMigrationRequest {
-            schema: PublicSchema::WorkArtifactMigrationRequestV1,
+            schema: PublicSchema::WorkArtifactMigrationRequest,
             requirement_id: "example".into(),
             analysis_fingerprint: "b".repeat(64),
             decisions: vec![ArtifactMigrationDecision {
@@ -765,7 +765,7 @@ mod tests {
         assert!(request.executable());
         request.decisions[0].item.target_schema = "work-task-index/v0".into();
         assert_eq!(request.validate(), Err("invalid_migration_item"));
-        request.decisions[0].item.target_schema = "work-task-index/v1".into();
+        request.decisions[0].item.target_schema = "work-task-index".into();
         request.decisions[0].item.resolution_status = ArtifactMigrationItemStatus::NeedsReview;
         assert_eq!(request.validate(), Err("invalid_migration_item"));
         request.decisions[0].item.resolution_status = ArtifactMigrationItemStatus::Proposed;
@@ -784,48 +784,42 @@ mod tests {
             };
         }
         example!(
-            "work-spec-migration-prepare-request/v1",
+            "work-spec-migration-prepare-request",
             SpecMigrationPrepareRequest
         );
         example!(
-            "work-spec-migration-preview-request/v1",
+            "work-spec-migration-preview-request",
             SpecMigrationPreviewRequest
         );
-        example!("work-spec-migration-preview/v1", SpecMigrationPreview);
+        example!("work-spec-migration-preview", SpecMigrationPreview);
+        example!("work-spec-migration-publication", SpecMigrationPublication);
         example!(
-            "work-spec-migration-publication/v1",
-            SpecMigrationPublication
-        );
-        example!(
-            "work-artifact-migration-analysis/v1",
+            "work-artifact-migration-analysis",
             ArtifactMigrationAnalysis
         );
+        example!("work-artifact-migration-request", ArtifactMigrationRequest);
+        example!("work-spec-prepare-request", SpecPrepareRequest);
+        example!("work-spec-prepare", SpecPrepare);
         example!(
-            "work-artifact-migration-request/v1",
-            ArtifactMigrationRequest
-        );
-        example!("work-spec-prepare-request/v1", SpecPrepareRequest);
-        example!("work-spec-prepare/v1", SpecPrepare);
-        example!(
-            "work-spec-reconciliation-prepare-request/v1",
+            "work-spec-reconciliation-prepare-request",
             SpecReconciliationPrepareRequest
         );
         example!(
-            "work-spec-reconciliation-preview-request/v1",
+            "work-spec-reconciliation-preview-request",
             SpecReconciliationPreviewRequest
         );
         example!(
-            "work-spec-reconciliation-preview/v1",
+            "work-spec-reconciliation-preview",
             SpecReconciliationPreview
         );
         example!(
-            "work-spec-reconciliation-publication/v1",
+            "work-spec-reconciliation-publication",
             SpecReconciliationPublication
         );
-        example!("work-spec-transaction/v1", SpecTransaction);
-        example!("work-spec-update-request/v1", SpecUpdateRequest);
-        example!("work-spec-update/v1", SpecUpdate);
-        example!("work-spec-verification-request/v1", SpecVerificationRequest);
-        example!("work-spec-verification/v1", SpecVerification);
+        example!("work-spec-transaction", SpecTransaction);
+        example!("work-spec-update-request", SpecUpdateRequest);
+        example!("work-spec-update", SpecUpdate);
+        example!("work-spec-verification-request", SpecVerificationRequest);
+        example!("work-spec-verification", SpecVerification);
     }
 }

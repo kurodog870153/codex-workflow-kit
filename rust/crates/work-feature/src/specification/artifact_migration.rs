@@ -11,10 +11,10 @@ use work_operations::task::ordering::{TaskDocumentKind, render_task};
 
 fn current_schema(kind: &str) -> Option<&'static str> {
     match kind {
-        "source" => Some("work-source-snapshot/v1"),
-        "task_index" => Some("work-task-index/v1"),
-        "task_item" => Some("work-task-item/v1"),
-        "execution_index" => Some("work-execution-index/v1"),
+        "source" => Some("work-source-snapshot"),
+        "task_index" => Some("work-task-index"),
+        "task_item" => Some("work-task-item"),
+        "execution_index" => Some("work-execution-index"),
         _ => None,
     }
 }
@@ -26,7 +26,7 @@ pub fn verify_raw_analysis(
     use std::collections::BTreeSet;
     let analysis: work_model::specification::ArtifactMigrationAnalysis =
         serde_json::from_value(value.clone()).map_err(|_| "migration_analysis")?;
-    if analysis.schema != work_model::schema::PublicSchema::WorkArtifactMigrationAnalysisV1
+    if analysis.schema != work_model::schema::PublicSchema::WorkArtifactMigrationAnalysis
         || analysis
             .requirement_id
             .parse::<work_model::identifiers::RequirementId>()
@@ -183,14 +183,29 @@ mod tests {
         ));
         let current = analyze_artifact("task_index", path, raw);
         assert!(current.issue.is_empty());
-        let mut legacy: Value = serde_json::from_slice(raw).unwrap();
-        legacy["schema"] = json!("legacy/v0");
-        let item = analyze_artifact("task_index", path, &serde_json::to_vec(&legacy).unwrap());
-        assert!(item.proposed_content.is_none());
-        assert_eq!(
-            item.resolution_status,
-            ArtifactMigrationItemStatus::NeedsReview
-        );
+        for schema in [
+            "work-task-index/v1",
+            "work-task-index/v2",
+            "unsupported/v99",
+            "work-task-index",
+        ] {
+            let mut evidence: Value = serde_json::from_slice(raw).unwrap();
+            evidence["schema"] = json!(schema);
+            if schema == "work-task-index" {
+                evidence["unknown_field"] = json!(true);
+            }
+            let original = serde_json::to_vec(&evidence).unwrap();
+            let item = analyze_artifact("task_index", path, &original);
+            assert_eq!(item.raw, original);
+            assert_eq!(item.source_size, original.len() as u64);
+            assert_eq!(item.source_sha256, fingerprint::raw(&original));
+            assert!(item.proposed_content.is_none());
+            assert_eq!(
+                item.resolution_status,
+                ArtifactMigrationItemStatus::NeedsReview
+            );
+            assert!(validate_candidate("task_index", path, &evidence).is_err());
+        }
         let compact = serde_json::to_vec(&serde_json::from_slice::<Value>(raw).unwrap()).unwrap();
         let item = analyze_artifact("task_index", path, &compact);
         assert!(item.proposed_content.is_some());

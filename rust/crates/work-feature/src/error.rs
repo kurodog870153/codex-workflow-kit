@@ -1,4 +1,4 @@
-//! Application errors preserve the Python Work exit and reason contracts.
+//! Application errors define Work exit codes and reason contracts.
 
 use serde_json::Value;
 
@@ -64,7 +64,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn exit_codes_and_statuses_match_python() {
+    fn exit_codes_and_statuses_match_current_contract() {
         let cases = [
             (ExitCode::CliUsage, 2, "rejected"),
             (ExitCode::InputFormat, 3, "rejected"),

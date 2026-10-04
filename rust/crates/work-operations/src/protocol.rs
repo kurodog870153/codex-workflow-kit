@@ -25,7 +25,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn shared_values_and_sha256_validation_match_python_protocol() {
+    fn shared_values_and_sha256_validation_match_current_contract_protocol() {
         assert_eq!(INVALID_SHA256_ERROR_CODE, "invalid_sha256");
         assert_eq!(TASK_ID_PREFIX, "TASK-");
         assert_eq!(ATTEMPT_ID_PREFIX, "ATTEMPT-");

@@ -169,7 +169,7 @@ mod migration_flow_tests {
     #[test]
     fn revision_previews_before_writing_and_skips_reconstruction() {
         let order = RefCell::new(Vec::new());
-        let request = json!({"schema":"work-spec-migration-prepare-request/v1", "mode":"revision",
+        let request = json!({"schema":"work-spec-migration-prepare-request", "mode":"revision",
             "requirement_id":"example", "sources":[{"path":"legacy.bin","raw_sha256":"a".repeat(64)}],
             "reason":"Reviewed revision", "edits":[], "semantic_decisions":[]});
         let result = migration_prepare(
@@ -205,7 +205,7 @@ mod migration_flow_tests {
     #[test]
     fn unreviewed_migration_is_rejected_before_any_callback() {
         let error = migration_prepare(
-            MigrationPrepareInput { raw:b"{}", request:&json!({"schema":"work-spec-migration-prepare-request/v1", "mode":"reconstruction", "plan":{}}), date:"2026-10-04", output:Some("candidate.json") },
+            MigrationPrepareInput { raw:b"{}", request:&json!({"schema":"work-spec-migration-prepare-request", "mode":"reconstruction", "plan":{}}), date:"2026-10-04", output:Some("candidate.json") },
             |_, _| panic!("invalid request must not prepare"),
             |_| panic!("invalid request must not reconstruct"),
             |_| panic!("invalid request must not preview"),

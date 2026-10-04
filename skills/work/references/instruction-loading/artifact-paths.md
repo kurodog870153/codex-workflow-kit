@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # Requirement artifact path validation
 
 1. Use the shared path validator for Source, TASK and Execution. Requirement IDs must satisfy the union of Windows, macOS and Linux filename restrictions: reject ASCII controls, unsafe portable characters, trailing spaces or dots, dot/parent names and reserved Windows device names, case-insensitively and with or without an extension.

@@ -163,7 +163,7 @@ pub fn validate_task_item(
         "operations",
     ];
     let task = strict(value, "task_item", &required, &optional)?;
-    if task["schema"] != "work-task-item/v1" {
+    if task["schema"] != "work-task-item" {
         return Err(issue(
             "invalid_task_item_schema",
             "The TASK item schema is invalid.",
@@ -507,7 +507,7 @@ pub fn validate_task_item(
     Ok(work_model::task::response::typed_response::<
         work_model::task::response::TaskItemValidation,
     >(
-        json!({"schema": "work-task-item-validation/v1", "task_id": id, "dependencies": dependencies, "task_item_sha256": sha256_hex(raw)}),
+        json!({"schema": "work-task-item-validation", "task_id": id, "dependencies": dependencies, "task_item_sha256": sha256_hex(raw)}),
     ))
 }
 
@@ -534,7 +534,7 @@ mod tests {
 
     #[test]
     fn example_task_item_round_trip_and_reference_error() {
-        let item = json!({"schema": "work-task-item/v1", "id": "TASK-001", "title": "Example", "skill_id": null,
+        let item = json!({"schema": "work-task-item", "id": "TASK-001", "title": "Example", "skill_id": null,
             "instruction_selection": {"selected_paths": [], "resolved_paths": ["general"], "sources": [{"kind": "instruction", "logical_name": "task.general", "canonical_sha256": "a".repeat(64)}], "references": [], "instructions_sha256": "b".repeat(64)},
             "traceability": {"acceptance_ids": ["ACCEPTANCE-001"]},
             "acceptance_criteria":[{"id":"TASK-001-ACCEPTANCE-001","criterion":"The technical result is verified."}],
@@ -583,9 +583,7 @@ mod tests {
         assert_eq!(error.reason_code, "invalid_object_fields");
         assert_eq!(error.details["missing"], json!(["instruction_selection"]));
         assert_eq!(error.details["unknown"], json!(["rule_selection"]));
-        assert!(
-            raw.starts_with(b"{\n  \"schema\": \"work-task-item/v1\",\n  \"id\": \"TASK-001\"")
-        );
+        assert!(raw.starts_with(b"{\n  \"schema\": \"work-task-item\",\n  \"id\": \"TASK-001\""));
         let mut noncanonical = b" ".to_vec();
         noncanonical.extend_from_slice(&raw);
         assert_eq!(

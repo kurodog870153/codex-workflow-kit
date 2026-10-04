@@ -1,4 +1,4 @@
-//! Public command parser derived from the frozen Python command inventory.
+//! Public command parser and native clap usage errors for the current command inventory.
 
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
@@ -59,7 +59,7 @@ fn manifest() -> &'static Manifest {
     MANIFEST.get_or_init(|| {
         let value: Manifest =
             serde_json::from_str(include_str!("commands.json")).expect("valid command inventory");
-        assert_eq!(value.schema, "work-command-tree/v1");
+        assert_eq!(value.schema, "work-command-tree");
         value
     })
 }
@@ -129,179 +129,6 @@ fn selected_help<'a>(root: &'a CommandSpec, tokens: &[String]) -> &'a str {
     &selected.help
 }
 
-fn selected_path<'a>(root: &'a CommandSpec, tokens: &[String]) -> Vec<&'a CommandSpec> {
-    let mut path = vec![root];
-    for token in tokens {
-        let selected = *path.last().expect("root exists");
-        if let Some(child) = selected.children.iter().find(|child| child.name == *token) {
-            path.push(child);
-        }
-    }
-    path
-}
-
-fn python_missing_reason(root: &CommandSpec, tokens: &[String]) -> Option<String> {
-    let path = selected_path(root, tokens);
-    for node in path.iter().rev() {
-        let mut missing = Vec::new();
-        for argument in &node.arguments {
-            if !argument.required {
-                continue;
-            }
-            let supplied = argument.flags.iter().any(|flag| {
-                tokens
-                    .iter()
-                    .any(|token| token == flag || token.starts_with(&format!("{flag}=")))
-            });
-            let positional =
-                argument.flags.is_empty() && tokens.iter().any(|token| token == &argument.name);
-            if !supplied && !positional {
-                missing.push(
-                    argument
-                        .flags
-                        .first()
-                        .cloned()
-                        .unwrap_or_else(|| argument.name.clone()),
-                );
-            }
-        }
-        if !node.children.is_empty() && node.name == path.last().expect("root exists").name {
-            missing.push(if path.len() == 1 {
-                "command".to_owned()
-            } else {
-                format!("{}_command", node.name)
-            });
-        }
-        if !missing.is_empty() {
-            return Some(format!(
-                "the following arguments are required: {}",
-                missing.join(", ")
-            ));
-        }
-        for group in &node.exclusive_groups {
-            if !group.required {
-                continue;
-            }
-            let members = group
-                .members
-                .iter()
-                .filter_map(|member| {
-                    node.arguments
-                        .iter()
-                        .find(|argument| argument.name == *member)
-                })
-                .collect::<Vec<_>>();
-            if !members.iter().any(|argument| {
-                argument.flags.iter().any(|flag| {
-                    tokens
-                        .iter()
-                        .any(|token| token == flag || token.starts_with(&format!("{flag}=")))
-                })
-            }) {
-                let labels = members
-                    .iter()
-                    .filter_map(|argument| argument.flags.first())
-                    .cloned()
-                    .collect::<Vec<_>>();
-                return Some(format!(
-                    "one of the arguments {} is required",
-                    labels.join(" ")
-                ));
-            }
-        }
-    }
-    None
-}
-
-fn selected_arguments<'a>(root: &'a CommandSpec, tokens: &[String]) -> Vec<&'a ArgumentSpec> {
-    selected_path(root, tokens)
-        .into_iter()
-        .flat_map(|node| node.arguments.iter())
-        .collect()
-}
-
-fn python_choice_reason(root: &CommandSpec, tokens: &[String]) -> Option<String> {
-    for argument in selected_arguments(root, tokens) {
-        let Some(choices) = &argument.choices else {
-            continue;
-        };
-        for (index, token) in tokens.iter().enumerate() {
-            for flag in &argument.flags {
-                let value = if token == flag {
-                    tokens.get(index + 1).map(String::as_str)
-                } else {
-                    token.strip_prefix(&format!("{flag}="))
-                };
-                if let Some(value) =
-                    value.filter(|value| !choices.iter().any(|choice| choice == *value))
-                {
-                    let quoted = choices
-                        .iter()
-                        .map(|choice| format!("'{choice}'"))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    return Some(format!(
-                        "argument {flag}: invalid choice: '{value}' (choose from {quoted})"
-                    ));
-                }
-            }
-        }
-    }
-    None
-}
-
-fn python_conflict_reason(root: &CommandSpec, tokens: &[String]) -> Option<String> {
-    for node in selected_path(root, tokens) {
-        for group in &node.exclusive_groups {
-            let mut supplied = group
-                .members
-                .iter()
-                .filter_map(|member| {
-                    node.arguments
-                        .iter()
-                        .find(|argument| argument.name == *member)
-                })
-                .flat_map(|argument| argument.flags.iter())
-                .filter_map(|flag| {
-                    tokens
-                        .iter()
-                        .position(|token| token == flag || token.starts_with(&format!("{flag}=")))
-                        .map(|position| (position, flag))
-                })
-                .collect::<Vec<_>>();
-            supplied.sort_by_key(|(position, _)| *position);
-            if supplied.len() > 1 {
-                return Some(format!(
-                    "argument {}: not allowed with argument {}",
-                    supplied[1].1, supplied[0].1
-                ));
-            }
-        }
-    }
-    None
-}
-
-fn python_unknown_reason(error: &clap::Error) -> Option<String> {
-    let message = error.to_string();
-    let token = message.split('\'').nth(1)?;
-    Some(format!("unrecognized arguments: {token}"))
-}
-
-fn python_usage_reason(root: &CommandSpec, tokens: &[String], error: &clap::Error) -> String {
-    let translated = match error.kind() {
-        ErrorKind::MissingRequiredArgument | ErrorKind::MissingSubcommand => {
-            python_missing_reason(root, tokens)
-        }
-        ErrorKind::UnknownArgument => {
-            python_missing_reason(root, tokens).or_else(|| python_unknown_reason(error))
-        }
-        ErrorKind::InvalidValue => python_choice_reason(root, tokens),
-        ErrorKind::ArgumentConflict => python_conflict_reason(root, tokens),
-        _ => None,
-    };
-    translated.unwrap_or_else(|| error.to_string().trim().to_owned())
-}
-
 fn collect(node: &CommandSpec, matches: &clap::ArgMatches, output: &mut ParsedCommand) {
     for item in &node.arguments {
         let value = if item.boolean {
@@ -331,17 +158,6 @@ fn collect(node: &CommandSpec, matches: &clap::ArgMatches, output: &mut ParsedCo
 }
 
 pub fn parse_tokens(tokens: &[String]) -> Result<ParseOutcome, WorkError> {
-    if tokens
-        .iter()
-        .any(|token| token == "--stdin" || token.starts_with("--stdin="))
-    {
-        return Err(WorkError::new(
-            ExitCode::CliUsage,
-            "stdin_removed",
-            "Write the JSON request to a UTF-8 file and use --input-file <path>.",
-            json!({"replacement":"--input-file"}),
-        ));
-    }
     let root = &manifest().root;
     let result = command(root)
         .try_get_matches_from(std::iter::once("work".to_owned()).chain(tokens.iter().cloned()));
@@ -361,7 +177,7 @@ pub fn parse_tokens(tokens: &[String]) -> Result<ParseOutcome, WorkError> {
             ExitCode::CliUsage,
             "cli_usage_error",
             "The CLI arguments are invalid.",
-            json!({"reason":python_usage_reason(root, tokens, &error)}),
+            json!({"reason":error.to_string().trim()}),
         )),
     }
 }
@@ -379,8 +195,8 @@ mod tests {
     }
 
     #[test]
-    fn command_manifest_keeps_all_python_public_leaves() {
-        assert_eq!(leaves(&manifest().root), 88);
+    fn command_manifest_keeps_all_current_contract_public_leaves() {
+        assert_eq!(leaves(&manifest().root), 81);
         command(&manifest().root).debug_assert();
     }
 
@@ -907,7 +723,7 @@ mod tests {
         assert!(!parsed.arguments.contains_key("task_id"));
     }
     #[test]
-    fn help_and_removed_stdin_match_public_contract() {
+    fn help_and_unknown_stdin_follow_public_contract() {
         let help = ["task", "--help"].map(str::to_owned);
         let ParseOutcome::Help(content) = parse_tokens(&help).unwrap() else {
             panic!("expected help");
@@ -917,29 +733,29 @@ mod tests {
         assert!(!content.contains("work.py"));
         for option in ["--stdin", "--stdin=true"] {
             let error = parse_tokens(&[option.into()]).unwrap_err();
-            assert_eq!(error.reason_code, "stdin_removed");
-            assert_eq!(error.details["replacement"], "--input-file");
+            assert_eq!(error.reason_code, "cli_usage_error");
+            assert!(error.details.get("replacement").is_none());
         }
     }
 
     #[test]
-    fn usage_errors_follow_argparse_precedence_and_wording() {
+    fn usage_errors_preserve_native_clap_diagnostics() {
         let cases = [
             (
                 &["--bogus"][..],
-                "the following arguments are required: --project-root, command",
+                "error: unexpected argument '--bogus' found\n\nUsage: work [OPTIONS] --project-root <project_root> <COMMAND>\n\nFor more information, try '--help'.",
             ),
             (
                 &["task", "--bogus"],
-                "the following arguments are required: task_command",
+                "error: unexpected argument '--bogus' found\n\nUsage: work --project-root <project_root> task <COMMAND>\n\nFor more information, try '--help'.",
             ),
             (
                 &["attempt", "validate", "--path", "x", "--input-file", "y"],
-                "argument --input-file: not allowed with argument --path",
+                "error: the argument '--path <path>' cannot be used with '--input-file <input_file>'\n\nUsage: work attempt validate <--path <path>|--input-file <input_file>>\n\nFor more information, try '--help'.",
             ),
             (
                 &["delegation", "validate", "--role", "bad"],
-                "argument --role: invalid choice: 'bad' (choose from 'task-coordinator', 'execute', 'task-skill', 'artifact-editor', 'progress-saver')",
+                "error: invalid value 'bad' for '--role <role>'\n  [possible values: task-coordinator, execute, task-skill, artifact-editor, progress-saver]\n\nFor more information, try '--help'.",
             ),
         ];
         for (arguments, expected) in cases {

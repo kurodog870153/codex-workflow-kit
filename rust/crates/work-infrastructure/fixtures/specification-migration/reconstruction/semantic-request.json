@@ -6,7 +6,7 @@
   },
   "mode": "reconstruction",
   "requirement_id": "example",
-  "schema": "work-spec-migration-prepare-request/v1",
+  "schema": "work-spec-migration-prepare-request",
   "semantic_decisions": [],
   "sources": [
     {
@@ -35,16 +35,16 @@
       "task": "outputs/work/tasks/example/index.json"
     },
     "hierarchy_selection": {
-      "catalog_sha256": "74977ff41dae925d76037c60fcbb6e5c6d950af73416308d5e21ca3b96ef5d54",
+      "catalog_sha256": "3e51eaedbc128afd999c796bd337d9471c15411d3e66677383e6fd188e90f390",
       "decision": "general_only",
       "entries": [],
-      "schema": "work-hierarchy-selection/v1",
+      "schema": "work-hierarchy-selection",
       "selected_paths": [],
-      "selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59"
+      "selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569"
     },
     "skill_selection": {
       "decision": "base_only",
-      "schema": "work-skill-selection/v1",
+      "schema": "work-skill-selection",
       "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
       "skills": []
     }

@@ -252,7 +252,7 @@ pub fn finished_record_index(index: &Value) -> Result<Value, ExecutionIssue> {
 }
 
 pub fn attempt_close_request(attempt: &Value) -> Value {
-    let mut request = json!({"schema":"work-attempt-close-request/v1","status":attempt["status"]});
+    let mut request = json!({"schema":"work-attempt-close-request","status":attempt["status"]});
     if attempt["status"] != "completed" {
         request["final_type"] = attempt["final_type"].clone();
         request["reason"] = attempt["reason"].clone();
@@ -875,7 +875,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn statuses_and_sequence_match_python() {
+    fn statuses_and_sequence_match_current_contract() {
         assert_eq!(derive_overall_status(&["cancelled"]), "cancelled");
         assert_eq!(derive_overall_status(&["completed", "blocked"]), "blocked");
         assert_eq!(
@@ -922,7 +922,7 @@ mod tests {
     }
 
     #[test]
-    fn formal_record_kind_and_retry_sequence_match_python() {
+    fn formal_record_kind_and_retry_sequence_match_current_contract() {
         let task = json!({"commands":[{"id":"CMD-001"}],
             "operations":[{"id":"OP-001"}],"validations":[{"id":"VAL-001"}]});
         for (record_id, kind) in [
@@ -952,7 +952,7 @@ mod tests {
     }
 
     #[test]
-    fn index_transitions_and_correction_impact_match_python() {
+    fn index_transitions_and_correction_impact_match_current_contract() {
         let index = json!({"acceptance_results":[],"overall_status":"pending","tasks":[
             {"id":"TASK-001","status":"pending","acceptance_results":[]},{"id":"TASK-002","status":"completed","acceptance_results":[]}]});
         let started = start_index(&index, "TASK-001", "ATTEMPT-001").unwrap();
@@ -1033,7 +1033,7 @@ mod tests {
     }
 
     #[test]
-    fn record_completion_and_deviation_rules_follow_python() {
+    fn record_completion_and_deviation_rules_follow_current_contract() {
         let attempt = json!({"records":[{"id":"VAL-001","kind":"validation","outcome":"failed"}]});
         let request =
             json!({"record":{"outcome":"success","state":"done"},"modified_files":["src/lib.rs"]});
@@ -1061,7 +1061,7 @@ mod tests {
     }
 
     #[test]
-    fn record_finish_identity_and_operation_aggregation_match_python() {
+    fn record_finish_identity_and_operation_aggregation_match_current_contract() {
         assert_eq!(overall_operation_result(&[]), None);
         assert_eq!(
             overall_operation_result(&[json!({"id":"OP-001","kind":"operation",
@@ -1148,7 +1148,7 @@ mod tests {
     }
 
     #[test]
-    fn record_recovery_and_formal_kind_follow_python() {
+    fn record_recovery_and_formal_kind_follow_current_contract() {
         let task =
             json!({"commands":[{"id":"CMD-001"}],"operations":[],"validations":[{"id":"VAL-001"}]});
         assert_eq!(formal_record_kind(&task, "CMD-001").unwrap(), "command");
@@ -1168,7 +1168,7 @@ mod tests {
             "closing_authorization_evidence":"Approved"});
         assert_eq!(
             attempt_close_request(&attempt),
-            json!({"schema":"work-attempt-close-request/v1",
+            json!({"schema":"work-attempt-close-request",
             "status":"stopped","final_type":"user_stopped","reason":"Paused","authorization_evidence":"Approved"})
         );
     }
@@ -1231,7 +1231,7 @@ mod tests {
     }
 
     #[test]
-    fn record_identity_fingerprints_and_drift_match_python_cases() {
+    fn record_identity_fingerprints_and_drift_match_current_contract_cases() {
         let collection = json!({"requirement_id":"example","spec_id":"TASK-SPEC-001","tasks":[{"id":"TASK-001"}]});
         let validation = json!({"task_ids":["TASK-001"],"task_collection_sha256":"a".repeat(64),
             "task_index_sha256":"1".repeat(64),"task_item_sha256":{"TASK-001":"2".repeat(64)},

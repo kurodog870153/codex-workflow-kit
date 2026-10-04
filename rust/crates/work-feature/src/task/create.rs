@@ -73,10 +73,10 @@ pub fn parse_create_input(raw: &[u8]) -> Result<Value, WorkError> {
             contract(reason, "TASK create input is not valid JSON.")
         }
     })?;
-    if projection["schema"] != "work-task-collection-projection/v1" {
+    if projection["schema"] != "work-task-collection-projection" {
         return Err(contract(
             "task_create_schema",
-            "TASK create input must be a complete work-task-collection-projection/v1 contract.",
+            "TASK create input must be a complete work-task-collection-projection contract.",
         ));
     }
     let object = projection
@@ -311,8 +311,8 @@ where
     } else {
         "created"
     };
-    let mut result = json!({"schema":if request.recovery {"work-task-create-recovery/v1"}
-        else {"work-task-create/v1"},
+    let mut result = json!({"schema":if request.recovery {"work-task-create-recovery"}
+        else {"work-task-create"},
         "requirement_id":prepared.validation["requirement_id"],
         "spec_id":prepared.validation["spec_id"],"task_path":request.task_path,
         "execution_dir":request.execution_dir,
@@ -429,9 +429,9 @@ mod tests {
     fn create_stops_at_missing_snapshot_before_any_publication() {
         let storage = FailingStorage(Cell::new(false));
         let raw = serde_json::to_vec(&json!({
-            "schema":"work-task-collection-projection/v1",
+            "schema":"work-task-collection-projection",
             "requirement_id":"example","spec_id":null,"status":null,"title":null,
-            "summary":null,"artifacts":{"source":"outputs/work/sources/example","task":"outputs/work/tasks/example/index.json","execution":"outputs/work/executions/example"},"source":{"kind":"snapshot","manifest":work_model::contract_data::registry_value()["items"]["work-source-snapshot/v1"]["description"]["example"]},"hierarchy_selection":null,"skill_selection":null,"acceptance_criteria":null,
+            "summary":null,"artifacts":{"source":"outputs/work/sources/example","task":"outputs/work/tasks/example/index.json","execution":"outputs/work/executions/example"},"source":{"kind":"snapshot","manifest":work_model::contract_data::registry_value()["items"]["work-source-snapshot"]["description"]["example"]},"hierarchy_selection":null,"skill_selection":null,"acceptance_criteria":null,
             "instruction_selection":null,"tasks":null,"readiness":null
         }))
         .unwrap();

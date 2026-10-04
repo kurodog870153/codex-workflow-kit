@@ -303,7 +303,7 @@ where
         tasks.push(Value::Object(task));
     }
     let mut contract = metadata.clone();
-    contract.insert("schema".into(), json!("work-task-collection-projection/v1"));
+    contract.insert("schema".into(), json!("work-task-collection-projection"));
     contract.insert(
         "requirement_id".into(),
         input.index["requirement_id"].clone(),
@@ -371,14 +371,12 @@ where
         ));
     }
     let index_raw = canonical_json(input.index).expect("JSON value serializes");
-    Ok(
-        json!({"schema":"work-task-draft-assembly/v1","status":"valid",
+    Ok(json!({"schema":"work-task-draft-assembly","status":"valid",
         "requirement_id":input.index["requirement_id"],"revision":input.expected_revision,
         "approval_sha256":fingerprint::task_draft_approval(&index_raw, &prepared.approval_bytes),
         "task_collection_sha256":prepared.validation["task_collection_sha256"],
         "task_index_sha256":prepared.validation["task_index_sha256"],
-        "task_item_sha256":prepared.validation["task_item_sha256"],"execution_index":prepared.initial_execution,"contract":contract}),
-    )
+        "task_item_sha256":prepared.validation["task_item_sha256"],"execution_index":prepared.initial_execution,"contract":contract}))
 }
 
 #[cfg(test)]

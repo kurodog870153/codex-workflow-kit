@@ -79,7 +79,7 @@ pub fn validate_semantic_fields(semantic: &Value) -> Result<(), WorkError> {
             json!({"location":"contract","missing":missing,"unknown":unknown,"issues":issues}),
         ));
     }
-    if semantic["schema"] != "work-spec-reconciliation-prepare-request/v1" {
+    if semantic["schema"] != "work-spec-reconciliation-prepare-request" {
         return Err(contract_value("schema", "literal_error"));
     }
     match semantic["requirement_id"].as_str() {
@@ -167,7 +167,7 @@ pub fn validate_preview_fields(request: &Value) -> Result<(), WorkError> {
             json!({"location":"contract","missing":missing,"unknown":unknown,"issues":issues}),
         ));
     }
-    if request["schema"] != "work-spec-reconciliation-preview-request/v1" {
+    if request["schema"] != "work-spec-reconciliation-preview-request" {
         return Err(contract_value("schema", "literal_error"));
     }
     match request["attempt_path"].as_str() {
@@ -197,7 +197,7 @@ pub fn validate_preview_fields(request: &Value) -> Result<(), WorkError> {
         return Err(contract_value("migration", "model_type"));
     }
     if !request["migration"].is_null() {
-        if request["migration"]["schema"] != "work-spec-migration-preview-request/v1" {
+        if request["migration"]["schema"] != "work-spec-migration-preview-request" {
             return Err(contract_value("migration.schema", "literal_error"));
         }
         let _: work_model::specification::SpecMigrationPreviewRequest =

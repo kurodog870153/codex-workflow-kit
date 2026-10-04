@@ -24,61 +24,43 @@ mod tests {
     #[test]
     fn public_execution_examples_match_model_shapes() {
         let registry: Value = crate::contract_data::registry_value();
-        example::<request::AttemptCloseRequest>(&registry, "work-attempt-close-request/v1");
+        example::<request::AttemptCloseRequest>(&registry, "work-attempt-close-request");
         example::<request::AttemptStartPrepareRequest>(
             &registry,
-            "work-attempt-start-prepare-request/v1",
+            "work-attempt-start-prepare-request",
         );
-        example::<request::AttemptStartRequest>(&registry, "work-attempt-start-request/v1");
-        example::<request::CommandCorrectionRequest>(
-            &registry,
-            "work-command-correction-request/v1",
-        );
-        example::<request::CommandRunRequest>(&registry, "work-command-run-request/v1");
-        example::<request::CorrectionCreateRequest>(&registry, "work-correction-create-request/v1");
+        example::<request::AttemptStartRequest>(&registry, "work-attempt-start-request");
+        example::<request::CommandCorrectionRequest>(&registry, "work-command-correction-request");
+        example::<request::CommandRunRequest>(&registry, "work-command-run-request");
+        example::<request::CorrectionCreateRequest>(&registry, "work-correction-create-request");
         example::<request::DeviationSemanticRequest>(
             &registry,
-            "work-execution-deviation-semantic-request/v1",
+            "work-execution-deviation-semantic-request",
         );
         example::<request::ExecutionRecoveryPrepareRequest>(
             &registry,
-            "work-execution-recovery-prepare-request/v1",
+            "work-execution-recovery-prepare-request",
         );
-        example::<request::ExecutionRecoveryRequest>(
-            &registry,
-            "work-execution-recovery-request/v1",
-        );
-        example::<request::RecordFinishRequest>(&registry, "work-record-finish-request/v1");
-        example::<response::AttemptCloseResponse>(&registry, "work-attempt-close/v1");
-        example::<response::AttemptStartPrepareResponse>(
-            &registry,
-            "work-attempt-start-prepare/v1",
-        );
-        example::<response::AttemptStartRecoveryResponse>(
-            &registry,
-            "work-attempt-start-recovery/v1",
-        );
-        example::<response::AttemptStartResponse>(&registry, "work-attempt-start/v1");
-        example::<response::AttemptValidation>(&registry, "work-attempt-validation/v1");
-        example::<response::CommandCorrectionResponse>(&registry, "work-command-correction/v1");
-        example::<response::CommandPreview>(&registry, "work-command-preview/v1");
-        example::<response::CommandResult>(&registry, "work-command-result/v1");
-        example::<response::CorrectionCreateResponse>(&registry, "work-correction-create/v1");
-        example::<response::ExecutePreflight>(&registry, "work-execute-preflight/v1");
-        example::<response::WorktreeSnapshot>(&registry, "work-execute-worktree-snapshot/v1");
-        example::<response::ExecuteWorktree>(&registry, "work-execute-worktree/v1");
-        example::<response::DeviationPreview>(&registry, "work-execution-deviation-preview/v1");
-        example::<deviation::DeviationProposal>(&registry, "work-execution-deviation-proposal/v1");
-        example::<response::DeviationRecordResponse>(
-            &registry,
-            "work-execution-deviation-record/v1",
-        );
-        example::<response::ExecutionRecoveryPrepare>(
-            &registry,
-            "work-execution-recovery-prepare/v1",
-        );
-        example::<response::ExecutionRecoveryResponse>(&registry, "work-execution-recovery/v1");
-        example::<response::RecordBeginResponse>(&registry, "work-record-begin/v1");
-        example::<response::RecordFinishResponse>(&registry, "work-record-finish/v1");
+        example::<request::ExecutionRecoveryRequest>(&registry, "work-execution-recovery-request");
+        example::<request::RecordFinishRequest>(&registry, "work-record-finish-request");
+        example::<response::AttemptCloseResponse>(&registry, "work-attempt-close");
+        example::<response::AttemptStartPrepareResponse>(&registry, "work-attempt-start-prepare");
+        example::<response::AttemptStartRecoveryResponse>(&registry, "work-attempt-start-recovery");
+        example::<response::AttemptStartResponse>(&registry, "work-attempt-start");
+        example::<response::AttemptValidation>(&registry, "work-attempt-validation");
+        example::<response::CommandCorrectionResponse>(&registry, "work-command-correction");
+        example::<response::CommandPreview>(&registry, "work-command-preview");
+        example::<response::CommandResult>(&registry, "work-command-result");
+        example::<response::CorrectionCreateResponse>(&registry, "work-correction-create");
+        example::<response::ExecutePreflight>(&registry, "work-execute-preflight");
+        example::<response::WorktreeSnapshot>(&registry, "work-execute-worktree-snapshot");
+        example::<response::ExecuteWorktree>(&registry, "work-execute-worktree");
+        example::<response::DeviationPreview>(&registry, "work-execution-deviation-preview");
+        example::<deviation::DeviationProposal>(&registry, "work-execution-deviation-proposal");
+        example::<response::DeviationRecordResponse>(&registry, "work-execution-deviation-record");
+        example::<response::ExecutionRecoveryPrepare>(&registry, "work-execution-recovery-prepare");
+        example::<response::ExecutionRecoveryResponse>(&registry, "work-execution-recovery");
+        example::<response::RecordBeginResponse>(&registry, "work-record-begin");
+        example::<response::RecordFinishResponse>(&registry, "work-record-finish");
     }
 }

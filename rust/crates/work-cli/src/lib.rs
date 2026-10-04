@@ -32,8 +32,6 @@ struct OrderedEnvelope<'a, T: Serialize> {
     data: T,
 }
 
-struct DiagnosticValue<'a>(&'a Value);
-
 struct ScaffoldValue<'a> {
     value: &'a Value,
     orders: &'a Value,
@@ -87,76 +85,11 @@ impl Serialize for ScaffoldValue<'_> {
     }
 }
 
-impl Serialize for DiagnosticValue<'_> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match self.0 {
-            Value::Array(items) => {
-                let mut sequence = serializer.serialize_seq(Some(items.len()))?;
-                for item in items {
-                    sequence.serialize_element(&DiagnosticValue(item))?;
-                }
-                sequence.end()
-            }
-            Value::Object(items) => {
-                let order: &[&str] = if self.0["schema"] == "work-task-collection-diagnostics/v1"
-                    && items.len() <= 4
-                {
-                    &["raw_sha256", "schema", "status", "task_path"]
-                } else if self.0["schema"] == "work-task-collection-diagnostics/v1" {
-                    &[
-                        "schema",
-                        "status",
-                        "task_path",
-                        "raw_sha256",
-                        "format_status",
-                        "contract_status",
-                        "normal_use_allowed",
-                        "execution_binding_status",
-                        "repair_mode",
-                        "checks",
-                        "issues",
-                    ]
-                } else if items.contains_key("name") && items.contains_key("status") {
-                    &["name", "status", "requires"]
-                } else if items.contains_key("stage") && items.contains_key("code") {
-                    &[
-                        "stage",
-                        "code",
-                        "location",
-                        "category",
-                        "message",
-                        "suggestion",
-                        "details",
-                    ]
-                } else {
-                    &[]
-                };
-                let mut entries = items.iter().collect::<Vec<_>>();
-                entries.sort_by_key(|(key, _)| {
-                    (
-                        order
-                            .iter()
-                            .position(|field| field == key)
-                            .unwrap_or(usize::MAX),
-                        *key,
-                    )
-                });
-                let mut map = serializer.serialize_map(Some(entries.len()))?;
-                for (key, value) in entries {
-                    map.serialize_entry(key, &DiagnosticValue(value))?;
-                }
-                map.end()
-            }
-            value => value.serialize(serializer),
-        }
-    }
-}
-
 impl CliResult {
     pub fn success(data: Value, already_completed: bool) -> Self {
         if already_completed {
             Self {
-                schema: "work-cli-result/v1",
+                schema: "work-cli-result",
                 status: Status::AlreadyCompleted,
                 reason_code: "already_completed".into(),
                 message: "The requested operation was already completed.".into(),
@@ -165,7 +98,7 @@ impl CliResult {
             }
         } else {
             Self {
-                schema: "work-cli-result/v1",
+                schema: "work-cli-result",
                 status: Status::Success,
                 reason_code: "ok".into(),
                 message: "The command completed successfully.".into(),
@@ -177,7 +110,7 @@ impl CliResult {
 
     pub fn from_error(error: WorkError) -> Self {
         Self {
-            schema: "work-cli-result/v1",
+            schema: "work-cli-result",
             status: if error.status() == "failed" {
                 Status::Failed
             } else {
@@ -225,14 +158,6 @@ impl CliResult {
                 reason_code: &self.reason_code,
                 message: &self.message,
                 data: ordered_correction(&self.data),
-            })?
-        } else if self.data["schema"] == "work-task-collection-diagnostics/v1" {
-            serde_json::to_vec_pretty(&OrderedEnvelope {
-                schema: self.schema,
-                status: self.status,
-                reason_code: &self.reason_code,
-                message: &self.message,
-                data: DiagnosticValue(&self.data),
             })?
         } else if self.data.as_object().is_some_and(|details| {
             details.len() == 2
@@ -345,7 +270,7 @@ pub fn parse_response(stdout: &[u8], exit_code: i32) -> Result<Value, ResponseIs
     }
     let response: Value = serde_json::from_slice(stdout).map_err(|_| ResponseIssue::Malformed)?;
     let object = response.as_object().ok_or(ResponseIssue::InvalidContract)?;
-    if object.get("schema").and_then(Value::as_str) != Some("work-cli-result/v1")
+    if object.get("schema").and_then(Value::as_str) != Some("work-cli-result")
         || object.get("reason_code").and_then(Value::as_str).is_none()
         || object.get("message").and_then(Value::as_str).is_none()
         || !object.contains_key("data")
@@ -369,7 +294,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn migration_error_envelopes_match_python_stdout() {
+    fn migration_error_envelopes_match_current_contract_stdout() {
         let fixtures: Value = serde_json::from_str(include_str!(
             "../../../crates/work-operations/fixtures.json"
         ))
@@ -389,7 +314,7 @@ mod tests {
     }
 
     #[test]
-    fn migration_success_envelope_matches_python_stdout() {
+    fn migration_success_envelope_matches_current_contract_stdout() {
         let fixtures: Value = serde_json::from_str(include_str!(
             "../../../crates/work-operations/fixtures.json"
         ))

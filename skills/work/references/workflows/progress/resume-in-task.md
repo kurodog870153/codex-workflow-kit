@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # Resume Task discussion
 
 1. Handle explicit `$work task -- resume <requirement-id>` before the structured planning entry point. Run `progress read --requirement-id <requirement-id> --mode task` and validate Task mode, requirement identity and the complete fixed `context.planning_source`. Missing or malformed progress stops restoration; do not invent a new source.

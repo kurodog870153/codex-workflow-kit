@@ -253,12 +253,7 @@ pub(crate) fn fields(path: &[String], kind: TaskDocumentKind) -> &'static [&'sta
             "instructions_sha256",
             "routing_manifest",
         ],
-        "sources" => &[
-            "kind",
-            "logical_name",
-            "canonical_sha256",
-            "compatibility_revision",
-        ],
+        "sources" => &["kind", "logical_name", "canonical_sha256"],
         "execution_defaults" | "execution" => &["working_directory", "os", "shell"],
         "tasks"
             if matches!(
@@ -369,22 +364,22 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn python_item_and_index_example_hashes() {
+    fn current_contract_item_and_index_example_hashes() {
         let selection = json!({"sources": [{"kind": "instruction", "logical_name": "task.general", "canonical_sha256": "a".repeat(64)}], "references": [], "instructions_sha256": "b".repeat(64)});
-        let item = json!({"schema": "work-task-item/v1", "id": "TASK-001", "title": "Example", "skill_id": null,
+        let item = json!({"schema": "work-task-item", "id": "TASK-001", "title": "Example", "skill_id": null,
             "instruction_selection": {"selected_paths": [], "resolved_paths": ["general"], "sources": selection["sources"], "references": [], "instructions_sha256": "b".repeat(64)},
             "traceability": {"acceptance_ids": ["ACCEPTANCE-001"]},
             "acceptance_criteria":[{"id":"TASK-001-ACCEPTANCE-001","criterion":"The technical result is verified."}],
             "goal": "Produce the result.", "steps": [{"id": "STEP-001", "action": "Validate.", "references": ["VAL-001"]}],
             "validations": [{"id": "VAL-001", "kind": "manual", "confirmer": "user", "criteria": "Approved.","acceptance_ids":["ACCEPTANCE-001","TASK-001-ACCEPTANCE-001"]}]});
         let bytes = render_task(&item, TaskDocumentKind::Item).unwrap();
-        assert_eq!(bytes.len(), 1142);
+        assert_eq!(bytes.len(), 1139);
         assert_eq!(
             sha256_hex(&bytes),
-            "a21db3a4cf5f0085a69dcd6120854ec2fda7ac9485623dbbf4e83b987d737c56"
+            "64689cb9dadb816a3b6a83fd1fa2ab9ab2e35cef7d94b73c044085ea05fed10e"
         );
         let context = crate::task::source::fixture_context();
-        let index = json!({"schema": "work-task-index/v1", "requirement_id": "example", "spec_id": "TASK-SPEC-001", "status": "confirmed", "title": "Example", "summary": "Example tasks.",
+        let index = json!({"schema": "work-task-index", "requirement_id": "example", "spec_id": "TASK-SPEC-001", "status": "confirmed", "title": "Example", "summary": "Example tasks.",
             "artifacts": context["artifacts"],
             "source": {"kind":"snapshot","manifest":context["snapshot"]},
             "hierarchy_selection":context["hierarchy_selection"],"skill_selection":context["skill_selection"],"acceptance_criteria":context["acceptance_criteria"],
@@ -392,25 +387,25 @@ mod tests {
             "tasks": [{"id": "TASK-001", "path": "tasks/TASK-001.json", "canonical_sha256": "e".repeat(64)}],
             "readiness": {"status": "passed", "spec_id": "TASK-SPEC-001"}});
         let bytes = render_task(&index, TaskDocumentKind::Index).unwrap();
-        assert_eq!(bytes.len(), 2062);
+        assert_eq!(bytes.len(), 2050);
         assert_eq!(
             sha256_hex(&bytes),
-            "0315f983778dce5a5559ac39199699fa31eb07bd94026c3e774e2895b040c47a"
+            "0e36895f3c8a346a74d68ce7d7d514eebe980c307eba49a6bf560e2eef526946"
         );
     }
 
     #[test]
-    fn collection_orders_known_and_unknown_fields_like_python() {
+    fn collection_orders_known_and_unknown_fields_like_current_contract() {
         let value = json!({"zzz":2,"readiness":{"spec_id":"TASK-SPEC-001","status":"ready"},
-            "tasks":[],"schema":"work-task-collection-projection/v1","aaa":1});
+            "tasks":[],"schema":"work-task-collection-projection","aaa":1});
         assert_eq!(
             String::from_utf8(render_task(&value, TaskDocumentKind::Collection).unwrap()).unwrap(),
-            "{\n  \"schema\": \"work-task-collection-projection/v1\",\n  \"tasks\": [],\n  \"readiness\": {\n    \"status\": \"ready\",\n    \"spec_id\": \"TASK-SPEC-001\"\n  },\n  \"aaa\": 1,\n  \"zzz\": 2\n}\n"
+            "{\n  \"schema\": \"work-task-collection-projection\",\n  \"tasks\": [],\n  \"readiness\": {\n    \"status\": \"ready\",\n    \"spec_id\": \"TASK-SPEC-001\"\n  },\n  \"aaa\": 1,\n  \"zzz\": 2\n}\n"
         );
     }
 
     #[test]
-    fn collection_nested_field_order_matches_python() {
+    fn collection_nested_field_order_matches_current_contract() {
         let kind = TaskDocumentKind::Collection;
         assert_eq!(
             fields(&[], TaskDocumentKind::Index)[11],

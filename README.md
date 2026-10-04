@@ -31,6 +31,8 @@ $work execute -- 執行 example 的正式 TASK-001
 
 一般流程是 Source → Task → Revise（需要修改正式規格時）→ Execute。Task 只捕捉一次原始需求；後續討論、進度及草稿沿用同一 Source 和已確認選擇。第一版正式集合經 preview／apply 建立，既有有效規格使用 Revise；無法建立可信基線時，先使用 Migration analyze。中斷只能由該領域的 recover 恢復同一核准集合，不能手寫 JSON 或改寫歷史。
 
+公開契約只接受目前的無版本 ID，例如 work-task-index、work-task-item 與 work-execution-index；不提供舊 ID alias、雙讀或歷史 DTO。指令或選擇的 fingerprint drift 仍會阻止正式操作；有效集合的明確修訂使用 Revise，不相容或損毀的原始證據交由 Migration 分析，再經語意審查建立 current candidate。Migration 保留原始 bytes，不自動解析或升級舊格式。
+
 一般對話也可以收到 Work 使用建議。只有你確認精確模式與需求後，才會透過 confirmed 入口啟動；系統保留 implicit_confirmed 證據，不偽造明示指令。啟動 Work 本身不授權檔案寫入或執行。
 
 ### 保存討論進度
@@ -93,6 +95,8 @@ os-scripts/mac/install-work.command
 chmod +x os-scripts/mac/*.command
 ```
 
+macOS 安裝器由空的 prepared 目錄建立本次 current base、選取的 instruction 與 binary，驗證後整組替換。未選分支、自加檔案與舊版 Python 檔案不保留於 active installation；完整舊檔案保留於畫面顯示的 recovery directory 下 previous/。準備或備份失敗不改舊安裝；發布失敗會嘗試還原，還原失敗時舊檔案仍保留於 previous/。
+
 ### Windows
 
 執行：
@@ -101,11 +105,9 @@ chmod +x os-scripts/mac/*.command
 os-scripts\windows\install-work.bat
 ```
 
-同名檔案會覆寫，但安裝器不會自動刪除舊檔案。
+Windows 同樣由空的 prepared 目錄建立 current base、選取的 instruction 與 binary，核對 binary bytes 及啟動結果後整組替換。未選分支、自加檔案與舊版 Python 檔案只保留於 recovery directory 的 previous/；準備失敗不改 active installation，發布失敗會嘗試還原。Windows 本輪驗收採腳本靜態檢查，尚未執行 Windows 動態測試。
 
-重新選擇工作類型不會移除已安裝的分支。例如先安裝 `all`，再選 `general only`，先前的 web 分支仍會保留；其中已安裝的官方指引會更新，本次未選且原本不存在的分支不會新增。使用者自加檔案及舊版 `work.py`／`worklib/` 也會保留。逐檔複製若中途失敗，目錄可能暫時混合新舊版本；此風險已接受，應修正原因後重跑安裝器。
-
-安裝器會在寫入前檢查必要的 workflow、subagent、Cargo manifest 與所選 instruction，並完成本機編譯及 `--help` 啟動檢查。編譯失敗不會改動已安裝的 binary。安裝位置的入口是 `<skill-root>/scripts/work`（macOS）或 `<skill-root>\scripts\work.exe`（Windows）；從不同工作目錄使用時，以已解析的 skill root 組成完整路徑，不依賴 PATH。指引檔逐檔複製失敗時不提供自動回復。
+安裝器會在寫入前檢查必要的 workflow、subagent、Cargo manifest 與所選 instruction，並完成本機編譯及 `--help` 啟動檢查。編譯失敗不會改動已安裝的 binary。安裝位置的入口是 `<skill-root>/scripts/work`（macOS）或 `<skill-root>\scripts\work.exe`（Windows）；從不同工作目錄使用時，以已解析的 skill root 組成完整路徑，不依賴 PATH。準備失敗不會改動 active installation；發布階段保留 previous 與回復分支。
 
 ## 清理本機 Codex 資料
 

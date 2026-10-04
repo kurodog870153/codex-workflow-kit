@@ -95,7 +95,7 @@ fn longest_match(
         }
         previous = current;
     }
-    // Python's SequenceMatcher extends popular lines after finding the longest anchor.
+    // Matching extends popular lines after finding the longest anchor.
     while best_a > alo && best_b > blo && old[best_a - 1] == new[best_b - 1] {
         best_a -= 1;
         best_b -= 1;
@@ -269,7 +269,7 @@ mod tests {
     }
 
     #[test]
-    fn legacy_crlf_and_unicode_line_breaks_keep_python_diff_lines() {
+    fn legacy_crlf_and_unicode_line_breaks_keep_current_contract_diff_lines() {
         assert_eq!(
             unified_diff("sample", Some(b"a\r\nb\r\n"), Some(b"a\r\nc\r\n")),
             "--- sample:source\n+++ sample:candidate\n@@ -1,2 +1,2 @@\n a\r\n-b\r\n+c\r\n"

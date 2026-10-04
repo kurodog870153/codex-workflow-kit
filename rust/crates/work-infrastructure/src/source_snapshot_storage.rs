@@ -293,7 +293,7 @@ impl SourceSnapshotWriter for LocalSourceSnapshotStorage {
         captured_at: &str,
     ) -> Result<SnapshotBytes, WorkError> {
         let mut manifest = SourceSnapshot {
-            schema: PublicSchema::WorkSourceSnapshotV1,
+            schema: PublicSchema::WorkSourceSnapshot,
             requirement_id: requirement_id.as_str().into(),
             source_id: "SRC-001".parse().expect("initial Source ID"),
             captured_at: captured_at.into(),

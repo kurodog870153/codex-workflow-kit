@@ -78,7 +78,7 @@ fn progress_public_commands_reject_plan_mode_without_creating_history() {
     ));
     fs::create_dir_all(&root).unwrap();
     let input = root.join("progress.json");
-    let progress = json!({"schema":"work-discussion-progress/v1","requirement_id":"example","mode":"plan","revision":1,"status":"discussion_only","title":"Historical discussion","request":"Original requirement","current_task_id":null,"context":{},"source_status":[],"notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],"next_discussion_point":"Review."});
+    let progress = json!({"schema":"work-discussion-progress","requirement_id":"example","mode":"plan","revision":1,"status":"discussion_only","title":"Historical discussion","request":"Original requirement","current_task_id":null,"context":{},"source_status":[],"notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],"next_discussion_point":"Review."});
     let raw = serde_json::to_vec(&progress).unwrap();
     fs::write(&input, &raw).unwrap();
     for action in ["prepare", "read", "validate", "save"] {
@@ -252,7 +252,7 @@ fn attempt_cli_preserves_verified_acceptance_evidence_and_rejects_unexecuted_val
     ));
     fs::create_dir_all(&root).unwrap();
     let input = root.join("attempt.json");
-    let mut attempt=work_model::contract_data::registry_value()["items"]["work-attempt/v1"]["description"]["example"].clone();
+    let mut attempt=work_model::contract_data::registry_value()["items"]["work-attempt"]["description"]["example"].clone();
     attempt["authorization"]["validations"] = json!([{"id":"VAL-001","kind":"manual","confirmer":"user","criteria":"Actual result verified.","acceptance_ids":["ACCEPTANCE-001"]}]);
     attempt["authorization_sha256"] = json!(
         work_infrastructure::fixture_support::structured_sha256(&attempt["authorization"])
@@ -333,9 +333,9 @@ fn artifact_render_data_round_trips_without_cli_envelope() {
     ));
     fs::create_dir(&base).unwrap();
     for (command, contract_id, ordered) in [
-        ("attempt", "work-attempt/v1", Some("attempt_id")),
-        ("correction", "work-correction/v1", Some("correction_id")),
-        ("handoff", "work-handoff/v1", None),
+        ("attempt", "work-attempt", Some("attempt_id")),
+        ("correction", "work-correction", Some("correction_id")),
+        ("handoff", "work-handoff", None),
     ] {
         let fixture_root = PathBuf::from(project_root())
             .join("rust/crates/work-infrastructure/fixtures/handoff-closed/stopped");
@@ -968,7 +968,7 @@ fn task_preview_and_apply_create_only_the_first_formal_collection() {
     );
     assert_eq!(
         preview["data"]["execution_index"]["schema"],
-        "work-execution-index/v1"
+        "work-execution-index"
     );
     assert!(
         preview["data"]["execution_index"]["acceptance_results"]
@@ -1114,7 +1114,7 @@ fn task_write_commands_reject_legacy_single_file_before_publication() {
     let cases = [
         (
             "prepare",
-            registry["items"]["work-spec-prepare-request/v1"]["description"]["example"].clone(),
+            registry["items"]["work-spec-prepare-request"]["description"]["example"].clone(),
             vec![],
         ),
         (
@@ -1364,6 +1364,52 @@ fn removed_task_diagnose_is_rejected() {
 }
 
 #[test]
+fn unsupported_stdin_options_reject_before_publication() {
+    let root = std::env::temp_dir().join(format!(
+        "work-unknown-stdin-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&root).unwrap();
+    let sentinel = root.join("existing.txt");
+    fs::write(
+        &sentinel,
+        b"preserved
+",
+    )
+    .unwrap();
+    for option in ["--stdin", "--stdin=true"] {
+        let actual = Command::new(installed_executable())
+            .args([
+                "--project-root",
+                root.to_str().unwrap(),
+                "paths",
+                "resolve",
+                "--requirement-id",
+                "example",
+                option,
+            ])
+            .stdin(std::process::Stdio::piped())
+            .output()
+            .unwrap();
+        assert_eq!(actual.status.code(), Some(2));
+        assert!(actual.stderr.is_empty());
+        let response: Value = serde_json::from_slice(&actual.stdout).unwrap();
+        assert_eq!(response["reason_code"], "cli_usage_error");
+        assert!(response["data"].get("replacement").is_none());
+        assert_eq!(
+            fs::read(&sentinel).unwrap(),
+            b"preserved
+"
+        );
+        assert_eq!(fs::read_dir(&root).unwrap().count(), 1);
+    }
+}
+
+#[test]
 fn frozen_cli_responses_match_at_process_boundary() {
     let fixtures: Value =
         serde_json::from_str(include_str!("process_baseline.json")).expect("frozen fixtures");
@@ -1429,7 +1475,7 @@ fn every_public_leaf_has_frozen_help_at_process_boundary() {
         .expect("command manifest");
     let mut count = 0;
     check_help(&manifest["root"], &mut Vec::new(), &mut count);
-    assert_eq!(count, 88);
+    assert_eq!(count, 81);
 }
 
 #[test]
@@ -1451,7 +1497,7 @@ fn public_command_tree_matches_frozen_baseline() {
     let mut commands = Vec::new();
     collect(&manifest["root"], &mut Vec::new(), &mut commands);
     commands.sort();
-    assert_eq!(commands.len(), 88);
+    assert_eq!(commands.len(), 81);
     assert_eq!(
         commands
             .iter()
@@ -1520,6 +1566,7 @@ fn public_command_tree_matches_frozen_baseline() {
         "source read",
         "source validate",
         "invocation confirm",
+        "instructions recover",
     ] {
         assert!(commands.contains(&command.to_owned()));
     }
@@ -1530,13 +1577,14 @@ fn public_command_tree_matches_frozen_baseline() {
                 && !command.starts_with("source ")
                 && command != "invocation confirm"
                 && command != "specification reconciliation-recover"
+                && command != "instructions recover"
         })
         .collect::<Vec<_>>();
-    assert_eq!(legacy.len(), 77);
+    assert_eq!(legacy.len(), 69);
     let raw = format!("{}\n", legacy.join("\n"));
     assert_eq!(
         work_infrastructure::fixture_support::raw_sha256(raw.as_bytes()),
-        "e1de3fe7348a9edb2fd47f7f6665760bbc0fcabb82f0b2fb29e2a42baca03e21"
+        "2ee2cb05f1ff3221752d9be0fe24ba665d1e308a54600780ecab28a900633133"
     );
 }
 
@@ -1608,7 +1656,7 @@ fn migration_preview_uses_public_mode_and_rejects_task_entry() {
         String::from_utf8_lossy(&output.stdout)
     );
     let response: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(response["data"]["schema"], "work-spec-migration-preview/v1");
+    assert_eq!(response["data"]["schema"], "work-spec-migration-preview");
 
     let request: Value = serde_json::from_slice(&fs::read(&request_arg).unwrap()).unwrap();
     assert!(
@@ -1785,7 +1833,7 @@ fn migration_public_lifecycle_handles_revision_and_reconstruction() {
         let prepared = invoke("prepare", &semantic_arg, None);
         assert_eq!(
             prepared["request"]["schema"],
-            "work-spec-migration-preview-request/v1"
+            "work-spec-migration-preview-request"
         );
         assert_eq!(prepared["preview"]["status"], "ready");
         let preview = invoke("preview", &prepared_arg, None);
@@ -1844,7 +1892,7 @@ fn migration_public_lifecycle_handles_revision_and_reconstruction() {
         let plan_path = project.join("outputs/work/plans/example.json");
         let plan_before = fs::read(&plan_path).unwrap();
         let verified = invoke("verify", &prepared_arg, Some(approved));
-        assert_eq!(verified["schema"], "work-spec-migration-verification/v1");
+        assert_eq!(verified["schema"], "work-spec-migration-verification");
         assert_eq!(verified["status"], "valid");
         assert_eq!(verified["mode"], "semantic");
         assert_eq!(fs::read(&journal_path).unwrap(), journal_before);
@@ -1921,7 +1969,7 @@ fn removed_rules_command_returns_public_usage_error() {
     assert_eq!(result.status.code(), Some(2));
     assert!(result.stderr.is_empty());
     let response: Value = serde_json::from_slice(&result.stdout).unwrap();
-    assert_eq!(response["schema"], "work-cli-result/v1");
+    assert_eq!(response["schema"], "work-cli-result");
     assert_eq!(response["reason_code"], "cli_usage_error");
     assert!(
         response["data"]["reason"]
@@ -1968,7 +2016,7 @@ fn handoff_invalid_json_fails_before_source_lookup() {
         assert_eq!(output.status.code(), Some(3), "{command}");
         assert!(output.stderr.is_empty(), "{command}");
         let response: Value = serde_json::from_slice(&output.stdout).unwrap();
-        assert_eq!(response["schema"], "work-cli-result/v1", "{command}");
+        assert_eq!(response["schema"], "work-cli-result", "{command}");
         assert_eq!(
             response["reason_code"], "invalid_json_contract",
             "{command}"
@@ -2040,8 +2088,8 @@ fn handoff_build_output_validates_across_installed_processes() {
     assert_eq!(built.status.code(), Some(0));
     assert!(built.stderr.is_empty());
     let response: Value = serde_json::from_slice(&built.stdout).unwrap();
-    assert_eq!(response["schema"], "work-cli-result/v1");
-    assert_eq!(response["data"]["schema"], "work-handoff/v1");
+    assert_eq!(response["schema"], "work-cli-result");
+    assert_eq!(response["data"]["schema"], "work-handoff");
     let handoff = base.join("handoff.json");
     fs::write(&handoff, serde_json::to_vec(&response["data"]).unwrap()).unwrap();
     let validated = Command::new(&installed)
@@ -2138,7 +2186,7 @@ fn handoff_build_output_validates_across_installed_processes() {
     ] {
         fs::write(&request, serde_json::to_vec(&semantic).unwrap()).unwrap();
         let built = run_handoff(&project, build, &request, &build_flags);
-        assert_eq!(built["schema"], "work-handoff/v1", "{build}");
+        assert_eq!(built["schema"], "work-handoff", "{build}");
         assert_eq!(built["artifacts"]["task"], task_path, "{build}");
         fs::write(&handoff, serde_json::to_vec(&built).unwrap()).unwrap();
         let checked = run_handoff(&project, verify, &handoff, &verify_flags);
@@ -2376,7 +2424,7 @@ fn task_delegation_uses_fixed_source_without_plan_and_rejects_legacy_context() {
             );
             copy_tree(&fixture.join("skills"), &project.join("skills"));
         }
-        let mut request = json!({"schema":"work-delegation-build-request/v1","role":role,"request":"Preserve the confirmed requirement.","repository_evidence":["Reviewed src.txt."],"saved_discussion":["Preserve the interface."]});
+        let mut request = json!({"schema":"work-delegation-build-request","role":role,"request":"Preserve the confirmed requirement.","repository_evidence":["Reviewed src.txt."],"saved_discussion":["Preserve the interface."]});
         if role == "task-coordinator" {
             request["planning_source"] = json!({"snapshot":index["source"]["manifest"],"artifacts":index["artifacts"],"hierarchy_selection":index["hierarchy_selection"],"skill_selection":index["skill_selection"],"acceptance_criteria":index["acceptance_criteria"]});
         } else {
@@ -2535,7 +2583,7 @@ fn progress_prepare_validate_save_and_resume_across_processes() {
         "--expected-revision",
         "0",
     ]);
-    assert_eq!(prepared["schema"], "work-progress-prepare/v1");
+    assert_eq!(prepared["schema"], "work-progress-prepare");
     assert_eq!(prepared["source_validation"], "not_checked");
     assert_eq!(prepared["evidence_trust"], "historical_context_only");
     assert_eq!(prepared["formal_readiness"], "not_established");
@@ -2677,7 +2725,7 @@ fn specification_task_boundary_continuation_across_installed_processes() {
         fs::write(
             &request_path,
             serde_json::to_vec(&json!({
-                "schema":"work-spec-prepare-request/v1","requirement_id":"example",
+                "schema":"work-spec-prepare-request","requirement_id":"example",
                 "reason":"Confirm the constraint wording and save progress.",
                 "edits":[{"target":{"artifact":"task_item","task_id":"TASK-001"},"field":"goal",
                     "after":"Confirmed boundary"}]
@@ -2905,7 +2953,7 @@ fn every_public_command_help_returns_one_json_response() {
         assert_eq!(output.status.code(), Some(0), "{path:?}");
         assert!(output.stderr.is_empty(), "{path:?}");
         let response: Value = serde_json::from_slice(&output.stdout).unwrap();
-        assert_eq!(response["schema"], "work-cli-result/v1");
+        assert_eq!(response["schema"], "work-cli-result");
         assert!(
             response["data"]["help"]
                 .as_str()
@@ -2924,7 +2972,7 @@ fn every_public_command_help_returns_one_json_response() {
         serde_json::from_str(include_str!("../src/parser/commands.json")).unwrap();
     let mut count = 0;
     check(&manifest["root"], &mut Vec::new(), &mut count);
-    assert!(count > 106);
+    assert_eq!(count, 101);
 }
 
 #[test]
@@ -2962,7 +3010,7 @@ fn relative_unicode_request_path_uses_child_cwd_and_utf8_stdout() {
     assert_eq!(success.status.code(), Some(0));
     assert!(success.stderr.is_empty());
     let response: Value = serde_json::from_slice(&success.stdout).unwrap();
-    assert_eq!(response["schema"], "work-cli-result/v1");
+    assert_eq!(response["schema"], "work-cli-result");
     assert_eq!(response["data"]["request"], " 需求");
     let missing = invoke("找不到 missing.json");
     assert_eq!(missing.status.code(), Some(8));
@@ -2983,7 +3031,7 @@ fn progress_writer_lock_prevents_another_process_from_publishing() {
             .as_nanos()
     ));
     fs::create_dir(&root).unwrap();
-    let progress = json!({"schema":"work-discussion-progress/v1",
+    let progress = json!({"schema":"work-discussion-progress",
         "requirement_id":"example","mode":"task","revision":1,
         "status":"discussion_only","title":"Example","request":"Example request.",
         "current_task_id":null,"context":{},"source_status":[],"notes":[],
@@ -3159,12 +3207,12 @@ fn source_capture_requires_bound_approval_and_preserves_all_host_payloads() {
         let result: Value = serde_json::from_slice(&output.stdout).unwrap();
         let restored: Vec<u8> = serde_json::from_value(result["data"]["bytes"].clone()).unwrap();
         assert_eq!(restored, bytes);
-        assert_eq!(result["data"]["schema"], "work-source-read/v1");
+        assert_eq!(result["data"]["schema"], "work-source-read");
         assert_eq!(result["data"]["manifest"]["source"], metadata["source"]);
         let output = run(&read_args("validate", &source_id));
         assert!(output.status.success());
         let result: Value = serde_json::from_slice(&output.stdout).unwrap();
-        assert_eq!(result["data"]["schema"], "work-source-validation/v1");
+        assert_eq!(result["data"]["schema"], "work-source-validation");
         assert_eq!(result["data"]["content_size"], bytes.len());
         assert!(result["data"].get("bytes").is_none());
         if index == 0 {
@@ -3330,191 +3378,77 @@ fn workflow_uses_fixed_source_then_task_without_plan_and_rejects_plan_paths() {
 }
 
 #[test]
-fn installed_instruction_refresh_uses_task_and_preserves_fixed_source() {
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../work-infrastructure/fixtures/specification-update/item-goal");
-    let root = std::env::temp_dir().join(format!(
-        "work-refresh-task-cli-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    for relative in [
-        "outputs/work/tasks/example/index.json",
-        "outputs/work/tasks/example/tasks/TASK-001.json",
-        "outputs/work/executions/example/index.json",
-    ] {
-        let target = root.join(relative);
-        fs::create_dir_all(target.parent().unwrap()).unwrap();
-        fs::copy(fixture.join(relative), target).unwrap();
-    }
-    work_infrastructure::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
-    fs::write(root.join("src.txt"), b"source\n").unwrap();
-    let source = root.join("outputs/work/sources/example/SRC-001/source.txt");
-    let original = fs::read(&source).unwrap();
-    let invoke = |arguments: &[&str], status: i32| {
-        let output = Command::new(installed_executable())
-            .args(["--project-root", root.to_str().unwrap(), "--verbose"])
-            .args(arguments)
-            .output()
-            .unwrap();
-        assert_eq!(
-            output.status.code(),
-            Some(status),
-            "{arguments:?}: {output:?}"
-        );
-        assert!(output.stderr.is_empty());
-        serde_json::from_slice::<Value>(&output.stdout).unwrap()
+fn installed_instruction_recovery_uses_only_existing_current_journal() {
+    use std::collections::BTreeMap;
+    use work_infrastructure::fixture_support::{
+        PublicationOrder, TransactionInput, TransactionKind, derive_fixture_transaction,
     };
-    let impact = invoke(&["instructions", "impact"], 0);
-    assert_eq!(impact["data"]["affected_requirements"], 1);
-    let preview = invoke(
-        &[
-            "instructions",
-            "refresh-preview",
-            "--requirement-id",
-            "example",
-        ],
-        0,
-    );
-    assert_eq!(preview["data"]["status"], "refreshable");
-    let approval = preview["data"]["approved_sha256"].as_str().unwrap();
-    let published = invoke(
-        &[
-            "instructions",
-            "refresh-apply",
-            "--requirement-id",
-            "example",
-            "--approved-sha256",
-            approval,
-        ],
-        0,
-    );
-    assert_eq!(published["data"]["status"], "updated");
-    assert_eq!(fs::read(&source).unwrap(), original);
-    assert!(!root.join("outputs/work/plans").exists());
-    let repeated = invoke(
-        &[
-            "instructions",
-            "refresh-recover",
-            "--requirement-id",
-            "example",
-            "--approved-sha256",
-            approval,
-        ],
-        0,
-    );
-    assert_eq!(repeated["data"]["status"], "already_completed");
-    fs::write(source, b"unexpected drift").unwrap();
-    assert_eq!(
-        invoke(
-            &[
-                "instructions",
-                "refresh-recover",
-                "--requirement-id",
-                "example",
-                "--approved-sha256",
-                approval
-            ],
-            5
-        )["reason_code"],
-        "source_refresh_source_changed"
-    );
-}
-
-#[test]
-fn installed_instruction_migration_uses_task_and_preserves_fixed_source() {
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../work-infrastructure/fixtures/specification-update/item-goal");
-    let root = std::env::temp_dir().join(format!(
-        "work-migration-task-cli-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    for relative in [
-        "outputs/work/tasks/example/index.json",
-        "outputs/work/tasks/example/tasks/TASK-001.json",
-        "outputs/work/executions/example/index.json",
+    for (kind, prefix, transaction_kind) in [
+        (
+            "source_refresh",
+            "source-refresh",
+            TransactionKind::SourceRefresh,
+        ),
+        (
+            "instruction_migration",
+            "instruction-migration",
+            TransactionKind::InstructionMigration,
+        ),
     ] {
-        let target = root.join(relative);
-        fs::create_dir_all(target.parent().unwrap()).unwrap();
-        fs::copy(fixture.join(relative), target).unwrap();
-    }
-    work_infrastructure::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
-    fs::write(root.join("src.txt"), b"source\n").unwrap();
-    let source = root.join("outputs/work/sources/example/SRC-001/source.txt");
-    let original = fs::read(&source).unwrap();
-    let invoke = |arguments: &[&str], status: i32| {
-        let output = Command::new(installed_executable())
-            .args(["--project-root", root.to_str().unwrap(), "--verbose"])
-            .args(arguments)
-            .output()
-            .unwrap();
+        let root = std::env::temp_dir().join(format!(
+            "work-current-recovery-{kind}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(root.join("execution")).unwrap();
+        fs::write(root.join("source.txt"), b"immutable source").unwrap();
+        fs::write(root.join("target.json"), b"before").unwrap();
+        let preview = "a".repeat(64);
+        let (raw, approval) = derive_fixture_transaction(TransactionInput {
+            kind: transaction_kind, order: PublicationOrder::Flat,
+            request: serde_json::json!({"kind":kind,"requirement_id":"example","preview_fingerprint":preview}),
+            artifacts: serde_json::json!({"execution":"execution"}), affected_task_ids: vec![],
+            history: BTreeMap::new(),
+            source: BTreeMap::from([("source.txt".into(),b"immutable source".to_vec()),("target.json".into(),b"before".to_vec())]),
+            candidate: BTreeMap::from([("source.txt".into(),b"immutable source".to_vec()),("target.json".into(),b"after".to_vec())]),
+        }).unwrap();
+        let journal = format!("execution/.work-{prefix}-AAAAAAAAAAAA.json");
+        fs::write(root.join(&journal), raw).unwrap();
+        let invoke = |status| {
+            let output = Command::new(installed_executable())
+                .args([
+                    "--project-root",
+                    root.to_str().unwrap(),
+                    "--verbose",
+                    "instructions",
+                    "recover",
+                    "--journal-path",
+                    &journal,
+                    "--approved-sha256",
+                    &approval,
+                ])
+                .output()
+                .unwrap();
+            assert_eq!(output.status.code(), Some(status), "{output:?}");
+            assert!(output.stderr.is_empty());
+            serde_json::from_slice::<Value>(&output.stdout).unwrap()
+        };
+        let result = invoke(0);
+        assert_eq!(result["data"]["schema"], "work-spec-transaction");
+        assert_eq!(result["data"]["state"], "published");
+        assert_eq!(fs::read(root.join("target.json")).unwrap(), b"after");
+        let published_raw = fs::read(root.join(&journal)).unwrap();
+        assert_eq!(invoke(0), result);
+        assert_eq!(fs::read(root.join(&journal)).unwrap(), published_raw);
+        fs::write(root.join("source.txt"), b"unexpected drift").unwrap();
         assert_eq!(
-            output.status.code(),
-            Some(status),
-            "{arguments:?}: {output:?}"
+            invoke(5)["reason_code"],
+            "instruction_recovery_source_changed"
         );
-        assert!(output.stderr.is_empty());
-        serde_json::from_slice::<Value>(&output.stdout).unwrap()
-    };
-    let preview = invoke(
-        &[
-            "instructions",
-            "migration-preview",
-            "--requirement-id",
-            "example",
-        ],
-        0,
-    );
-    assert_eq!(preview["data"]["status"], "migration_required");
-    let approval = preview["data"]["approved_sha256"].as_str().unwrap();
-    let published = invoke(
-        &[
-            "instructions",
-            "migration-apply",
-            "--requirement-id",
-            "example",
-            "--approved-sha256",
-            approval,
-        ],
-        0,
-    );
-    assert_eq!(published["data"]["status"], "updated");
-    assert_eq!(fs::read(&source).unwrap(), original);
-    assert!(!root.join("outputs/work/plans").exists());
-    let repeated = invoke(
-        &[
-            "instructions",
-            "migration-apply",
-            "--requirement-id",
-            "example",
-            "--approved-sha256",
-            approval,
-        ],
-        0,
-    );
-    assert_eq!(repeated["data"]["status"], "already_completed");
-    fs::write(source, b"unexpected drift").unwrap();
-    assert_eq!(
-        invoke(
-            &[
-                "instructions",
-                "migration-apply",
-                "--requirement-id",
-                "example",
-                "--approved-sha256",
-                approval
-            ],
-            5
-        )["reason_code"],
-        "instruction_migration_source_changed"
-    );
+    }
 }
 
 #[test]
@@ -3778,7 +3712,7 @@ fn installed_artifact_editor_uses_fixed_source_and_task_only_requests() {
         serde_json::from_slice::<Value>(&output.stdout).unwrap()
     };
     let input = root.join("editor.json");
-    let request = json!({"schema":"work-delegation-build-request/v1","role":"artifact-editor","mode":"execute","request":"Revise confirmed artifact.","task_path":"outputs/work/tasks/example/index.json","confirmed_request":{"schema":"work-spec-prepare-request/v1","requirement_id":"example","reason":"Reviewed","edits":[{"target":{"artifact":"task_item","task_id":"TASK-001"},"field":"goal","after":"Reviewed goal"}]},"decisions":["Confirmed revision"],"affected_task_ids":["TASK-001"],"continuation_point":"Return to Execute"});
+    let request = json!({"schema":"work-delegation-build-request","role":"artifact-editor","mode":"execute","request":"Revise confirmed artifact.","task_path":"outputs/work/tasks/example/index.json","confirmed_request":{"schema":"work-spec-prepare-request","requirement_id":"example","reason":"Reviewed","edits":[{"target":{"artifact":"task_item","task_id":"TASK-001"},"field":"goal","after":"Reviewed goal"}]},"decisions":["Confirmed revision"],"affected_task_ids":["TASK-001"],"continuation_point":"Return to Execute"});
     let build = |value: &Value, status| {
         fs::write(&input, serde_json::to_vec(value).unwrap()).unwrap();
         invoke(
@@ -3891,7 +3825,7 @@ fn installed_execute_delegation_requires_formal_task_without_plan() {
         serde_json::from_slice::<Value>(&output.stdout).unwrap()
     };
     let input = root.join("delegation.json");
-    let request = json!({"schema":"work-delegation-build-request/v1","role":"execute","request":"Execute selected TASK.","task_path":"outputs/work/tasks/example/index.json","task_id":"TASK-001"});
+    let request = json!({"schema":"work-delegation-build-request","role":"execute","request":"Execute selected TASK.","task_path":"outputs/work/tasks/example/index.json","task_id":"TASK-001"});
     let build = |value: &Value, status| {
         fs::write(&input, serde_json::to_vec(value).unwrap()).unwrap();
         invoke(
@@ -4130,7 +4064,7 @@ fn installed_attempt_render_preserves_derived_acceptance_evidence_and_history() 
     index["tasks"][0]["status"] = json!("in_progress");
     index["overall_status"] = json!("in_progress");
     index["lock"] = json!({"kind":"execution","task_id":"TASK-001","attempt_id":"ATTEMPT-001","execute_instructions_sha256":attempt["execute_instructions_sha256"],"record_id":"VAL-001#1","retry_authorization_evidence":"Fresh fixture retry approval"});
-    let (candidate, _)=work_infrastructure::fixture_support::record_finish_candidates(&task,&attempt,&index,&json!({"schema":"work-record-finish-request/v1","record":{"outcome":"passed","evidence":"Actual fixture VAL reviewed."}})).unwrap();
+    let (candidate, _)=work_infrastructure::fixture_support::record_finish_candidates(&task,&attempt,&index,&json!({"schema":"work-record-finish-request","record":{"outcome":"passed","evidence":"Actual fixture VAL reviewed."}})).unwrap();
     let progress = candidate["acceptance_results"]
         .as_array()
         .unwrap()
@@ -4192,6 +4126,18 @@ fn migration_analysis_preserves_opaque_evidence_and_rejects_plan_selection() {
         ("legacy.pdf", b"%PDF-1.7\r\n\xff\x00".as_slice()),
         ("broken.json", b"{invalid".as_slice()),
         (
+            "old-task.json",
+            b"{\"schema\":\"work-task-index/v1\"}".as_slice(),
+        ),
+        (
+            "unsupported.json",
+            b"{\"schema\":\"unsupported/v99\"}".as_slice(),
+        ),
+        (
+            "unknown-field.json",
+            b"{\"schema\":\"work-task-index\",\"unknown\":true}".as_slice(),
+        ),
+        (
             "old-plan.json",
             b"{\"schema\":\"work-plan/v0\",\"unrecognized\":true}".as_slice(),
         ),
@@ -4212,7 +4158,7 @@ fn migration_analysis_preserves_opaque_evidence_and_rejects_plan_selection() {
     assert_eq!(output.status.code(), Some(0));
     let result: Value = serde_json::from_slice(&output.stdout).unwrap();
     let items = result["data"]["items"].as_array().unwrap();
-    assert_eq!(items.len(), 3);
+    assert_eq!(items.len(), payloads.len());
     for (item, (name, raw)) in items.iter().zip(payloads) {
         assert_eq!(item["path"], name);
         assert_eq!(item["kind"], "raw_evidence");
@@ -4283,7 +4229,7 @@ fn migration_prepare_requires_complete_reviewed_candidates_and_exact_raw_evidenc
     let item = &analysis["items"][0];
     let content: Value =
         serde_json::from_slice(&fs::read(fixture.join(task_path)).unwrap()).unwrap();
-    let request = json!({"schema":"work-artifact-migration-decisions/v1","analysis":analysis,"choices":[{"id":item["id"],"action":"modify","content":content}]});
+    let request = json!({"schema":"work-artifact-migration-decisions","analysis":analysis,"choices":[{"id":item["id"],"action":"modify","content":content}]});
     let input = root.join("reviewed.json");
     let prepare = |value: &Value| {
         fs::write(&input, serde_json::to_vec(value).unwrap()).unwrap();
@@ -4583,4 +4529,24 @@ fn all_four_public_modes_preserve_both_origins_and_reach_current_commands() {
         "work_invocation_mode_invalid"
     );
     assert!(!root.join("outputs").exists());
+}
+
+#[test]
+fn retired_refresh_commands_are_ordinary_usage_errors() {
+    for name in [
+        "refresh-preview",
+        "refresh-apply",
+        "refresh-recover",
+        "refresh-preview-all",
+        "refresh-apply-all",
+        "refresh-recover-all",
+        "migration-preview",
+        "migration-apply",
+    ] {
+        let output = run(&["instructions".into(), name.into()]);
+        assert_eq!(output.status.code(), Some(2), "{name}");
+        assert!(output.stderr.is_empty());
+        let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(response["reason_code"], "cli_usage_error");
+    }
 }

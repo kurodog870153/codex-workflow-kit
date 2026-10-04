@@ -109,7 +109,7 @@ pub fn build_hierarchy(
         .cloned()
         .collect();
     Ok(Hierarchy {
-        schema: "work-hierarchy/v1".into(),
+        schema: "work-hierarchy".into(),
         work_directory: work_directory.into(),
         selected_paths: selected_paths.to_vec(),
         resolved_paths,
@@ -277,7 +277,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn python_path_fixture_matches_exact_order() {
+    fn current_contract_path_fixture_matches_exact_order() {
         let selected = vec!["web/backend/java".into(), "web/frontend/react".into()];
         let value = build_hierarchy("task", &selected).unwrap();
         assert_eq!(
@@ -299,7 +299,7 @@ mod tests {
         assert_eq!(
             serde_json::to_value(&value).unwrap(),
             json!({
-                "schema": "work-hierarchy/v1",
+                "schema": "work-hierarchy",
                 "work_directory": "task",
                 "selected_paths": ["web/backend/java", "web/frontend/react"],
                 "resolved_paths": ["general", "web", "web/backend", "web/backend/java", "web/frontend", "web/frontend/react"],
@@ -323,7 +323,7 @@ mod tests {
     }
 
     #[test]
-    fn python_path_rejections_and_authorization_match() {
+    fn current_contract_path_rejections_and_authorization_match() {
         for path in ["", "general", "Web/backend", "web//backend"] {
             assert_eq!(
                 build_hierarchy("execute", &[path.into()])
@@ -412,7 +412,7 @@ mod tests {
     }
 
     #[test]
-    fn selection_order_matches_python_contract() {
+    fn selection_order_matches_current_contract_contract() {
         let value = json!({
             "selection_sha256": "a",
             "catalog_sha256": "b",
@@ -424,7 +424,7 @@ mod tests {
             }],
             "selected_paths": ["web"],
             "decision": "instruction_paths",
-            "schema": "work-hierarchy-selection/v1",
+            "schema": "work-hierarchy-selection",
         });
         let output = String::from_utf8(ordered_selection_bytes(&value).unwrap()).unwrap();
         assert!(output.find("\"schema\"").unwrap() < output.find("\"decision\"").unwrap());
@@ -437,7 +437,7 @@ mod tests {
     fn selection_orders_unknown_fields_and_preserves_nonobject_values() {
         let value = json!({
             "zzz": 2, "aaa": 1,
-            "schema": "work-hierarchy-selection/v1",
+            "schema": "work-hierarchy-selection",
             "decision": "instruction_paths",
             "selected_paths": ["web/backend"],
             "catalog_sha256": "b", "selection_sha256": "a",

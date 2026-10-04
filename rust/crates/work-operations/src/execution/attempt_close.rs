@@ -58,13 +58,13 @@ mod tests {
 
     #[test]
     fn completed_and_stopped_candidates_update_attempt_and_index_together() {
-        let authorization = json!({"schema":"work-attempt-authorization/v1",
+        let authorization = json!({"schema":"work-attempt-authorization",
             "task_id":"TASK-001","commands":[],"validations":[],"modifiable_files":[],
             "working_directories":[],"external_operations":[],"allowed_deviations":[],
             "reapproval_conditions":["scope_expansion","source_or_worktree_drift",
                 "failure_divergence","retry","recovery","unknown_result"],
             "authorization_evidence":"Approved"});
-        let attempt = json!({"acceptance_results":[],"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
+        let attempt = json!({"acceptance_results":[],"schema":"work-attempt","attempt_id":"ATTEMPT-001",
             "task_spec_id":"TASK-SPEC-001","task_id":"TASK-001","skill_id":null,
             "status":"in_progress","task_collection_sha256":"a".repeat(64),
             "task_index_sha256":"b".repeat(64),"task_item_sha256":"c".repeat(64),
@@ -74,7 +74,7 @@ mod tests {
             "execute_skill_selection_sha256":"0".repeat(64),
             "authorization_sha256":canonical_json_sha256(&authorization).unwrap(),
             "authorization":authorization,"started_at":"2026-09-01T10:00+08:00","records":[]});
-        let index = json!({"acceptance_results":[],"schema":"work-execution-index/v1","requirement_id":"demo",
+        let index = json!({"acceptance_results":[],"schema":"work-execution-index","requirement_id":"demo",
             "title":"Execution","task_spec_id":"TASK-SPEC-001",
             "task_collection_sha256":"a".repeat(64),"task_index_sha256":"b".repeat(64),
             "task_instructions_sha256":"d".repeat(64),
@@ -84,7 +84,7 @@ mod tests {
             "tasks":[{"id":"TASK-001","status":"in_progress","skill_id":null,
                 "task_item_sha256":"c".repeat(64),"acceptance_results":[],"instructions_sha256":"d".repeat(64),
                 "latest_attempt":"ATTEMPT-001"}]});
-        let completed = json!({"schema":"work-attempt-close-request/v1","status":"completed"});
+        let completed = json!({"schema":"work-attempt-close-request","status":"completed"});
         let (closed, updated) = build_close_candidates(
             &json!({"id":"TASK-001"}),
             &index,
@@ -96,7 +96,7 @@ mod tests {
         assert_eq!(closed["status"], "completed");
         assert_eq!(updated["tasks"][0]["status"], "completed");
         assert!(updated.get("lock").is_none());
-        let stopped = json!({"schema":"work-attempt-close-request/v1","status":"stopped",
+        let stopped = json!({"schema":"work-attempt-close-request","status":"stopped",
             "final_type":"other","reason":"Need retry","authorization_evidence":"Approved close"});
         let (closed, updated) = build_close_candidates(
             &json!({"id":"TASK-001"}),

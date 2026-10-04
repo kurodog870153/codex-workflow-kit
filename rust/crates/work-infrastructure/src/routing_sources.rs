@@ -121,7 +121,7 @@ mod tests {
             "task",
             "task_confirmed",
             "choose_task",
-            &json!({"schema":"work-task-index/v1","requirement_id":"example"}),
+            &json!({"schema":"work-task-index","requirement_id":"example"}),
         )
         .unwrap();
         assert!(work_operations::protocol::valid_sha256(
@@ -131,7 +131,7 @@ mod tests {
     }
 
     #[test]
-    fn source_session_matches_python_identity_and_rejects_drift() {
+    fn source_session_matches_current_contract_identity_and_rejects_drift() {
         let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         let mut session = RoutingSourceSession::new(root.clone());
         let request = RoutingRequest {
@@ -237,7 +237,7 @@ mod tests {
     }
 
     #[test]
-    fn execution_workflow_states_match_python_transitions() {
+    fn execution_workflow_states_match_current_contract_transitions() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo.join("crates/work-infrastructure/fixtures/workflow-execution");
         for name in [

@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # Saved planning entry point
 
 1. For `$work task -- <requirement-id>`, use `task status --requirement-id <requirement-id> --user-config-root <user-config-root>` with confirmed skill roots as the read-only planning entry point; add `--task-id <task-id>` for an explicit choice. Follow `next_action` and fixed Source checks. A missing index with no residue proposes initial planning; invalid storage stops writes.

@@ -1,12 +1,7 @@
 //! Instruction resolution and selection validation over source repositories.
 
-pub mod migration;
-pub mod migration_build;
-pub mod migration_publication;
 pub mod refresh;
-pub mod refresh_batch;
 pub mod refresh_build;
-pub mod refresh_publication;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -122,7 +117,7 @@ pub fn cross_mode_catalog(
             json!({"mode_support":mode_support,"modes":mode_metadata}),
         );
     }
-    let value = json!({"schema":"work-instruction-catalog/v1","mode":"all",
+    let value = json!({"schema":"work-instruction-catalog","mode":"all",
         "paths":paths,"children":children,"metadata":metadata});
     let catalog_sha256 =
         fingerprint::structured(&value).expect("catalog contains only JSON values");
@@ -143,9 +138,9 @@ pub fn catalog(
         return Ok(work_model::instruction::verified::<
             work_model::instruction::InstructionCatalog,
         >(
-            json!({"schema":"work-instruction-catalog/v1","mode":"all",
+            json!({"schema":"work-instruction-catalog","mode":"all",
             "paths":catalog.paths,"children":catalog.children,"metadata":catalog.metadata,
-            "catalog_sha256":catalog.catalog_sha256}),
+            "catalog_sha256":catalog.catalog_sha256})
         ));
     }
     let catalog = mode_catalog(repository, mode)?;
@@ -172,7 +167,7 @@ pub fn catalog(
     for names in children.values_mut() {
         names.sort();
     }
-    let value = json!({"schema":"work-instruction-catalog/v1","mode":mode,
+    let value = json!({"schema":"work-instruction-catalog","mode":mode,
         "paths":catalog.paths,"children":children,"metadata":catalog.metadata});
     let catalog_sha256 = fingerprint::structured(&value).expect("catalog JSON serializes");
     let mut result = value;
@@ -564,7 +559,7 @@ pub fn parse_selection(value: &Value, location: &str) -> Result<InstructionSelec
             value,
             &source_location,
             &["kind", "logical_name", "canonical_sha256"],
-            &["compatibility_revision"],
+            &[],
         )?;
         let kind = source["kind"]
             .as_str()
@@ -588,21 +583,6 @@ pub fn parse_selection(value: &Value, location: &str) -> Result<InstructionSelec
                     json!({"location": format!("{source_location}.logical_name")}),
                 )
             })?;
-        let revision = if let Some(revision) = source.get("compatibility_revision") {
-            revision
-                .as_u64()
-                .filter(|revision| *revision >= 1)
-                .ok_or_else(|| {
-                    error(
-                        ExitCode::Contract,
-                        "invalid_compatibility_revision",
-                        "Compatibility revision must be a positive integer.",
-                        json!({"location": format!("{source_location}.compatibility_revision")}),
-                    )
-                })?
-        } else {
-            1
-        };
         sources.push(SourceSummary {
             kind: kind.into(),
             logical_name: logical_name.into(),
@@ -610,7 +590,6 @@ pub fn parse_selection(value: &Value, location: &str) -> Result<InstructionSelec
                 &source["canonical_sha256"],
                 &format!("{source_location}.canonical_sha256"),
             )?,
-            compatibility_revision: revision,
         });
     }
     Ok(InstructionSelection {
@@ -992,7 +971,7 @@ mod tests {
     }
 
     #[test]
-    fn instruction_validation_primitives_match_python_cases() {
+    fn instruction_validation_primitives_match_current_contract_cases() {
         let value = json!({"name": "work"});
         assert_eq!(
             strict_fields(&value, "selection", &["name"], &[]).unwrap(),
@@ -1074,7 +1053,7 @@ mod tests {
     #[test]
     fn malformed_optional_routing_metadata_is_rejected_at_all_selection_entries() {
         let document = json!({"sources":[],"references":[],"instructions_sha256":"a".repeat(64),
-            "routing_manifest":{"schema":"work-instruction-selection-manifest/v1"}});
+            "routing_manifest":{"schema":"work-instruction-selection-manifest"}});
         let mut selection = document.clone();
         selection["selected_paths"] = json!([]);
         selection["resolved_paths"] = json!(["general"]);

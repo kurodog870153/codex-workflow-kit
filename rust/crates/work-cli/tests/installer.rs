@@ -10,6 +10,33 @@ fn repository() -> PathBuf {
         .unwrap()
 }
 
+fn recovery_directory(stdout: &str) -> Option<&str> {
+    stdout.lines().find_map(|line| {
+        line.split_once("Installation recovery directory: \"")
+            .and_then(|(_, value)| value.strip_suffix("\"."))
+    })
+}
+
+#[test]
+fn recovery_directory_accepts_unterminated_prompts_and_crlf() {
+    let directory = r"C:\Users\測試 user\skills\.work-install-123-456";
+    for prefix in [
+        "",
+        "Select hierarchy numbers, enter \"all\", or press Enter for general only: ",
+        "1\r\n",
+    ] {
+        let stdout = format!(
+            "{prefix}Installation recovery directory: \"{directory}\".\r\nWork skill installed.\r\n"
+        );
+        assert_eq!(recovery_directory(&stdout), Some(directory));
+    }
+    assert_eq!(recovery_directory("Work skill installed.\n"), None);
+    assert_eq!(
+        recovery_directory("Installation recovery directory: \"incomplete\n"),
+        None
+    );
+}
+
 #[test]
 fn mac_installer_requires_local_rust_build_and_startup_check() {
     let script =
@@ -61,6 +88,102 @@ fn windows_installer_requires_local_rust_build_and_startup_check() {
     );
     assert!(script.contains("set \"target_work=!install_home!\\skills\\work\""));
     assert!(!script.contains("!install_home!\\.agents\\skills\\work"));
+}
+
+#[test]
+fn windows_transaction_order_and_failure_returns_are_statically_verified() {
+    let raw = fs::read(repository().join("os-scripts/windows/install-work.bat")).unwrap();
+    assert!(raw.windows(2).any(|pair| pair == b"\r\n"));
+    assert!(
+        raw.iter()
+            .enumerate()
+            .all(|(index, byte)| *byte != b'\n' || index > 0 && raw[index - 1] == b'\r')
+    );
+    let script = String::from_utf8(raw).unwrap().replace("\r\n", "\n");
+    let main = script.split("\n:find_rust_toolchain\n").next().unwrap();
+    let stages = [
+        "call :build_work\nif errorlevel 1 goto runtime_error",
+        "set \"target_work=!transaction_directory!\\prepared\"",
+        "call :install_base\nif errorlevel 1 goto install_error",
+        "call :install_selected_instructions\nif errorlevel 1 goto install_error",
+        "call :install_binary\nif errorlevel 1 goto install_error",
+        "move \"!final_work!\" \"!transaction_directory!\\previous\" >nul\n    if errorlevel 1 goto install_error",
+        "move \"!target_work!\" \"!final_work!\" >nul\nif errorlevel 1 (",
+        "move \"!transaction_directory!\\previous\" \"!final_work!\" >nul\n        if errorlevel 1 (",
+        "restore failed; previous installation is preserved",
+    ];
+    let positions: Vec<_> = stages
+        .iter()
+        .map(|stage| {
+            main.find(stage)
+                .unwrap_or_else(|| panic!("missing transaction stage: {stage}"))
+        })
+        .collect();
+    assert!(positions.windows(2).all(|pair| pair[0] < pair[1]));
+    let restore_failure = &main[positions[8]..];
+    assert!(
+        restore_failure.find("exit /b 1").unwrap()
+            < restore_failure
+                .find("set \"target_work=!final_work!\"")
+                .unwrap()
+    );
+    for label in ["runtime_error", "source_error", "install_error"] {
+        let body = script
+            .split(&format!("\n:{label}\n"))
+            .nth(1)
+            .unwrap()
+            .split("\n:")
+            .next()
+            .unwrap();
+        assert!(body.contains("exit /b 1"), "{label}");
+    }
+    assert!(script.contains("setlocal EnableExtensions EnableDelayedExpansion"));
+    for call in ["copy_file", "copy_tree", "install_binary"] {
+        let body = script
+            .split(&format!("\n:{call}\n"))
+            .nth(1)
+            .unwrap()
+            .split("\n:")
+            .next()
+            .unwrap();
+        assert!(body.contains("if errorlevel 1 exit /b 1"), "{call}");
+        assert!(body.contains("exit /b 0"), "{call}");
+    }
+}
+
+#[test]
+fn windows_prepared_tree_is_clean_and_verified_before_backup() {
+    let script = fs::read_to_string(repository().join("os-scripts/windows/install-work.bat"))
+        .unwrap()
+        .replace("\r\n", "\n");
+    assert!(!script.contains("refresh_existing_instructions"));
+    assert!(!script.contains("xcopy \"!final_work!"));
+    assert!(!script.contains("Previously installed branches and stale files will be kept"));
+    let start = script
+        .find("set \"target_work=!transaction_directory!\\prepared\"")
+        .unwrap();
+    let backup = script
+        .find("move \"!final_work!\" \"!transaction_directory!\\previous\"")
+        .unwrap();
+    let prepare = &script[start..backup];
+    let stages = [
+        "mkdir \"!target_work!\"\nif errorlevel 1 goto install_error",
+        "call :install_base",
+        "call :install_selected_instructions",
+        "call :install_binary",
+        "fc /b \"!built_work!\" \"!target_work!\\scripts\\work.exe\" >nul\nif errorlevel 1 goto install_error",
+        "\"!target_work!\\scripts\\work.exe\" --help >nul 2>nul\nif errorlevel 1 goto install_error",
+    ];
+    let positions: Vec<_> = stages
+        .iter()
+        .map(|stage| {
+            prepare
+                .find(stage)
+                .unwrap_or_else(|| panic!("missing clean prepare stage: {stage}"))
+        })
+        .collect();
+    assert!(positions.windows(2).all(|pair| pair[0] < pair[1]));
+    assert!(!prepare.contains("!final_work!\\*"));
 }
 
 #[cfg(target_os = "macos")]
@@ -480,25 +603,20 @@ mod macos {
     }
 
     #[test]
-    fn reinstall_refreshes_official_files_and_preserves_user_files() {
+    fn reinstall_replaces_all_with_general_and_preserves_previous_bytes() {
         let home = workspace("reinstall");
         success(&run(&installer(), "1\nall\n", &home, None));
         let installed = assert_contents(&home, None);
-        let old_branch = installed.join("references/instructions/task/web/backend");
         for (relative, content) in [
-            ("stale.txt", "keep this file"),
+            ("stale.txt", "keep in previous"),
             ("SKILL.md", "outdated"),
             (
                 "references/instructions/task/web/backend/instructions.md",
                 "outdated",
             ),
             (
-                "references/instructions/task/web/backend/references/security.md",
-                "outdated",
-            ),
-            (
                 "references/instructions/task/web/backend/custom.md",
-                "keep custom",
+                "custom",
             ),
             ("scripts/work.py", "legacy entry"),
             ("scripts/worklib/legacy.py", "legacy module"),
@@ -507,43 +625,14 @@ mod macos {
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(path, content).unwrap();
         }
+        let before = files(&installed);
         let output = run(&installer(), "1\n1\n", &home, None);
         success(&output);
-        assert!(
-            String::from_utf8_lossy(&output.stdout)
-                .contains("Previously installed branches and stale files will be kept")
-        );
-        let source = repository().join("skills/work");
-        for (relative, content) in files(&source) {
-            if matches!(
-                relative.extension().and_then(|v| v.to_str()),
-                Some("py" | "pyc")
-            ) {
-                continue;
-            }
-            assert_eq!(
-                fs::read(installed.join(&relative)).unwrap(),
-                content,
-                "{}",
-                relative.display()
-            );
-        }
-        assert_eq!(
-            fs::read_to_string(installed.join("stale.txt")).unwrap(),
-            "keep this file"
-        );
-        assert_eq!(
-            fs::read_to_string(old_branch.join("custom.md")).unwrap(),
-            "keep custom"
-        );
-        assert_eq!(
-            fs::read_to_string(installed.join("scripts/work.py")).unwrap(),
-            "legacy entry"
-        );
-        assert_eq!(
-            fs::read_to_string(installed.join("scripts/worklib/legacy.py")).unwrap(),
-            "legacy module"
-        );
+        let selected = BTreeSet::from(["general"]);
+        assert_contents(&home, Some(&selected));
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        let directory = recovery_directory(&stdout).expect("installer reports recovery directory");
+        assert_eq!(files(&PathBuf::from(directory).join("previous")), before);
     }
 
     fn copy_tree(source: &Path, target: &Path, omit: &Path) {
@@ -653,7 +742,12 @@ mod macos {
         fs::write(installed.join("SKILL.md"), b"previous instructions").unwrap();
         fs::write(installed.join("agents"), b"conflicting user file").unwrap();
         let before = files(&installed);
-        let output = run(&installer(), "1\n1\n", &home, None);
+        let tools = home.join("fake-tools");
+        fs::create_dir(&tools).unwrap();
+        let fake_cp = tools.join("cp");
+        fs::write(&fake_cp, "#!/bin/sh\nfor arg in \"$@\"; do case \"$arg\" in */SKILL.md) exit 1;; esac; done\nexec /bin/cp \"$@\"\n").unwrap();
+        fs::set_permissions(&fake_cp, fs::Permissions::from_mode(0o755)).unwrap();
+        let output = run(&installer(), "1\n1\n", &home, Some(&tools));
         assert_eq!(output.status.code(), Some(1));
         assert!(String::from_utf8_lossy(&output.stderr).contains("failed to prepare Work"));
         assert_eq!(files(&installed), before);
@@ -678,6 +772,45 @@ mod macos {
             String::from_utf8_lossy(&output.stderr).contains("previous installation was restored")
         );
         assert_eq!(files(&installed), before);
+    }
+
+    #[test]
+    fn backup_and_restore_failures_preserve_complete_old_tree() {
+        for restore_failure in [false, true] {
+            let home = workspace("rename-failure");
+            let installed = home.join(".agents/skills/work");
+            fs::create_dir_all(installed.join("scripts")).unwrap();
+            fs::write(installed.join("scripts/work"), b"previous binary").unwrap();
+            fs::write(installed.join("SKILL.md"), b"previous instructions").unwrap();
+            let before = files(&installed);
+            let tools = home.join("fake-tools");
+            fs::create_dir(&tools).unwrap();
+            let fake_mv = tools.join("mv");
+            let rejection = if restore_failure {
+                "*/prepared|*/previous) exit 1;;"
+            } else {
+                "*/work) exit 1;;"
+            };
+            fs::write(&fake_mv, format!("#!/bin/sh\nfor arg in \"$@\"; do case \"$arg\" in --|-f) continue;; esac; source=\"$arg\"; break; done\ncase \"$source\" in {rejection} esac\nexec /bin/mv \"$@\"\n")).unwrap();
+            fs::set_permissions(&fake_mv, fs::Permissions::from_mode(0o755)).unwrap();
+            let output = run(&installer(), "1\n1\n", &home, Some(&tools));
+            assert_eq!(output.status.code(), Some(1));
+            let stderr = String::from_utf8(output.stderr).unwrap();
+            if restore_failure {
+                assert!(stderr.contains("restore failed"), "{stderr}");
+                assert!(!installed.exists());
+                let transactions: Vec<_> = fs::read_dir(home.join(".agents/skills"))
+                    .unwrap()
+                    .map(|entry| entry.unwrap().path())
+                    .filter(|path| path.join("previous").is_dir())
+                    .collect();
+                assert_eq!(transactions.len(), 1);
+                assert_eq!(files(&transactions[0].join("previous")), before);
+            } else {
+                assert!(stderr.contains("failed to back up Work"), "{stderr}");
+                assert_eq!(files(&installed), before);
+            }
+        }
     }
 
     #[test]
@@ -853,24 +986,31 @@ mod windows {
     }
 
     #[test]
-    fn failed_copy_preserves_existing_binary_and_instructions() {
-        let home = workspace("copy-failure");
+    fn clean_reinstall_removes_stale_files_and_preserves_previous_tree() {
+        let home = workspace("clean-reinstall");
         let installed = home.join("skills/work");
         fs::create_dir_all(installed.join("scripts")).unwrap();
         fs::write(installed.join("scripts/work.exe"), b"previous binary").unwrap();
         fs::write(installed.join("SKILL.md"), b"previous instructions").unwrap();
         fs::write(installed.join("agents"), b"conflicting user file").unwrap();
         let output = run(&home, None, false);
-        assert_eq!(output.status.code(), Some(1));
-        assert!(String::from_utf8_lossy(&output.stdout).contains("failed to install"));
+        assert!(output.status.success());
+        assert!(installed.join("agents/openai.yaml").is_file());
+        assert_eq!(
+            fs::read(installed.join("SKILL.md")).unwrap(),
+            fs::read(repository().join("skills/work/SKILL.md")).unwrap()
+        );
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        let directory = recovery_directory(&stdout).expect("installer reports recovery directory");
+        let previous = PathBuf::from(directory).join("previous");
         for (relative, bytes) in [
             ("scripts/work.exe", b"previous binary".as_slice()),
             ("SKILL.md", b"previous instructions".as_slice()),
             ("agents", b"conflicting user file".as_slice()),
         ] {
-            assert_eq!(fs::read(installed.join(relative)).unwrap(), bytes);
+            assert_eq!(fs::read(previous.join(relative)).unwrap(), bytes);
         }
-        assert_eq!(fs::read_dir(&installed).unwrap().count(), 3);
+        assert_eq!(fs::read_dir(&previous).unwrap().count(), 3);
     }
 
     #[test]
