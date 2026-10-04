@@ -18,6 +18,117 @@ fn fail(reason: &str, message: &str) -> WorkError {
     WorkError::new(ExitCode::ArtifactIntegrity, reason, message, json!({}))
 }
 
+pub fn validate_semantic_request(value: &Value) -> Result<(), WorkError> {
+    let request: work_model::specification::SpecMigrationPrepareRequest =
+        serde_json::from_value(value.clone()).map_err(|cause| {
+            WorkError::new(
+                ExitCode::Contract,
+                "invalid_contract_value",
+                "Migration requires reviewed Task decisions and exact raw source fingerprints.",
+                json!({"cause":cause.to_string()}),
+            )
+        })?;
+    if request
+        .requirement_id
+        .parse::<work_operations::identifiers::RequirementId>()
+        .is_err()
+        || request.sources.is_empty()
+    {
+        return Err(fail(
+            "migration_source_missing",
+            "A valid requirement and reviewed raw sources are required.",
+        ));
+    }
+    let mut paths = std::collections::BTreeSet::new();
+    for source in &request.sources {
+        if !work_operations::task::source::valid_relative_path(&source.path)
+            || !work_operations::protocol::valid_sha256(&source.raw_sha256)
+            || !paths.insert(work_operations::canonical::portable_path_identity(
+                &source.path,
+            ))
+        {
+            return Err(fail(
+                "migration_source_invalid",
+                "Reviewed source paths must be unique with exact SHA-256 fingerprints.",
+            ));
+        }
+    }
+    let decisions = value["semantic_decisions"].as_array().ok_or_else(|| {
+        fail(
+            "migration_decisions_missing",
+            "Explicit reviewed semantic decisions are required.",
+        )
+    })?;
+    let mut ids = std::collections::BTreeSet::new();
+    for decision in decisions {
+        if decision["id"]
+            .as_str()
+            .is_none_or(|id| id.trim().is_empty() || !ids.insert(id))
+            || decision["resolution"].is_null()
+        {
+            return Err(fail(
+                "migration_semantic_decisions_unresolved",
+                "Every semantic decision requires a unique ID and reviewed resolution.",
+            ));
+        }
+    }
+    let allowed = match request.mode.as_str() {
+        "revision" => vec![
+            "schema",
+            "mode",
+            "requirement_id",
+            "sources",
+            "reason",
+            "edits",
+            "semantic_decisions",
+        ],
+        "reconstruction" => vec![
+            "schema",
+            "mode",
+            "requirement_id",
+            "sources",
+            "task_context",
+            "task_title",
+            "task_summary",
+            "execution_defaults",
+            "tasks",
+            "semantic_decisions",
+        ],
+        _ => {
+            return Err(fail(
+                "migration_prepare_mode",
+                "Migration mode must be revision or reconstruction.",
+            ));
+        }
+    };
+    if value
+        .as_object()
+        .unwrap()
+        .keys()
+        .any(|field| !allowed.contains(&field.as_str()))
+    {
+        return Err(fail(
+            "migration_prepare_fields",
+            "Migration fields do not match the selected mode.",
+        ));
+    }
+    if request.mode == "reconstruction"
+        && (request.task_context.is_none()
+            || value["tasks"].as_array().is_none_or(Vec::is_empty)
+            || ["task_title", "task_summary"].iter().any(|field| {
+                value[field]
+                    .as_str()
+                    .is_none_or(|text| text.trim().is_empty())
+            }))
+    {
+        return Err(fail(
+            "migration_decisions_missing",
+            "Complete Task context, title, summary and semantic tasks are required.",
+        ));
+    }
+    Ok(())
+}
+
 pub fn parse_revision_semantic(raw: &[u8]) -> Result<RevisionSemantic, WorkError> {
     let semantic = parse_json_contract(raw).map_err(|_| {
         fail(
@@ -33,32 +144,10 @@ pub fn parse_revision_semantic(raw: &[u8]) -> Result<RevisionSemantic, WorkError
             "A revision migration is required.",
         ));
     }
-    if semantic.as_object().is_none_or(|fields| {
-        fields.keys().any(|field| {
-            ![
-                "schema",
-                "mode",
-                "requirement_id",
-                "reason",
-                "edits",
-                "semantic_decisions",
-            ]
-            .contains(&field.as_str())
-        })
-    }) {
-        return Err(WorkError::new(
-            ExitCode::Contract,
-            "invalid_object_fields",
-            "Migration preparation has unknown fields.",
-            json!({"location":"spec_migration_prepare"}),
-        ));
-    }
+    validate_semantic_request(&semantic)?;
     let revision = json!({"schema":"work-spec-prepare-request/v1",
         "requirement_id":semantic["requirement_id"],"reason":semantic["reason"],
         "edits":semantic["edits"]});
-    let _: work_model::specification::SpecMigrationPrepareRequest =
-        serde_json::from_value(semantic.clone())
-            .expect("validated migration request matches its model");
     let revision_raw = serde_json::to_vec(&revision).map_err(|_| {
         fail(
             "invalid_json_contract",
@@ -78,13 +167,7 @@ pub fn build_revision_request(
 ) -> Result<Value, WorkError> {
     let candidate = &prepared["request"];
     let transaction = &prepared["preview"]["transaction"];
-    let artifacts = &candidate["plan"]["artifacts"];
-    let plan_path = artifacts["plan"].as_str().ok_or_else(|| {
-        fail(
-            "spec_artifact_identity",
-            "The candidate Plan path is missing.",
-        )
-    })?;
+    let artifacts = &candidate["task_index"]["artifacts"];
     let index_path = artifacts["task"].as_str().ok_or_else(|| {
         fail(
             "spec_artifact_identity",
@@ -110,6 +193,19 @@ pub fn build_revision_request(
     {
         sources.push(json!({"path":path,"raw_sha256":digest}));
     }
+    let reviewed = semantic["sources"].as_array().ok_or_else(|| {
+        fail(
+            "migration_source_missing",
+            "Reviewed raw source fingerprints are required.",
+        )
+    })?;
+    if sources.iter().any(|source| !reviewed.contains(source)) {
+        return Err(fail(
+            "migration_source_review_incomplete",
+            "Every current revision source must be included in the reviewed evidence.",
+        ));
+    }
+    sources = reviewed.clone();
     let execution_raw = transaction["files"]
         .as_array()
         .into_iter()
@@ -135,7 +231,6 @@ pub fn build_revision_request(
         )
     })?;
     let mut documents = vec![
-        json!({"path":plan_path,"kind":"plan","content":candidate["plan"]}),
         json!({"path":index_path,"kind":"task_index","content":candidate["task_index"]}),
         json!({"path":execution_path,"kind":"execution_index","content":execution}),
     ];
@@ -170,11 +265,11 @@ mod tests {
     }
 
     #[test]
-    fn revision_candidate_requires_plan_path_before_execution_read() {
+    fn revision_candidate_requires_task_path_before_execution_read() {
         let error = build_revision_request(
             &UnusedExecution,
             &json!({}),
-            &json!({"request":{"plan":{"artifacts":{}}}}),
+            &json!({"request":{"task_index":{"artifacts":{}}}}),
         )
         .unwrap_err();
         assert_eq!(error.reason_code, "spec_artifact_identity");

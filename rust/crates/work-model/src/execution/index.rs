@@ -54,6 +54,7 @@ pub struct ExecutionTask {
     pub skill_id: Nullable<String>,
     pub task_item_sha256: String,
     pub instructions_sha256: String,
+    pub acceptance_results: Vec<super::acceptance::AcceptanceProgress>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub latest_attempt: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -109,4 +110,5 @@ pub struct ExecutionIndex {
     pub lock: Option<ExecutionLock>,
     pub overall_status: ExecutionOverallStatus,
     pub tasks: Vec<ExecutionTask>,
+    pub acceptance_results: Vec<super::acceptance::AcceptanceProgress>,
 }

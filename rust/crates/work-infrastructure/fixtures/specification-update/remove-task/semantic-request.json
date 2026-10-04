@@ -1,11 +1,11 @@
 {
-  "schema": "work-spec-prepare-request/v1",
-  "requirement_id": "example",
-  "reason": "Confirmed collection revision",
   "edits": [
     {
       "operation": "remove_task",
       "task_position": 2
     }
-  ]
+  ],
+  "reason": "Confirmed collection revision",
+  "requirement_id": "example",
+  "schema": "work-spec-prepare-request/v1"
 }

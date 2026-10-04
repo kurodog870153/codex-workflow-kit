@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 use work_feature::error::{ExitCode, WorkError};
-use work_feature::plan::{PlanPathRepository, validate_plan_bytes};
+
 use work_feature::skill::SkillRoot;
 use work_feature::task::draft::{
     self as task_draft, DraftSourceCheck, PreparedListUpdate, SourceUpdateRequest,
@@ -18,8 +18,8 @@ use work_model::task::draft::{TaskDraft, TaskPlanningIndex};
 use work_operations::canonical::{canonical_json, parse_json_contract};
 use work_operations::identifiers::RequirementId;
 
+use crate::artifact_paths::LocalArtifactPaths;
 use crate::hierarchy_catalog::LocalHierarchyCatalog;
-use crate::plan_storage::LocalPlanStorage;
 use crate::skill_catalog::{LocalSkillCatalog, SkillRootConfig};
 
 #[derive(Debug, Clone)]
@@ -31,7 +31,6 @@ pub struct TaskSourceCheckRequest<'a> {
     pub requirement_id: &'a str,
     pub task_id: &'a str,
     pub expected_revision: u64,
-    pub plan_path: &'a str,
     pub skill_root: &'a Path,
     pub skill_configs: &'a [SkillRootConfig],
     pub selected_paths: Option<&'a [String]>,
@@ -42,7 +41,6 @@ pub struct TaskSourceUpdateProjectRequest<'a> {
     pub requirement_id: &'a str,
     pub raw_request: &'a Value,
     pub expected_revision: u64,
-    pub plan_path: &'a str,
     pub skill_root: &'a Path,
     pub skill_configs: &'a [SkillRootConfig],
     pub recover: bool,
@@ -101,7 +99,6 @@ impl LocalTaskDraftStorage {
             requirement_id,
             raw_request,
             expected_revision,
-            plan_path,
             skill_root,
             skill_configs,
             recover,
@@ -119,10 +116,9 @@ impl LocalTaskDraftStorage {
             requirement_id,
             expected_revision,
         )?;
-        let paths = LocalPlanStorage {
+        let paths = LocalArtifactPaths {
             project_root: self.project_root.clone(),
         };
-        let raw = paths.read(plan_path)?;
         let instructions = LocalHierarchyCatalog {
             skill_root: skill_root.to_path_buf(),
         };
@@ -136,30 +132,38 @@ impl LocalTaskDraftStorage {
                 locator: config.locator.clone(),
             })
             .collect();
-        let validation =
-            validate_plan_bytes(&instructions, &skills, &paths, &roots, &raw, plan_path)?;
-        let plan = parse_json_contract(&raw).map_err(|_| {
-            failure(
-                ExitCode::InputFormat,
-                "invalid_json_contract",
-                "The Plan JSON is invalid.",
-                json!({}),
-            )
-        })?;
+        let source = raw_request["source"].clone();
+        let (_, snapshot) = work_feature::task::source::validate_context(
+            self,
+            &instructions,
+            &skills,
+            &paths,
+            &roots,
+            requirement_id,
+            &source,
+        )?;
         let prepared = prepare_validated_source_refresh(
             &instructions,
             self,
             &ValidatedSourceRefresh {
                 previous: &previous,
-                plan: &plan,
-                plan_validation: &validation,
+                source: &source,
                 selections: &selections,
                 expected_revision,
                 reason: &reason,
-                plan_path,
+                source_confirmation: &raw_request["source_confirmation"],
             },
         )?;
-        if paths.read(plan_path)? != raw || self.read_planning_index(requirement_id)? != current {
+        let (_, fresh) = work_feature::task::source::validate_context(
+            self,
+            &instructions,
+            &skills,
+            &paths,
+            &roots,
+            requirement_id,
+            &source,
+        )?;
+        if fresh != snapshot || self.read_planning_index(requirement_id)? != current {
             return Err(failure(
                 ExitCode::WorkflowState,
                 "draft_revision_conflict",
@@ -195,7 +199,6 @@ impl LocalTaskDraftStorage {
             expected_revision: revision,
             requirement_id: context.requirement_id,
             task_id: context.task_id,
-            plan_path: context.plan_path,
             skill_root: context.skill_root,
             skill_configs: context.skill_configs,
             selected_paths: Some(&paths),
@@ -249,6 +252,43 @@ impl LocalTaskDraftStorage {
             .join("outputs/work/tasks")
             .join(id.as_str())
             .join("drafts"))
+    }
+
+    fn verify_snapshot(&self, index: &Value) -> Result<(), WorkError> {
+        let requirement = index["requirement_id"].as_str().ok_or_else(|| {
+            failure(
+                ExitCode::Contract,
+                "invalid_requirement_id",
+                "A requirement ID is required.",
+                json!({}),
+            )
+        })?;
+        let context =
+            work_operations::task::source::validate_planning_source(&index["source"], requirement)
+                .map_err(|e| failure(ExitCode::Contract, e.reason_code, e.message, e.details))?;
+        let id = requirement.parse().map_err(|_| {
+            failure(
+                ExitCode::Contract,
+                "invalid_requirement_id",
+                "A portable requirement ID is required.",
+                json!({}),
+            )
+        })?;
+        let saved = work_feature::ports::SourceSnapshotReader::read_snapshot_at(
+            self,
+            &id,
+            &context.snapshot.source_id,
+            &context.artifacts.source,
+        )?;
+        if saved.manifest != context.snapshot {
+            return Err(failure(
+                ExitCode::ArtifactIntegrity,
+                "source_snapshot_mismatch",
+                "Stored planning must bind the exact immutable Snapshot.",
+                json!({}),
+            ));
+        }
+        Ok(())
     }
 
     fn path(&self, requirement_id: &str, suffix: &str) -> Result<PathBuf, WorkError> {
@@ -362,6 +402,7 @@ impl LocalTaskDraftStorage {
             self.read(&self.path(requirement_id, &format!("history/{revision}/index.json"))?)?;
         let index = self.decode(&raw)?;
         task_draft::validate_historical_index(&index, requirement_id, revision)?;
+        self.verify_snapshot(&index)?;
         let index: TaskPlanningIndex =
             serde_json::from_value(index).expect("validated planning index matches Model");
         Ok(serde_json::to_value(index).expect("planning index serializes"))
@@ -371,6 +412,7 @@ impl LocalTaskDraftStorage {
         let raw = self.read(&self.path(requirement_id, "index.json")?)?;
         let index = self.decode(&raw)?;
         let revision = task_draft::validate_current_index(&index, requirement_id)?;
+        self.verify_snapshot(&index)?;
         let history =
             self.read(&self.path(requirement_id, &format!("history/{revision}/index.json"))?)?;
         task_draft::validate_current_index_history(&raw, &history)?;
@@ -462,7 +504,6 @@ impl LocalTaskDraftStorage {
             requirement_id,
             task_id,
             expected_revision,
-            plan_path,
             skill_root,
             skill_configs,
             selected_paths,
@@ -474,10 +515,9 @@ impl LocalTaskDraftStorage {
             self.read_draft(&index, task_id)?;
         }
         task_draft::resolve_instruction_selection(entry, selected_paths, reference_names)?;
-        let paths = LocalPlanStorage {
+        let paths = LocalArtifactPaths {
             project_root: self.project_root.clone(),
         };
-        let raw = paths.read(plan_path)?;
         let instructions = LocalHierarchyCatalog {
             skill_root: skill_root.to_path_buf(),
         };
@@ -491,28 +531,44 @@ impl LocalTaskDraftStorage {
                 locator: config.locator.clone(),
             })
             .collect();
-        let validation =
-            validate_plan_bytes(&instructions, &skills, &paths, &roots, &raw, plan_path)?;
-        let plan = parse_json_contract(&raw).map_err(|_| {
-            failure(
-                ExitCode::InputFormat,
-                "invalid_json_contract",
-                "The Plan JSON is invalid.",
-                json!({}),
-            )
-        })?;
+        let source = index["source"].clone();
+        let (_, snapshot) = work_feature::task::source::validate_context(
+            self,
+            &instructions,
+            &skills,
+            &paths,
+            &roots,
+            requirement_id,
+            &source,
+        )?;
         let result = check_validated_sources(
             &instructions,
             &DraftSourceCheck {
                 index: &index,
                 task_id,
                 expected_revision,
-                plan: &plan,
-                plan_validation: &validation,
+                source: &source,
                 selected_paths,
                 reference_names,
             },
         )?;
+        let (_, fresh) = work_feature::task::source::validate_context(
+            self,
+            &instructions,
+            &skills,
+            &paths,
+            &roots,
+            requirement_id,
+            &source,
+        )?;
+        if fresh != snapshot {
+            return Err(failure(
+                ExitCode::ArtifactIntegrity,
+                "draft_source_drift",
+                "Source bytes changed during verification.",
+                json!({}),
+            ));
+        }
         if self.read_planning_index(requirement_id)? != index {
             return Err(failure(
                 ExitCode::WorkflowState,
@@ -547,6 +603,7 @@ impl LocalTaskDraftStorage {
         } else {
             None
         };
+        self.verify_snapshot(index)?;
         let prepared = prepare_save(index, expected_revision, previous.as_ref(), draft)?;
         let prefix = format!("history/{}", prepared.revision);
         let history = self.path(requirement_id, &prefix)?;
@@ -575,6 +632,7 @@ impl LocalTaskDraftStorage {
                     json!({}),
                 ));
             }
+            self.verify_snapshot(index)?;
             fs::rename(history.join("index-current.tmp"), &current).map_err(|_| failure(ExitCode::IoFailure, "draft_save_interrupted", "Save did not commit. Preserve history for recovery; the prior index remains authoritative.", json!({"revision": prepared.revision, "committed": false, "recovery_required": true})))?;
             Ok(())
         })();
@@ -639,6 +697,7 @@ impl LocalTaskDraftStorage {
         } else {
             current.clone()
         };
+        self.verify_snapshot(proposed)?;
         let prepared = prepare_list_update(self, &previous, proposed, expected_revision, reason)?;
         let history = self.path(requirement_id, &format!("history/{}", prepared.revision))?;
         let current_path = self.path(requirement_id, "index.json")?;
@@ -731,6 +790,7 @@ impl LocalTaskDraftStorage {
                 ));
             }
         }
+        self.verify_snapshot(&prepared.index)?;
         fs::rename(history.join("index-current.tmp"), &current_path).map_err(|_| {
             failure(
                 ExitCode::IoFailure,
@@ -769,6 +829,7 @@ impl LocalTaskDraftStorage {
         prepared: &PreparedListUpdate,
         recover: bool,
     ) -> Result<Value, WorkError> {
+        self.verify_snapshot(&prepared.index)?;
         let history = self.path(requirement_id, &format!("history/{}", prepared.revision))?;
         let current_path = self.path(requirement_id, "index.json")?;
         let expected: BTreeSet<String> = prepared.files.keys().cloned().collect();
@@ -860,6 +921,7 @@ impl LocalTaskDraftStorage {
                 ));
             }
         }
+        self.verify_snapshot(&prepared.index)?;
         fs::rename(history.join("index-current.tmp"), current_path).map_err(|_| {
             failure(
                 ExitCode::IoFailure,
@@ -915,6 +977,7 @@ impl LocalTaskDraftStorage {
         } else {
             Some(self.read_planning_revision(requirement_id, expected_revision)?)
         };
+        self.verify_snapshot(index)?;
         let prepared = prepare_save(index, expected_revision, previous.as_ref(), draft)?;
         let history = self.path(requirement_id, &format!("history/{}", prepared.revision))?;
         if !history.is_dir() {
@@ -1055,6 +1118,7 @@ impl LocalTaskDraftStorage {
                     json!({}),
                 ));
             }
+            self.verify_snapshot(&prepared.index)?;
             fs::rename(history.join("index-current.tmp"), &current_path).map_err(|_| failure(ExitCode::IoFailure, "draft_recovery_interrupted", "Recovery could not publish the index; preserve the current state for inspection.", json!({"revision": prepared.revision, "recovery_required": true})))?;
             "recovered"
         };
@@ -1080,12 +1144,55 @@ impl TaskDraftHistoryRepository for LocalTaskDraftStorage {
     }
 }
 
+impl work_feature::ports::SourceSnapshotReader for LocalTaskDraftStorage {
+    fn read_snapshot(
+        &self,
+        id: &work_model::identifiers::RequirementId,
+        source_id: &work_model::identifiers::SourceId,
+    ) -> Result<work_feature::ports::SnapshotBytes, WorkError> {
+        work_feature::ports::SourceSnapshotReader::read_snapshot(
+            &crate::source_snapshot_storage::LocalSourceSnapshotStorage {
+                project_root: self.project_root.clone(),
+            },
+            id,
+            source_id,
+        )
+    }
+    fn read_snapshot_at(
+        &self,
+        id: &work_model::identifiers::RequirementId,
+        source_id: &work_model::identifiers::SourceId,
+        root: &str,
+    ) -> Result<work_feature::ports::SnapshotBytes, WorkError> {
+        work_feature::ports::SourceSnapshotReader::read_snapshot_at(
+            &crate::source_snapshot_storage::LocalSourceSnapshotStorage {
+                project_root: self.project_root.clone(),
+            },
+            id,
+            source_id,
+            root,
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::collections::BTreeMap;
     use work_operations::derivation::fingerprint::raw as sha256_hex;
 
+    fn fixture_source(storage: &LocalTaskDraftStorage) -> Value {
+        let fixture = PathBuf::from(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/fixtures/task-draft-sources/valid"
+        ));
+        crate::fixture_support::copy_fixture_sources(&fixture, &storage.project_root).unwrap();
+        let index: Value = serde_json::from_slice(
+            &fs::read(fixture.join("outputs/work/tasks/example/drafts/index.json")).unwrap(),
+        )
+        .unwrap();
+        index["source"].clone()
+    }
     #[test]
     fn concurrent_status_index_change_keeps_revision_conflict() {
         let original = json!({"revision":1,"current_task_id":"TASK-001"});
@@ -1108,7 +1215,7 @@ mod tests {
         ));
         fs::create_dir(&root).unwrap();
         let storage = LocalTaskDraftStorage { project_root: root };
-        let source = json!({"plan_sha256":"a".repeat(64),"hierarchy_selection_sha256":"b".repeat(64),"skill_selection_sha256":"c".repeat(64)});
+        let source = fixture_source(&storage);
         let previous = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,"source":source,
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Task","goal":"Goal","scope":["Scope"],"skill_id":null,
             "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64)}]});
@@ -1124,7 +1231,7 @@ mod tests {
             instruction_hashes: &hashes,
             expected_revision: 1,
             reason: "Reviewed.",
-            plan_path: "outputs/work/plans/example.json",
+            source_confirmation: &crate::fixture_support::source_confirmation(&previous, &source),
         };
         let saved = storage
             .update_planning_sources("example", &request, false)
@@ -1168,7 +1275,9 @@ mod tests {
                 instruction_hashes: &next_hashes,
                 expected_revision: 2,
                 reason: "Reviewed again.",
-                plan_path: "outputs/work/plans/example.json",
+                source_confirmation: &crate::fixture_support::source_confirmation(
+                    &committed, &source,
+                ),
             },
         )
         .unwrap();
@@ -1181,9 +1290,9 @@ mod tests {
             storage.read_planning_index("example").unwrap()["revision"],
             2
         );
-        let changed_source = json!({"plan_sha256":"9".repeat(64),
-            "hierarchy_selection_sha256":source["hierarchy_selection_sha256"],
-            "skill_selection_sha256":source["skill_selection_sha256"]});
+        let mut changed_source = source.clone();
+        changed_source["acceptance_criteria"][0]["criterion"] =
+            json!("Another reviewed criterion.");
         assert_eq!(
             storage
                 .update_planning_sources(
@@ -1194,7 +1303,10 @@ mod tests {
                         instruction_hashes: &next_hashes,
                         expected_revision: 2,
                         reason: "Reviewed again.",
-                        plan_path: "outputs/work/plans/example.json"
+                        source_confirmation: &crate::fixture_support::source_confirmation(
+                            &committed,
+                            &changed_source
+                        ),
                     },
                     true
                 )
@@ -1213,7 +1325,9 @@ mod tests {
                         instruction_hashes: &next_hashes,
                         expected_revision: 2,
                         reason: "Reviewed again.",
-                        plan_path: "outputs/work/plans/example.json"
+                        source_confirmation: &crate::fixture_support::source_confirmation(
+                            &committed, &source
+                        ),
                     },
                     true
                 )
@@ -1234,7 +1348,9 @@ mod tests {
                         instruction_hashes: &next_hashes,
                         expected_revision: 2,
                         reason: "Reviewed again.",
-                        plan_path: "outputs/work/plans/example.json"
+                        source_confirmation: &crate::fixture_support::source_confirmation(
+                            &committed, &source
+                        ),
                     },
                     true
                 )
@@ -1245,21 +1361,18 @@ mod tests {
         let instruction_catalog = crate::hierarchy_catalog::LocalHierarchyCatalog {
             skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
         };
-        let plan =
-            json!({"skill_selection":{"skills":[]},"hierarchy_selection":{"selected_paths":[]}});
-        let validation = json!({"requirement_id":"example","plan_sha256":source["plan_sha256"],
-            "hierarchy_selection_sha256":source["hierarchy_selection_sha256"],"skill_selection_sha256":source["skill_selection_sha256"]});
         let refreshed = work_feature::task::draft::prepare_validated_source_refresh(
             &instruction_catalog,
             &storage,
             &work_feature::task::draft::ValidatedSourceRefresh {
                 previous: &current,
-                plan: &plan,
-                plan_validation: &validation,
+                source: &source,
                 selections: &selections,
                 expected_revision: 3,
                 reason: "Instruction sources reviewed.",
-                plan_path: "outputs/work/plans/example.json",
+                source_confirmation: &crate::fixture_support::source_confirmation(
+                    &current, &source,
+                ),
             },
         )
         .unwrap();
@@ -1276,12 +1389,14 @@ mod tests {
                 &storage,
                 &work_feature::task::draft::ValidatedSourceRefresh {
                     previous: &unknown_skill,
-                    plan: &plan,
-                    plan_validation: &validation,
+                    source: &source,
                     selections: &selections,
                     expected_revision: 3,
                     reason: "Reviewed.",
-                    plan_path: "outputs/work/plans/example.json",
+                    source_confirmation: &crate::fixture_support::source_confirmation(
+                        &unknown_skill,
+                        &source
+                    ),
                 }
             )
             .expect_err("unknown skill must fail")
@@ -1294,12 +1409,13 @@ mod tests {
                 &storage,
                 &work_feature::task::draft::ValidatedSourceRefresh {
                     previous: &current,
-                    plan: &plan,
-                    plan_validation: &validation,
+                    source: &source,
                     selections: &BTreeMap::new(),
                     expected_revision: 3,
                     reason: "Reviewed.",
-                    plan_path: "outputs/work/plans/example.json",
+                    source_confirmation: &crate::fixture_support::source_confirmation(
+                        &current, &source
+                    ),
                 }
             )
             .expect_err("missing selection must fail")
@@ -1321,7 +1437,7 @@ mod tests {
         fs::create_dir(&root).unwrap();
         let storage = LocalTaskDraftStorage { project_root: root };
         let previous = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
-            "source":{"plan_sha256":"a".repeat(64),"hierarchy_selection_sha256":"b".repeat(64),"skill_selection_sha256":"c".repeat(64)},
+            "source":fixture_source(&storage),
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Before","goal":"Goal","scope":["Scope"],"skill_id":null,
             "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64)}]});
         storage.save_planning(&previous, 0, None).unwrap();
@@ -1339,7 +1455,7 @@ mod tests {
                     .read(&storage.path("example", "history/2/index.json").unwrap())
                     .unwrap()
             ),
-            "bbc27c8a855a123fa1184dd645f36198976cc24ca3d7f4ecc7efb9b85391ef1a"
+            "35d98d2cf3a8db4c57ac254805580c51b8b16a677f2b7764b93e1ef69dd37a58"
         );
         assert_eq!(
             storage.read_planning_index("example").unwrap()["tasks"][0]["boundary_revision"],
@@ -1424,7 +1540,7 @@ mod tests {
         assert_eq!(pending["next_action"], "inspect_recovery");
         assert!(!absent.exists());
         let index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
-            "source":{"plan_sha256":"a".repeat(64),"hierarchy_selection_sha256":"b".repeat(64),"skill_selection_sha256":"c".repeat(64)},
+            "source":fixture_source(&storage),
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Task","goal":"Goal","scope":["Scope"],"skill_id":null,
             "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64)}]});
         let raw = canonical_json(&index).unwrap();
@@ -1490,8 +1606,7 @@ mod tests {
         ));
         fs::create_dir(&root).unwrap();
         let storage = LocalTaskDraftStorage { project_root: root };
-        let source = json!({"plan_sha256":"a".repeat(64),
-            "hierarchy_selection_sha256":"b".repeat(64),"skill_selection_sha256":"c".repeat(64)});
+        let source = fixture_source(&storage);
         let draft = |task_id: &str| {
             json!({"schema":"work-task-draft/v1","requirement_id":"example",
                 "task_id":task_id,"revision":1,"boundary_revision":1,"source":source,
@@ -1566,7 +1681,7 @@ mod tests {
         fs::create_dir(&root).unwrap();
         let storage = LocalTaskDraftStorage { project_root: root };
         let index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
-            "source":{"plan_sha256":"a".repeat(64),"hierarchy_selection_sha256":"b".repeat(64),"skill_selection_sha256":"c".repeat(64)},
+            "source":fixture_source(&storage),
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Task","goal":"Goal","scope":["Scope"],"skill_id":null,
             "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64)}]});
         assert_eq!(
@@ -1579,7 +1694,7 @@ mod tests {
                     .read(&storage.path("example", "index.json").unwrap())
                     .unwrap()
             ),
-            "4690d87a1d28ac54875218eb02a69841c78ea99fcda22b60882377ce84336d0b"
+            "738bcedc9a1d6b4939191bd65a71aea574f8b25a293b356623347f1506b9e118"
         );
         let mut next = index.clone();
         next["revision"] = json!(2);
@@ -1597,7 +1712,7 @@ mod tests {
                     .read(&storage.path("example", "history/2/TASK-001.json").unwrap())
                     .unwrap()
             ),
-            "2853a6cf2b946cb82ec72c27c535f18bef1477895657fece1ca4e0a8fd0379ba"
+            "e3d19a57c369c6d7a428608d3d6149269fb8f170f067a6fee886183d8ba4ce80"
         );
         assert_eq!(
             storage.status("example", None).unwrap()["next_action"],
@@ -1625,7 +1740,7 @@ mod tests {
             (
                 "requirement_id",
                 json!("other"),
-                "draft_requirement_mismatch",
+                "source_requirement_mismatch",
             ),
             ("revision", json!(2), "draft_revision_conflict"),
         ] {
@@ -1677,7 +1792,7 @@ mod tests {
         fs::create_dir(&root).unwrap();
         let storage = LocalTaskDraftStorage { project_root: root };
         let index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
-            "source":{"plan_sha256":"a".repeat(64),"hierarchy_selection_sha256":"b".repeat(64),"skill_selection_sha256":"c".repeat(64)},
+            "source":fixture_source(&storage),
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Task","goal":"Goal","scope":["Scope"],"skill_id":null,
             "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64),
             "instruction_selection":{"selected_paths":[],"references":[]}}]});
@@ -1786,7 +1901,7 @@ mod tests {
         fs::create_dir_all(root.join("outputs/work/tasks")).unwrap();
         symlink(&outside, root.join("outputs/work/tasks/example")).unwrap();
         let index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
-            "source":{"plan_sha256":"a".repeat(64),"hierarchy_selection_sha256":"b".repeat(64),"skill_selection_sha256":"c".repeat(64)},
+            "source":fixture_source(&storage),
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Task","goal":"Goal","scope":["Scope"],"skill_id":null,
             "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64)}]});
         assert_eq!(
@@ -1812,7 +1927,7 @@ mod tests {
         fs::create_dir(&root).unwrap();
         let storage = LocalTaskDraftStorage { project_root: root };
         let index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
-            "source":{"plan_sha256":"a".repeat(64),"hierarchy_selection_sha256":"b".repeat(64),"skill_selection_sha256":"c".repeat(64)},
+            "source":fixture_source(&storage),
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Task","goal":"Goal","scope":["Scope"],"skill_id":null,
             "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64)}]});
         let history = storage.path("example", "history/1/index.json").unwrap();
@@ -1909,15 +2024,14 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let plan_path = "outputs/work/plans/example.json";
         for relative in [
-            plan_path,
             "outputs/work/tasks/example/drafts/index.json",
             "outputs/work/tasks/example/drafts/history/1/index.json",
         ] {
             let destination = root.join(relative);
             fs::create_dir_all(destination.parent().unwrap()).unwrap();
             fs::copy(fixture.join(relative), destination).unwrap();
+            crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         }
         let storage = LocalTaskDraftStorage {
             project_root: root.clone(),
@@ -1946,7 +2060,6 @@ mod tests {
             requirement_id: "example",
             task_id,
             expected_revision: revision,
-            plan_path,
             skill_root: &skill,
             skill_configs: &[],
             selected_paths,
@@ -2122,10 +2235,12 @@ mod tests {
             "invalid_object_fields"
         );
         refined["task_candidate"] = json!({
+            "acceptance_ids":["ACCEPTANCE-001"],
+            "acceptance_criteria":[{"id":"TASK-001-ACCEPTANCE-001","criterion":"Result is observable."}],
             "steps":[{"key":"review","action":"Review result.",
                 "references":[{"kind":"validations","key":"result"}]}],
             "validations":[{"key":"result","kind":"manual","confirmer":"User",
-                "criteria":"Result is observable.","acceptance_positions":[1]}]
+                "criteria":"Result is observable.","acceptance_ids":["ACCEPTANCE-001","TASK-001-ACCEPTANCE-001"]}]
         });
         assert_eq!(
             storage
@@ -2158,15 +2273,14 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let plan_path = "outputs/work/plans/example.json";
         for relative in [
-            plan_path,
             "outputs/work/tasks/example/drafts/index.json",
             "outputs/work/tasks/example/drafts/history/1/index.json",
         ] {
             let destination = root.join(relative);
             fs::create_dir_all(destination.parent().unwrap()).unwrap();
             fs::copy(fixture.join(relative), destination).unwrap();
+            crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         }
         let storage = LocalTaskDraftStorage {
             project_root: root.clone(),
@@ -2205,7 +2319,6 @@ mod tests {
             requirement_id: "example",
             task_id: "TASK-001",
             expected_revision: 1,
-            plan_path,
             skill_root: &skill,
             skill_configs: &[],
             selected_paths: Some(&[]),
@@ -2220,23 +2333,19 @@ mod tests {
                 .reason_code,
             "draft_recovery_conflict"
         );
-        let plan = root.join(plan_path);
-        let original_plan = fs::read(&plan).unwrap();
-        let mut altered: Value = serde_json::from_slice(&original_plan).unwrap();
-        altered["summary"] = json!("Different result");
-        fs::write(
-            &plan,
-            work_operations::plan::render_plan_value(&altered).unwrap(),
-        )
-        .unwrap();
+        let source_path = root.join("outputs/work/sources/example/SRC-001/source.txt");
+        let original_source = fs::read(&source_path).unwrap();
+        let mut altered = original_source.clone();
+        altered[0] ^= 1;
+        fs::write(&source_path, &altered).unwrap();
         assert_eq!(
             storage
                 .save_discussion_request(&request, &context, true)
                 .unwrap_err()
                 .reason_code,
-            "draft_source_drift"
+            "source_hash_mismatch"
         );
-        fs::write(&plan, original_plan).unwrap();
+        fs::write(&source_path, original_source).unwrap();
         assert_eq!(storage.read_planning_index("example").unwrap(), previous);
         assert_eq!(
             storage
@@ -2257,7 +2366,7 @@ mod tests {
     }
 
     #[test]
-    fn source_check_validates_formal_plan_and_saved_selection_without_writing() {
+    fn source_check_validates_fixed_snapshot_and_saved_selection_without_writing() {
         let root = std::env::temp_dir().join(format!(
             "work-draft-check-{}-{}",
             std::process::id(),
@@ -2272,30 +2381,33 @@ mod tests {
             skill_root: work_root.clone(),
         };
         let skills = LocalSkillCatalog { roots: vec![] };
-        let paths = LocalPlanStorage {
+        let paths = LocalArtifactPaths {
             project_root: root.clone(),
         };
-        let request = json!({"requirement_id":"example","title":"Plan","summary":"Result",
-            "goals":["Result"],"scope":["Source"],"deliverables":["Artifact"],
-            "acceptance_criteria":["Observable"],
-            "hierarchy_selection_request":{"decision":"general_only","selections":[]},
-            "skill_selection_request":{"decision":"base_only","skills":[]},"references":[]});
-        let prepared =
-            work_feature::plan::prepare_semantic(&instructions, &skills, &paths, &[], &request)
-                .unwrap();
-        let plan_path = prepared["path"].as_str().unwrap();
-        let absolute = root.join(plan_path);
-        fs::create_dir_all(absolute.parent().unwrap()).unwrap();
-        fs::write(
-            &absolute,
-            work_operations::plan::render_plan_value(&prepared["plan"]).unwrap(),
+        let hierarchy = work_feature::hierarchy::build_selection(
+            &instructions,
+            &json!({"decision":"general_only","selections":[]}),
         )
         .unwrap();
+        let selected_skills = work_feature::skill::build_selection(
+            &skills,
+            &[],
+            &json!({"decision":"base_only","skills":[]}),
+        )
+        .unwrap();
+        let source = crate::fixture_support::capture_planning_context(
+            &root,
+            "example",
+            b"Observable result",
+            &hierarchy,
+            &selected_skills,
+            &json!([{"id":"ACCEPTANCE-001","criterion":"The result is observable."}]),
+        )
+        .unwrap();
+        let absolute = root.join("outputs/work/sources/example/SRC-001/source.txt");
         let loaded = work_feature::instruction::load(&instructions, "task", &[], &[]).unwrap();
         let index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
-            "source":{"plan_sha256":prepared["validation"]["plan_sha256"],
-                "hierarchy_selection_sha256":prepared["validation"]["hierarchy_selection_sha256"],
-                "skill_selection_sha256":prepared["validation"]["skill_selection_sha256"]},
+            "source":source,
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Task","goal":"Result",
                 "scope":["Source"],"skill_id":null,"dependencies":[],"status":"planned",
                 "boundary_revision":1,"instructions_sha256":loaded.instructions_sha256,
@@ -2309,7 +2421,6 @@ mod tests {
             requirement_id: "example",
             task_id: "TASK-001",
             expected_revision: 1,
-            plan_path,
             skill_root: &work_root,
             skill_configs: &[],
             selected_paths: None,
@@ -2331,25 +2442,29 @@ mod tests {
             "draft_revision_conflict"
         );
         check.expected_revision = 1;
-        let mut changed = prepared["plan"].clone();
-        changed["summary"] = json!("Changed result");
-        fs::write(
-            &absolute,
-            work_operations::plan::render_plan_value(&changed).unwrap(),
-        )
-        .unwrap();
+        let mut changed = fs::read(&absolute).unwrap();
+        changed[0] ^= 1;
+        fs::write(&absolute, &changed).unwrap();
         assert_eq!(
             storage.check_sources(&check).unwrap_err().reason_code,
-            "draft_source_drift"
+            "source_hash_mismatch"
         );
         fs::write(&absolute, b"broken").unwrap();
-        let upstream =
-            validate_plan_bytes(&instructions, &skills, &paths, &[], b"broken", plan_path)
-                .unwrap_err();
+        let upstream = work_feature::ports::SourceSnapshotReader::read_snapshot(
+            &paths,
+            &"example".parse().unwrap(),
+            &"SRC-001".parse().unwrap(),
+        )
+        .unwrap_err();
         let propagated = storage.check_sources(&check).unwrap_err();
         assert_eq!(propagated.exit_code, upstream.exit_code);
         assert_eq!(propagated.reason_code, upstream.reason_code);
         assert_eq!(propagated.details, upstream.details);
+        assert_eq!(
+            fs::read(storage.path("example", "index.json").unwrap()).unwrap(),
+            before
+        );
+        assert!(!root.join("outputs/work/plans/example.json").exists());
     }
 
     #[test]
@@ -2360,7 +2475,7 @@ mod tests {
         ));
         let skill_root =
             PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
-        for name in ["valid", "plan-drift", "missing-selection"] {
+        for name in ["valid", "source-drift", "missing-selection"] {
             let fixture = fixtures.join(name);
             let root = std::env::temp_dir().join(format!(
                 "work-draft-python-{name}-{}-{}",
@@ -2371,7 +2486,6 @@ mod tests {
                     .as_nanos()
             ));
             let relative = [
-                "outputs/work/plans/example.json",
                 "outputs/work/tasks/example/drafts/index.json",
                 "outputs/work/tasks/example/drafts/history/1/index.json",
             ];
@@ -2379,6 +2493,7 @@ mod tests {
                 let target = root.join(path);
                 fs::create_dir_all(target.parent().unwrap()).unwrap();
                 fs::copy(fixture.join(path), target).unwrap();
+                crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
             }
             let storage = LocalTaskDraftStorage {
                 project_root: root.clone(),
@@ -2387,7 +2502,7 @@ mod tests {
                 requirement_id: "example",
                 task_id: "TASK-001",
                 expected_revision: 1,
-                plan_path: "outputs/work/plans/example.json",
+
                 skill_root: &skill_root,
                 skill_configs: &[],
                 selected_paths: None,

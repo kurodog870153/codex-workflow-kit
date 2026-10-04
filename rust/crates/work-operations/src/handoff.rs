@@ -24,11 +24,8 @@ fn issue(reason_code: &'static str, message: &'static str, details: Value) -> Ha
 
 pub fn direction_stages(direction: &str) -> Option<(&'static str, &'static str)> {
     match direction {
-        "plan_to_task" => Some(("plan", "task")),
         "task_to_execute" => Some(("task", "execute")),
         "execute_to_task" => Some(("execute", "task")),
-        "task_to_plan" => Some(("task", "plan")),
-        "execute_to_plan" => Some(("execute", "plan")),
         _ => None,
     }
 }
@@ -136,7 +133,7 @@ pub fn build_discussion_handoff(request: &Value) -> Result<Value, HandoffIssue> 
     }
     let direction = object["direction"]
         .as_str()
-        .filter(|direction| matches!(*direction, "plan_to_task" | "task_to_plan"))
+        .filter(|direction| matches!(*direction, "task_to_execute" | "execute_to_task"))
         .ok_or_else(|| {
             issue(
                 "invalid_contract_value",
@@ -389,12 +386,7 @@ pub fn validate_handoff_structure(contract: &Value) -> Result<Value, HandoffIssu
         "validation_requirements",
     ];
     let mut required = common.to_vec();
-    if direction == "plan_to_task" {
-        required.push("affected_ids");
-    } else if matches!(
-        direction,
-        "execute_to_task" | "task_to_plan" | "execute_to_plan"
-    ) {
+    if direction == "execute_to_task" {
         required.extend(return_fields);
     }
     strict(contract, "handoff", &required, &[])?;
@@ -422,59 +414,7 @@ pub fn validate_handoff_structure(contract: &Value) -> Result<Value, HandoffIssu
         )
     })?;
     let source = &contract["source"];
-    if direction == "plan_to_task" {
-        strict(
-            source,
-            "source",
-            &["stage", "plan_sha256", "skill_selection_sha256"],
-            &[],
-        )?;
-        sha(&source["plan_sha256"], "source.plan_sha256")?;
-        sha(
-            &source["skill_selection_sha256"],
-            "source.skill_selection_sha256",
-        )?;
-    } else if direction == "task_to_plan" {
-        strict(
-            source,
-            "source",
-            &[
-                "stage",
-                "plan_sha256",
-                "task_spec_id",
-                "task_collection_sha256",
-                "task_index_sha256",
-                "skill_selection_sha256",
-            ],
-            &["task_id", "skill_id", "task_item_sha256"],
-        )?;
-        for field in [
-            "plan_sha256",
-            "task_collection_sha256",
-            "task_index_sha256",
-            "skill_selection_sha256",
-        ] {
-            sha(&source[field], &format!("source.{field}"))?;
-        }
-        numbered_id(&source["task_spec_id"], "TASK-SPEC-", "source.task_spec_id")?;
-        if source.get("task_id").is_some() {
-            numbered_id(&source["task_id"], TASK_ID_PREFIX, "source.task_id")?;
-        }
-        let has_item = source.get("task_item_sha256").is_some();
-        if has_item != source.get("task_id").is_some() {
-            return Err(issue(
-                "invalid_task_fingerprint_set",
-                "Handoff source TASK fingerprints must match the TASK collection identity.",
-                json!({"fields":if has_item {vec!["task_collection_sha256","task_index_sha256","task_item_sha256"]} else {vec!["task_collection_sha256","task_index_sha256"]}}),
-            ));
-        }
-        if has_item {
-            sha(&source["task_item_sha256"], "source.task_item_sha256")?;
-        }
-        if source.get("skill_id").is_some_and(|value| !value.is_null()) {
-            nonempty(&source["skill_id"], "source.skill_id")?;
-        }
-    } else {
+    {
         let mut required = vec![
             "stage",
             "task_spec_id",
@@ -602,12 +542,7 @@ pub fn validate_handoff_structure(contract: &Value) -> Result<Value, HandoffIssu
         ));
     }
     nonempty(&contract["summary"], "summary")?;
-    if direction == "plan_to_task"
-        || matches!(
-            direction,
-            "execute_to_task" | "task_to_plan" | "execute_to_plan"
-        )
-    {
+    if direction == "execute_to_task" {
         let ids = text_array(&contract["affected_ids"], "affected_ids")?;
         for id in ids {
             let Some((prefix, number)) = id.rsplit_once('-') else {
@@ -632,10 +567,7 @@ pub fn validate_handoff_structure(contract: &Value) -> Result<Value, HandoffIssu
             }
         }
     }
-    if matches!(
-        direction,
-        "execute_to_task" | "task_to_plan" | "execute_to_plan"
-    ) {
+    if direction == "execute_to_task" {
         nonempty(&contract["confirmed_approach"], "confirmed_approach")?;
         for field in ["requested_changes", "preserve", "validation_requirements"] {
             text_array(&contract[field], field)?;
@@ -688,6 +620,26 @@ pub fn render_discussion_handoff(value: &Value) -> Result<Vec<u8>, HandoffIssue>
             json!({}),
         ));
     }
+    let (source, target) = value["direction"]
+        .as_str()
+        .and_then(direction_stages)
+        .ok_or_else(|| {
+            issue(
+                "invalid_handoff_direction",
+                "The discussion direction is invalid.",
+                json!({}),
+            )
+        })?;
+    if value["source_stage"] != source
+        || value["target_stage"] != target
+        || value["grants_authorization"] != false
+    {
+        return Err(issue(
+            "invalid_contract_value",
+            "Discussion handoffs cannot grant authorization or change their stages.",
+            json!({}),
+        ));
+    }
     let mut raw =
         serde_json::to_vec_pretty(&OrderedDiscussion(value)).expect("JSON value serializes");
     raw.push(b'\n');
@@ -700,14 +652,25 @@ mod tests {
 
     #[test]
     fn discussion_handoff_never_grants_authorization() {
-        let request = json!({"schema":"work-discussion-handoff-request/v1","direction":"task_to_plan","requirement_id":"example","summary":"Review the unfinished discussion."});
+        let request = json!({"schema":"work-discussion-handoff-request/v1","direction":"task_to_execute","requirement_id":"example","summary":"Review the unfinished discussion."});
         let result = build_discussion_handoff(&request).unwrap();
         assert_eq!(result["source_stage"], "task");
-        assert_eq!(result["target_stage"], "plan");
+        assert_eq!(result["target_stage"], "execute");
         assert_eq!(result["grants_authorization"], false);
+        for direction in ["plan_to_task", "task_to_plan", "execute_to_plan"] {
+            let mut legacy_request = request.clone();
+            legacy_request["direction"] = json!(direction);
+            assert!(build_discussion_handoff(&legacy_request).is_err());
+            let mut legacy = result.clone();
+            legacy["direction"] = json!(direction);
+            assert!(render_discussion_handoff(&legacy).is_err());
+            assert!(
+                serde_json::from_value::<work_model::handoff::DiscussionHandoff>(legacy).is_err()
+            );
+        }
         assert_eq!(
             crate::canonical::sha256_hex(&render_discussion_handoff(&result).unwrap()),
-            "da0665998b934c5eec8d460253ea6b2929e639d5fb0236b36aca2dcaf396b1a8"
+            "8927523209edab0803861f0d0cf87720d8fc37e1e3dc030d87133a0fe1cabe1d"
         );
         let mut wrong = result.clone();
         wrong["source"] = json!({"sha":"changed"});
@@ -721,19 +684,9 @@ mod tests {
 
     #[test]
     fn python_formal_handoff_directions_and_rejections() {
-        for direction in [
-            "plan_to_task",
-            "task_to_plan",
-            "task_to_execute",
-            "execute_to_task",
-            "execute_to_plan",
-        ] {
+        for direction in ["task_to_execute", "execute_to_task"] {
             let (from, to) = direction_stages(direction).unwrap();
-            let source = if direction == "plan_to_task" {
-                json!({"stage":from,"plan_sha256":"a".repeat(64),"skill_selection_sha256":"d".repeat(64)})
-            } else if direction == "task_to_plan" {
-                json!({"stage":from,"plan_sha256":"a".repeat(64),"task_spec_id":"TASK-SPEC-001","task_id":"TASK-001","task_collection_sha256":"1".repeat(64),"task_index_sha256":"2".repeat(64),"task_item_sha256":"3".repeat(64),"skill_selection_sha256":"d".repeat(64),"skill_id":null})
-            } else {
+            let source = {
                 let mut source = json!({"stage":from,"task_spec_id":"TASK-SPEC-001","task_id":"TASK-001","task_collection_sha256":"1".repeat(64),"task_index_sha256":"2".repeat(64),"task_item_sha256":"3".repeat(64),"task_instructions_sha256":"c".repeat(64),"skill_id":null});
                 if direction.starts_with("execute_to_") {
                     source["execute_skill_selection_sha256"] = json!("d".repeat(64));
@@ -743,14 +696,8 @@ mod tests {
                 }
                 source
             };
-            let mut contract = json!({"schema":"work-handoff/v1","marker":"WORK-HANDOFF","direction":direction,"requirement_id":"example","artifacts":{"plan":"outputs/work/plans/example.json","task":"outputs/work/tasks/example/index.json","execution":"outputs/work/executions/example"},"source":source,"target":{"stage":to},"summary":"Continue the workflow."});
-            if direction == "plan_to_task" {
-                contract["affected_ids"] = json!(["GOAL-001"]);
-            }
-            if matches!(
-                direction,
-                "task_to_plan" | "execute_to_task" | "execute_to_plan"
-            ) {
+            let mut contract = json!({"schema":"work-handoff/v1","marker":"WORK-HANDOFF","direction":direction,"requirement_id":"example","artifacts":{"source":"outputs/work/sources/example","task":"outputs/work/tasks/example/index.json","execution":"outputs/work/executions/example"},"source":source,"target":{"stage":to},"summary":"Continue the workflow."});
+            if direction == "execute_to_task" {
                 contract["confirmed_approach"] = json!("Update the source artifact.");
                 contract["requested_changes"] = json!(["Clarify the expected behavior."]);
                 contract["preserve"] = json!(["Keep existing identifiers."]);
@@ -761,6 +708,25 @@ mod tests {
                 validate_handoff_structure(&contract).unwrap()["status"],
                 "valid",
                 "{direction}"
+            );
+            for legacy_direction in ["plan_to_task", "task_to_plan", "execute_to_plan"] {
+                let mut legacy = contract.clone();
+                legacy["direction"] = json!(legacy_direction);
+                assert_eq!(
+                    validate_handoff_structure(&legacy).unwrap_err().reason_code,
+                    "invalid_handoff_direction"
+                );
+                assert!(
+                    serde_json::from_value::<work_model::handoff::FormalHandoff>(legacy).is_err()
+                );
+            }
+            let mut legacy_source = contract.clone();
+            legacy_source["source"]["plan_sha256"] = json!("a".repeat(64));
+            assert_eq!(
+                validate_handoff_structure(&legacy_source)
+                    .unwrap_err()
+                    .reason_code,
+                "invalid_object_fields"
             );
             if direction == "task_to_execute" {
                 let valid = contract.clone();
@@ -808,13 +774,13 @@ mod tests {
     #[test]
     fn formal_builder_sets_direction_stages_and_validates_payload() {
         let built = build_formal_handoff(
-            "plan_to_task", "example",
-            &json!({"plan":"outputs/work/plans/example.json","task":"outputs/work/tasks/example/index.json","execution":"outputs/work/executions/example"}),
-            &json!({"plan_sha256":"a".repeat(64),"skill_selection_sha256":"d".repeat(64)}),
-            &json!({"summary":"Continue the workflow.","affected_ids":["GOAL-001"]}),
+            "task_to_execute", "example",
+            &json!({"source":"outputs/work/sources/example","task":"outputs/work/tasks/example/index.json","execution":"outputs/work/executions/example"}),
+            &json!({"task_spec_id":"TASK-SPEC-001","task_id":"TASK-001","task_collection_sha256":"a".repeat(64),"task_index_sha256":"b".repeat(64),"task_item_sha256":"c".repeat(64),"task_instructions_sha256":"d".repeat(64),"skill_selection_sha256":"e".repeat(64),"skill_id":null}),
+            &json!({"summary":"Continue the workflow."}),
         ).unwrap();
-        assert_eq!(built["source"]["stage"], "plan");
-        assert_eq!(built["target"]["stage"], "task");
+        assert_eq!(built["source"]["stage"], "task");
+        assert_eq!(built["target"]["stage"], "execute");
         assert_eq!(built["marker"], "WORK-HANDOFF");
     }
 }

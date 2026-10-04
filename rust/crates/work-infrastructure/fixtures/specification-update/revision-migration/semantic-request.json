@@ -1,16 +1,30 @@
 {
-  "schema": "work-spec-migration-prepare-request/v1",
-  "mode": "revision",
-  "requirement_id": "example",
-  "reason": "Confirmed collection revision",
   "edits": [
     {
+      "after": "Task summary. revised",
+      "field": "summary",
       "target": {
         "artifact": "task_index"
-      },
-      "field": "summary",
-      "after": "Task summary. revised"
+      }
     }
   ],
-  "semantic_decisions": []
+  "mode": "revision",
+  "reason": "Confirmed collection revision",
+  "requirement_id": "example",
+  "schema": "work-spec-migration-prepare-request/v1",
+  "semantic_decisions": [],
+  "sources": [
+    {
+      "path": "outputs/work/executions/example/index.json",
+      "raw_sha256": "861e234cc652a1f2f3b617b620b20e6e11c9b1dc040cfa080e47e9d3bbc111dd"
+    },
+    {
+      "path": "outputs/work/tasks/example/index.json",
+      "raw_sha256": "05d25d7ab362f18b5be4a4cd9990bab6460c8fa7dad9c092f9e0572faefe9982"
+    },
+    {
+      "path": "outputs/work/tasks/example/tasks/TASK-001.json",
+      "raw_sha256": "38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca"
+    }
+  ]
 }

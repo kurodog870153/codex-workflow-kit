@@ -11,7 +11,7 @@ use crate::schema::PublicSchema;
 use crate::task::item::TaskInputKind;
 
 use super::attempt::AttemptStatus;
-use super::deviation::DeviationProposal;
+use super::deviation::{DeviationClassification, DeviationProposal};
 use super::index::{ExecutionLock, ExecutionOverallStatus, ExecutionTaskStatus};
 use super::recovery::ExecutionRecoveryEvidence;
 use super::request::{
@@ -37,7 +37,7 @@ pub enum ExecutionLockStatus {
 #[serde(deny_unknown_fields)]
 pub struct PendingDeviation {
     pub deviation_id: String,
-    pub classification: String,
+    pub classification: DeviationClassification,
     pub blocking: bool,
 }
 
@@ -355,7 +355,7 @@ pub struct DeviationPreview {
     pub record_kind: super::attempt::RecordKind,
     pub action_validation: String,
     pub semantic_review: String,
-    pub classification: String,
+    pub classification: DeviationClassification,
     pub blocking: bool,
     pub sources: BTreeMap<String, String>,
     pub preview_sha256: String,
@@ -369,7 +369,7 @@ pub struct DeviationRecordResponse {
     pub attempt_id: String,
     pub deviation_id: String,
     pub attempt_path: String,
-    pub classification: String,
+    pub classification: DeviationClassification,
     pub blocking: bool,
     pub record_status: String,
     pub lock_status: ExecutionLockStatus,

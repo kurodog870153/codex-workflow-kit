@@ -112,9 +112,23 @@ if errorlevel 1 goto source_error
 call :build_work
 if errorlevel 1 goto runtime_error
 
-if not exist "!target_work!\" (
-    mkdir "!target_work!"
+set "final_work=!target_work!"
+for %%I in ("!final_work!\..") do set "parent_work=%%~fI"
+if not exist "!parent_work!\" (
+    mkdir "!parent_work!"
     if errorlevel 1 goto install_error
+)
+:choose_transaction_directory
+set "transaction_directory=!parent_work!\.work-install-!RANDOM!-!RANDOM!"
+if exist "!transaction_directory!" goto choose_transaction_directory
+mkdir "!transaction_directory!"
+if errorlevel 1 goto install_error
+set "target_work=!transaction_directory!\prepared"
+mkdir "!target_work!"
+if errorlevel 1 goto install_error
+if exist "!final_work!\" (
+    xcopy "!final_work!\*" "!target_work!\" /E /I /H /K /R /Y /Q >nul
+    if errorlevel 2 goto install_error
 )
 
 call :install_base
@@ -126,6 +140,24 @@ if errorlevel 1 goto install_error
 call :install_binary
 if errorlevel 1 goto install_error
 
+if exist "!final_work!\" (
+    move "!final_work!" "!transaction_directory!\previous" >nul
+    if errorlevel 1 goto install_error
+)
+move "!target_work!" "!final_work!" >nul
+if errorlevel 1 (
+    if exist "!transaction_directory!\previous\" (
+        move "!transaction_directory!\previous" "!final_work!" >nul
+        if errorlevel 1 (
+            echo Error: restore failed; previous installation is preserved in "!transaction_directory!\previous".
+            pause
+            exit /b 1
+        )
+    )
+    goto install_error
+)
+set "target_work=!final_work!"
+echo Installation recovery directory: "!transaction_directory!".
 echo Work skill installed in "!target_work!".
 echo Existing matching files were overwritten. Stale files were not removed.
 pause
@@ -222,11 +254,11 @@ call :require_file "references\instruction-loading.md"
 if errorlevel 1 exit /b 1
 call :require_file "references\instruction-loading\invocation.md"
 if errorlevel 1 exit /b 1
-for %%M in (plan task execute specification progress) do (
+for %%M in (task execute specification progress) do (
     call :require_file "references\workflows\%%M.md"
     if errorlevel 1 exit /b 1
 )
-for %%M in (plan task-coordinator task-skill execute artifact-editor progress-saver) do (
+for %%M in (task-coordinator task-skill execute artifact-editor progress-saver) do (
     call :require_file "references\subagents\%%M.md"
     if errorlevel 1 exit /b 1
 )
@@ -241,27 +273,27 @@ if not exist "%project_directory%\rust\Cargo.lock" (
 exit /b 0
 
 :validate_selected_instructions
-for %%M in (plan task execute) do (
+for %%M in (task execute) do (
     call :require_instruction "%%M" "general"
     if errorlevel 1 exit /b 1
 )
-if defined include_web for %%M in (plan task execute) do (
+if defined include_web for %%M in (task execute) do (
     call :require_instruction "%%M" "web"
     if errorlevel 1 exit /b 1
 )
-if defined include_backend for %%M in (plan task execute) do (
+if defined include_backend for %%M in (task execute) do (
     call :require_instruction "%%M" "web\backend"
     if errorlevel 1 exit /b 1
 )
-if defined include_java for %%M in (plan task execute) do (
+if defined include_java for %%M in (task execute) do (
     call :require_instruction "%%M" "programming-language"
     if errorlevel 1 exit /b 1
 )
-if defined include_typescript for %%M in (plan task execute) do (
+if defined include_typescript for %%M in (task execute) do (
     call :require_instruction "%%M" "programming-language"
     if errorlevel 1 exit /b 1
 )
-if defined include_java for %%M in (plan task execute) do (
+if defined include_java for %%M in (task execute) do (
     call :require_instruction "%%M" "programming-language\java"
     if errorlevel 1 exit /b 1
 )
@@ -281,11 +313,11 @@ if defined include_mybatis for %%M in (task execute) do (
     call :require_instruction "%%M" "programming-language\java\persistence\mybatis"
     if errorlevel 1 exit /b 1
 )
-if defined include_frontend for %%M in (plan task execute) do (
+if defined include_frontend for %%M in (task execute) do (
     call :require_instruction "%%M" "web\frontend"
     if errorlevel 1 exit /b 1
 )
-if defined include_typescript for %%M in (plan task execute) do (
+if defined include_typescript for %%M in (task execute) do (
     call :require_instruction "%%M" "programming-language\typescript"
     if errorlevel 1 exit /b 1
 )
@@ -293,7 +325,7 @@ if defined include_astro for %%M in (task execute) do (
     call :require_instruction "%%M" "web\frontend\astro"
     if errorlevel 1 exit /b 1
 )
-if defined include_css for %%M in (plan task execute) do (
+if defined include_css for %%M in (task execute) do (
     call :require_instruction "%%M" "web\frontend\css"
     if errorlevel 1 exit /b 1
 )
@@ -386,27 +418,27 @@ if errorlevel 1 exit /b 1
 exit /b 0
 
 :install_selected_instructions
-for %%M in (plan task execute) do (
+for %%M in (task execute) do (
     call :copy_instruction "%%M" "general"
     if errorlevel 1 exit /b 1
 )
-if defined include_web for %%M in (plan task execute) do (
+if defined include_web for %%M in (task execute) do (
     call :copy_instruction "%%M" "web"
     if errorlevel 1 exit /b 1
 )
-if defined include_backend for %%M in (plan task execute) do (
+if defined include_backend for %%M in (task execute) do (
     call :copy_instruction "%%M" "web\backend"
     if errorlevel 1 exit /b 1
 )
-if defined include_java for %%M in (plan task execute) do (
+if defined include_java for %%M in (task execute) do (
     call :copy_instruction "%%M" "programming-language"
     if errorlevel 1 exit /b 1
 )
-if defined include_typescript for %%M in (plan task execute) do (
+if defined include_typescript for %%M in (task execute) do (
     call :copy_instruction "%%M" "programming-language"
     if errorlevel 1 exit /b 1
 )
-if defined include_java for %%M in (plan task execute) do (
+if defined include_java for %%M in (task execute) do (
     call :copy_instruction "%%M" "programming-language\java"
     if errorlevel 1 exit /b 1
 )
@@ -426,11 +458,11 @@ if defined include_mybatis for %%M in (task execute) do (
     call :copy_instruction "%%M" "programming-language\java\persistence\mybatis"
     if errorlevel 1 exit /b 1
 )
-if defined include_frontend for %%M in (plan task execute) do (
+if defined include_frontend for %%M in (task execute) do (
     call :copy_instruction "%%M" "web\frontend"
     if errorlevel 1 exit /b 1
 )
-if defined include_typescript for %%M in (plan task execute) do (
+if defined include_typescript for %%M in (task execute) do (
     call :copy_instruction "%%M" "programming-language\typescript"
     if errorlevel 1 exit /b 1
 )
@@ -438,7 +470,7 @@ if defined include_astro for %%M in (task execute) do (
     call :copy_instruction "%%M" "web\frontend\astro"
     if errorlevel 1 exit /b 1
 )
-if defined include_css for %%M in (plan task execute) do (
+if defined include_css for %%M in (task execute) do (
     call :copy_instruction "%%M" "web\frontend\css"
     if errorlevel 1 exit /b 1
 )
@@ -519,5 +551,6 @@ exit /b 1
 
 :install_error
 echo Error: failed to install the Work skill in "!target_work!".
+if defined transaction_directory echo Recovery directory: "!transaction_directory!".
 pause
 exit /b 1

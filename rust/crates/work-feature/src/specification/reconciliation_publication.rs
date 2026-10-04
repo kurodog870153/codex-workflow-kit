@@ -62,6 +62,16 @@ pub fn ledger_transaction(
     before: Option<&[u8]>,
     after: &[u8],
 ) -> Result<LedgerPublication, WorkError> {
+    ledger_transaction_with_history(preview, approved_sha256, before, after, BTreeMap::new())
+}
+
+pub fn ledger_transaction_with_history(
+    preview: &Value,
+    approved_sha256: &str,
+    before: Option<&[u8]>,
+    after: &[u8],
+    history: BTreeMap<String, Vec<u8>>,
+) -> Result<LedgerPublication, WorkError> {
     let ledger_path = preview["ledger_path"].as_str().unwrap();
     let derived = TransactionDeriver::derive(TransactionInput {
         kind: TransactionKind::Reconciliation,
@@ -70,7 +80,7 @@ pub fn ledger_transaction(
             "attempt_path":preview["attempt_path"]}),
         artifacts: json!({}),
         affected_task_ids: Vec::new(),
-        history: BTreeMap::new(),
+        history,
         source: before.map_or_else(BTreeMap::new, |raw| {
             BTreeMap::from([(ledger_path.to_owned(), raw.to_vec())])
         }),

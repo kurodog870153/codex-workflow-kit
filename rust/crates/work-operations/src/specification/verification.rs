@@ -73,10 +73,10 @@ pub fn validate_request(value: &Value) -> Result<(), VerificationIssue> {
     }
     fields(
         &value["artifacts"],
-        &["plan", "task", "execution"],
+        &["source", "task", "execution"],
         "artifacts",
     )?;
-    for key in ["plan", "task", "execution"] {
+    for key in ["source", "task", "execution"] {
         if !value["artifacts"][key].is_string() {
             return Err(issue(
                 "invalid_contract_value",
@@ -107,7 +107,7 @@ mod tests {
 
     fn example() -> Value {
         json!({"schema":"work-spec-verification-request/v1","requirement_id":"example",
-            "artifacts":{"plan":"outputs/work/plans/example.json",
+            "artifacts":{"source":"outputs/work/sources/example",
                 "task":"outputs/work/tasks/example/index.json",
                 "execution":"outputs/work/executions/example"},
             "record_id":"SPEC-UPDATE-ABCDEF012345"})

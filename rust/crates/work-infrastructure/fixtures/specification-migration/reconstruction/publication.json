@@ -1,13 +1,12 @@
 {
-  "completion_marker": "outputs/work/executions/example/.work-spec-migration-E855FA769BC5.json.done",
+  "completion_marker": "outputs/work/executions/example/.work-spec-migration-1686EB5D8BDD.json.done",
   "documents": [
     "outputs/work/executions/example/index.json",
-    "outputs/work/plans/example.json",
     "outputs/work/tasks/example/index.json",
     "outputs/work/tasks/example/tasks/TASK-001.json"
   ],
-  "fingerprint": "e855fa769bc50dabde854ccae4a6dd3a2a53c36b2e3a29ca8f6b20d9e47852b0",
-  "journal": "outputs/work/executions/example/.work-spec-migration-E855FA769BC5.json",
+  "fingerprint": "1686eb5d8bdd4d14ac28a68faeea60dacad8296493f1759dd9188521d7b30191",
+  "journal": "outputs/work/executions/example/.work-spec-migration-1686EB5D8BDD.json",
   "publication_status": "published",
   "relationship_results": [
     {
@@ -25,12 +24,8 @@
   ],
   "schema": "work-spec-migration-publication/v1",
   "status": "updated",
-  "transaction_approval_sha256": "217019640185636bee320d12dff26ee52b31d3e5e9e549a5dac21c701582ed85",
+  "transaction_approval_sha256": "e953ec563a82b9f513aa3f25a403ecf5db2c680c1784ac65393fa566f618a219",
   "validator_results": [
-    {
-      "name": "plan",
-      "status": "passed"
-    },
     {
       "name": "task_collection",
       "status": "passed"

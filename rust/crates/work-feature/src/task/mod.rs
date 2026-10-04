@@ -1,4 +1,4 @@
-//! Formal TASK collection validation over Plan and instruction ports.
+//! Independent formal Task validation over immutable Source and instruction ports.
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -12,15 +12,16 @@ use work_operations::task::TaskIssue;
 use work_operations::task::collection::{require_item_set, semantic_projection};
 use work_operations::task::index::validate_task_index;
 use work_operations::task::item::validate_task_item;
-use work_operations::task::semantic::{validate_task_file_state, validate_task_plan_semantics};
+use work_operations::task::semantic::{validate_task_file_state, validate_task_semantics};
 
+use crate::artifact_paths::ArtifactPathRepository;
 use crate::error::{ExitCode, WorkError};
 use crate::hierarchy::validate_task_paths;
 use crate::instruction::{
     InstructionSourceRepository, task_document_selection, validate_selection_value,
     validate_task_document_selection,
 };
-use crate::plan::{PlanPathRepository, PlanValidationInput, validate_plan};
+use crate::ports::SourceSnapshotReader;
 use crate::skill::{SkillRoot, SkillSnapshotRepository};
 
 fn error(code: ExitCode, reason: &str, message: &str, details: Value) -> WorkError {
@@ -81,7 +82,6 @@ pub struct CollectionInput<'a> {
     pub index_raw: &'a [u8],
     pub item_raw: &'a BTreeMap<String, Vec<u8>>,
     pub index_path: &'a str,
-    pub source_plan_raw: &'a [u8],
 }
 
 pub trait TaskCollectionRepository {
@@ -124,7 +124,7 @@ pub fn recheck_task_execution_context<P, R>(
     context: &ExecutionTaskContext,
 ) -> Result<(), WorkError>
 where
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     R: TaskCollectionRepository,
 {
     for (path, original) in &context.sources {
@@ -137,18 +137,39 @@ where
             ));
         }
     }
-    let plan_path = context.contract["artifacts"]["plan"]
-        .as_str()
-        .expect("validated Plan path");
-    if fingerprint::raw(&paths.read(plan_path)?) != context.index["source_plan"]["canonical_sha256"]
-    {
+    let provenance = serde_json::from_value(context.index["source"].clone()).map_err(|_| {
+        error(
+            ExitCode::Contract,
+            "invalid_task_source",
+            "Task provenance is invalid.",
+            json!({}),
+        )
+    })?;
+    let artifacts = serde_json::from_value(context.index["artifacts"].clone()).map_err(|_| {
+        error(
+            ExitCode::Contract,
+            "invalid_artifact_path",
+            "Task artifact roots are invalid.",
+            json!({}),
+        )
+    })?;
+    let source_sha = source::verify_provenance(
+        paths,
+        context.index["requirement_id"]
+            .as_str()
+            .expect("validated requirement"),
+        &provenance,
+        &artifacts,
+    )?;
+    if source_sha != context.validation["source_sha256"] {
         return Err(error(
             ExitCode::ArtifactIntegrity,
-            "source_plan_fingerprint_mismatch",
-            "The TASK collection source Plan fingerprint does not match the validated Plan.",
+            "source_snapshot_mismatch",
+            "Task provenance changed after preflight.",
             json!({}),
         ));
     }
+
     Ok(())
 }
 
@@ -164,7 +185,7 @@ pub fn load_task_execution_context<H, S, P, R>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     R: TaskCollectionRepository,
 {
     let cached = CachedTaskCollection {
@@ -301,6 +322,7 @@ where
         "requirement_id":validated["requirement_id"],"spec_id":validated["spec_id"],
         "task_ids":validated["task_ids"],
         "task_collection_sha256":validated["task_collection_sha256"],
+        "source_sha256":validated["source_sha256"],
         "task_index_sha256":validated["task_index_sha256"],
         "task_item_sha256":validated["task_item_sha256"],
         "instructions_sha256":validated["instructions_sha256"],
@@ -326,7 +348,7 @@ pub fn load_collection<H, S, P, R>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     R: TaskCollectionRepository,
 {
     load_collection_with_file_state(
@@ -352,7 +374,7 @@ pub fn load_collection_with_file_state<H, S, P, R>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     R: TaskCollectionRepository,
 {
     let index_raw = repository.read_task_file(index_path)?;
@@ -411,15 +433,6 @@ where
             json!({"missing": expected.difference(&observed).collect::<Vec<_>>(), "orphan": observed.difference(&expected).collect::<Vec<_>>()}),
         ));
     }
-    let plan_path = index["artifacts"]["plan"].as_str().ok_or_else(|| {
-        error(
-            ExitCode::Contract,
-            "invalid_artifact_path",
-            "A Plan path is required.",
-            json!({}),
-        )
-    })?;
-    let plan_raw = paths.read(plan_path)?;
     validate_collection_with_file_state(
         instructions,
         skills,
@@ -429,7 +442,6 @@ where
             index_raw: &index_raw,
             item_raw: &items,
             index_path,
-            source_plan_raw: &plan_raw,
         },
         validate_file_state,
     )
@@ -445,7 +457,7 @@ pub fn validate_collection<H, S, P>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
 {
     validate_collection_with_file_state(instructions, skills, paths, skill_roots, input, false)
 }
@@ -461,7 +473,7 @@ pub fn validate_collection_with_file_state<H, S, P>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
 {
     let index = parse(input.index_raw, input.index_path)?;
     let index_validation =
@@ -480,53 +492,33 @@ where
             issue.details,
         )
     })?;
-    let plan_path = index["artifacts"]["plan"]
-        .as_str()
-        .expect("validated Plan path");
-    let plan = parse(input.source_plan_raw, plan_path)?;
-    let plan_validation = validate_plan(
-        instructions,
-        skills,
+    let provenance = serde_json::from_value(index["source"].clone()).map_err(|_| {
+        error(
+            ExitCode::Contract,
+            "invalid_task_source",
+            "A Task source is required.",
+            json!({}),
+        )
+    })?;
+    let artifacts = serde_json::from_value(index["artifacts"].clone()).map_err(|_| {
+        error(
+            ExitCode::Contract,
+            "invalid_artifact_path",
+            "Task artifact roots are required.",
+            json!({}),
+        )
+    })?;
+    let source_sha = source::verify_provenance(
         paths,
-        skill_roots,
-        &plan,
-        PlanValidationInput {
-            raw: input.source_plan_raw,
-            actual_plan_path: plan_path,
-            allow_task_index: true,
-        },
+        index["requirement_id"]
+            .as_str()
+            .expect("validated requirement"),
+        &provenance,
+        &artifacts,
     )?;
-    let plan_sha = plan_validation["plan_sha256"]
-        .as_str()
-        .expect("validated Plan hash");
-    if index["source_plan"]["canonical_sha256"] != plan_sha {
-        return Err(error(
-            ExitCode::ArtifactIntegrity,
-            "source_plan_fingerprint_mismatch",
-            "The TASK collection source Plan fingerprint does not match the validated Plan.",
-            json!({}),
-        ));
-    }
-    if index["source_plan"]["hierarchy_selection_sha256"]
-        != plan_validation["hierarchy_selection_sha256"]
-    {
-        return Err(error(
-            ExitCode::ArtifactIntegrity,
-            "source_plan_hierarchy_selection_mismatch",
-            "The TASK collection hierarchy selection fingerprint does not match the Plan.",
-            json!({}),
-        ));
-    }
-    if plan["requirement_id"] != index["requirement_id"] || plan["artifacts"] != index["artifacts"]
-    {
-        return Err(error(
-            ExitCode::ArtifactIntegrity,
-            "source_plan_identity_mismatch",
-            "The TASK collection identity or artifacts do not match the source Plan.",
-            json!({}),
-        ));
-    }
-    let mut item_validations = serde_json::Map::new();
+    crate::hierarchy::validate_selection(instructions, &index["hierarchy_selection"])?;
+    crate::skill::validate_selection(skills, skill_roots, &index["skill_selection"])?;
+    let mut item_validations: BTreeMap<String, Value> = BTreeMap::new();
     let mut items = Vec::new();
     let mut source_sets = Vec::new();
     for reference in index["tasks"].as_array().expect("validated references") {
@@ -559,7 +551,7 @@ where
         validate_task_paths(
             instructions,
             &selected_paths,
-            &plan["hierarchy_selection"],
+            &index["hierarchy_selection"],
             &format!("{task_id}.instruction_selection.selected_paths"),
         )?;
         source_sets.push(validate_selection_value(
@@ -577,14 +569,10 @@ where
     validate_task_document_selection(&index["instruction_selection"], &document_selection)?;
     let typed_index: TaskIndex =
         serde_json::from_value(index.clone()).expect("validated TASK index matches Model");
-    let projection = serde_json::to_value(semantic_projection(
-        typed_index,
-        items,
-        input.index_path,
-        plan_sha,
-    ))
-    .expect("TASK projection serializes");
-    let semantics = validate_task_plan_semantics(&projection, &plan).map_err(domain)?;
+    let projection =
+        serde_json::to_value(semantic_projection(typed_index, items, input.index_path))
+            .expect("TASK projection serializes");
+    let semantics = validate_task_semantics(&projection).map_err(domain)?;
     if validate_file_state {
         let mut existence = BTreeMap::new();
         for task in projection["tasks"].as_array().expect("validated TASKs") {
@@ -636,10 +624,10 @@ where
     >(json!({
         "schema": "work-task-collection-validation/v1", "requirement_id": index["requirement_id"], "spec_id": index["spec_id"],
         "task_ids": task_ids, "task_count": task_ids.len(), "task_index_sha256": fingerprint::raw(input.index_raw),
-        "task_item_sha256": item_hashes, "task_collection_sha256": collection_sha, "source_plan_sha256": plan_sha,
+        "task_item_sha256": item_hashes, "task_collection_sha256": collection_sha, "source_sha256": source_sha,
         "instructions_sha256": document_selection["instructions_sha256"], "task_instructions_sha256": semantics["task_instruction_hashes"],
-        "task_skill_ids": semantics["task_skill_ids"], "hierarchy_selection_sha256": plan_validation["hierarchy_selection_sha256"],
-        "skill_selection_sha256": plan_validation["skill_selection_sha256"], "collection_contract": projection,
+        "task_skill_ids": semantics["task_skill_ids"], "hierarchy_selection_sha256": index["hierarchy_selection"]["selection_sha256"],
+        "skill_selection_sha256": index["skill_selection"]["selection_sha256"], "collection_contract": projection,
     })))
 }
 
@@ -647,3 +635,4 @@ pub mod assembly;
 pub mod create;
 pub mod draft;
 pub mod semantic_prepare;
+pub mod source;

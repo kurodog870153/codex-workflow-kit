@@ -91,11 +91,12 @@ fn string_array(
     Ok(result)
 }
 
-fn numbered(value: &str, prefix: &str) -> Option<usize> {
+pub(crate) fn numbered(value: &str, prefix: &str) -> Option<usize> {
     let suffix = value.strip_prefix(prefix)?.strip_prefix('-')?;
-    (suffix.len() == 3 && suffix.bytes().all(|byte| byte.is_ascii_digit()))
+    (suffix.len() >= 3 && suffix.bytes().all(|byte| byte.is_ascii_digit()))
         .then(|| suffix.parse().ok())
         .flatten()
+        .filter(|number| *number > 0 && format!("{number:03}") == suffix)
 }
 
 fn items<'a>(
@@ -147,6 +148,7 @@ pub fn validate_task_item(
         "skill_id",
         "instruction_selection",
         "traceability",
+        "acceptance_criteria",
         "goal",
         "steps",
         "validations",
@@ -185,26 +187,30 @@ pub fn validate_task_item(
     let trace = strict(
         &task["traceability"],
         "traceability",
-        &["goal_ids", "deliverable_ids", "acceptance_ids"],
-        &["milestone_ids"],
+        &["acceptance_ids"],
+        &[],
     )?;
-    for (field, prefix) in [
-        ("goal_ids", "GOAL"),
-        ("deliverable_ids", "DELIVERABLE"),
-        ("acceptance_ids", "ACCEPTANCE"),
-        ("milestone_ids", "MILESTONE"),
-    ] {
-        if let Some(raw) = trace.get(field) {
-            let ids = string_array(raw, &format!("traceability.{field}"), false)?;
-            if ids.iter().any(|id| numbered(id, prefix).is_none()) {
-                return Err(issue(
-                    "invalid_reference",
-                    "A traceability ID has the wrong type.",
-                    json!({}),
-                ));
-            }
-        }
+    let ids = string_array(
+        &trace["acceptance_ids"],
+        "traceability.acceptance_ids",
+        true,
+    )?;
+    if ids.iter().any(|id| numbered(id, "ACCEPTANCE").is_none()) {
+        return Err(issue(
+            "invalid_reference",
+            "Responsibilities must identify main acceptance criteria.",
+            json!({}),
+        ));
     }
+    let criteria: Vec<work_model::task::source::TaskAcceptance> =
+        serde_json::from_value(task["acceptance_criteria"].clone()).map_err(|_| {
+            issue(
+                "invalid_task_acceptance",
+                "Technical acceptance definitions are required.",
+                json!({}),
+            )
+        })?;
+    crate::task::source::validate_acceptance(&criteria, &format!("{id}-ACCEPTANCE-"))?;
     let dependencies = string_array(
         task.get("dependencies")
             .unwrap_or(&Value::Array(Vec::new())),
@@ -530,9 +536,10 @@ mod tests {
     fn example_task_item_round_trip_and_reference_error() {
         let item = json!({"schema": "work-task-item/v1", "id": "TASK-001", "title": "Example", "skill_id": null,
             "instruction_selection": {"selected_paths": [], "resolved_paths": ["general"], "sources": [{"kind": "instruction", "logical_name": "task.general", "canonical_sha256": "a".repeat(64)}], "references": [], "instructions_sha256": "b".repeat(64)},
-            "traceability": {"goal_ids": ["GOAL-001"], "deliverable_ids": ["DELIVERABLE-001"], "acceptance_ids": ["ACCEPTANCE-001"]},
+            "traceability": {"acceptance_ids": ["ACCEPTANCE-001"]},
+            "acceptance_criteria":[{"id":"TASK-001-ACCEPTANCE-001","criterion":"The technical result is verified."}],
             "goal": "Produce the result.", "steps": [{"id": "STEP-001", "action": "Validate.", "references": ["VAL-001"]}],
-            "validations": [{"id": "VAL-001", "kind": "manual", "confirmer": "user", "criteria": "Approved."}]});
+            "validations": [{"id": "VAL-001", "kind": "manual", "confirmer": "user", "criteria": "Approved.","acceptance_ids":["ACCEPTANCE-001","TASK-001-ACCEPTANCE-001"]}]});
         let raw = render_task(&item, TaskDocumentKind::Item).unwrap();
         let preserved = item.clone();
         assert_eq!(
@@ -542,6 +549,29 @@ mod tests {
         let typed: work_model::task::item::TaskItem = serde_json::from_value(item.clone()).unwrap();
         assert_eq!(serde_json::to_value(typed).unwrap(), item);
         assert_eq!(item, preserved);
+        for id in [
+            "GOAL-001",
+            "ACCEPTANCE-000",
+            "ACCEPTANCE-01",
+            "TASK-002-ACCEPTANCE-001",
+        ] {
+            let mut invalid = item.clone();
+            invalid["acceptance_criteria"][0]["id"] = json!(id);
+            let raw = render_task(&invalid, TaskDocumentKind::Item).unwrap();
+            assert!(
+                validate_task_item(&invalid, &raw, "TASK-001").is_err(),
+                "{id}"
+            );
+        }
+        let mut plan_trace = item.clone();
+        plan_trace["traceability"]["plan_change_ids"] = json!(["GOAL-001"]);
+        let raw = render_task(&plan_trace, TaskDocumentKind::Item).unwrap();
+        assert_eq!(
+            validate_task_item(&plan_trace, &raw, "TASK-001")
+                .unwrap_err()
+                .reason_code,
+            "invalid_object_fields"
+        );
         let mut legacy = item.clone();
         legacy["rule_selection"] = legacy
             .as_object_mut()

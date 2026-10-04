@@ -439,21 +439,21 @@ mod tests {
         for (kind, expected) in [
             (
                 "workflow",
-                "ac48980170572797151c3d74b6777879c60302d31d2ae2ecdc6134367d9fcae4",
+                "6560adbce36477093bc42aa0e4ab06f4bc2b360f44f8b602e19c9b13d23029c6",
             ),
             (
                 "instruction",
-                "8bbd6fdc16492b3da9bef55cea6e852a129ecd787d0a70385fb725813f11d4de",
+                "8ddd89b7fc70ef43f07142ab98559a87225ae547b63d5ba3a55adfb466e05bf7",
             ),
             (
                 "reference",
-                "168df0d09c894c5920c375876de1244692c205e7a0a0eb6688f0ebecf72ab8d6",
+                "256995a3c81d4359adea89c3e7e875a662b16f50f14568fd40097daf28079337",
             ),
         ] {
             let name = format!("test.{kind}");
             assert_eq!(
                 instructions_sha256(
-                    "plan",
+                    "task",
                     &[InstructionSource {
                         kind,
                         logical_name: &name,

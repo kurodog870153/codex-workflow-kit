@@ -1,7 +1,13 @@
 {
   "schema": "work-task-item/v1",
+  "id": "TASK-001",
   "title": "Modify source",
+  "skill_id": "8e51ac10c4b5f40da569ebc6cf784f7992fd1ef0f3e6e309146c4e8d5fbcce93",
   "instruction_selection": {
+    "selected_paths": [],
+    "resolved_paths": [
+      "general"
+    ],
     "sources": [
       {
         "kind": "workflow",
@@ -18,35 +24,33 @@
       {
         "kind": "instruction",
         "logical_name": "task.general",
-        "canonical_sha256": "f718da96bc956849a1a6e5abaab491379c17b7f7487c2b76dff28b04a94851db",
+        "canonical_sha256": "f69c269fa4cff34bfef1eff6ba8e6260616c8b4880a87fcad1bec98eba5f52a3",
         "compatibility_revision": 1
       },
       {
         "kind": "reference",
         "logical_name": "task.general.task-records",
-        "canonical_sha256": "9bd9dff5c693ea21064dc5bb9684078981ebb71836c8e6d4316c3cfef597aa0a",
+        "canonical_sha256": "6275c303ac0553f8fd7df8c0bb59b623f9431433ac42b463d57ff15c40f4d8b8",
         "compatibility_revision": 1
       }
     ],
     "references": [
       "task.general.task-records"
     ],
-    "instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a",
-    "resolved_paths": [
-      "general"
-    ],
-    "selected_paths": []
+    "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758"
   },
-  "commands": [
+  "traceability": {
+    "acceptance_ids": [
+      "ACCEPTANCE-001"
+    ]
+  },
+  "acceptance_criteria": [
     {
-      "id": "CMD-001",
-      "mode": "argv",
-      "argv": [
-        "python",
-        "--version"
-      ]
+      "id": "TASK-001-ACCEPTANCE-001",
+      "criterion": "Exit code is zero."
     }
   ],
+  "goal": "Modify the source and validate it.",
   "files": [
     {
       "id": "FILE-001",
@@ -54,9 +58,6 @@
       "path": "src.txt"
     }
   ],
-  "goal": "Modify the source and validate it.",
-  "id": "TASK-001",
-  "skill_id": "example",
   "steps": [
     {
       "id": "STEP-001",
@@ -74,17 +75,16 @@
       ]
     }
   ],
-  "traceability": {
-    "goal_ids": [
-      "GOAL-001"
-    ],
-    "deliverable_ids": [
-      "DELIVERABLE-001"
-    ],
-    "acceptance_ids": [
-      "ACCEPTANCE-001"
-    ]
-  },
+  "commands": [
+    {
+      "id": "CMD-001",
+      "mode": "argv",
+      "argv": [
+        "python",
+        "--version"
+      ]
+    }
+  ],
   "validations": [
     {
       "id": "VAL-001",
@@ -94,7 +94,8 @@
       ],
       "pass_condition": "Exit code is zero.",
       "acceptance_ids": [
-        "ACCEPTANCE-001"
+        "ACCEPTANCE-001",
+        "TASK-001-ACCEPTANCE-001"
       ]
     }
   ]

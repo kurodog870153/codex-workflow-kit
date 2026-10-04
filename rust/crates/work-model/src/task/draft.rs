@@ -28,9 +28,11 @@ pub enum SavedDraftStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PlanningSource {
-    pub plan_sha256: String,
-    pub hierarchy_selection_sha256: String,
-    pub skill_selection_sha256: String,
+    pub snapshot: crate::source_snapshot::SourceSnapshot,
+    pub artifacts: super::source::TaskArtifactPaths,
+    pub hierarchy_selection: crate::hierarchy::HierarchySelection,
+    pub skill_selection: crate::skill::SkillSelection,
+    pub acceptance_criteria: Vec<super::source::TaskAcceptance>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -220,12 +222,16 @@ pub struct CandidateValidation {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub criteria: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub acceptance_positions: Option<Vec<u64>>,
+    pub acceptance_ids: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SemanticTaskCandidate {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub acceptance_ids: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub acceptance_criteria: Option<Vec<super::source::TaskAcceptance>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub inputs: Option<Vec<CandidateInput>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

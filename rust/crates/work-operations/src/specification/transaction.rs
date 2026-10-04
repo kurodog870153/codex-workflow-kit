@@ -247,25 +247,15 @@ fn order(path: &[String], document: Option<&str>) -> &'static [&'static str] {
     {
         let nested = &path[2..];
         if nested.is_empty() {
-            return &[
-                "schema",
-                "reason",
-                "expected",
-                "plan",
-                "task_index",
-                "task_items",
-            ];
+            return &["schema", "reason", "expected", "task_index", "task_items"];
         }
         if nested == ["expected"] {
             return &[
-                "plan_sha256",
+                "source_sha256",
                 "task_index_sha256",
                 "execution_index_sha256",
                 "task_item_sha256",
             ];
-        }
-        if nested[0] == "plan" {
-            return crate::plan::fields(&nested[1..]);
         }
         if nested[0] == "task_index" {
             return crate::task::ordering::fields(
@@ -305,7 +295,6 @@ fn order(path: &[String], document: Option<&str>) -> &'static [&'static str] {
     {
         let nested = &path[position + 1..];
         return match schema {
-            "work-plan/v1" => crate::plan::fields(nested),
             "work-task-index/v1" => crate::task::ordering::fields(
                 nested,
                 crate::task::ordering::TaskDocumentKind::Index,
@@ -335,7 +324,7 @@ fn order(path: &[String], document: Option<&str>) -> &'static [&'static str] {
         return &["path", "kind", "task_id", "content"];
     }
     if path == ["metadata", "artifacts"] {
-        return &["plan", "task", "execution"];
+        return &["source", "task", "execution"];
     }
     match path.last().map(String::as_str) {
         None => &[

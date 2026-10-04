@@ -2,20 +2,29 @@
 
 use serde_json::Value;
 use serde_json::json;
+use work_feature::artifact_paths::ArtifactPathRepository;
 use work_feature::error::{ExitCode, WorkError};
 use work_feature::handoff::{HandoffCommandRepository, HandoffStorageAction};
-use work_feature::plan::PlanPathRepository;
 
 pub fn discussion_build(request: &Value) -> Result<Value, WorkError> {
     work_feature::handoff::build_discussion(request)
 }
 
-pub fn validate(repository: &impl PlanPathRepository, request: &Value) -> Result<Value, WorkError> {
-    work_feature::handoff::validate_handoff(repository, request)
+pub fn validate(
+    repository: &impl ArtifactPathRepository,
+    request: &Value,
+) -> Result<Value, WorkError> {
+    work_feature::handoff::validate_task_handoff(repository, request)
+}
+
+pub fn validate_task(
+    repository: &impl work_feature::artifact_paths::ArtifactPathRepository,
+    request: &Value,
+) -> Result<Value, WorkError> {
+    work_feature::handoff::validate_task_handoff(repository, request)
 }
 
 pub struct HandoffArgs<'a> {
-    pub plan_path: Option<&'a str>,
     pub task_path: Option<&'a str>,
     pub task_id: Option<&'a str>,
     pub attempt_id: Option<&'a str>,
@@ -35,7 +44,7 @@ fn required(value: Option<&str>) -> Result<&str, WorkError> {
 
 pub fn run<P: HandoffCommandRepository>(
     command: &str,
-    paths: &impl PlanPathRepository,
+    paths: &impl ArtifactPathRepository,
     create_port: impl FnOnce() -> Result<P, WorkError>,
     args: HandoffArgs<'_>,
     request: &Value,
@@ -52,14 +61,6 @@ pub fn run<P: HandoffCommandRepository>(
         };
     }
     let action = match command {
-        "build-plan-to-task" => HandoffStorageAction::PlanToTask {
-            verify: false,
-            plan_path: required(args.plan_path)?,
-        },
-        "verify-plan-to-task" => HandoffStorageAction::PlanToTask {
-            verify: true,
-            plan_path: required(args.plan_path)?,
-        },
         "build-task-to-execute" => HandoffStorageAction::TaskToExecute {
             verify: false,
             task_path: required(args.task_path)?,
@@ -70,37 +71,13 @@ pub fn run<P: HandoffCommandRepository>(
             task_path: required(args.task_path)?,
             task_id: required(args.task_id)?,
         },
-        "build-task-to-plan" => HandoffStorageAction::TaskToPlan {
-            verify: false,
-            plan_path: None,
-            task_path: required(args.task_path)?,
-            task_id: args.task_id,
-        },
-        "verify-task-to-plan" => HandoffStorageAction::TaskToPlan {
-            verify: true,
-            plan_path: Some(required(args.plan_path)?),
-            task_path: required(args.task_path)?,
-            task_id: args.task_id,
-        },
-        "build-execute-to-task"
-        | "build-execute-to-plan"
-        | "verify-execute-to-task"
-        | "verify-execute-to-plan" => {
+        "build-execute-to-task" | "verify-execute-to-task" => {
             let verify = command.starts_with("verify-");
-            let direction = if command.ends_with("-task") {
-                "execute_to_task"
-            } else {
-                "execute_to_plan"
-            };
+            let direction = "execute_to_task";
             HandoffStorageAction::ExecuteReturn {
                 verify,
                 preflight: args.preflight,
                 direction,
-                plan_path: if verify {
-                    Some(required(args.plan_path)?)
-                } else {
-                    None
-                },
                 task_path: required(args.task_path)?,
                 task_id: required(args.task_id)?,
                 attempt_id: if args.preflight {
@@ -125,29 +102,24 @@ pub fn run<P: HandoffCommandRepository>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use work_feature::artifact_paths::ArtifactPaths;
     use work_model::identifiers::RequirementId;
 
     struct NoPaths;
-    impl PlanPathRepository for NoPaths {
-        fn default_paths(&self, _: &RequirementId) -> Result<Value, WorkError> {
-            panic!("unused")
-        }
-        fn validate_paths(
-            &self,
-            _: &RequirementId,
-            _: &Value,
-            _: &str,
-            _: bool,
-        ) -> Result<(), WorkError> {
+    impl ArtifactPathRepository for NoPaths {
+        fn resolve(&self, _: &str) -> Result<std::path::PathBuf, WorkError> {
             panic!("unused")
         }
         fn exists(&self, _: &str) -> Result<bool, WorkError> {
             panic!("unused")
         }
-        fn create_exclusive(&self, _: &str, _: &[u8]) -> Result<(), WorkError> {
+        fn read_raw(&self, _: &str) -> Result<Vec<u8>, WorkError> {
             panic!("unused")
         }
-        fn read(&self, _: &str) -> Result<Vec<u8>, WorkError> {
+        fn create_new(&self, _: &str, _: &[u8]) -> Result<(), WorkError> {
+            panic!("unused")
+        }
+        fn validate_paths(&self, _: &RequirementId, _: &ArtifactPaths) -> Result<(), WorkError> {
             panic!("unused")
         }
     }
@@ -159,8 +131,7 @@ mod tests {
                 HandoffStorageAction::ExecuteReturn {
                     verify: true,
                     preflight: false,
-                    direction: "execute_to_plan",
-                    plan_path: Some("plan.json"),
+                    direction: "execute_to_task",
                     task_path: "task/index.json",
                     task_id: "TASK-001",
                     attempt_id: Some("ATTEMPT-001"),
@@ -173,11 +144,10 @@ mod tests {
     #[test]
     fn closed_return_dispatches_to_the_selected_port_action() {
         let result = run(
-            "verify-execute-to-plan",
+            "verify-execute-to-task",
             &NoPaths,
             || Ok(FakePort),
             HandoffArgs {
-                plan_path: Some("plan.json"),
                 task_path: Some("task/index.json"),
                 task_id: Some("TASK-001"),
                 attempt_id: Some("ATTEMPT-001"),

@@ -82,13 +82,13 @@ mod tests {
 
     #[test]
     fn frozen_catalog_keeps_public_descriptions_and_scaffolds() {
-        assert_eq!(list()["contracts"].as_array().unwrap().len(), 114);
+        assert_eq!(list()["contracts"].as_array().unwrap().len(), 112);
         assert_eq!(
-            describe("work-plan-semantic-request/v1").unwrap()["kind"],
+            describe("work-task-semantic-request/v1").unwrap()["kind"],
             "semantic_request"
         );
         assert_eq!(
-            scaffold("work-plan-semantic-request/v1").unwrap()["schema"],
+            scaffold("work-task-semantic-request/v1").unwrap()["schema"],
             "work-contract-scaffold/v1"
         );
         assert_eq!(
@@ -236,9 +236,7 @@ mod tests {
                 assert_eq!(scaffold["example"], description["example"]);
             }
         }
-        let plan = scaffold("work-plan-semantic-request/v1").unwrap();
         let task = scaffold("work-task-semantic-request/v1").unwrap();
-        assert!(plan["example"].get("artifacts").is_none());
         assert!(task["example"]["upsert"][0].get("id").is_none());
         let generated = "work-spec-update-request/v1";
         let description = describe(generated).unwrap();
@@ -345,7 +343,8 @@ mod tests {
                     "role",
                     "mode",
                     "request",
-                    "source_plan_path",
+                    "planning_source",
+                    "task_path",
                     "task_id",
                     "source_progress_path",
                     "content",
@@ -458,14 +457,13 @@ mod tests {
         assert_eq!(
             references,
             std::collections::BTreeMap::from([
-                ("plan", "work-plan/v1"),
                 ("task_index", "work-task-index/v1"),
                 ("task_items", "work-task-item/v1"),
             ])
         );
         let example = &update["example"];
         assert_eq!(example["schema"], "work-spec-update-request/v1");
-        assert_eq!(example["plan"]["schema"], "work-plan/v1");
+        assert!(example.get("plan").is_none());
         assert_eq!(example["task_index"]["schema"], "work-task-index/v1");
         assert_eq!(
             example["task_items"]["TASK-001"]["schema"],

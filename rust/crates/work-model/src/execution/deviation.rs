@@ -89,6 +89,14 @@ pub enum DeviationAuthorizationSchema {
     V1,
 }
 
+/// Task-owned specification impact; Execution is rebuilt after coordinated revision.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeviationClassification {
+    TaskOnly,
+    TaskAndExecution,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DeviationOutcome {
@@ -122,4 +130,36 @@ pub struct ExecutionDeviation {
     pub supplemental_authorization: SupplementalAuthorization,
     pub decision: DeviationDecision,
     pub reconciliation_status: ReconciliationStatus,
+}
+
+#[cfg(test)]
+mod classification_tests {
+    use super::DeviationClassification;
+
+    #[test]
+    fn classifications_accept_task_impacts_and_reject_removed_plan_targets() {
+        for (literal, expected) in [
+            ("task_only", DeviationClassification::TaskOnly),
+            (
+                "task_and_execution",
+                DeviationClassification::TaskAndExecution,
+            ),
+        ] {
+            assert_eq!(
+                serde_json::from_value::<DeviationClassification>(serde_json::json!(literal))
+                    .unwrap(),
+                expected
+            );
+            assert_eq!(
+                serde_json::to_value(expected).unwrap(),
+                serde_json::json!(literal)
+            );
+        }
+        for literal in ["plan_and_task", "plan", "retain_only"] {
+            assert!(
+                serde_json::from_value::<DeviationClassification>(serde_json::json!(literal))
+                    .is_err()
+            );
+        }
+    }
 }

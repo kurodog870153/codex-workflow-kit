@@ -1,31 +1,13 @@
 {
-  "schema": "work-spec-migration-publication/v1",
-  "status": "updated",
-  "fingerprint": "f8a71a8d89863f177799373a46580d3b3ba016a00387ce307cb253c52bc530d4",
-  "transaction_approval_sha256": "3d2d499c2fb7d974e76a8255dd9fa93429f3f27e7adb80713b8215acc6d9c6ed",
-  "journal": "outputs/work/executions/example/.work-spec-migration-F8A71A8D8986.json",
-  "completion_marker": "outputs/work/executions/example/.work-spec-migration-F8A71A8D8986.json.done",
+  "completion_marker": "outputs/work/executions/example/.work-spec-migration-E395877A00BB.json.done",
   "documents": [
     "outputs/work/executions/example/index.json",
-    "outputs/work/plans/example.json",
     "outputs/work/tasks/example/index.json",
     "outputs/work/tasks/example/tasks/TASK-001.json"
   ],
+  "fingerprint": "e395877a00bb97ef907d42f14c1bb5ad457e76f7f416e29b51860c4efc75d468",
+  "journal": "outputs/work/executions/example/.work-spec-migration-E395877A00BB.json",
   "publication_status": "published",
-  "validator_results": [
-    {
-      "name": "plan",
-      "status": "passed"
-    },
-    {
-      "name": "task_collection",
-      "status": "passed"
-    },
-    {
-      "name": "execution_index",
-      "status": "passed"
-    }
-  ],
   "relationship_results": [
     {
       "name": "candidate_set",
@@ -37,6 +19,19 @@
     },
     {
       "name": "execution_binding",
+      "status": "passed"
+    }
+  ],
+  "schema": "work-spec-migration-publication/v1",
+  "status": "updated",
+  "transaction_approval_sha256": "78178d0df92b7a9f1b21684a680ce3de8978f22c670d79e79f82b1cd4b51af73",
+  "validator_results": [
+    {
+      "name": "task_collection",
+      "status": "passed"
+    },
+    {
+      "name": "execution_index",
       "status": "passed"
     }
   ]

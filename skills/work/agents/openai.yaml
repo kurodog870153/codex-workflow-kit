@@ -1,7 +1,7 @@
 interface:
   display_name: "Work"
-  short_description: "Run Plan, Task, Revise, Migration, or Execute explicitly"
-  default_prompt: "Use $work plan -- describe the requirement and produce a confirmed Plan."
+  short_description: "Confirm Task, Revise, Migration, or Execute work"
+  default_prompt: "Use $work task -- capture my requirement as Source and plan verified tasks."
 
 policy:
-  allow_implicit_invocation: false
+  allow_implicit_invocation: true

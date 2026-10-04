@@ -1,6 +1,7 @@
 //! Execution command flows.
 
 use serde_json::{Value, json};
+use work_feature::artifact_paths::ArtifactPathRepository;
 use work_feature::error::{ExitCode, WorkError};
 use work_feature::execution::document;
 use work_feature::execution::{
@@ -10,7 +11,7 @@ use work_feature::execution::{
     RecordFinishRepository, RecoveryPrepareRepository,
 };
 use work_feature::instruction::InstructionSourceRepository;
-use work_feature::plan::PlanPathRepository;
+use work_feature::ports::SourceSnapshotReader;
 use work_feature::skill::SkillSnapshotRepository;
 use work_feature::task::TaskCollectionRepository;
 
@@ -67,7 +68,7 @@ pub fn run<H, S, P, T, E>(
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
-    P: PlanPathRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
     T: TaskCollectionRepository,
     E: ExecutionIndexRepository
         + ExecutionWorktreeRepository

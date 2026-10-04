@@ -37,11 +37,12 @@ pub fn decide_refresh(
     blocked: Vec<Value>,
     changed_sources: &BTreeSet<String>,
     mut counts: Value,
+    source_evidence: &BTreeMap<String, Vec<u8>>,
 ) -> Result<RefreshDecision, WorkError> {
     if !blocked.is_empty() {
         before.clear();
         after.clear();
-        counts = json!({"plans":0,"task_items":0,"task_indexes":0,"execution_indexes":0});
+        counts = json!({"task_items":0,"task_indexes":0,"execution_indexes":0});
     }
     let files = after
         .iter()
@@ -51,7 +52,7 @@ pub fn decide_refresh(
         })
         .collect::<Vec<_>>();
     let evidence = json!({"requirement_id":requirement_id,"changed_sources":changed_sources,
-        "blocked":blocked,"files":files});
+        "blocked":blocked,"files":files,"source_sha256":source_evidence.iter().map(|(path,raw)| (path.clone(),fingerprint::raw(raw))).collect::<BTreeMap<_,_>>()});
     let approval = fingerprint::structured(&evidence).map_err(|_| {
         WorkError::new(
             ExitCode::ArtifactIntegrity,
@@ -176,16 +177,17 @@ mod tests {
 
     #[test]
     fn blocked_refresh_drops_all_writes_and_impact_reports_review() {
-        let before = BTreeMap::from([("plan.json".into(), b"before".to_vec())]);
-        let after = BTreeMap::from([("plan.json".into(), b"after".to_vec())]);
+        let before = BTreeMap::from([("tasks/example/index.json".into(), b"before".to_vec())]);
+        let after = BTreeMap::from([("tasks/example/index.json".into(), b"after".to_vec())]);
         let changed = BTreeSet::from(["workflow".into()]);
         let decision = decide_refresh(
             "example",
             before,
             after,
-            vec![json!({"path":"plan.json","reason":"compatibility_revision_changed"})],
+            vec![json!({"path":"tasks/example/index.json","reason":"compatibility_revision_changed"})],
             &changed,
-            json!({"plans":1,"task_items":0,"task_indexes":0,"execution_indexes":0}),
+            json!({"task_items":0,"task_indexes":0,"execution_indexes":0}),
+            &BTreeMap::new(),
         )
         .unwrap();
         assert!(decision.before.is_empty());

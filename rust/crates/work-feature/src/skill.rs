@@ -650,7 +650,7 @@ pub fn validate_selection(
             &WORKFLOW_MODES,
             &[],
         )?;
-        if modes["plan"] == "unsupported"
+        if modes["task"] == "unsupported"
             || modes.values().any(|value| {
                 !matches!(
                     value.as_str(),
@@ -661,7 +661,7 @@ pub fn validate_selection(
             return Err(error(
                 ExitCode::Contract,
                 "invalid_skill_mode_support",
-                "Confirmed skills must support Plan and use valid mode support values.",
+                "Confirmed skills must support Task and use valid mode support values.",
                 json!({"location": format!("{location}.mode_support")}),
             ));
         }

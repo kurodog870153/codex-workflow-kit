@@ -9,10 +9,10 @@ metadata:
 
 # TypeScript 任務規劃指令
 
-指令邊界：本層只固定跨應用的 TypeScript 契約；應用與框架要求由其他適用路徑負責。
+指令邊界：本層確認跨應用的型別安全與相容性成果並固定 TypeScript 契約；應用與框架要求由其他適用路徑負責。
 
 1. [強制] TASK 須從實際 manifest、lockfile、tsconfig、建置設定與原始碼確認 TypeScript 版本、module resolution、JSX、path aliases、strictness 與型別檢查入口，不得自行升級或重建設定。
-2. [強制] 受影響的資料、事件、函式、設定、環境變數及外部模組邊界須固定型別來源、可空性、窄化、錯誤與相容性行為。
+2. [強制] 受影響的資料、事件、函式、設定、環境變數及外部模組邊界須先確認可驗收的型別安全結果，再固定型別來源、可空性、窄化、錯誤與相容性行為；既有 JavaScript／TypeScript 的漸進採用、轉換與 strictness 變更須明確確認，不得預設全面轉換或提高嚴格度。
 3. [強制] 外部或執行期資料不得只靠 assertion 視為可信；須沿用既有 validator、schema 或明確 guard，缺少方案時列為待確認決策。
 4. [預設] 優先使用可推論型別、discriminated union、`unknown` 與精確介面；不得為通過檢查擴散 `any`、非空斷言、忽略註解或不安全 cast。
 5. [強制] Generated types、ambient declarations、套件型別與 framework types 須固定來源及更新方式；產生檔不得手動修改。

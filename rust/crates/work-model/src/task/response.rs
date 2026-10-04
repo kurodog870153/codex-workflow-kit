@@ -82,7 +82,7 @@ pub struct TaskCollectionValidation {
     pub task_index_sha256: String,
     pub task_item_sha256: BTreeMap<String, String>,
     pub task_collection_sha256: String,
-    pub source_plan_sha256: String,
+    pub source_sha256: String,
     pub instructions_sha256: String,
     pub task_instructions_sha256: BTreeMap<String, String>,
     pub task_skill_ids: BTreeMap<String, Nullable<String>>,
@@ -117,8 +117,10 @@ pub enum DraftPrepareRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TaskSourcePrepareRequest {
+    pub source: PlanningSource,
     pub reason: String,
     pub selections: BTreeMap<String, DraftInstructionSelection>,
+    pub source_confirmation: super::request::SourceReplacementConfirmation,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

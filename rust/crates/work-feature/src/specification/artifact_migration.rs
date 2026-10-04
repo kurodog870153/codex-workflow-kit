@@ -5,14 +5,13 @@ use work_model::specification::{ArtifactMigrationItem, ArtifactMigrationItemStat
 use work_operations::canonical::parse_json_contract;
 use work_operations::derivation::fingerprint;
 use work_operations::execution::index::{render_execution_index, validate_execution_index};
-use work_operations::plan::{render_plan_value, validation::validate_plan_structure};
 use work_operations::task::index::validate_task_index;
 use work_operations::task::item::validate_task_item;
 use work_operations::task::ordering::{TaskDocumentKind, render_task};
 
 fn current_schema(kind: &str) -> Option<&'static str> {
     match kind {
-        "plan" => Some("work-plan/v1"),
+        "source" => Some("work-source-snapshot/v1"),
         "task_index" => Some("work-task-index/v1"),
         "task_item" => Some("work-task-item/v1"),
         "execution_index" => Some("work-execution-index/v1"),
@@ -20,9 +19,57 @@ fn current_schema(kind: &str) -> Option<&'static str> {
     }
 }
 
+/// Verify an exact reviewed analysis without consulting or interpreting legacy schemas.
+pub fn verify_raw_analysis(
+    value: &Value,
+) -> Result<work_model::specification::ArtifactMigrationAnalysis, &'static str> {
+    use std::collections::BTreeSet;
+    let analysis: work_model::specification::ArtifactMigrationAnalysis =
+        serde_json::from_value(value.clone()).map_err(|_| "migration_analysis")?;
+    if analysis.schema != work_model::schema::PublicSchema::WorkArtifactMigrationAnalysisV1
+        || analysis
+            .requirement_id
+            .parse::<work_model::identifiers::RequirementId>()
+            .is_err()
+    {
+        return Err("migration_analysis");
+    }
+    let mut ids = BTreeSet::new();
+    let mut paths = BTreeSet::new();
+    for item in &analysis.items {
+        if item.source_size != item.raw.len() as u64
+            || fingerprint::raw(&item.raw) != item.source_sha256
+        {
+            return Err("migration_raw_evidence_invalid");
+        }
+        if !work_operations::task::source::valid_relative_path(&item.path)
+            || item.id != format!("MIGRATION-{}", item.path.replace(['/', '.'], "-"))
+            || !ids.insert(&item.id)
+            || !paths.insert(work_operations::canonical::portable_path_identity(
+                &item.path,
+            ))
+            || item.issue.trim().is_empty()
+            || (item.kind != "raw_evidence" && current_schema(&item.kind).is_none())
+            || item.target_schema != current_schema(&item.kind).unwrap_or_default()
+            || (item.resolution_status == ArtifactMigrationItemStatus::Proposed)
+                != item.proposed_content.is_some()
+        {
+            return Err("migration_analysis");
+        }
+    }
+    let mut evidence = json!({"requirement_id":analysis.requirement_id,"items":analysis.items});
+    if !analysis.diagnostics.is_empty() {
+        evidence["diagnostics"] = json!(analysis.diagnostics);
+    }
+    if fingerprint::structured(&evidence).map_err(|_| "migration_analysis")? != analysis.fingerprint
+    {
+        return Err("migration_analysis_fingerprint_mismatch");
+    }
+    Ok(analysis)
+}
+
 pub fn candidate_bytes(kind: &str, content: &Value) -> Result<Vec<u8>, String> {
     match kind {
-        "plan" => render_plan_value(content),
         "task_index" => render_task(content, TaskDocumentKind::Index),
         "task_item" => render_task(content, TaskDocumentKind::Item),
         "execution_index" => render_execution_index(content),
@@ -37,14 +84,6 @@ pub fn validate_candidate(kind: &str, path: &str, content: &Value) -> Result<Vec
     }
     let raw = candidate_bytes(kind, content)?;
     match kind {
-        "plan" => {
-            serde_json::from_value::<work_model::plan::PlanArtifact>(content.clone())
-                .map_err(|error| error.to_string())?;
-            validate_plan_structure(content).map_err(|error| error.message.to_owned())?;
-            if content["artifacts"]["plan"] != path {
-                return Err("Plan artifact path differs from its installed path".into());
-            }
-        }
         "task_index" => {
             validate_task_index(content, &raw, path).map_err(|error| error.message.to_owned())?;
         }
@@ -73,12 +112,14 @@ pub fn analyze_artifact(kind: &str, path: &str, raw: &[u8]) -> ArtifactMigration
         target_schema: current_schema(kind).unwrap_or_default().into(),
         required: true,
         source_sha256: fingerprint::raw(raw),
+        source_size: raw.len() as u64,
+        raw: raw.to_vec(),
         issue: String::new(),
         resolution_status: ArtifactMigrationItemStatus::NeedsReview,
         proposed_content: None,
     };
     let parsed = parse_json_contract(raw);
-    let Ok(mut content) = parsed else {
+    let Ok(content) = parsed else {
         result.issue = "Source is not valid JSON; provide reviewed content with Modify".into();
         return result;
     };
@@ -86,20 +127,16 @@ pub fn analyze_artifact(kind: &str, path: &str, raw: &[u8]) -> ArtifactMigration
         result.issue = "Source must be a JSON object; provide reviewed content with Modify".into();
         return result;
     }
-    let original_schema = content["schema"].as_str().unwrap_or("missing").to_owned();
-    if let Some(schema) = current_schema(kind) {
-        content["schema"] = json!(schema);
+    if current_schema(kind).is_none() || content["schema"].as_str() != current_schema(kind) {
+        result.issue = "Raw evidence requires AI comparison against current contracts and reviewed replacement content; no legacy schema is parsed or upgraded".into();
+        return result;
     }
     match validate_candidate(kind, path, &content) {
         Ok(candidate) => {
-            if original_schema == current_schema(kind).unwrap_or("") && candidate == raw {
+            if candidate == raw {
                 result.issue.clear();
             } else {
-                result.issue = if original_schema != current_schema(kind).unwrap_or("") {
-                    format!("Source schema {original_schema} differs from current specification")
-                } else {
-                    "Source is not canonically rendered".into()
-                };
+                result.issue = "Current contract document is not canonically rendered".into();
                 result.proposed_content = Some(content);
                 result.resolution_status = ArtifactMigrationItemStatus::Proposed;
             }
@@ -114,42 +151,52 @@ pub fn analyze_artifact(kind: &str, path: &str, raw: &[u8]) -> ArtifactMigration
 #[cfg(test)]
 mod tests {
     use super::*;
-    use work_operations::derivation::fingerprint::raw as sha256_hex;
-
     #[test]
-    fn damaged_source_remains_reviewable() {
-        let item = analyze_artifact("plan", "outputs/work/plans/example.json", b"broken");
-        assert_eq!(item.source_sha256, sha256_hex(b"broken"));
-        assert!(item.required);
-        assert!(item.proposed_content.is_none());
-        assert_eq!(
-            item.resolution_status,
-            ArtifactMigrationItemStatus::NeedsReview
+    fn damaged_and_binary_sources_remain_exact_raw_evidence() {
+        for raw in [
+            b"broken".as_slice(),
+            b"%PDF-1.7\n\xff\x00".as_slice(),
+            b"{\"schema\":\"work-plan/v0\",\"unknown\":true}".as_slice(),
+        ] {
+            let item = analyze_artifact("task_index", "legacy/source.pdf", raw);
+            assert_eq!(item.raw, raw);
+            assert_eq!(item.source_size, raw.len() as u64);
+            assert_eq!(item.source_sha256, fingerprint::raw(raw));
+            assert!(item.required);
+            assert!(item.proposed_content.is_none());
+            assert_eq!(
+                item.resolution_status,
+                ArtifactMigrationItemStatus::NeedsReview
+            );
+            assert!(!item.issue.is_empty());
+        }
+        assert!(
+            validate_candidate("plan", "legacy.json", &json!({"schema":"work-plan/v1"})).is_err()
         );
-        assert!(item.issue.contains("not valid JSON"));
     }
-
     #[test]
-    fn current_source_has_no_item_and_semantic_gap_needs_review() {
+    fn only_current_contract_content_can_receive_a_canonical_proposal() {
+        let path = "outputs/work/tasks/example/index.json";
         let raw = include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../work-infrastructure/fixtures/specification-migration/outputs/work/plans/example.json"
+            "/../work-infrastructure/fixtures/task-diagnostics/outputs/work/tasks/example/index.json"
         ));
-        let current = analyze_artifact("plan", "outputs/work/plans/example.json", raw);
+        let current = analyze_artifact("task_index", path, raw);
         assert!(current.issue.is_empty());
-        assert!(current.proposed_content.is_none());
-        let mut incomplete: Value = serde_json::from_slice(raw).unwrap();
-        incomplete["schema"] = json!("work-plan/v0");
-        incomplete.as_object_mut().unwrap().remove("title");
-        let broken = serde_json::to_vec(&incomplete).unwrap();
-        let item = analyze_artifact("plan", "outputs/work/plans/example.json", &broken);
-        assert_eq!(item.source_sha256, sha256_hex(&broken));
-        assert_eq!(item.target_schema, "work-plan/v1");
+        let mut legacy: Value = serde_json::from_slice(raw).unwrap();
+        legacy["schema"] = json!("legacy/v0");
+        let item = analyze_artifact("task_index", path, &serde_json::to_vec(&legacy).unwrap());
+        assert!(item.proposed_content.is_none());
         assert_eq!(
             item.resolution_status,
             ArtifactMigrationItemStatus::NeedsReview
         );
-        assert!(item.proposed_content.is_none());
-        assert!(!item.issue.is_empty());
+        let compact = serde_json::to_vec(&serde_json::from_slice::<Value>(raw).unwrap()).unwrap();
+        let item = analyze_artifact("task_index", path, &compact);
+        assert!(item.proposed_content.is_some());
+        assert_eq!(
+            item.resolution_status,
+            ArtifactMigrationItemStatus::Proposed
+        );
     }
 }

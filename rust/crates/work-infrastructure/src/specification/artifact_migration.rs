@@ -5,10 +5,12 @@ use std::fs;
 use std::path::Path;
 
 use serde_json::{Value, json};
+use work_feature::artifact_paths::default_artifact_paths;
 use work_feature::error::{ExitCode, WorkError};
-use work_feature::plan::default_artifact_paths;
 use work_feature::ports::ArtifactStore;
-use work_feature::specification::artifact_migration::{analyze_artifact, validate_candidate};
+use work_feature::specification::artifact_migration::{
+    analyze_artifact, validate_candidate, verify_raw_analysis,
+};
 use work_model::schema::PublicSchema;
 use work_model::specification::{
     ArtifactMigrationAction, ArtifactMigrationAnalysis, ArtifactMigrationDecision,
@@ -33,6 +35,15 @@ use crate::specification::storage::{
 use crate::writer_lock::LocalWriterLock;
 use work_feature::ports::WriterLock;
 
+fn artifact_paths(id: &RequirementId) -> BTreeMap<String, String> {
+    let paths = default_artifact_paths(id);
+    BTreeMap::from([
+        ("source".into(), paths.source),
+        ("task".into(), paths.task),
+        ("execution".into(), paths.execution),
+    ])
+}
+
 fn fail(code: &str, message: &str) -> WorkError {
     WorkError::new(ExitCode::ArtifactIntegrity, code, message, json!({}))
 }
@@ -42,7 +53,6 @@ fn relationship_diagnostics(
     paths: &BTreeMap<String, String>,
 ) -> Result<Vec<Value>, WorkError> {
     let mut diagnostics = Vec::new();
-    let plan_path = &paths["plan"];
     let index_path = &paths["task"];
     let execution_path = format!("{}/index.json", paths["execution"]);
     let read = |path: &str| -> Result<Option<(Value, Vec<u8>)>, WorkError> {
@@ -53,37 +63,42 @@ fn relationship_diagnostics(
         let raw = LocalFiles.read_raw(&absolute)?;
         Ok(parse_json_contract(&raw).ok().map(|value| (value, raw)))
     };
-    let plan = read(plan_path)?;
     let index = read(index_path)?;
     let execution = read(&execution_path)?;
     let mut report = |code: &str, path: &str, detail: &str| {
         diagnostics.push(json!({"code":code,"path":path,"detail":detail,
             "next_command":"migration semantic-prepare","mode":"reconstruction"}));
     };
-    if let (Some((plan, plan_raw)), Some((index, index_raw))) = (&plan, &index) {
-        if plan["schema"] == "work-plan/v1" && index["schema"] == "work-task-index/v1" {
-            if plan["artifacts"] != index["artifacts"] {
-                report(
-                    "plan_task_routing_mismatch",
-                    index_path,
-                    "Plan and TASK artifact routes differ",
-                );
-            }
-            if index["source_plan"]["canonical_sha256"] != fingerprint::raw(plan_raw) {
-                report(
-                    "source_plan_fingerprint_mismatch",
-                    index_path,
-                    "TASK source Plan SHA differs from installed Plan bytes",
-                );
-            }
-            if index["source_plan"]["hierarchy_selection_sha256"]
-                != plan["hierarchy_selection"]["selection_sha256"]
+    if let Some((index, index_raw)) = &index {
+        if index["schema"] == "work-task-index/v1" {
+            let requirement = index["requirement_id"].as_str().unwrap_or("");
+            if let Err(error) =
+                work_operations::task::source::validate_formal_context(index, requirement)
             {
                 report(
-                    "hierarchy_selection_mismatch",
+                    error.reason_code,
                     index_path,
-                    "TASK hierarchy selection differs from Plan",
+                    "TASK provenance or owned planning decisions are invalid",
                 );
+            } else {
+                let provenance =
+                    serde_json::from_value(index["source"].clone()).expect("validated provenance");
+                let artifacts =
+                    serde_json::from_value(index["artifacts"].clone()).expect("validated routes");
+                if let Err(error) = work_feature::task::source::verify_provenance(
+                    &crate::artifact_paths::LocalArtifactPaths {
+                        project_root: root.to_path_buf(),
+                    },
+                    requirement,
+                    &provenance,
+                    &artifacts,
+                ) {
+                    report(
+                        &error.reason_code,
+                        index_path,
+                        "TASK immutable source evidence differs from its retained binding",
+                    );
+                }
             }
             if let Some((execution, _)) = &execution {
                 if execution["schema"] == "work-execution-index/v1" {
@@ -106,14 +121,19 @@ fn relationship_diagnostics(
                         (
                             "execution_hierarchy_mismatch",
                             &execution["hierarchy_selection_sha256"],
-                            &index["source_plan"]["hierarchy_selection_sha256"],
+                            &index["hierarchy_selection"]["selection_sha256"],
+                        ),
+                        (
+                            "execution_skill_mismatch",
+                            &execution["skill_selection_sha256"],
+                            &index["skill_selection"]["selection_sha256"],
                         ),
                     ] {
                         if actual != expected {
                             report(
                                 code,
                                 &execution_path,
-                                "Execution binding differs from installed TASK collection",
+                                "Execution binding differs from the installed TASK collection",
                             );
                         }
                     }
@@ -214,23 +234,32 @@ pub fn analyze(
     requirement: &str,
     selected_kinds: &[String],
 ) -> Result<Value, WorkError> {
+    analyze_with_evidence(root, requirement, selected_kinds, &[])
+}
+
+pub fn analyze_with_evidence(
+    root: &Path,
+    requirement: &str,
+    selected_kinds: &[String],
+    evidence_paths: &[String],
+) -> Result<Value, WorkError> {
     let id: RequirementId = requirement.parse().map_err(|_| {
         fail(
             "migration_requirement_id",
             "A valid requirement ID is required.",
         )
     })?;
-    let paths = default_artifact_paths(&id)
-        .into_iter()
-        .map(|(kind, path)| (kind.to_owned(), path))
-        .collect::<BTreeMap<_, _>>();
+    let paths = artifact_paths(&id);
     let requested =
         |kind: &str| selected_kinds.is_empty() || selected_kinds.iter().any(|row| row == kind);
     if selected_kinds
         .iter()
-        .any(|kind| !matches!(kind.as_str(), "plan" | "task" | "execute"))
+        .any(|kind| !matches!(kind.as_str(), "source" | "task" | "execute"))
     {
-        return Err(fail("migration_selection", "Select plan, task or execute."));
+        return Err(fail(
+            "migration_selection",
+            "Select source, task or execute.",
+        ));
     }
     let mut items = Vec::<ArtifactMigrationItem>::new();
     let mut inspect = |kind: &str, path: &str| -> Result<(), WorkError> {
@@ -245,8 +274,34 @@ pub fn analyze(
         }
         Ok(())
     };
-    if requested("plan") {
-        inspect("plan", &paths["plan"])?;
+    if requested("source") {
+        let source_root = storage_path(root, &paths["source"])?;
+        if source_root.is_dir() {
+            let mut entries = fs::read_dir(source_root)
+                .map_err(|_| fail("migration_source_read", "Source evidence cannot be listed."))?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|_| fail("migration_source_read", "Source evidence cannot be listed."))?;
+            entries.sort_by_key(|entry| entry.file_name());
+            for entry in entries {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                let Ok(source_id) = name.parse() else {
+                    continue;
+                };
+                use work_feature::ports::SourceSnapshotReader;
+                let reader = crate::source_snapshot_storage::LocalSourceSnapshotStorage {
+                    project_root: root.to_path_buf(),
+                };
+                if reader
+                    .read_snapshot_at(&id, &source_id, &paths["source"])
+                    .is_err()
+                {
+                    inspect(
+                        "source",
+                        &format!("{}/{name}/manifest.json", paths["source"]),
+                    )?;
+                }
+            }
+        }
     }
     if requested("task") {
         inspect("task_index", &paths["task"])?;
@@ -277,6 +332,25 @@ pub fn analyze(
             &format!("{}/index.json", paths["execution"]),
         )?;
     }
+    let mut seen_evidence = BTreeSet::new();
+    for path in evidence_paths {
+        if !seen_evidence.insert(path) {
+            return Err(fail(
+                "migration_evidence_duplicate",
+                "Evidence paths must be unique.",
+            ));
+        }
+        let absolute = storage_path(root, path)?;
+        let raw = LocalFiles.read_raw(&absolute)?;
+        let item = analyze_artifact("raw_evidence", path, &raw);
+        if items.iter().any(|row| row.path == *path) {
+            return Err(fail(
+                "migration_evidence_duplicate",
+                "Evidence paths must not duplicate an installed target.",
+            ));
+        }
+        items.push(item);
+    }
     let diagnostics = if requested("task") || requested("execute") {
         let mut diagnostics = relationship_diagnostics(root, &paths)?;
         diagnostics.extend(transaction_diagnostics(root, &paths["execution"])?);
@@ -304,8 +378,19 @@ pub fn analyze(
 }
 
 pub fn prepare_request(root: &Path, analysis: &Value, choices: &Value) -> Result<Value, WorkError> {
-    let reviewed: ArtifactMigrationAnalysis = serde_json::from_value(analysis.clone())
-        .map_err(|_| fail("migration_analysis", "A valid analysis is required."))?;
+    let reviewed = verify_raw_analysis(analysis).map_err(|code| {
+        fail(
+            code,
+            "The reviewed raw analysis or its fingerprint is invalid.",
+        )
+    })?;
+    let _: Vec<work_model::specification::ArtifactMigrationChoice> =
+        serde_json::from_value(choices.clone()).map_err(|_| {
+            fail(
+                "migration_decisions",
+                "Decisions have missing or unknown fields.",
+            )
+        })?;
     if !reviewed.diagnostics.is_empty() {
         return Err(fail(
             "migration_reconstruction_required",
@@ -323,7 +408,7 @@ pub fn prepare_request(root: &Path, analysis: &Value, choices: &Value) -> Result
     for item in &reviewed.items {
         selected.insert(
             match item.kind.as_str() {
-                "plan" => "plan",
+                "source" => "source",
                 "task_index" | "task_item" => "task",
                 "execution_index" => "execute",
                 _ => {
@@ -381,6 +466,14 @@ pub fn prepare_request(root: &Path, analysis: &Value, choices: &Value) -> Result
             .get("content")
             .filter(|value| !value.is_null())
             .cloned();
+        if (action == ArtifactMigrationAction::Modify && content.is_none())
+            || (action == ArtifactMigrationAction::Apply && item.proposed_content.is_none())
+        {
+            return Err(fail(
+                "migration_candidate_missing",
+                "Each replacement requires complete current-contract content reviewed by the user.",
+            ));
+        }
         let reason = choice["reason"].as_str().map(str::to_owned);
         let decision = ArtifactMigrationDecision {
             item,
@@ -486,17 +579,26 @@ fn read_request(
             "The request requirement ID is invalid.",
         )
     })?;
-    let paths = default_artifact_paths(&id)
-        .into_iter()
-        .collect::<BTreeMap<_, _>>();
+    let paths = artifact_paths(&id);
     let task_directory = paths["task"]
         .rsplit_once('/')
         .map(|(parent, _)| parent)
         .ok_or_else(|| fail("migration_request_path", "The TASK directory is invalid."))?;
     for decision in &request.decisions {
         let item = &decision.item;
+        if item.source_size != item.raw.len() as u64
+            || fingerprint::raw(&item.raw) != item.source_sha256
+        {
+            return Err(fail(
+                "migration_raw_evidence_invalid",
+                "Saved raw evidence is invalid.",
+            ));
+        }
         let valid_path = match item.kind.as_str() {
-            "plan" => item.path == paths["plan"],
+            "source" => {
+                item.path.starts_with(&format!("{}/", paths["source"]))
+                    && item.path.ends_with("/manifest.json")
+            }
             "task_index" => item.path == paths["task"],
             "execution_index" => item.path == format!("{}/index.json", paths["execution"]),
             "task_item" => {
@@ -627,7 +729,7 @@ fn checked_sources(
             }
         }
         let raw = LocalFiles.read_raw(&storage_path(root, &item.path)?)?;
-        if fingerprint::raw(&raw) != item.source_sha256 {
+        if raw != item.raw || fingerprint::raw(&raw) != item.source_sha256 {
             return Err(fail(
                 "migration_source_changed",
                 "A reviewed source changed before publication.",
@@ -721,9 +823,7 @@ pub fn preview(
             "The request requirement ID is invalid.",
         )
     })?;
-    let paths = default_artifact_paths(&id)
-        .into_iter()
-        .collect::<BTreeMap<_, _>>();
+    let paths = artifact_paths(&id);
     let sources = checked_sources(root, &request, &paths["execution"], approved_sha256)?;
     let mut items = Vec::new();
     for (position, decision) in request.decisions.iter().enumerate() {
@@ -815,9 +915,7 @@ pub fn execute(
             "The request requirement ID is invalid.",
         )
     })?;
-    let paths = default_artifact_paths(&id)
-        .into_iter()
-        .collect::<BTreeMap<_, _>>();
+    let paths = artifact_paths(&id);
     let execution = &paths["execution"];
     let directory = storage_path(root, execution)?;
     fs::create_dir_all(&directory).map_err(|_| {
@@ -918,12 +1016,25 @@ pub fn recover(
             "The request requirement ID is invalid.",
         )
     })?;
-    let paths = default_artifact_paths(&id)
-        .into_iter()
-        .collect::<BTreeMap<_, _>>();
+    let paths = artifact_paths(&id);
     let execution = &paths["execution"];
     let lock = storage_path(root, &format!("{execution}/.work-state-writer.lock"))?;
     let _guard = LocalWriterLock.acquire(&lock)?;
+    if !request.executable() {
+        return Err(fail(
+            "migration_decisions",
+            "Recovery requires an executable approved request.",
+        ));
+    }
+    checked_sources(root, &request, execution, approved_sha256)?;
+    let candidates = approved_candidates(&request)?;
+    crate::specification::migration_reconciliation_publication::validate_expected(
+        root,
+        skill_root,
+        configs,
+        &request.requirement_id,
+        &candidates,
+    )?;
     let mut statuses = Vec::new();
     for (position, decision) in request.decisions.iter().enumerate() {
         if decision.action == ArtifactMigrationAction::Skip {
@@ -988,9 +1099,7 @@ pub fn verify(
             "The request requirement ID is invalid.",
         )
     })?;
-    let paths = default_artifact_paths(&id)
-        .into_iter()
-        .collect::<BTreeMap<_, _>>();
+    let paths = artifact_paths(&id);
     let execution = &paths["execution"];
     let mut results = Vec::new();
     for (position, decision) in request.decisions.iter().enumerate() {
@@ -1039,8 +1148,69 @@ mod tests {
     use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    fn copy_current_chain(root: &Path) {
+        let fixture = Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/fixtures/specification-update"
+        ));
+        for path in [
+            "outputs/work/tasks/example/index.json",
+            "outputs/work/tasks/example/tasks/TASK-001.json",
+            "outputs/work/executions/example/index.json",
+        ] {
+            let destination = root.join(path);
+            fs::create_dir_all(destination.parent().unwrap()).unwrap();
+            fs::copy(fixture.join(path), destination).unwrap();
+        }
+        crate::fixture_support::copy_fixture_sources(fixture, root).unwrap();
+    }
+
+    fn reviewed_content(path: &str) -> Value {
+        serde_json::from_slice(
+            &fs::read(
+                Path::new(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/fixtures/specification-update"
+                ))
+                .join(path),
+            )
+            .unwrap(),
+        )
+        .unwrap()
+    }
+
     #[test]
-    fn plan_only_analysis_preserves_damaged_source() {
+    fn raw_evidence_requires_exact_bytes_before_any_preparation_write() {
+        let root = std::env::temp_dir().join(format!(
+            "work-raw-evidence-check-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let path = root.join("outputs/work/tasks/example/index.json");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let raw = b"%PDF-1.7\r\n\xff\x00";
+        fs::write(&path, raw).unwrap();
+        let analysis = analyze(&root, "example", &["task".into()]).unwrap();
+        assert_eq!(analysis["items"][0]["raw"], json!(raw.as_slice()));
+        assert_eq!(analysis["items"][0]["resolution_status"], "needs_review");
+        let mut changed = analysis.clone();
+        changed["items"][0]["raw"][0] = json!(0);
+        assert_eq!(
+            prepare_request(&root, &changed, &json!([]))
+                .unwrap_err()
+                .reason_code,
+            "migration_raw_evidence_invalid"
+        );
+        assert_eq!(fs::read(path).unwrap(), raw);
+        assert!(!root.join("outputs/work/migrations").exists());
+        assert!(!root.join("outputs/work/executions").exists());
+    }
+
+    #[test]
+    fn task_analysis_preserves_damaged_source() {
         let root = std::env::temp_dir().join(format!(
             "work-artifact-analysis-{}-{}",
             std::process::id(),
@@ -1049,10 +1219,10 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let path = root.join("outputs/work/plans/example.json");
+        let path = root.join("outputs/work/tasks/example/index.json");
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, b"broken").unwrap();
-        let result = analyze(&root, "example", &["plan".into()]).unwrap();
+        let result = analyze(&root, "example", &["task".into()]).unwrap();
         assert_eq!(result["items"].as_array().unwrap().len(), 1);
         assert_eq!(
             result["items"][0]["source_sha256"],
@@ -1062,7 +1232,7 @@ mod tests {
     }
 
     #[test]
-    fn final_decisions_persist_without_changing_formal_plan() {
+    fn final_decisions_persist_without_changing_formal_task() {
         let root = std::env::temp_dir().join(format!(
             "work-artifact-prepare-{}-{}",
             std::process::id(),
@@ -1071,19 +1241,20 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let source = root.join("outputs/work/plans/example.json");
+        copy_current_chain(&root);
+        let source = root.join("outputs/work/tasks/example/index.json");
         fs::create_dir_all(source.parent().unwrap()).unwrap();
         let fixture = Path::new(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/fixtures/specification-migration/outputs/work/plans/example.json"
+            "/fixtures/specification-update/outputs/work/tasks/example/index.json"
         ));
         let mut legacy: Value = serde_json::from_slice(&fs::read(fixture).unwrap()).unwrap();
-        legacy["schema"] = json!("work-plan/v0");
+        legacy["schema"] = json!("work-task-index/v0");
         let original = serde_json::to_vec_pretty(&legacy).unwrap();
         fs::write(&source, &original).unwrap();
-        let analysis = analyze(&root, "example", &["plan".into()]).unwrap();
+        let analysis = analyze(&root, "example", &["task".into()]).unwrap();
         assert_eq!(analysis["items"].as_array().unwrap().len(), 1);
-        let choice = json!([{"id":analysis["items"][0]["id"],"action":"apply"}]);
+        let choice = json!([{"id":analysis["items"][0]["id"],"action":"modify","content":reviewed_content("outputs/work/tasks/example/index.json")}]);
         let prepared = prepare_request(&root, &analysis, &choice).unwrap();
         assert_eq!(prepared["executable"], true);
         assert_eq!(fs::read(&source).unwrap(), original);
@@ -1108,15 +1279,15 @@ mod tests {
             "blocked"
         );
         let invalid_modify = json!([{"id":analysis["items"][0]["id"],
-            "action":"modify","content":{"schema":"work-plan/v1"}}]);
+            "action":"modify","content":{"schema":"work-task-index/v1"}}]);
         assert_eq!(
             prepare_request(&root, &analysis, &invalid_modify)
                 .unwrap_err()
                 .reason_code,
             "migration_candidate_invalid"
         );
-        let mut modified = analysis["items"][0]["proposed_content"].clone();
-        modified["title"] = json!("Reviewed Plan");
+        let mut modified = reviewed_content("outputs/work/tasks/example/index.json");
+        modified["title"] = json!("Reviewed Task");
         let modify = json!([{"id":analysis["items"][0]["id"],
             "action":"modify","content":modified}]);
         let modified_request = prepare_request(&root, &analysis, &modify).unwrap();
@@ -1130,7 +1301,7 @@ mod tests {
             prepared["request_sha256"]
         );
         let mut invalid_relationship = modified.clone();
-        invalid_relationship["hierarchy_selection"]["selection_sha256"] = json!("0".repeat(64));
+        invalid_relationship["source"]["manifest"]["content"]["sha256"] = json!("0".repeat(64));
         let relationship_choice = json!([{"id":analysis["items"][0]["id"],
             "action":"modify","content":invalid_relationship}]);
         let relationship_request = prepare_request(&root, &analysis, &relationship_choice).unwrap();
@@ -1234,8 +1405,8 @@ mod tests {
         assert_eq!(
             fs::read(&source).unwrap(),
             work_feature::specification::artifact_migration::candidate_bytes(
-                "plan",
-                &analysis["items"][0]["proposed_content"]
+                "task_index",
+                &reviewed_content("outputs/work/tasks/example/index.json")
             )
             .unwrap()
         );
@@ -1252,7 +1423,7 @@ mod tests {
     #[test]
     fn mixed_artifacts_publish_from_one_saved_request() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-migration");
+        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-update");
         let root = std::env::temp_dir().join(format!(
             "work-artifact-mixed-{}-{}",
             std::process::id(),
@@ -1262,7 +1433,6 @@ mod tests {
                 .as_nanos()
         ));
         let paths = [
-            "outputs/work/plans/example.json",
             "outputs/work/tasks/example/index.json",
             "outputs/work/tasks/example/tasks/TASK-001.json",
             "outputs/work/executions/example/index.json",
@@ -1275,14 +1445,15 @@ mod tests {
             value["schema"] = json!("legacy/v0");
             fs::write(destination, serde_json::to_vec_pretty(&value).unwrap()).unwrap();
         }
+        crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         let analysis = analyze(&root, "example", &[]).unwrap();
-        assert_eq!(analysis["items"].as_array().unwrap().len(), 4);
+        assert_eq!(analysis["items"].as_array().unwrap().len(), 3);
         let choices = Value::Array(
             analysis["items"]
                 .as_array()
                 .unwrap()
                 .iter()
-                .map(|item| json!({"id":item["id"],"action":"apply"}))
+                .map(|item| json!({"id":item["id"],"action":"modify","content":reviewed_content(item["path"].as_str().unwrap())}))
                 .collect(),
         );
         let prepared = prepare_request(&root, &analysis, &choices).unwrap();
@@ -1325,7 +1496,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(result["status"], "completed", "{result:?}");
-        assert_eq!(result["items"].as_array().unwrap().len(), 4);
+        assert_eq!(result["items"].as_array().unwrap().len(), 3);
         assert_eq!(result["reconciliation"]["status"], "valid");
         for relative in paths {
             assert_eq!(
@@ -1338,7 +1509,7 @@ mod tests {
     #[test]
     fn failed_item_preserves_prior_publication_and_allows_later_item() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-migration");
+        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-update");
         let root = std::env::temp_dir().join(format!(
             "work-artifact-partial-{}-{}",
             std::process::id(),
@@ -1348,9 +1519,9 @@ mod tests {
                 .as_nanos()
         ));
         let paths = [
-            "outputs/work/plans/example.json",
             "outputs/work/tasks/example/index.json",
             "outputs/work/tasks/example/tasks/TASK-001.json",
+            "outputs/work/executions/example/index.json",
         ];
         let mut originals = Vec::new();
         for (position, relative) in paths.iter().enumerate() {
@@ -1365,6 +1536,7 @@ mod tests {
             fs::write(destination, &raw).unwrap();
             originals.push(raw);
         }
+        crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         let analysis = analyze(&root, "example", &[]).unwrap();
         assert_eq!(analysis["items"].as_array().unwrap().len(), 3);
         let choices = Value::Array(
@@ -1372,7 +1544,7 @@ mod tests {
                 .as_array()
                 .unwrap()
                 .iter()
-                .map(|item| json!({"id":item["id"],"action":"apply"}))
+                .map(|item| json!({"id":item["id"],"action":"modify","content":reviewed_content(item["path"].as_str().unwrap())}))
                 .collect(),
         );
         let prepared = prepare_request(&root, &analysis, &choices).unwrap();
@@ -1421,7 +1593,7 @@ mod tests {
     fn prepared_journal_recovers_without_rebuilding_candidate() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo.join(
-            "crates/work-infrastructure/fixtures/specification-migration/outputs/work/plans/example.json",
+            "crates/work-infrastructure/fixtures/specification-update/outputs/work/tasks/example/index.json",
         );
         let root = std::env::temp_dir().join(format!(
             "work-artifact-interrupted-{}-{}",
@@ -1431,15 +1603,16 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let path = "outputs/work/plans/example.json";
+        let path = "outputs/work/tasks/example/index.json";
+        copy_current_chain(&root);
         let source = root.join(path);
         fs::create_dir_all(source.parent().unwrap()).unwrap();
         let mut value: Value = serde_json::from_slice(&fs::read(fixture).unwrap()).unwrap();
         value["schema"] = json!("legacy/v0");
         let before = serde_json::to_vec_pretty(&value).unwrap();
         fs::write(&source, &before).unwrap();
-        let analysis = analyze(&root, "example", &["plan".into()]).unwrap();
-        let choices = json!([{"id":analysis["items"][0]["id"],"action":"apply"}]);
+        let analysis = analyze(&root, "example", &["task".into()]).unwrap();
+        let choices = json!([{"id":analysis["items"][0]["id"],"action":"modify","content":reviewed_content("outputs/work/tasks/example/index.json")}]);
         let prepared = prepare_request(&root, &analysis, &choices).unwrap();
         let request: ArtifactMigrationRequest =
             serde_json::from_value(prepared["request"].clone()).unwrap();
@@ -1458,6 +1631,34 @@ mod tests {
         fs::create_dir_all(root.join("outputs/work/executions/example")).unwrap();
         write_journal(&root, &journal, &transaction).unwrap();
         assert_eq!(fs::read(&source).unwrap(), before);
+        let source_evidence =
+            work_feature::task::source::evidence_paths(&reviewed_content(path)).unwrap();
+        let source_content = source_evidence
+            .iter()
+            .find(|path| path.ends_with("/source.txt"))
+            .unwrap();
+        let evidence_path = root.join(source_content);
+        let original_evidence = fs::read(&evidence_path).unwrap();
+        let journal_before = fs::read(root.join(&journal)).unwrap();
+        let mut changed_evidence = original_evidence.clone();
+        changed_evidence[0] ^= 1;
+        fs::write(&evidence_path, &changed_evidence).unwrap();
+        assert_eq!(
+            recover(
+                &root,
+                &repo.join("../skills/work"),
+                &[],
+                prepared["request_path"].as_str().unwrap(),
+                approved,
+            )
+            .unwrap_err()
+            .reason_code,
+            "source_hash_mismatch"
+        );
+        assert_eq!(fs::read(&source).unwrap(), before);
+        assert_eq!(fs::read(root.join(&journal)).unwrap(), journal_before);
+        assert_eq!(fs::read(&evidence_path).unwrap(), changed_evidence);
+        fs::write(&evidence_path, original_evidence).unwrap();
         let recovered = recover(
             &root,
             &repo.join("../skills/work"),
@@ -1483,7 +1684,6 @@ mod tests {
                 .as_nanos()
         ));
         for relative in [
-            "outputs/work/plans/example.json",
             "outputs/work/tasks/example/index.json",
             "outputs/work/executions/example/index.json",
         ] {
@@ -1495,6 +1695,7 @@ mod tests {
         let mut value: Value = serde_json::from_slice(&fs::read(&execution).unwrap()).unwrap();
         value["task_spec_id"] = json!("TASK-SPEC-WRONG");
         fs::write(&execution, serde_json::to_vec_pretty(&value).unwrap()).unwrap();
+        crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         let analysis = analyze(&root, "example", &[]).unwrap();
         let diagnostics = analysis["diagnostics"].as_array().unwrap();
         assert!(
@@ -1535,14 +1736,13 @@ mod tests {
     #[test]
     fn task_only_and_execute_only_keep_other_artifacts_unchanged() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-migration");
+        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-update");
         let paths = [
-            "outputs/work/plans/example.json",
             "outputs/work/tasks/example/index.json",
             "outputs/work/tasks/example/tasks/TASK-001.json",
             "outputs/work/executions/example/index.json",
         ];
-        for (selection, changed) in [("task", vec![1, 2]), ("execute", vec![3])] {
+        for (selection, changed) in [("task", vec![0, 1]), ("execute", vec![2])] {
             let root = std::env::temp_dir().join(format!(
                 "work-artifact-{selection}-{}-{}",
                 std::process::id(),
@@ -1569,6 +1769,7 @@ mod tests {
                 )
                 .unwrap();
             }
+            crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
             let analysis = analyze(&root, "example", &[selection.into()]).unwrap();
             assert_eq!(analysis["items"].as_array().unwrap().len(), changed.len());
             let choices = Value::Array(
@@ -1576,7 +1777,7 @@ mod tests {
                     .as_array()
                     .unwrap()
                     .iter()
-                    .map(|item| json!({"id":item["id"],"action":"apply"}))
+                    .map(|item| json!({"id":item["id"],"action":"modify","content":reviewed_content(item["path"].as_str().unwrap())}))
                     .collect(),
             );
             let prepared = prepare_request(&root, &analysis, &choices).unwrap();

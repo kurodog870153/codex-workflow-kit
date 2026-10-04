@@ -10,12 +10,12 @@
   "request": "Coordinate confirmed work.",
   "context": {
     "hierarchy_selection": {
-      "schema": "work-hierarchy-selection/v1",
+      "catalog_sha256": "74977ff41dae925d76037c60fcbb6e5c6d950af73416308d5e21ca3b96ef5d54",
       "decision": "general_only",
-      "selected_paths": [],
       "entries": [],
-      "catalog_sha256": "c39e2ade6cf58b16dd4e76a0606c7693792d3b57f5d5319392346a5ed9c456aa",
-      "selection_sha256": "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404"
+      "schema": "work-hierarchy-selection/v1",
+      "selected_paths": [],
+      "selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59"
     },
     "work_instruction_selection": {
       "selected_paths": [],

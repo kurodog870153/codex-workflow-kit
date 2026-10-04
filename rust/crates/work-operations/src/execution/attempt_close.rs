@@ -8,6 +8,7 @@ use crate::execution::requests::validate_attempt_close_request;
 use crate::execution::{ExecutionIssue, close_index, closed_task_status};
 
 pub fn build_close_candidates(
+    task: &Value,
     index: &Value,
     attempt: &Value,
     request: &Value,
@@ -30,12 +31,20 @@ pub fn build_close_candidates(
         closed["closing_authorization_evidence"] = request["authorization_evidence"].clone();
     }
     closed["ended_at"] = json!(ended_at);
+    closed["acceptance_results"] =
+        crate::execution::acceptance::reset(&closed["acceptance_results"])?;
+    if request["status"] == "completed" {
+        closed["acceptance_results"] =
+            crate::execution::acceptance::aggregate_attempt(task, &closed)?;
+    }
     render_attempt(&closed)?;
     let task_status = closed_task_status(
         request["status"].as_str().unwrap_or(""),
         request["final_type"].as_str(),
     );
     let updated_index = close_index(index, task_id, attempt_id, task_status)?;
+    let updated_index =
+        crate::execution::acceptance::update_index_attempt(&updated_index, &closed)?;
     let raw_index = render_execution_index(&updated_index).expect("JSON index serializes");
     validate_execution_index(&updated_index, &raw_index)?;
     Ok((closed, updated_index))
@@ -55,7 +64,7 @@ mod tests {
             "reapproval_conditions":["scope_expansion","source_or_worktree_drift",
                 "failure_divergence","retry","recovery","unknown_result"],
             "authorization_evidence":"Approved"});
-        let attempt = json!({"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
+        let attempt = json!({"acceptance_results":[],"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
             "task_spec_id":"TASK-SPEC-001","task_id":"TASK-001","skill_id":null,
             "status":"in_progress","task_collection_sha256":"a".repeat(64),
             "task_index_sha256":"b".repeat(64),"task_item_sha256":"c".repeat(64),
@@ -65,7 +74,7 @@ mod tests {
             "execute_skill_selection_sha256":"0".repeat(64),
             "authorization_sha256":canonical_json_sha256(&authorization).unwrap(),
             "authorization":authorization,"started_at":"2026-09-01T10:00+08:00","records":[]});
-        let index = json!({"schema":"work-execution-index/v1","requirement_id":"demo",
+        let index = json!({"acceptance_results":[],"schema":"work-execution-index/v1","requirement_id":"demo",
             "title":"Execution","task_spec_id":"TASK-SPEC-001",
             "task_collection_sha256":"a".repeat(64),"task_index_sha256":"b".repeat(64),
             "task_instructions_sha256":"d".repeat(64),
@@ -73,18 +82,30 @@ mod tests {
             "skill_selection_sha256":"0".repeat(64),"overall_status":"in_progress",
             "lock":build_execution_lock("TASK-001","ATTEMPT-001",&"e".repeat(64)),
             "tasks":[{"id":"TASK-001","status":"in_progress","skill_id":null,
-                "task_item_sha256":"c".repeat(64),"instructions_sha256":"d".repeat(64),
+                "task_item_sha256":"c".repeat(64),"acceptance_results":[],"instructions_sha256":"d".repeat(64),
                 "latest_attempt":"ATTEMPT-001"}]});
         let completed = json!({"schema":"work-attempt-close-request/v1","status":"completed"});
-        let (closed, updated) =
-            build_close_candidates(&index, &attempt, &completed, "2026-09-01T10:10+08:00").unwrap();
+        let (closed, updated) = build_close_candidates(
+            &json!({"id":"TASK-001"}),
+            &index,
+            &attempt,
+            &completed,
+            "2026-09-01T10:10+08:00",
+        )
+        .unwrap();
         assert_eq!(closed["status"], "completed");
         assert_eq!(updated["tasks"][0]["status"], "completed");
         assert!(updated.get("lock").is_none());
         let stopped = json!({"schema":"work-attempt-close-request/v1","status":"stopped",
             "final_type":"other","reason":"Need retry","authorization_evidence":"Approved close"});
-        let (closed, updated) =
-            build_close_candidates(&index, &attempt, &stopped, "2026-09-01T10:10+08:00").unwrap();
+        let (closed, updated) = build_close_candidates(
+            &json!({"id":"TASK-001"}),
+            &index,
+            &attempt,
+            &stopped,
+            "2026-09-01T10:10+08:00",
+        )
+        .unwrap();
         assert_eq!(closed["final_type"], "other");
         assert_eq!(updated["tasks"][0]["status"], "pending_retry");
         assert_eq!(updated["tasks"][0]["status_reason"]["ref"], "ATTEMPT-001");

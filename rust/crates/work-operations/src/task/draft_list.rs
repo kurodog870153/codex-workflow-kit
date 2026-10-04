@@ -352,7 +352,7 @@ mod tests {
 
     #[test]
     fn boundary_change_marks_saved_draft_and_downstream_task() {
-        let source = json!({"plan_sha256":"a".repeat(64),"hierarchy_selection_sha256":"b".repeat(64),"skill_selection_sha256":"c".repeat(64)});
+        let source = crate::task::source::fixture_context();
         let discussion = json!({"schema":"work-task-draft/v1","requirement_id":"example","task_id":"TASK-001","revision":1,
             "boundary_revision":1,"source":source,"instructions_sha256":"d".repeat(64),"status":"refined",
             "notes":["Detail"],"confirmed_decisions":[{"statement":"Decision","rationale":"Reason"}],"tentative":[],"open_questions":[],"next_discussion_point":null});
@@ -396,7 +396,7 @@ mod tests {
 
     #[test]
     fn three_task_boundary_split_and_merge_keep_unaffected_drafts() {
-        let source = json!({"plan_sha256":"a".repeat(64),"hierarchy_selection_sha256":"b".repeat(64),"skill_selection_sha256":"c".repeat(64)});
+        let source = crate::task::source::fixture_context();
         let mut drafts = BTreeMap::new();
         let mut tasks = Vec::new();
         for number in 1..=3 {

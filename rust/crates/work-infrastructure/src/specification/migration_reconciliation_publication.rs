@@ -4,8 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use serde_json::{Value, json};
+use work_feature::artifact_paths::default_artifact_paths;
 use work_feature::error::{ExitCode, WorkError};
-use work_feature::plan::{PlanValidationInput, default_artifact_paths, validate_plan};
 use work_feature::ports::ArtifactStore;
 use work_feature::skill::SkillRoot;
 use work_feature::task::{CollectionInput, validate_collection};
@@ -23,16 +23,25 @@ use work_operations::specification::transaction::{render_transaction, validate_t
 
 use crate::files::LocalFiles;
 use crate::hierarchy_catalog::LocalHierarchyCatalog;
-use crate::plan_storage::LocalPlanStorage;
 use crate::skill_catalog::{LocalSkillCatalog, SkillRootConfig};
 use crate::specification::storage::{
     execution_history_bytes, publish_journal, storage_path, write_journal,
 };
 
+fn artifact_paths(id: &RequirementId) -> BTreeMap<String, String> {
+    let paths = default_artifact_paths(id);
+    BTreeMap::from([
+        ("source".into(), paths.source),
+        ("task".into(), paths.task),
+        ("execution".into(), paths.execution),
+    ])
+}
+
 fn fail(code: &str, message: &str) -> WorkError {
     WorkError::new(ExitCode::ArtifactIntegrity, code, message, json!({}))
 }
 
+#[derive(Debug, PartialEq, Eq)]
 struct Update {
     path: String,
     before: Vec<u8>,
@@ -68,36 +77,17 @@ fn build_updates(
             "A valid requirement ID is required.",
         )
     })?;
-    let paths = default_artifact_paths(&id)
-        .into_iter()
-        .collect::<BTreeMap<_, _>>();
-    let plan_path = &paths["plan"];
+    let paths = artifact_paths(&id);
     let index_path = &paths["task"];
     let execution_path = format!("{}/index.json", paths["execution"]);
-    let plan_raw = read_optional(root, plan_path, overrides)?;
     let index_raw = read_optional(root, index_path, overrides)?;
     let execution_raw = read_optional(root, &execution_path, overrides)?;
-    if plan_raw.is_none() && (index_raw.is_some() || execution_raw.is_some()) {
-        return Err(fail(
-            "migration_plan_missing",
-            "TASK or Execute exists without a Plan.",
-        ));
-    }
     if index_raw.is_none() && execution_raw.is_some() {
         return Err(fail(
             "migration_task_missing",
             "Execute exists without a TASK collection.",
         ));
     }
-    let Some(plan_raw) = plan_raw else {
-        return Ok(Vec::new());
-    };
-    let plan = parse_json_contract(&plan_raw).map_err(|_| {
-        fail(
-            "migration_plan_invalid",
-            "The installed Plan is invalid JSON.",
-        )
-    })?;
     let hierarchy = LocalHierarchyCatalog {
         skill_root: skill_root.to_path_buf(),
     };
@@ -111,21 +101,6 @@ fn build_updates(
             locator: config.locator.clone(),
         })
         .collect::<Vec<_>>();
-    let project_paths = LocalPlanStorage {
-        project_root: root.to_path_buf(),
-    };
-    validate_plan(
-        &hierarchy,
-        &skills,
-        &project_paths,
-        &roots,
-        &plan,
-        PlanValidationInput {
-            raw: &plan_raw,
-            actual_plan_path: plan_path,
-            allow_task_index: true,
-        },
-    )?;
     let mut updates = Vec::new();
     let Some(index_raw) = index_raw else {
         return Ok(updates);
@@ -186,25 +161,25 @@ fn build_updates(
         })?;
         item_raw.insert(task_id.to_owned(), raw);
     }
-    let changed_roots = BTreeSet::from([ArtifactNode::PlanBytes]);
-    let new_index =
-        reconcile_artifact_bindings(&plan_raw, &mut index, &item_raw, None, &changed_roots)
-            .map_err(|_| {
-                fail(
-                    "migration_task_invalid",
-                    "The TASK index bindings cannot be derived.",
-                )
-            })?;
+    let changed_roots = BTreeSet::from([ArtifactNode::TaskIndexBytes]);
+    let new_index = reconcile_artifact_bindings(&mut index, &item_raw, None, &changed_roots)
+        .map_err(|_| {
+            fail(
+                "migration_task_invalid",
+                "The TASK index bindings cannot be derived.",
+            )
+        })?;
     let validation = validate_collection(
         &hierarchy,
         &skills,
-        &project_paths,
+        &crate::artifact_paths::LocalArtifactPaths {
+            project_root: root.to_path_buf(),
+        },
         &roots,
         CollectionInput {
             index_raw: &new_index,
             item_raw: &item_raw,
             index_path,
-            source_plan_raw: &plan_raw,
         },
     )?;
     if new_index != index_raw {
@@ -248,19 +223,13 @@ fn build_updates(
             "Execute TASK rows differ from the installed collection.",
         ));
     }
-    reconcile_artifact_bindings(
-        &plan_raw,
-        &mut index,
-        &item_raw,
-        Some(&mut execution),
-        &changed_roots,
-    )
-    .map_err(|_| {
-        fail(
-            "migration_execution_binding",
-            "Execute TASK bindings cannot be derived.",
-        )
-    })?;
+    reconcile_artifact_bindings(&mut index, &item_raw, Some(&mut execution), &changed_roots)
+        .map_err(|_| {
+            fail(
+                "migration_execution_binding",
+                "Execute TASK bindings cannot be derived.",
+            )
+        })?;
     rebind_validated_execution(&mut execution, &validation).map_err(|_| {
         fail(
             "migration_execution_binding",
@@ -312,13 +281,11 @@ pub fn verify_final_chain(
             "A valid requirement ID is required.",
         )
     })?;
-    let paths = default_artifact_paths(&id)
-        .into_iter()
-        .collect::<BTreeMap<_, _>>();
-    if !storage_path(root, &paths["plan"])?.is_file() {
+    let paths = artifact_paths(&id);
+    if !storage_path(root, &paths["task"])?.is_file() {
         return Err(fail(
-            "migration_plan_missing",
-            "The installed Plan is missing.",
+            "migration_task_missing",
+            "The installed TASK collection is missing.",
         ));
     }
     if !build_updates(root, skill_root, configs, requirement, &BTreeMap::new())?.is_empty() {
@@ -329,7 +296,6 @@ pub fn verify_final_chain(
     }
     let mut installed = BTreeMap::new();
     for relative in [
-        paths["plan"].clone(),
         paths["task"].clone(),
         format!("{}/index.json", paths["execution"]),
     ] {
@@ -354,9 +320,7 @@ pub fn reconcile(
             "A valid requirement ID is required.",
         )
     })?;
-    let paths = default_artifact_paths(&id)
-        .into_iter()
-        .collect::<BTreeMap<_, _>>();
+    let paths = artifact_paths(&id);
     let execution = &paths["execution"];
     let journal = work_operations::derivation::publication::journal_path(
         execution,
@@ -404,6 +368,42 @@ pub fn reconcile(
                 "Reconciliation requires the identical approved request and artifact set.",
             ));
         }
+        let before = files
+            .iter()
+            .map(|file| {
+                let path = file["path"].as_str().expect("validated path").to_owned();
+                let raw = work_operations::derivation::snapshot::decode_snapshot(&file["before"])
+                    .map_err(|_| {
+                    fail(
+                        "migration_reconciliation_request_changed",
+                        "Original reconciliation evidence is invalid.",
+                    )
+                })?;
+                Ok((path, raw))
+            })
+            .collect::<Result<BTreeMap<_, _>, WorkError>>()?;
+        let expected_updates = build_updates(root, skill_root, configs, requirement, &before)?;
+        let expected_after = expected_updates
+            .iter()
+            .map(|update| (update.path.clone(), fingerprint::raw(&update.after)))
+            .collect::<BTreeMap<_, _>>();
+        let expected_before = expected_updates
+            .iter()
+            .map(|update| (update.path.clone(), fingerprint::raw(&update.before)))
+            .collect::<BTreeMap<_, _>>();
+        let history = execution_history_bytes(root, execution)?
+            .iter()
+            .map(|(path, raw)| (path.clone(), fingerprint::history(raw)))
+            .collect::<BTreeMap<_, _>>();
+        if transaction["metadata"]["candidate_sha256"] != json!(expected_after)
+            || transaction["metadata"]["source_sha256"] != json!(expected_before)
+            || transaction["metadata"]["history_sha256"] != json!(history)
+        {
+            return Err(fail(
+                "migration_reconciliation_request_changed",
+                "Reconciliation recovery requires exact derived bindings, immutable Source and unchanged history.",
+            ));
+        }
         let publication = publish_journal(root, &journal, &marker)?;
         if !build_updates(root, skill_root, configs, requirement, &BTreeMap::new())?.is_empty() {
             return Err(fail(
@@ -446,6 +446,12 @@ pub fn reconcile(
         )
     })?;
     let transaction = derived.journal;
+    if build_updates(root, skill_root, configs, requirement, &BTreeMap::new())? != updates {
+        return Err(fail(
+            "migration_source_changed",
+            "Reconciliation sources changed before journal publication.",
+        ));
+    }
     write_journal(root, &journal, &transaction)?;
     let publication = publish_journal(root, &journal, &marker)?;
     if !build_updates(root, skill_root, configs, requirement, &BTreeMap::new())?.is_empty() {

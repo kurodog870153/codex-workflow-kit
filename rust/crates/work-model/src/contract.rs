@@ -141,4 +141,50 @@ mod tests {
             }
         }
     }
+    #[test]
+    fn public_work_examples_use_supported_routes_roles_and_publication_targets() {
+        let snapshot = crate::contract_data::registry_value();
+        let items = &snapshot["items"];
+        assert_eq!(
+            items["work-hierarchy/v1"]["description"]["example"]["work_directory"],
+            "task"
+        );
+        assert_eq!(
+            items["work-instructions/v1"]["description"]["example"]["hierarchy"]["work_directory"],
+            "task"
+        );
+        assert_eq!(
+            items["work-delegation-validation/v1"]["description"]["example"]["role"],
+            "task-coordinator"
+        );
+        let route = &items["work-instruction-selection-manifest/v1"]["description"]["example"]["routing_input"];
+        assert_eq!(route["mode"], "task");
+        assert_eq!(route["status"], "source_required");
+        assert_eq!(route["operation"], "capture_source");
+        assert_eq!(
+            items["work-operation-envelope/v1"]["description"]["example"]["operation"],
+            route["operation"]
+        );
+        for publication in [
+            &items["work-spec-migration-publication/v1"]["description"]["example"],
+            &items["work-spec-reconciliation-publication/v1"]["description"]["example"]["publication"],
+        ] {
+            serde_json::from_value::<crate::specification::SpecMigrationPublication>(
+                publication.clone(),
+            )
+            .unwrap();
+            for path in publication["documents"].as_array().unwrap() {
+                let path = path.as_str().unwrap();
+                assert!(
+                    path.starts_with("outputs/work/tasks/")
+                        || path.starts_with("outputs/work/executions/")
+                );
+            }
+        }
+        assert_eq!(
+            items["work-spec-reconciliation-prepare-request/v1"]["scaffold"]["scaffold"]["edits"]
+                [0]["target"]["artifact"],
+            "task_index"
+        );
+    }
 }

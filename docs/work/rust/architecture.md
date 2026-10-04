@@ -54,7 +54,7 @@ flowchart TB
 
 ### 公開資料契約的型別化實作
 
-1. `work-model/src/` 按 Plan、Task、Execution、Specification 等業務概念，定義已登錄公開 request、artifact、response 與 envelope 的 Rust `struct`／`enum` 及固定巢狀物件。契約允許任意 JSON 的欄位保留 `Value`；其餘欄位以 `serde` 表達欄名、可選、`null` 與 enum 字面值。
+1. `work-model/src/` 按 Source、Task、Execution、Specification 等業務概念，定義已登錄公開 request、artifact、response 與 envelope 的 Rust `struct`／`enum` 及固定巢狀物件。契約允許任意 JSON 的欄位保留 `Value`；其餘欄位以 `serde` 表達欄名、可選、`null` 與 enum 字面值。
 2. `work-model/src/contract_data.rs` 以 Rust 程式碼保存公開契約的描述、範例、scaffold 及欄位順序，並建構型別化的契約目錄。CLI 的 `contract list`、`describe`、`scaffold` 從該目錄取資料，仍負責輸出映射與呈現。
 3. Operations 仍負責跨欄位驗證、canonical bytes、SHA 與指紋；Feature／Flow 保留 ports、功能及流程所需的暫時性輸入。已知的公開資料形狀由 Model 表達，生產路徑於邊界解析／產生對應型別。型別化不得改變 schema、輸出欄位順序、缺漏／未知／`null` 行為、exit code、reason code、持久化內容或復原語意。
 4. `work-cli/src/parser/commands.json` 是命令樹與 help 設定，留在 CLI；`work-operations/src/routing_catalog.json`、`operation_effects.json` 是純規則資料，留在 Operations。測試 fixture 與 golden JSON 保持測試用途，不搬入 Model。這三份執行用設定透過 `include_str!` 編入 binary，不需要在使用者環境另外交付。
@@ -67,7 +67,7 @@ Flow／Feature 決定業務步驟、授權與狀態結果；Infrastructure 保�
 
 ## 6. 建立 Task：資料流示例
 
-下圖說明各 crate 的責任與資料流，不代表實際函式名稱或每一步的固定呼叫路徑。Plan 與 Task 分別是 Feature 內的業務模組；Flow 負責組合它們。
+下圖說明各 crate 的責任與資料流，不代表實際函式名稱或每一步的固定呼叫路徑。Source 捕捉與 Task 規劃是獨立 Feature；Flow 組合固定來源、確認選擇、驗收與正式集合建立。
 
 ```mermaid
 sequenceDiagram
@@ -82,13 +82,13 @@ sequenceDiagram
     User->>CLI: 建立 Task 命令
     CLI->>Infra: 建立 port 實作
     CLI->>Flow: Task 建立請求與實作
-    Flow->>Feature: 取得並檢查 Plan 所需資訊
+    Flow->>Feature: 驗證固定 Source 與 Task 選擇
     Feature->>Port: 讀取資料
     Port->>Infra: 呼叫具體實作
     Infra-->>Port: 原始資料
     Port-->>Feature: 資料
     Feature->>Ops: 驗證與轉換
-    Ops->>Model: 使用 Plan／Task 型別
+    Ops->>Model: 使用 Source／Task 型別
     Model-->>Ops: 模型資料
     Ops-->>Feature: 純操作結果
     Flow->>Feature: 建立 Task
@@ -113,10 +113,18 @@ sequenceDiagram
 
 ### 衍生資料的使用時機與完整測試前檢查
 
-`work-operations/src/derivation/` 是 Rust 模組，不是獨立的重算命令。當 Plan、TASK、Execution、Specification 的來源 bytes 或其衍生規則改變時，Feature／Infrastructure 應透過此模組的 API 計算或核對受影響的指紋、跨檔案綁定、交易資料與出版標記；不要在呼叫端另寫 hash 或手動填入指紋。`graph::reconcile_artifact_bindings` 處理目前 Plan → TASK → Execution 的綁定；`fingerprint` 提供各 artifact 的指紋入口。歷史核准與執行證據依既有 policy 驗證，不因目前來源變更而重新產生。
+`work-operations/src/derivation/` 是 Rust 模組，不是獨立的重算命令。當 Source、TASK、Execution、Specification 的來源 bytes 或其衍生規則改變時，Feature／Infrastructure 應透過此模組的 API 計算或核對受影響的指紋、跨檔案綁定、交易資料與出版標記；不要在呼叫端另寫 hash 或手動填入指紋。`graph::reconcile_artifact_bindings` 處理目前 Source／Task selections → TASK → Execution 的綁定；`fingerprint` 提供各 artifact 的指紋入口。歷史核准與執行證據依既有 policy 驗證，不因目前來源變更而重新產生。
 
 最後一次 workspace 完整測試前，依下列順序檢查受變更影響的現行測試資料：
 
 1. Task 建立測試：以已保存草稿的實際 bytes 經 `fingerprint::raw` 核對 `draft_ref.sha256`；重新組裝草稿時，以 `fingerprint::task_draft_approval` 計算組裝結果的 `approval_sha256`。兩者的輸入與用途不同，應各自對照對應欄位，不直接比較彼此。若合成測試資料與保存後資料不一致，先修正測試資料的產生流程並重跑相關測試。
-2. Specification 測試：以現行 fixture 的 Plan、TASK index、Execution index 與 Task item 原始 bytes，經 `fingerprint::specification_baseline` 重算 `expected`，再核對測試請求。若來源檔已變更，透過現有產生流程更新現行 fixture 的相依指紋與預期結果；不要改寫歷史 fixture 或既有核准證據。
+2. Specification 測試：以現行 fixture 的 Source proof、TASK index、Execution index 與 Task item 原始 bytes，經 `fingerprint::specification_baseline` 重算 `expected`，再核對測試請求。若來源檔已變更，透過現有產生流程更新現行 fixture 的相依指紋與預期結果；不要改寫歷史 fixture 或既有核准證據。
 3. 先執行受影響的 Task／Specification 測試，確認衍生值與資料契約一致；通過後再執行第 5 點所列的 workspace 完整驗證。僅修改文件且未影響 artifact 或指紋規則時，確認沒有需要重算的測試資料即可。
+
+## 8. Source、驗收與維護入口
+
+1. 四種 public invocation mode 為 task／revise／migration／execute；explicit 與 implicit_confirmed 都保留精確 request，後者需要使用者確認證據。私人 role envelope 和 invocation 都不授權寫入或執行。
+2. Source capture 保存精確原始 bytes、manifest 與完成標記，使用 exclusive create、writer lock 及 readback；Task 的 planning_source 固定指向同一 snapshot，獨立保存 hierarchy、skill selection 與主驗收。正式集合是 index 加每個 TASK item，item 另有子驗收；VAL 必須覆蓋兩層驗收。
+3. Revise 發布完整 Source／TASK／Execution 候選，Source replacement 先確認整體需求、主驗收及逐 TASK 影響。衍生規則重新推導受影響／下游狀態與驗收，原 Source、Attempt、Correction 與交易歷史只驗證及保留。
+4. Migration analyze 比較原始 raw evidence 與目前契約。Semantic prepare 嚴格接收已審查 sources 與語意決策，保留有效 snapshot 或明確核准無 Source provenance；只產生 Task index/items 與 Execution candidates，不把歷史證據當可寫目標。
+5. Preview approval 綁定全部 candidates、sources、relationships 及 applicable history。Apply／recover 在同一 writer lock 邊界重驗，verify 核對 canonical journal、marker、installed bytes 與完整指紋鏈；跨檔案逐步發布可復原，不宣稱檔案系統全組原子性。Reconciliation ledger 與 nested migration 使用同一完整核准集合。

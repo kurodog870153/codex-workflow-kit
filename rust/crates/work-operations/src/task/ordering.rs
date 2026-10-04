@@ -21,7 +21,10 @@ const COLLECTION: &[&str] = &[
     "title",
     "summary",
     "artifacts",
-    "source_plan",
+    "source",
+    "hierarchy_selection",
+    "skill_selection",
+    "acceptance_criteria",
     "instruction_selection",
     "execution_defaults",
     "decisions",
@@ -37,7 +40,10 @@ const INDEX: &[&str] = &[
     "title",
     "summary",
     "artifacts",
-    "source_plan",
+    "source",
+    "hierarchy_selection",
+    "skill_selection",
+    "acceptance_criteria",
     "instruction_selection",
     "execution_defaults",
     "tasks",
@@ -52,6 +58,7 @@ const ITEM: &[&str] = &[
     "skill_id",
     "instruction_selection",
     "traceability",
+    "acceptance_criteria",
     "dependencies",
     "inputs",
     "decisions",
@@ -87,17 +94,14 @@ pub(crate) fn fields(path: &[String], kind: TaskDocumentKind) -> &'static [&'sta
                 "schema",
                 "reason",
                 "expected",
-                "plan",
+                "source_confirmation",
                 "task_index",
                 "task_items",
             ];
         }
-        if path[0] == "plan" {
-            return crate::plan::fields(&path[1..]);
-        }
         if path == ["expected"] {
             return &[
-                "plan_sha256",
+                "source_sha256",
                 "task_index_sha256",
                 "execution_index_sha256",
                 "task_item_sha256",
@@ -111,6 +115,7 @@ pub(crate) fn fields(path: &[String], kind: TaskDocumentKind) -> &'static [&'sta
                 "skill_id",
                 "instruction_selection",
                 "traceability",
+                "acceptance_criteria",
                 "goal",
                 "dependencies",
                 "inputs",
@@ -219,8 +224,27 @@ pub(crate) fn fields(path: &[String], kind: TaskDocumentKind) -> &'static [&'sta
         };
     };
     match last {
-        "artifacts" => &["plan", "task", "execution"],
-        "source_plan" => &["canonical_sha256", "hierarchy_selection_sha256"],
+        "artifacts" => &["source", "task", "execution"],
+        "source" => &["kind", "manifest", "sources", "approval_sha256"],
+        "manifest" => &[
+            "schema",
+            "requirement_id",
+            "source_id",
+            "captured_at",
+            "source",
+            "content",
+        ],
+        "content" => &["path", "sha256", "size"],
+        "acceptance_criteria" => &["id", "criterion"],
+        "hierarchy_selection" => &[
+            "schema",
+            "decision",
+            "selected_paths",
+            "entries",
+            "catalog_sha256",
+            "selection_sha256",
+        ],
+        "skill_selection" => &["schema", "decision", "skills", "selection_sha256"],
         "instruction_selection" => &[
             "selected_paths",
             "resolved_paths",
@@ -247,12 +271,7 @@ pub(crate) fn fields(path: &[String], kind: TaskDocumentKind) -> &'static [&'sta
         "tasks" => ITEM,
         "decisions" if path.len() == 1 => &["id", "statement", "rationale", "task_ids"],
         "decisions" => &["id", "statement", "rationale"],
-        "traceability" => &[
-            "goal_ids",
-            "deliverable_ids",
-            "acceptance_ids",
-            "milestone_ids",
-        ],
+        "traceability" => &["acceptance_ids"],
         "inputs" => &["id", "kind", "source", "precondition"],
         "files" => &["id", "action", "path", "source", "destination"],
         "risks" => &["id", "condition", "impact", "mitigation"],
@@ -275,15 +294,7 @@ pub(crate) fn fields(path: &[String], kind: TaskDocumentKind) -> &'static [&'sta
             "criteria",
             "acceptance_ids",
         ],
-        "changes" => &[
-            "id",
-            "spec_id",
-            "date",
-            "reason",
-            "affected_ids",
-            "plan_change_ids",
-            "edits",
-        ],
+        "changes" => &["id", "spec_id", "date", "reason", "affected_ids", "edits"],
         "edits" => &[
             "artifact",
             "task_id",
@@ -362,26 +373,29 @@ mod tests {
         let selection = json!({"sources": [{"kind": "instruction", "logical_name": "task.general", "canonical_sha256": "a".repeat(64)}], "references": [], "instructions_sha256": "b".repeat(64)});
         let item = json!({"schema": "work-task-item/v1", "id": "TASK-001", "title": "Example", "skill_id": null,
             "instruction_selection": {"selected_paths": [], "resolved_paths": ["general"], "sources": selection["sources"], "references": [], "instructions_sha256": "b".repeat(64)},
-            "traceability": {"goal_ids": ["GOAL-001"], "deliverable_ids": ["DELIVERABLE-001"], "acceptance_ids": ["ACCEPTANCE-001"]},
+            "traceability": {"acceptance_ids": ["ACCEPTANCE-001"]},
+            "acceptance_criteria":[{"id":"TASK-001-ACCEPTANCE-001","criterion":"The technical result is verified."}],
             "goal": "Produce the result.", "steps": [{"id": "STEP-001", "action": "Validate.", "references": ["VAL-001"]}],
-            "validations": [{"id": "VAL-001", "kind": "manual", "confirmer": "user", "criteria": "Approved."}]});
+            "validations": [{"id": "VAL-001", "kind": "manual", "confirmer": "user", "criteria": "Approved.","acceptance_ids":["ACCEPTANCE-001","TASK-001-ACCEPTANCE-001"]}]});
         let bytes = render_task(&item, TaskDocumentKind::Item).unwrap();
-        assert_eq!(bytes.len(), 1007);
+        assert_eq!(bytes.len(), 1142);
         assert_eq!(
             sha256_hex(&bytes),
-            "3faacb1670d84a424411bed7735139814b85a48605ab9241efc00a32b9f93c49"
+            "a21db3a4cf5f0085a69dcd6120854ec2fda7ac9485623dbbf4e83b987d737c56"
         );
+        let context = crate::task::source::fixture_context();
         let index = json!({"schema": "work-task-index/v1", "requirement_id": "example", "spec_id": "TASK-SPEC-001", "status": "confirmed", "title": "Example", "summary": "Example tasks.",
-            "artifacts": {"plan": "outputs/work/plans/example.json", "task": "outputs/work/tasks/example/index.json", "execution": "outputs/work/executions/example"},
-            "source_plan": {"canonical_sha256": "c".repeat(64), "hierarchy_selection_sha256": "d".repeat(64)},
+            "artifacts": context["artifacts"],
+            "source": {"kind":"snapshot","manifest":context["snapshot"]},
+            "hierarchy_selection":context["hierarchy_selection"],"skill_selection":context["skill_selection"],"acceptance_criteria":context["acceptance_criteria"],
             "instruction_selection": selection,
             "tasks": [{"id": "TASK-001", "path": "tasks/TASK-001.json", "canonical_sha256": "e".repeat(64)}],
             "readiness": {"status": "passed", "spec_id": "TASK-SPEC-001"}});
         let bytes = render_task(&index, TaskDocumentKind::Index).unwrap();
-        assert_eq!(bytes.len(), 1183);
+        assert_eq!(bytes.len(), 2062);
         assert_eq!(
             sha256_hex(&bytes),
-            "b69610683e732a49ce03ce1f828d0f355920830e10a797191aaf75192f92c1c8"
+            "0315f983778dce5a5559ac39199699fa31eb07bd94026c3e774e2895b040c47a"
         );
     }
 
@@ -399,7 +413,7 @@ mod tests {
     fn collection_nested_field_order_matches_python() {
         let kind = TaskDocumentKind::Collection;
         assert_eq!(
-            fields(&[], TaskDocumentKind::Index)[8],
+            fields(&[], TaskDocumentKind::Index)[11],
             "instruction_selection"
         );
         let document = json!({"instruction_selection": {
@@ -441,16 +455,8 @@ mod tests {
             &["id", "kind", "command_ids"]
         );
         assert_eq!(
-            &fields(&["changes".into()], kind)[..7],
-            &[
-                "id",
-                "spec_id",
-                "date",
-                "reason",
-                "affected_ids",
-                "plan_change_ids",
-                "edits"
-            ]
+            &fields(&["changes".into()], kind)[..6],
+            &["id", "spec_id", "date", "reason", "affected_ids", "edits"]
         );
         assert_eq!(
             &fields(&["changes".into(), "edits".into()], kind)[..6],

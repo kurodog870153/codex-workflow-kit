@@ -1,108 +1,134 @@
 {
-  "schema": "work-spec-migration-prepare-request/v1",
-  "mode": "reconstruction",
-  "plan": {
-    "requirement_id": "example",
-    "title": "Example Plan",
-    "summary": "Plan summary.",
-    "goals": [
-      "Complete the goal."
-    ],
-    "scope": [
-      "Handle the scope."
-    ],
-    "deliverables": [
-      "Produce the result."
-    ],
-    "acceptance_criteria": [
-      "The result is observable."
-    ],
-    "hierarchy_selection_request": {
-      "decision": "general_only",
-      "selections": []
-    },
-    "skill_selection_request": {
-      "decision": "base_only",
-      "skills": []
-    },
-    "references": []
-  },
-  "task_title": "Example TASK",
-  "task_summary": "Task summary.",
   "execution_defaults": {
-    "working_directory": ".",
     "os": "windows",
-    "shell": "powershell"
+    "shell": "powershell",
+    "working_directory": "."
   },
+  "mode": "reconstruction",
+  "requirement_id": "example",
+  "schema": "work-spec-migration-prepare-request/v1",
+  "semantic_decisions": [],
+  "sources": [
+    {
+      "path": "outputs/work/plans/example.json",
+      "raw_sha256": "06159f62f16157a896a81d7211baf91d7be55cb8fd8e776dda0a9656fd2fac16"
+    },
+    {
+      "path": "outputs/work/tasks/example/index.json",
+      "raw_sha256": "06159f62f16157a896a81d7211baf91d7be55cb8fd8e776dda0a9656fd2fac16"
+    },
+    {
+      "path": "outputs/work/tasks/example/tasks/TASK-001.json",
+      "raw_sha256": "06159f62f16157a896a81d7211baf91d7be55cb8fd8e776dda0a9656fd2fac16"
+    }
+  ],
+  "task_context": {
+    "acceptance_criteria": [
+      {
+        "criterion": "The result is observable.",
+        "id": "ACCEPTANCE-001"
+      }
+    ],
+    "artifacts": {
+      "execution": "outputs/work/executions/example",
+      "source": "outputs/work/sources/example",
+      "task": "outputs/work/tasks/example/index.json"
+    },
+    "hierarchy_selection": {
+      "catalog_sha256": "74977ff41dae925d76037c60fcbb6e5c6d950af73416308d5e21ca3b96ef5d54",
+      "decision": "general_only",
+      "entries": [],
+      "schema": "work-hierarchy-selection/v1",
+      "selected_paths": [],
+      "selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59"
+    },
+    "skill_selection": {
+      "decision": "base_only",
+      "schema": "work-skill-selection/v1",
+      "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
+      "skills": []
+    }
+  },
+  "task_summary": "Task summary.",
+  "task_title": "Example TASK",
   "tasks": [
     {
-      "title": "Modify source",
-      "goal": "Modify the source and validate it.",
-      "skill_id": null,
-      "selected_paths": [],
-      "references": [
-        "task.general.task-records"
-      ],
-      "dependency_positions": [],
       "candidate": {
-        "files": [
+        "acceptance_criteria": [
           {
-            "key": "source",
-            "action": "modify",
-            "path": "src.txt"
+            "criterion": "The modified source passes its validation.",
+            "id": "TASK-001-ACCEPTANCE-001"
           }
+        ],
+        "acceptance_ids": [
+          "ACCEPTANCE-001"
         ],
         "commands": [
           {
-            "key": "check",
-            "mode": "argv",
             "argv": [
               "python",
               "--version"
+            ],
+            "key": "check",
+            "mode": "argv"
+          }
+        ],
+        "files": [
+          {
+            "action": "modify",
+            "key": "source",
+            "path": "src.txt"
+          }
+        ],
+        "steps": [
+          {
+            "action": "Modify the source.",
+            "key": "modify",
+            "references": [
+              {
+                "key": "source",
+                "kind": "files"
+              }
+            ]
+          },
+          {
+            "action": "Run validation.",
+            "key": "verify",
+            "references": [
+              {
+                "key": "check",
+                "kind": "commands"
+              },
+              {
+                "key": "pass",
+                "kind": "validations"
+              }
             ]
           }
         ],
         "validations": [
           {
-            "key": "pass",
-            "kind": "automated",
+            "acceptance_ids": [
+              "ACCEPTANCE-001",
+              "TASK-001-ACCEPTANCE-001"
+            ],
             "command_keys": [
               "check"
             ],
-            "pass_condition": "Exit code is zero.",
-            "acceptance_positions": [
-              1
-            ]
-          }
-        ],
-        "steps": [
-          {
-            "key": "modify",
-            "action": "Modify the source.",
-            "references": [
-              {
-                "kind": "files",
-                "key": "source"
-              }
-            ]
-          },
-          {
-            "key": "verify",
-            "action": "Run validation.",
-            "references": [
-              {
-                "kind": "commands",
-                "key": "check"
-              },
-              {
-                "kind": "validations",
-                "key": "pass"
-              }
-            ]
+            "key": "pass",
+            "kind": "automated",
+            "pass_condition": "Exit code is zero."
           }
         ]
-      }
+      },
+      "dependency_positions": [],
+      "goal": "Modify the source and validate it.",
+      "references": [
+        "task.general.task-records"
+      ],
+      "selected_paths": [],
+      "skill_id": null,
+      "title": "Modify source"
     }
-  ],
-  "semantic_decisions": []
+  ]
 }

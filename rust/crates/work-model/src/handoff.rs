@@ -12,6 +12,7 @@ use crate::schema::PublicSchema;
 #[serde(deny_unknown_fields)]
 pub struct DiscussionHandoffRequest {
     pub schema: PublicSchema,
+    #[serde(deserialize_with = "deserialize_direction")]
     pub direction: String,
     pub requirement_id: String,
     pub summary: String,
@@ -52,6 +53,7 @@ pub struct DiscussionHandoffRequest {
 pub struct DiscussionHandoff {
     pub schema: PublicSchema,
     pub marker: String,
+    #[serde(deserialize_with = "deserialize_direction")]
     pub direction: String,
     pub requirement_id: String,
     pub source_stage: String,
@@ -97,6 +99,7 @@ pub struct DiscussionHandoff {
 pub struct FormalHandoff {
     pub schema: PublicSchema,
     pub marker: String,
+    #[serde(deserialize_with = "deserialize_direction")]
     pub direction: String,
     pub requirement_id: String,
     pub artifacts: BTreeMap<String, String>,
@@ -140,6 +143,7 @@ pub struct FormalHandoff {
 pub struct HandoffValidation {
     pub schema: PublicSchema,
     pub marker: String,
+    #[serde(deserialize_with = "deserialize_direction")]
     pub direction: String,
     pub requirement_id: String,
     pub source_stage: String,
@@ -152,6 +156,7 @@ pub struct HandoffValidation {
 pub struct HandoffSourceValidation {
     pub schema: PublicSchema,
     pub marker: String,
+    #[serde(deserialize_with = "deserialize_direction")]
     pub direction: String,
     pub requirement_id: String,
     pub source_stage: String,
@@ -162,12 +167,19 @@ pub struct HandoffSourceValidation {
         deserialize_with = "deserialize_optional_nullable",
         skip_serializing_if = "Option::is_none"
     )]
-    pub plan_path: Option<Nullable<String>>,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_nullable",
-        skip_serializing_if = "Option::is_none"
-    )]
     pub task_path: Option<Nullable<String>>,
     pub source: Value,
+}
+
+fn deserialize_direction<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<String, D::Error> {
+    let direction = String::deserialize(deserializer)?;
+    if matches!(direction.as_str(), "task_to_execute" | "execute_to_task") {
+        Ok(direction)
+    } else {
+        Err(serde::de::Error::custom(
+            "only Task/Execute handoff directions are supported",
+        ))
+    }
 }

@@ -11,9 +11,9 @@ use work_feature::task::create::{
     PreparedTaskCreate, TaskCreateProjectInput, TaskCreationRepository, create_task_from_project,
 };
 
+use crate::artifact_paths::LocalArtifactPaths;
 use crate::files::{LocalFiles, resolve_project_path};
 use crate::hierarchy_catalog::LocalHierarchyCatalog;
-use crate::plan_storage::LocalPlanStorage;
 use crate::skill_catalog::{LocalSkillCatalog, SkillRootConfig};
 
 fn failure(reason: &str, message: &str, details: Value) -> WorkError {
@@ -219,7 +219,7 @@ fn targets(
 
 pub struct CreateTaskRequest<'a> {
     pub raw: &'a [u8],
-    pub plan_path: &'a str,
+    pub source_root: &'a str,
     pub task_path: &'a str,
     pub execution_dir: &'a str,
     pub recovery: bool,
@@ -230,11 +230,6 @@ pub struct LocalTaskCreation {
 }
 
 impl TaskCreationRepository for LocalTaskCreation {
-    fn read_plan(&self, relative_path: &str) -> Result<Vec<u8>, WorkError> {
-        let (_, path) = resolve_project_path(&self.project_root, relative_path)?;
-        LocalFiles.read_raw(&path)
-    }
-
     fn publish(
         &self,
         task_path: &str,
@@ -276,7 +271,7 @@ pub fn create_task_artifacts(
     let skills = LocalSkillCatalog {
         roots: skill_configs.to_vec(),
     };
-    let paths = LocalPlanStorage {
+    let paths = LocalArtifactPaths {
         project_root: project_root.to_path_buf(),
     };
     create_task_from_project(
@@ -290,7 +285,7 @@ pub fn create_task_artifacts(
         TaskCreateProjectInput {
             raw: request.raw,
             task_path: request.task_path,
-            plan_path: request.plan_path,
+            source_root: request.source_root,
             execution_dir: request.execution_dir,
             recovery: request.recovery,
         },
@@ -305,7 +300,7 @@ mod tests {
     use work_operations::derivation::fingerprint::raw as sha256_hex;
 
     #[test]
-    fn draft_assembly_matches_python_review_fingerprint() {
+    fn draft_assembly_binds_complete_reviewed_target_set() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo.join("crates/work-infrastructure/fixtures/task-assembly");
         let root = std::env::temp_dir().join(format!(
@@ -317,7 +312,6 @@ mod tests {
                 .as_nanos()
         ));
         fs::create_dir_all(&root).unwrap();
-        let raw = fs::read(fixture.join("plan.json")).unwrap();
         let index: Value =
             serde_json::from_slice(&fs::read(fixture.join("index.json")).unwrap()).unwrap();
         let draft: Value =
@@ -330,7 +324,8 @@ mod tests {
             skill_root: repo.join("../skills/work"),
         };
         let skills = LocalSkillCatalog { roots: vec![] };
-        let paths = LocalPlanStorage { project_root: root };
+        crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
+        let paths = LocalArtifactPaths { project_root: root };
         let drafts = BTreeMap::from([("TASK-001".into(), draft)]);
         let actual = assemble_task_drafts(
             &hierarchy,
@@ -340,21 +335,19 @@ mod tests {
             AssemblyInput {
                 index: &index,
                 drafts: &drafts,
-                plan_raw: &raw,
                 metadata: &metadata,
                 expected_revision: 2,
-                plan_path: "outputs/work/plans/example.json",
             },
         )
         .unwrap();
         assert_eq!(
             sha256_hex(&work_operations::canonical::canonical_json(&index).unwrap()),
-            "f070f9c6d889ec4a6c3fd59a852ad7891fe892111eb0433ea4fbfc50515cccee"
+            "1568544f5a927a2ceb110d0f6a70af0c07ed05258e6422a79b198be45c1522d4"
         );
         let prepared = work_operations::task::create::prepare_collection(
             &actual["contract"],
             "outputs/work/tasks/example/index.json",
-            "outputs/work/plans/example.json",
+            "outputs/work/sources/example",
         )
         .unwrap();
         assert_eq!(actual["contract"], expected["contract"]);
@@ -366,14 +359,27 @@ mod tests {
         );
         assert_eq!(
             sha256_hex(&prepared.approval_bytes),
-            "617dfbc03ba9a98a83ace889bc358d44f00da5c027e060c0dfd33414b14d9fda"
+            "8701bbd8b4887436602dafe4825e5f544cb7a0ed9672aca05d7992a8af340b5d"
         );
         assert_eq!(
             actual["approval_sha256"],
-            "161715e93ab817ef8c7c7efb0cf3a501f92f311d3a06526a5cc6fb804b16b9e7"
+            "396501cd0bcd76950db7fcebefaade1a6966933be619cfb606d086f1c80b3829"
         );
-        let mut expected_for_synthetic_draft = expected;
-        expected_for_synthetic_draft["approval_sha256"] = actual["approval_sha256"].clone();
-        assert_eq!(actual, expected_for_synthetic_draft);
+        let execution_raw =
+            work_operations::execution::index::render_execution_index(&actual["execution_index"])
+                .unwrap();
+        let approved_targets = work_operations::task::create::approval_with_execution(
+            &prepared.approval_bytes,
+            "outputs/work/executions/example/index.json",
+            &execution_raw,
+        );
+        assert_eq!(
+            actual["approval_sha256"],
+            work_operations::derivation::fingerprint::task_draft_approval(
+                &work_operations::canonical::canonical_json(&index).unwrap(),
+                &approved_targets
+            )
+        );
+        assert_eq!(actual, expected);
     }
 }

@@ -67,6 +67,26 @@ pub fn impact(read: impl FnOnce() -> Result<Value, WorkError>) -> Result<Value, 
     read()
 }
 
+pub fn task_select(
+    repository: &impl InstructionSourceRepository,
+    confirmed_hierarchy: &Value,
+    selected_paths: &[String],
+    references: &[String],
+) -> Result<Value, WorkError> {
+    let selection = work_feature::instruction::select_task(
+        repository,
+        confirmed_hierarchy,
+        selected_paths,
+        references,
+    )?;
+    Ok(work_model::instruction::verified::<
+        work_model::instruction::InstructionSelectionResponse,
+    >(
+        json!({"schema":"work-instruction-selection/v1","mode":"task",
+        "instruction_selection":selection}),
+    ))
+}
+
 pub fn refresh_preview(
     preview: impl FnOnce() -> Result<Value, WorkError>,
 ) -> Result<Value, WorkError> {

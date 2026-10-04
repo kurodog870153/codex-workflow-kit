@@ -121,17 +121,10 @@ fn texts(value: &Value, location: &str, required: bool) -> Result<Vec<String>, T
         .collect()
 }
 
+#[cfg(test)]
 fn source(value: &Value) -> Result<(), TaskIssue> {
-    let fields = [
-        "plan_sha256",
-        "hierarchy_selection_sha256",
-        "skill_selection_sha256",
-    ];
-    let source = object(value, "source", &fields, &[])?;
-    for field in fields {
-        sha(&source[field], &format!("source.{field}"))?;
-    }
-    Ok(())
+    let requirement = value["snapshot"]["requirement_id"].as_str().unwrap_or("");
+    crate::task::source::validate_planning_source(value, requirement).map(|_| ())
 }
 
 fn identity(value: &Value, schema: &str) -> Result<(), TaskIssue> {
@@ -150,7 +143,7 @@ fn identity(value: &Value, schema: &str) -> Result<(), TaskIssue> {
             message: "The requirement ID is invalid.",
             details: json!({"location": "requirement_id"}),
         })?;
-    source(&value["source"])
+    crate::task::source::validate_planning_source(&value["source"], requirement).map(|_| ())
 }
 
 pub fn validate_draft_instruction_selection(value: &Value) -> Result<(), TaskIssue> {
@@ -481,21 +474,17 @@ mod tests {
 
     #[test]
     fn source_sha_rejects_uppercase_with_field_location() {
-        let mut value = json!({"plan_sha256":"a".repeat(64),
-            "hierarchy_selection_sha256":"b".repeat(64),
-            "skill_selection_sha256":"c".repeat(64)});
+        let mut value = crate::task::source::fixture_context();
         source(&value).unwrap();
-        value["plan_sha256"] = json!("A".repeat(64));
+        value["snapshot"]["content"]["sha256"] = json!("A".repeat(64));
         let error = source(&value).unwrap_err();
-        assert_eq!(error.reason_code, "invalid_sha256");
-        assert_eq!(error.details["location"], "source.plan_sha256");
+        assert_eq!(error.reason_code, "invalid_source_hash");
+        assert_eq!(error.details["location"], "source.snapshot");
     }
 
     #[test]
     fn draft_model_boundaries_keep_nulls_and_reject_invalid_input() {
-        let source = json!({"plan_sha256":"a".repeat(64),
-            "hierarchy_selection_sha256":"b".repeat(64),
-            "skill_selection_sha256":"c".repeat(64)});
+        let source = crate::task::source::fixture_context();
         let mut index = json!({"schema":"work-task-planning-index/v1",
             "requirement_id":"example","revision":1,"source":source,
             "current_task_id":null,"tasks":[{"id":"TASK-001","title":"Example",
@@ -548,7 +537,7 @@ mod tests {
     #[test]
     fn index_example_and_cycles() {
         let index = json!({"schema": "work-task-planning-index/v1", "requirement_id": "example", "revision": 1,
-            "source": {"plan_sha256": "a".repeat(64), "hierarchy_selection_sha256": "b".repeat(64), "skill_selection_sha256": "c".repeat(64)},
+            "source": crate::task::source::fixture_context(),
             "current_task_id": "TASK-001", "tasks": [{"id": "TASK-001", "title": "Example", "goal": "Deliver the result.", "scope": ["Implementation"], "skill_id": null, "dependencies": [], "status": "planned", "boundary_revision": 1, "instructions_sha256": "d".repeat(64)}]});
         assert_eq!(
             validate_planning_index(&index).unwrap()["task_order"],
@@ -579,12 +568,12 @@ mod tests {
             "invalid_draft_task_id"
         );
         let mut invalid_sha = index.clone();
-        invalid_sha["source"]["plan_sha256"] = json!("A".repeat(64));
+        invalid_sha["source"]["snapshot"]["content"]["sha256"] = json!("A".repeat(64));
         assert_eq!(
             validate_planning_index(&invalid_sha)
                 .unwrap_err()
                 .reason_code,
-            "invalid_sha256"
+            "invalid_source_hash"
         );
         let mut active = index;
         active["tasks"][0]["status"] = json!("in_progress");
@@ -626,7 +615,7 @@ mod tests {
 
     fn python_contract_fixture() -> (Value, Value) {
         let index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
-            "source":{"plan_sha256":"a".repeat(64),"hierarchy_selection_sha256":"b".repeat(64),"skill_selection_sha256":"c".repeat(64)},
+            "source":crate::task::source::fixture_context(),
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Update source","goal":"Produce the result.",
                 "scope":["Source and its validation."],"skill_id":null,"dependencies":[],"status":"in_progress",
                 "boundary_revision":1,"instructions_sha256":"d".repeat(64)}]});
@@ -717,13 +706,9 @@ mod tests {
     #[test]
     fn python_draft_identity_dependency_and_reference_cases() {
         let (index, draft) = python_contract_fixture();
-        for field in [
-            "plan_sha256",
-            "hierarchy_selection_sha256",
-            "skill_selection_sha256",
-        ] {
+        for timestamp in ["2026-10-04T00:00:00Z", "2026-10-05T00:00:00Z"] {
             let mut changed = draft.clone();
-            changed["source"][field] = json!("e".repeat(64));
+            changed["source"]["snapshot"]["captured_at"] = json!(timestamp);
             assert_eq!(
                 validate_task_draft(&changed, &index)
                     .unwrap_err()
@@ -737,7 +722,7 @@ mod tests {
             validate_task_draft(&changed, &index)
                 .unwrap_err()
                 .reason_code,
-            "draft_source_mismatch"
+            "source_requirement_mismatch"
         );
         for (field, value) in [
             ("boundary_revision", json!(2)),

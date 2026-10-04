@@ -1,0 +1,42 @@
+{
+  "acceptance_criteria": [
+    {
+      "deliverable_ids": [
+        "DELIVERABLE-001"
+      ],
+      "id": "ACCEPTANCE-001",
+      "statement": "Observable"
+    }
+  ],
+  "deliverables": [
+    {
+      "acceptance_ids": [
+        "ACCEPTANCE-001"
+      ],
+      "goal_ids": [
+        "GOAL-001"
+      ],
+      "id": "DELIVERABLE-001",
+      "statement": "Result"
+    }
+  ],
+  "goals": [
+    {
+      "id": "GOAL-001",
+      "statement": "Result"
+    }
+  ],
+  "requirement_id": "example",
+  "scope": [
+    {
+      "goal_ids": [
+        "GOAL-001"
+      ],
+      "id": "SCOPE-001",
+      "kind": "in_scope",
+      "statement": "Source"
+    }
+  ],
+  "summary": "Result",
+  "title": "Plan"
+}

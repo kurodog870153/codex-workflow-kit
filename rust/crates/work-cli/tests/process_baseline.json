@@ -27,7 +27,7 @@
         "example"
       ],
       "exit_code": 0,
-      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"paths\": {\n      \"execution\": \"outputs/work/executions/example\",\n      \"plan\": \"outputs/work/plans/example.json\",\n      \"task\": \"outputs/work/tasks/example/index.json\"\n    },\n    \"requirement_id\": \"example\",\n    \"schema\": \"work-paths/v1\"\n  }\n}\n",
+      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"paths\": {\n      \"execution\": \"outputs/work/executions/example\",\n      \"source\": \"outputs/work/sources/example\",\n      \"task\": \"outputs/work/tasks/example/index.json\"\n    },\n    \"requirement_id\": \"example\",\n    \"schema\": \"work-paths/v1\"\n  }\n}\n",
       "stderr": ""
     },
     {
@@ -42,7 +42,7 @@
         "example"
       ],
       "exit_code": 0,
-      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"paths\": {\n      \"execution\": \"outputs/work/executions/example\",\n      \"plan\": \"outputs/work/plans/example.json\",\n      \"task\": \"outputs/work/tasks/example/index.json\"\n    },\n    \"project_root\": \"<PROJECT_ROOT>\",\n    \"requirement_id\": \"example\",\n    \"schema\": \"work-paths/v1\"\n  }\n}\n",
+      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"paths\": {\n      \"execution\": \"outputs/work/executions/example\",\n      \"source\": \"outputs/work/sources/example\",\n      \"task\": \"outputs/work/tasks/example/index.json\"\n    },\n    \"project_root\": \"<PROJECT_ROOT>\",\n    \"requirement_id\": \"example\",\n    \"schema\": \"work-paths/v1\"\n  }\n}\n",
       "stderr": ""
     },
     {
@@ -55,6 +55,31 @@
       ],
       "exit_code": 0,
       "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"schema\": \"work-contract-catalog/v1\"\n  }\n}\n",
+      "stderr": ""
+    },
+    {
+      "name": "reconciliation_recover_help",
+      "argv": [
+        "--project-root",
+        "<PROJECT_ROOT>",
+        "specification",
+        "reconciliation-recover",
+        "--help"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"help\": \"usage: work specification reconciliation-recover [-h] --input-file INPUT_FILE\\n                                         --user-config-root USER_CONFIG_ROOT\\n                                         [--skill-root SKILL_ROOT]\\n                                         --approved-sha256 APPROVED_SHA256\\n\\noptions:\\n  -h, --help            Return command help in a JSON response.\\n  --input-file INPUT_FILE\\n  --user-config-root USER_CONFIG_ROOT\\n  --skill-root SKILL_ROOT\\n  --approved-sha256 APPROVED_SHA256\\n\"\n  }\n}\n",
+      "stderr": ""
+    },
+    {
+      "name": "specification_help",
+      "argv": [
+        "--project-root",
+        "<PROJECT_ROOT>",
+        "specification",
+        "--help"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"help\": \"usage: work specification [-h] {prepare,preview,apply,verify,recover,reconciliation-prepare,reconciliation-preview,reconciliation-apply,reconciliation-recover} ...\\n\\npositional arguments:\\n  {prepare,preview,apply,verify,recover,reconciliation-prepare,reconciliation-preview,reconciliation-apply,reconciliation-recover}\\n    prepare             Prepare a semantic specification revision.\\n    preview             Validate and review a prepared revision.\\n    apply               Publish an approved revision.\\n    verify              Verify a published revision.\\n    recover             Recover an interrupted approved revision.\\n    reconciliation-prepare\\n                        Prepare execution deviation reconciliation.\\n    reconciliation-preview\\n                        Review execution deviation reconciliation.\\n    reconciliation-apply\\n                        Publish approved execution deviation reconciliation.\\n    reconciliation-recover\\n                        Recover approved execution deviation reconciliation.\\n\\noptions:\\n  -h, --help            Return command help in a JSON response.\\n\"\n  }\n}\n",
       "stderr": ""
     }
   ]

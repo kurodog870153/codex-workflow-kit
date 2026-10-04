@@ -40,7 +40,7 @@ pub fn status_with_events(
 ) -> Result<Value, WorkError> {
     let WorkflowSnapshot {
         artifacts,
-        plan,
+        source,
         draft,
         task,
         index,
@@ -53,7 +53,7 @@ pub fn status_with_events(
             artifacts: &artifacts,
             formal_events,
         },
-        plan.as_ref(),
+        source.as_ref(),
         draft.as_ref(),
         task.as_ref(),
         index.is_some(),

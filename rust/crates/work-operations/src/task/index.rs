@@ -95,7 +95,10 @@ pub fn validate_task_index(
         "title",
         "summary",
         "artifacts",
-        "source_plan",
+        "source",
+        "hierarchy_selection",
+        "skill_selection",
+        "acceptance_criteria",
         "instruction_selection",
         "tasks",
         "readiness",
@@ -126,7 +129,7 @@ pub fn validate_task_index(
     let artifacts = strict(
         &index["artifacts"],
         "artifacts",
-        &["plan", "task", "execution"],
+        &["source", "task", "execution"],
         &[],
     )?;
     let task_path = text(&artifacts["task"], "artifacts.task")?;
@@ -145,31 +148,7 @@ pub fn validate_task_index(
             json!({}),
         ));
     }
-    let plan_path = text(&artifacts["plan"], "artifacts.plan")?;
-    if !plan_path.ends_with(&format!("/{requirement}.json")) {
-        return Err(issue(
-            "plan_path_requirement_mismatch",
-            "The Plan path must end with the requirement ID and .json.",
-            json!({}),
-        ));
-    }
-    let execution = text(&artifacts["execution"], "artifacts.execution")?;
-    if !execution.ends_with(&format!("/{requirement}")) {
-        return Err(issue(
-            "execution_path_requirement_mismatch",
-            "The execution path must end with the requirement ID.",
-            json!({}),
-        ));
-    }
-    let source_plan = strict(
-        &index["source_plan"],
-        "source_plan",
-        &["canonical_sha256", "hierarchy_selection_sha256"],
-        &[],
-    )?;
-    for field in ["canonical_sha256", "hierarchy_selection_sha256"] {
-        sha(&source_plan[field], &format!("source_plan.{field}"))?;
-    }
+    crate::task::source::validate_formal_context(value, requirement)?;
     if let Some(execution) = index.get("execution_defaults") {
         let execution = strict(
             execution,
@@ -322,9 +301,11 @@ mod tests {
 
     #[test]
     fn example_index_matches_python_fingerprint() {
+        let context = crate::task::source::fixture_context();
         let index = json!({"schema": "work-task-index/v1", "requirement_id": "example", "spec_id": "TASK-SPEC-001", "status": "confirmed", "title": "Example", "summary": "Example tasks.",
-            "artifacts": {"plan": "outputs/work/plans/example.json", "task": "outputs/work/tasks/example/index.json", "execution": "outputs/work/executions/example"},
-            "source_plan": {"canonical_sha256": "c".repeat(64), "hierarchy_selection_sha256": "d".repeat(64)},
+            "artifacts": context["artifacts"],
+            "source": {"kind":"snapshot","manifest":context["snapshot"]},
+            "hierarchy_selection":context["hierarchy_selection"],"skill_selection":context["skill_selection"],"acceptance_criteria":context["acceptance_criteria"],
             "instruction_selection": {"sources": [{"kind": "instruction", "logical_name": "task.general", "canonical_sha256": "a".repeat(64)}], "references": [], "instructions_sha256": "b".repeat(64)},
             "tasks": [{"id": "TASK-001", "path": "tasks/TASK-001.json", "canonical_sha256": "e".repeat(64)}],
             "readiness": {"status": "passed", "spec_id": "TASK-SPEC-001"}});

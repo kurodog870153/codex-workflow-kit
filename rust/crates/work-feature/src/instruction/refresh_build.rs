@@ -15,12 +15,12 @@ use work_operations::execution::index::{render_execution_index, validate_executi
 use work_operations::identifiers::RequirementId;
 use work_operations::instruction::{SourceSet, selection as source_selection};
 use work_operations::instruction_refresh::{Compatibility, combined_compatibility};
-use work_operations::plan::render_plan_value;
 use work_operations::task::ordering::{TaskDocumentKind, render_task};
 
 pub trait RefreshSnapshotRepository {
     fn discover_requirements(&self) -> Result<BTreeMap<String, Value>, WorkError>;
-    fn default_paths(&self, id: &RequirementId) -> Vec<(String, String)>;
+    fn default_paths(&self, id: &RequirementId) -> work_model::task::source::TaskArtifactPaths;
+    fn source_evidence(&self, index: &Value) -> Result<BTreeMap<String, Vec<u8>>, WorkError>;
     fn exists(&self, relative: &str) -> Result<bool, WorkError>;
     fn read(&self, relative: &str) -> Result<Vec<u8>, WorkError>;
 }
@@ -34,6 +34,7 @@ pub struct RefreshCandidate {
     pub before: BTreeMap<String, Vec<u8>>,
     pub after: BTreeMap<String, Vec<u8>>,
     pub artifacts: Value,
+    pub source_evidence: BTreeMap<String, Vec<u8>>,
     pub changed_source_names: BTreeSet<String>,
 }
 
@@ -57,7 +58,6 @@ fn read(
 
 fn render(value: &Value, kind: &str) -> Result<Vec<u8>, WorkError> {
     let bytes = match kind {
-        "plan" => render_plan_value(value),
         "item" => render_task(value, TaskDocumentKind::Item),
         "index" => render_task(value, TaskDocumentKind::Index),
         "execution" => render_execution_index(value),
@@ -114,11 +114,8 @@ pub fn build_refresh(
     let discovered = repository.discover_requirements()?;
     let artifacts = discovered.get(requirement_id).cloned().unwrap_or_else(|| {
         let paths = repository.default_paths(&id);
-        json!({"plan":paths[0].1,"task":paths[1].1,"execution":paths[2].1})
+        json!(paths)
     });
-    let plan_relative = artifacts["plan"]
-        .as_str()
-        .ok_or_else(|| failure("invalid_artifact_paths", "The Plan path is invalid."))?;
     let task_relative = artifacts["task"]
         .as_str()
         .ok_or_else(|| failure("invalid_artifact_paths", "The TASK path is invalid."))?;
@@ -126,11 +123,11 @@ pub fn build_refresh(
         .as_str()
         .ok_or_else(|| failure("invalid_artifact_paths", "The execution path is invalid."))?;
     let execution_relative = format!("{execution_dir}/index.json");
-    if !repository.exists(plan_relative)? {
+    if !repository.exists(task_relative)? {
         return Err(WorkError::new(
             ExitCode::ArtifactIntegrity,
-            "source_refresh_plan_missing",
-            "The requirement Plan does not exist.",
+            "source_refresh_task_missing",
+            "The formal Task collection does not exist.",
             json!({"requirement_id":requirement_id}),
         ));
     }
@@ -139,28 +136,10 @@ pub fn build_refresh(
     let mut after = BTreeMap::new();
     let mut blocked = Vec::new();
     let mut changed_names = BTreeSet::new();
-    let mut counts = json!({"plans":0,"task_items":0,"task_indexes":0,"execution_indexes":0});
+    let mut counts = json!({"task_items":0,"task_indexes":0,"execution_indexes":0});
 
-    let (plan_raw, mut plan) = read(repository, plan_relative)?;
-    let stored = &plan["work_instruction_selection"];
-    let (mut selection, _) = current_selection(source, "plan", stored, &mut snapshots)?;
-    selection["routing_manifest"] =
-        migration_manifest(routing, "plan", "plan_confirmed", "prepare_plan", &plan)?;
-    let (state, changed) = combined_compatibility(
-        stored,
-        selection["sources"].as_array().unwrap(),
-        &selection["routing_manifest"],
-    );
-    changed_names.extend(changed);
-    if state == Compatibility::ReviewRequired {
-        blocked.push(json!({"path":plan_relative,"reason":"compatibility_revision_changed"}));
-    } else if state == Compatibility::Refreshable {
-        plan["work_instruction_selection"] = selection;
-        before.insert(plan_relative.to_owned(), plan_raw.clone());
-        after.insert(plan_relative.to_owned(), render(&plan, "plan")?);
-        counts["plans"] = json!(1);
-    }
-    let effective_plan = after.get(plan_relative).cloned().unwrap_or(plan_raw);
+    let (_, baseline_index) = read(repository, task_relative)?;
+    let source_evidence = repository.source_evidence(&baseline_index)?;
 
     if repository.exists(task_relative)? {
         let (index_raw, mut index) = read(repository, task_relative)?;
@@ -233,10 +212,9 @@ pub fn build_refresh(
                     ))
                 })
                 .collect::<Result<BTreeMap<_, _>, WorkError>>()?;
-            let index_bytes =
-                rebind_task_index(&effective_plan, &mut index, &item_bytes).map_err(|issue| {
-                    failure(issue.reason_code(), "TASK bindings cannot be derived.")
-                })?;
+            let index_bytes = rebind_task_index(&mut index, &item_bytes).map_err(|issue| {
+                failure(issue.reason_code(), "TASK bindings cannot be derived.")
+            })?;
             before.insert(task_relative.to_owned(), index_raw);
             after.insert(task_relative.to_owned(), index_bytes);
             counts["task_indexes"] = json!(1);
@@ -289,7 +267,14 @@ pub fn build_refresh(
         blocked,
         &changed_names,
         counts,
+        &source_evidence,
     )?;
+    if repository.source_evidence(&baseline_index)? != source_evidence {
+        return Err(failure(
+            "source_refresh_source_changed",
+            "The immutable requirement Source changed during validation.",
+        ));
+    }
     routing.recheck_sources()?;
     for (mode, paths, refs, digest) in snapshots {
         if load(source, &mode, &paths, &refs)?.instructions_sha256 != digest {
@@ -304,6 +289,7 @@ pub fn build_refresh(
         before: decision.before,
         after: decision.after,
         artifacts,
+        source_evidence,
         changed_source_names: changed_names,
     })
 }
@@ -315,25 +301,28 @@ mod tests {
     use work_operations::hierarchy::{CrossModeCatalog, Hierarchy};
     use work_operations::routing::RoutingRequest;
 
-    struct MissingPlan;
+    struct MissingTask;
 
-    impl RefreshSnapshotRepository for MissingPlan {
+    impl RefreshSnapshotRepository for MissingTask {
         fn discover_requirements(&self) -> Result<BTreeMap<String, Value>, WorkError> {
             Ok(BTreeMap::new())
         }
-        fn default_paths(&self, _: &RequirementId) -> Vec<(String, String)> {
-            vec![
-                ("plan".into(), "plan.json".into()),
-                ("task".into(), "task/index.json".into()),
-                ("execution".into(), "execution".into()),
-            ]
+        fn default_paths(&self, _: &RequirementId) -> work_model::task::source::TaskArtifactPaths {
+            work_model::task::source::TaskArtifactPaths {
+                source: "sources/example".into(),
+                task: "task/index.json".into(),
+                execution: "execution".into(),
+            }
+        }
+        fn source_evidence(&self, _: &Value) -> Result<BTreeMap<String, Vec<u8>>, WorkError> {
+            panic!("missing Task must stop before Source evidence")
         }
         fn exists(&self, relative: &str) -> Result<bool, WorkError> {
-            assert_eq!(relative, "plan.json");
+            assert_eq!(relative, "task/index.json");
             Ok(false)
         }
         fn read(&self, _: &str) -> Result<Vec<u8>, WorkError> {
-            panic!("missing Plan must stop before read")
+            panic!("missing Task must stop before read")
         }
     }
 
@@ -341,10 +330,10 @@ mod tests {
 
     impl HierarchyCatalogRepository for UnusedSource {
         fn cross_mode_catalog(&self) -> Result<CrossModeCatalog, WorkError> {
-            panic!("missing Plan must stop before hierarchy")
+            panic!("missing Task must stop before hierarchy")
         }
         fn mode_paths(&self, _: &str) -> Result<Vec<String>, WorkError> {
-            panic!("missing Plan must stop before hierarchy")
+            panic!("missing Task must stop before hierarchy")
         }
     }
     impl InstructionSourceRepository for UnusedSource {
@@ -354,27 +343,27 @@ mod tests {
             _: &Hierarchy,
             _: &[String],
         ) -> Result<SourceSet, WorkError> {
-            panic!("missing Plan must stop before sources")
+            panic!("missing Task must stop before sources")
         }
     }
 
     struct UnusedRouting;
     impl WorkflowRoutingRepository for UnusedRouting {
         fn route(&mut self, _: &RoutingRequest<'_>) -> Result<Value, WorkError> {
-            panic!("missing Plan must stop before routing")
+            panic!("missing Task must stop before routing")
         }
     }
     impl RefreshRoutingRepository for UnusedRouting {
         fn recheck_sources(&self) -> Result<(), WorkError> {
-            panic!("missing Plan must stop before routing recheck")
+            panic!("missing Task must stop before routing recheck")
         }
     }
 
     #[test]
-    fn missing_plan_stops_before_source_and_routing_ports() {
-        let error = build_refresh(&MissingPlan, &UnusedSource, &mut UnusedRouting, "example")
+    fn missing_task_stops_before_source_and_routing_ports() {
+        let error = build_refresh(&MissingTask, &UnusedSource, &mut UnusedRouting, "example")
             .err()
-            .expect("missing Plan must fail");
-        assert_eq!(error.reason_code, "source_refresh_plan_missing");
+            .expect("missing Task must fail");
+        assert_eq!(error.reason_code, "source_refresh_task_missing");
     }
 }

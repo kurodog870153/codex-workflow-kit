@@ -1,35 +1,35 @@
 {
-  "schema": "work-spec-reconciliation-preview/v1",
-  "status": "ready",
   "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
   "attempt_sha256": "1d566b34bf20c67837166d44cfb00f4b9a2a3fbaf3b31d67caf0dffba52f18a7",
   "choice": "retain_only",
-  "pending_deviation_ids": [
-    "DEVIATION-001"
-  ],
-  "selected_deviation_ids": [],
-  "retained_deviation_ids": [
-    "DEVIATION-001"
-  ],
   "deviation_classifications": {
     "DEVIATION-001": "retain_only"
   },
-  "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
+  "fingerprint": "68a83825310a3eb34e274906e55bc1e4871f4058f72fd3515a745e3480de3013",
   "ledger": {
-    "schema": "work-spec-reconciliation-ledger/v1",
     "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
     "entries": [
       {
+        "attempt_sha256": "1d566b34bf20c67837166d44cfb00f4b9a2a3fbaf3b31d67caf0dffba52f18a7",
         "deviation_id": "DEVIATION-001",
         "outcome": "retained",
-        "target": "retain_only",
-        "attempt_sha256": "1d566b34bf20c67837166d44cfb00f4b9a2a3fbaf3b31d67caf0dffba52f18a7",
-        "reconciliation_fingerprint": "5c0cd65e99db911b945e0af10d92f352c1efdcb3fb804c493a5634658a1f2ea5"
+        "reconciliation_fingerprint": "68a83825310a3eb34e274906e55bc1e4871f4058f72fd3515a745e3480de3013",
+        "target": "retain_only"
       }
-    ]
+    ],
+    "schema": "work-spec-reconciliation-ledger/v1"
   },
+  "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
   "migration_preview": null,
-  "fingerprint": "5c0cd65e99db911b945e0af10d92f352c1efdcb3fb804c493a5634658a1f2ea5",
+  "pending_deviation_ids": [
+    "DEVIATION-001"
+  ],
+  "publication_ready": true,
   "publication_required": true,
-  "publication_ready": true
+  "retained_deviation_ids": [
+    "DEVIATION-001"
+  ],
+  "schema": "work-spec-reconciliation-preview/v1",
+  "selected_deviation_ids": [],
+  "status": "ready"
 }

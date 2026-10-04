@@ -1,0 +1,9 @@
+{
+  "exit_code": 5,
+  "result": {
+    "schema": "work-error/v1",
+    "code": "source_snapshot_mismatch",
+    "message": "Stored planning must bind the exact immutable Snapshot.",
+    "details": {}
+  }
+}

@@ -4,6 +4,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PublicSchema {
+    #[serde(rename = "work-source-snapshot/v1")]
+    WorkSourceSnapshotV1,
+    #[serde(rename = "work-source-read/v1")]
+    WorkSourceReadV1,
+    #[serde(rename = "work-source-validation/v1")]
+    WorkSourceValidationV1,
     #[serde(rename = "work-attempt-authorization/v1")]
     WorkAttemptAuthorizationV1,
     #[serde(rename = "work-attempt-close-request/v1")]
@@ -122,16 +128,6 @@ pub enum PublicSchema {
     WorkOperationEnvelopeV1,
     #[serde(rename = "work-operation-result/v1")]
     WorkOperationResultV1,
-    #[serde(rename = "work-plan-create/v1")]
-    WorkPlanCreateV1,
-    #[serde(rename = "work-plan-prepare/v1")]
-    WorkPlanPrepareV1,
-    #[serde(rename = "work-plan-semantic-request/v1")]
-    WorkPlanSemanticRequestV1,
-    #[serde(rename = "work-plan-validation/v1")]
-    WorkPlanValidationV1,
-    #[serde(rename = "work-plan/v1")]
-    WorkPlanV1,
     #[serde(rename = "work-progress-prepare/v1")]
     WorkProgressPrepareV1,
     #[serde(rename = "work-progress-preview/v1")]
@@ -235,7 +231,10 @@ pub enum PublicSchema {
 }
 
 impl PublicSchema {
-    pub const ALL: [Self; 114] = [
+    pub const ALL: [Self; 112] = [
+        Self::WorkSourceSnapshotV1,
+        Self::WorkSourceReadV1,
+        Self::WorkSourceValidationV1,
         Self::WorkAttemptAuthorizationV1,
         Self::WorkAttemptCloseRequestV1,
         Self::WorkAttemptCloseV1,
@@ -295,11 +294,6 @@ impl PublicSchema {
         Self::WorkInvocationV1,
         Self::WorkOperationEnvelopeV1,
         Self::WorkOperationResultV1,
-        Self::WorkPlanCreateV1,
-        Self::WorkPlanPrepareV1,
-        Self::WorkPlanSemanticRequestV1,
-        Self::WorkPlanValidationV1,
-        Self::WorkPlanV1,
         Self::WorkProgressPrepareV1,
         Self::WorkProgressPreviewV1,
         Self::WorkProgressReadV1,
@@ -354,6 +348,9 @@ impl PublicSchema {
 
     pub const fn as_str(self) -> &'static str {
         match self {
+            Self::WorkSourceSnapshotV1 => "work-source-snapshot/v1",
+            Self::WorkSourceReadV1 => "work-source-read/v1",
+            Self::WorkSourceValidationV1 => "work-source-validation/v1",
             Self::WorkAttemptAuthorizationV1 => "work-attempt-authorization/v1",
             Self::WorkAttemptCloseRequestV1 => "work-attempt-close-request/v1",
             Self::WorkAttemptCloseV1 => "work-attempt-close/v1",
@@ -419,11 +416,6 @@ impl PublicSchema {
             Self::WorkInvocationV1 => "work-invocation/v1",
             Self::WorkOperationEnvelopeV1 => "work-operation-envelope/v1",
             Self::WorkOperationResultV1 => "work-operation-result/v1",
-            Self::WorkPlanCreateV1 => "work-plan-create/v1",
-            Self::WorkPlanPrepareV1 => "work-plan-prepare/v1",
-            Self::WorkPlanSemanticRequestV1 => "work-plan-semantic-request/v1",
-            Self::WorkPlanValidationV1 => "work-plan-validation/v1",
-            Self::WorkPlanV1 => "work-plan/v1",
             Self::WorkProgressPrepareV1 => "work-progress-prepare/v1",
             Self::WorkProgressPreviewV1 => "work-progress-preview/v1",
             Self::WorkProgressReadV1 => "work-progress-read/v1",
@@ -493,7 +485,7 @@ mod tests {
             .iter()
             .map(|schema| schema.as_str())
             .collect();
-        assert_eq!(ids.len(), 114);
+        assert_eq!(ids.len(), 112);
         for schema in PublicSchema::ALL {
             let literal = serde_json::to_value(schema).unwrap();
             assert_eq!(literal, schema.as_str());

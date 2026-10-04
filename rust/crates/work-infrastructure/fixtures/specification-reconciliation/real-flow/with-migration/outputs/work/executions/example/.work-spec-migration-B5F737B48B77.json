@@ -237,9 +237,11 @@
                   "status_reason": {
                     "kind": "task_change",
                     "ref": "TASK-CHANGE-001"
-                  }
+                  },
+                  "acceptance_results": []
                 }
-              ]
+              ],
+              "acceptance_results": []
             }
           },
           {

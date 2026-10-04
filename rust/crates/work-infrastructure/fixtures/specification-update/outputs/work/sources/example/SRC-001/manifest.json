@@ -1,0 +1,14 @@
+{
+  "schema": "work-source-snapshot/v1",
+  "requirement_id": "example",
+  "source_id": "SRC-001",
+  "captured_at": "2026-10-03T00:00:00Z",
+  "source": {
+    "kind": "user_text"
+  },
+  "content": {
+    "path": "source.txt",
+    "sha256": "c0025641ad55f45e002ef3307cbe976060548cd4f3a0f068f1bf4d614ea7a9a8",
+    "size": 753
+  }
+}

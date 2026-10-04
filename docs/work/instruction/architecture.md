@@ -6,7 +6,7 @@
 
 ## 2. 指令歸屬
 
-1. `plan`、`task`、`execute` 各自保留 `general/instructions.md`，存放該模式通用的規則。
+1. `task`、`execute` 各自保留 `general/instructions.md`，存放該模式通用的規則。
 2. 跨多種應用或框架適用的規則放在共同父節點；適用範圍較窄的規則放在對應子節點。
 3. 程式語言放在 `programming-language/<語言>`；應用類型、框架與能力若可獨立適用，應分為可組合的路徑，不因某一種常見組合而固定為彼此的祖先與子孫。
 4. 每個節點須有明確責任邊界，避免與父節點、兄弟節點或 reference 重複。
@@ -16,12 +16,6 @@
 
 ```text
 instructions/
-├── plan/
-│   ├── general/instructions.md
-│   ├── programming-language/
-│   │   ├── instructions.md
-│   │   └── <語言>/instructions.md
-│   └── <領域>/...
 ├── task/
 │   ├── general/instructions.md
 │   ├── programming-language/
@@ -48,7 +42,7 @@ instructions/
 
 1. 一項工作可選擇多條適用的葉節點路徑，組合其共通、程式語言、應用、框架與能力規則；應用路徑不得隱含特定語言。
 2. 同一選擇不得同時指定祖先及其子節點；載入時依選定路徑展開祖先，並去除重複。
-3. Plan 依其目錄解析可用的最深祖先；Task 與 Execute 所需的路徑須在各自模式具備完整祖先節點。
+3. Task 獨立確認 hierarchy 與外部 skill selection；Task 與 Execute 所需路徑都須在各自 catalog 具備完整祖先節點。Source 只保存需求原始證據，不選擇指令或技能。
 4. 指令須靠責任邊界避免衝突，不依賴載入順序掩蓋相互矛盾的規則。
 
 ## 5. YAML frontmatter

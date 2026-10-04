@@ -15,6 +15,10 @@ pub fn transaction(
     approved_sha256: &str,
     history: &BTreeMap<String, Vec<u8>>,
 ) -> Result<(Value, String), WorkError> {
+    let mut source = candidate.before.clone();
+    let mut after = candidate.after.clone();
+    source.extend(candidate.source_evidence.clone());
+    after.extend(candidate.source_evidence.clone());
     let derived = TransactionDeriver::derive(TransactionInput {
         kind: TransactionKind::InstructionMigration,
         order: PublicationOrder::Flat,
@@ -23,8 +27,8 @@ pub fn transaction(
         artifacts: candidate.artifacts.clone(),
         affected_task_ids: Vec::new(),
         history: history.clone(),
-        source: candidate.before.clone(),
-        candidate: candidate.after.clone(),
+        source,
+        candidate: after,
     })
     .map_err(|issue| {
         WorkError::new(

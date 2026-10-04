@@ -4,6 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use serde_json::{Value, json};
+use work_feature::artifact_paths::ArtifactPathRepository;
 use work_feature::error::{ExitCode, WorkError};
 use work_feature::execution::command_publication::{
     approved_receipt, build_command_request, command_completion,
@@ -23,7 +24,7 @@ use work_feature::execution::{
     recheck_command_from_project,
 };
 use work_feature::instruction::InstructionSourceRepository;
-use work_feature::plan::PlanPathRepository;
+use work_feature::ports::SourceSnapshotReader;
 use work_feature::ports::{ArtifactStore, CommandRunner, Git, WriterLock};
 #[cfg(test)]
 use work_feature::ports::{CommandRequest, CommandStatus};
@@ -177,7 +178,7 @@ impl LocalExecutionStorage {
     where
         H: InstructionSourceRepository,
         S: SkillSnapshotRepository,
-        P: PlanPathRepository,
+        P: ArtifactPathRepository + SourceSnapshotReader,
         T: TaskCollectionRepository,
     {
         validate_attempt_start_request(input.request).map_err(recovery_rule)?;
@@ -398,6 +399,11 @@ impl LocalExecutionStorage {
             ));
         }
         require_started_attempt(stage, existing_attempt.is_some())?;
+        work_feature::task::recheck_task_execution_context(
+            sources.paths,
+            sources.task_repository,
+            &context,
+        )?;
         if stage == 0 {
             if !lock_temp.is_file() {
                 LocalFiles.create_new(&lock_temp, &locked_raw)?;
@@ -461,7 +467,7 @@ impl LocalExecutionStorage {
     where
         H: InstructionSourceRepository,
         S: SkillSnapshotRepository,
-        P: PlanPathRepository,
+        P: ArtifactPathRepository + SourceSnapshotReader,
         T: TaskCollectionRepository,
     {
         validate_recovery_request(request, false).map_err(recovery_rule)?;
@@ -537,6 +543,11 @@ impl LocalExecutionStorage {
                     json!({}),
                 )
             })?;
+        work_feature::task::recheck_task_execution_context(
+            sources.paths,
+            sources.task_repository,
+            &context,
+        )?;
         match transaction {
             "record_begin" => self.recover_record_begin(RecordBeginRecoveryInput {
                 execution_dir: target.execution_dir,
@@ -593,6 +604,11 @@ impl LocalExecutionStorage {
                     sources.task_repository,
                     sources.skill_roots,
                     target.task_path,
+                )?;
+                work_feature::task::recheck_task_execution_context(
+                    sources.paths,
+                    sources.task_repository,
+                    &context,
                 )?;
                 let correction_id = direction["correction_id"].as_str().unwrap_or("");
                 self.recover_correction(CorrectionRecoveryInput {
@@ -993,7 +1009,7 @@ impl LocalExecutionStorage {
     where
         H: InstructionSourceRepository,
         S: SkillSnapshotRepository,
-        P: PlanPathRepository,
+        P: ArtifactPathRepository + SourceSnapshotReader,
         T: TaskCollectionRepository,
     {
         self.run_prepared_command(
@@ -3084,7 +3100,6 @@ mod tests {
     use work_operations::execution::attempt_close::build_close_candidates;
     use work_operations::execution::build_execution_lock;
     use work_operations::execution::command_run::{CommandPreviewInput, build_command_preview};
-    use work_operations::execution::finish_attempt_candidate;
     use work_operations::execution::index::{
         build_initial_execution_index, render_execution_index,
     };
@@ -3112,6 +3127,154 @@ mod tests {
         calls: Cell<usize>,
         exit_code: i32,
         timed_out: bool,
+    }
+
+    struct SourceChangingWorktree<'a> {
+        storage: &'a LocalExecutionStorage,
+        source: Option<PathBuf>,
+    }
+    impl ExecutionIndexRepository for SourceChangingWorktree<'_> {
+        fn read_index(&self, path: &str) -> Result<Vec<u8>, WorkError> {
+            self.storage.read_index(path)
+        }
+        fn inspect_path(&self, path: &str) -> Result<FileState, WorkError> {
+            self.storage.inspect_path(path)
+        }
+        fn check_execution_task_layout(
+            &self,
+            execution: &str,
+            task: &str,
+        ) -> Result<(), WorkError> {
+            self.storage.check_execution_task_layout(execution, task)
+        }
+        fn check_execution_ready(&self, task: &str, execution: &str) -> Result<(), WorkError> {
+            self.storage.check_execution_ready(task, execution)
+        }
+    }
+    impl ExecutionWorktreeRepository for SourceChangingWorktree<'_> {
+        fn read_file(&self, path: &str) -> Result<Vec<u8>, WorkError> {
+            self.storage.read_file(path)
+        }
+        fn git_status(&self) -> Result<Vec<Value>, WorkError> {
+            if let Some(path) = &self.source {
+                fs::write(path, b"changed during Git inspection").unwrap();
+            }
+            Ok(vec![])
+        }
+    }
+
+    #[test]
+    fn task_only_project_sources_accept_both_provenances_and_recheck_after_worktree_reads() {
+        let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+        for fixture_name in [
+            "task-diagnostics",
+            "specification-update/revision-migration",
+        ] {
+            let fixture = repo
+                .join("crates/work-infrastructure/fixtures")
+                .join(fixture_name);
+            let root = test_root();
+            let task_path = "outputs/work/tasks/example/index.json";
+            let index: Value =
+                serde_json::from_slice(&fs::read(fixture.join(task_path)).unwrap()).unwrap();
+            let mut paths = vec![task_path.to_owned()];
+            for row in index["tasks"].as_array().unwrap() {
+                paths.push(format!(
+                    "outputs/work/tasks/example/{}",
+                    row["path"].as_str().unwrap()
+                ));
+            }
+            for path in paths {
+                let target = root.join(&path);
+                fs::create_dir_all(target.parent().unwrap()).unwrap();
+                fs::copy(fixture.join(&path), target).unwrap();
+            }
+            crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
+            fs::write(root.join("src.txt"), b"source\n").unwrap();
+            let instructions = crate::hierarchy_catalog::LocalHierarchyCatalog {
+                skill_root: repo.join("../skills/work"),
+            };
+            let skills = crate::skill_catalog::LocalSkillCatalog { roots: vec![] };
+            let paths = crate::artifact_paths::LocalArtifactPaths {
+                project_root: root.clone(),
+            };
+            let tasks = crate::task::storage::LocalTaskStorage {
+                project_root: root.clone(),
+            };
+            let sources = CommandProjectSources {
+                instructions: &instructions,
+                skills: &skills,
+                paths: &paths,
+                task_repository: &tasks,
+                skill_roots: &[],
+            };
+            let context = load_task_execution_context(
+                &instructions,
+                &skills,
+                &paths,
+                &tasks,
+                &[],
+                task_path,
+                "TASK-001",
+            )
+            .unwrap();
+            assert_eq!(
+                context.contract["source"]["kind"],
+                if fixture_name == "task-diagnostics" {
+                    "snapshot"
+                } else {
+                    "migration"
+                }
+            );
+            let execution_dir = context.contract["artifacts"]["execution"].as_str().unwrap();
+            let full =
+                load_collection(&instructions, &skills, &paths, &tasks, &[], task_path).unwrap();
+            let execution =
+                build_initial_execution_index(&full["collection_contract"], &full).unwrap();
+            let execution_path = root.join(format!("{execution_dir}/index.json"));
+            fs::create_dir_all(execution_path.parent().unwrap()).unwrap();
+            fs::write(&execution_path, render_execution_index(&execution).unwrap()).unwrap();
+            let before = fs::read(&execution_path).unwrap();
+            let storage = LocalExecutionStorage {
+                project_root: root.clone(),
+            };
+            let target = ExecutionProjectTarget {
+                task_path,
+                execution_dir,
+                task_id: "TASK-001",
+            };
+            let preview =
+                prepare_execute_preflight_from_project(&sources, &storage, target, &[]).unwrap();
+            assert_eq!(preview["task_status"], "pending");
+            let clean = SourceChangingWorktree {
+                storage: &storage,
+                source: None,
+            };
+            work_feature::execution::inspect_worktree_from_project(&sources, &clean, target, &[])
+                .unwrap();
+            if fixture_name == "task-diagnostics" {
+                let source = root.join("outputs/work/sources/example/SRC-001/source.txt");
+                let changed = SourceChangingWorktree {
+                    storage: &storage,
+                    source: Some(source),
+                };
+                let error = work_feature::execution::inspect_worktree_from_project(
+                    &sources,
+                    &changed,
+                    target,
+                    &[],
+                )
+                .unwrap_err();
+                assert_eq!(error.exit_code, ExitCode::ArtifactIntegrity);
+            }
+            assert_eq!(fs::read(execution_path).unwrap(), before);
+            assert!(!root.join("outputs/work/plans").exists());
+            assert!(
+                !root
+                    .join(format!("{execution_dir}/TASK-001/ATTEMPT-001"))
+                    .exists()
+            );
+        }
     }
 
     #[test]
@@ -4175,7 +4338,8 @@ mod tests {
         let original = render_execution_index(&index).unwrap();
         let attempt = json!({"records":[{"id":"VAL-001"}],
             "authorization":{"authorization_evidence":"Original"}});
-        let task = json!({"commands":[],"operations":[],"validations":[{"id":"VAL-001"}]});
+        let task =
+            json!({"id":"TASK-001","commands":[],"operations":[],"validations":[{"id":"VAL-001"}]});
         let mut prepared = index.clone();
         prepared["lock"]["record_id"] = json!("VAL-001#1");
         prepared["lock"]["retry_authorization_evidence"] = json!("Approved retry");
@@ -4313,12 +4477,12 @@ mod tests {
             project_root: root.clone(),
         };
         let authorization = json!({"schema":"work-attempt-authorization/v1",
-            "task_id":"TASK-001","commands":[],"validations":[{"id":"VAL-001"}],
+            "task_id":"TASK-001","commands":[],"validations":[{"id":"VAL-001","acceptance_ids":["ACCEPTANCE-001","TASK-001-ACCEPTANCE-001"]}],
             "modifiable_files":[],"working_directories":[],"external_operations":[],
             "allowed_deviations":[],"reapproval_conditions":["scope_expansion",
                 "source_or_worktree_drift","failure_divergence","retry","recovery","unknown_result"],
             "authorization_evidence":"Approved"});
-        let attempt = json!({"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
+        let attempt = json!({"acceptance_results":work_operations::execution::acceptance::pending(["ACCEPTANCE-001".to_owned(),"TASK-001-ACCEPTANCE-001".to_owned()]),"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
             "task_spec_id":"TASK-SPEC-001","task_id":"TASK-001","skill_id":null,
             "status":"in_progress","task_collection_sha256":"a".repeat(64),
             "task_index_sha256":"b".repeat(64),"task_item_sha256":"c".repeat(64),
@@ -4329,7 +4493,7 @@ mod tests {
             "authorization_sha256":canonical_json_sha256(&authorization).unwrap(),
             "authorization":authorization,"started_at":"2026-09-01T10:00+08:00","records":[]});
         let collection = json!({"requirement_id":"demo","spec_id":"TASK-SPEC-001",
-            "tasks":[{"id":"TASK-001"}]});
+            "acceptance_criteria":[{"id":"ACCEPTANCE-001"}],"tasks":[{"id":"TASK-001","traceability":{"acceptance_ids":["ACCEPTANCE-001"]},"acceptance_criteria":[{"id":"TASK-001-ACCEPTANCE-001"}]}]});
         let validation = json!({"task_collection_sha256":"a".repeat(64),
             "task_index_sha256":"b".repeat(64),"instructions_sha256":"d".repeat(64),
             "hierarchy_selection_sha256":"f".repeat(64),"skill_selection_sha256":"0".repeat(64),
@@ -4342,10 +4506,20 @@ mod tests {
         index["tasks"][0]["latest_attempt"] = json!("ATTEMPT-001");
         index["lock"] = build_execution_lock("TASK-001", "ATTEMPT-001", &"e".repeat(64));
         index["lock"]["record_id"] = json!("VAL-001");
-        let task = json!({"commands":[],"operations":[],"validations":[{"id":"VAL-001"}]});
-        let request = json!({"record":{"outcome":"passed","evidence":"Passed"}});
-        let prepared =
-            finish_attempt_candidate(&attempt, &request, "VAL-001", "validation", None).unwrap();
+        let task = json!({"id":"TASK-001","traceability":{"acceptance_ids":["ACCEPTANCE-001"]},"acceptance_criteria":[{"id":"TASK-001-ACCEPTANCE-001"}],"commands":[],"operations":[],"validations":[{"id":"VAL-001","acceptance_ids":["ACCEPTANCE-001","TASK-001-ACCEPTANCE-001"]}]});
+        let request = json!({"schema":"work-record-finish-request/v1","record":{"outcome":"passed","evidence":"Passed actual VAL"}});
+        let candidate = work_operations::execution::record_finish::build_record_finish_candidates(
+            &task, &attempt, &index, "TASK-001", &request,
+        )
+        .unwrap();
+        let prepared = candidate.attempt;
+        assert!(
+            prepared["acceptance_results"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|row| row["status"] == "completed")
+        );
         let attempt_raw = render_attempt(&attempt).unwrap();
         let index_raw = render_execution_index(&index).unwrap();
         let prepared_raw = render_attempt(&prepared).unwrap();
@@ -4376,12 +4550,51 @@ mod tests {
         let installed_index = LocalFiles.read_raw(&index_path).unwrap();
         let parsed_index = parse_json_contract(&installed_index).unwrap();
         assert!(parsed_index["lock"].get("record_id").is_none());
+        assert_eq!(parsed_index, candidate.index);
+        assert_eq!(parsed_index["acceptance_results"][0]["status"], "completed");
+        assert_eq!(
+            parsed_index["tasks"][0]["acceptance_results"],
+            prepared["acceptance_results"]
+        );
+        for row in prepared["acceptance_results"].as_array().unwrap() {
+            assert_eq!(row["evidence"][0]["record_id"], "VAL-001");
+            assert_eq!(
+                row["evidence"][0]["task_item_sha256"],
+                attempt["task_item_sha256"]
+            );
+        }
 
         let interrupted_index = root.join("execution/record-finish-interrupted-index.tmp");
         LocalFiles
             .create_new(&interrupted_index, &index_raw)
             .unwrap();
         LocalFiles.replace(&interrupted_index, &index_path).unwrap();
+        let mut missing_progress = prepared.clone();
+        missing_progress["acceptance_results"] =
+            work_operations::execution::acceptance::reset(&missing_progress["acceptance_results"])
+                .unwrap();
+        let missing_progress_raw = render_attempt(&missing_progress).unwrap();
+        fs::write(&attempt_path, &missing_progress_raw).unwrap();
+        assert_eq!(
+            storage
+                .recover_record_finish(RecordFinishRecoveryInput {
+                    execution_dir: "execution",
+                    task_id: "TASK-001",
+                    attempt_id: "ATTEMPT-001",
+                    task: &task,
+                    attempt: &missing_progress,
+                    index: &index,
+                    index_before: &index_raw,
+                    attempt_before: &missing_progress_raw,
+                    authorization_evidence: None
+                })
+                .unwrap_err()
+                .reason_code,
+            "execution_recovery_acceptance_result_mismatch"
+        );
+        assert_eq!(fs::read(&index_path).unwrap(), index_raw);
+        assert_eq!(fs::read(&attempt_path).unwrap(), missing_progress_raw);
+        fs::write(&attempt_path, &prepared_raw).unwrap();
         let resumed_finish = storage
             .recover_record_finish(RecordFinishRecoveryInput {
                 execution_dir: "execution",
@@ -4401,6 +4614,7 @@ mod tests {
         let close_request = json!({"schema":"work-attempt-close-request/v1",
             "status":"completed"});
         let (closed, closed_index) = build_close_candidates(
+            &task,
             &parsed_index,
             &prepared,
             &close_request,
@@ -4429,6 +4643,11 @@ mod tests {
             parse_json_contract(&LocalFiles.read_raw(&attempt_path).unwrap()).unwrap();
         assert_eq!(recovered_attempt["schema"], "work-attempt/v1");
         assert_eq!(recovered_attempt["status"], "completed");
+        assert_eq!(
+            recovered_attempt["acceptance_results"],
+            prepared["acceptance_results"]
+        );
+        assert_eq!(recovered_attempt["records"], prepared["records"]);
         for field in [
             "task_collection_sha256",
             "task_index_sha256",

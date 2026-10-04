@@ -1,7 +1,7 @@
 {
   "boundary_revision": 1,
   "confirmed_decisions": [],
-  "instructions_sha256": "b7c01804108967be0426442acce6206907367f4c04c445d46cf59d8b30705e4a",
+  "instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
   "next_discussion_point": null,
   "notes": [],
   "open_questions": [],
@@ -9,12 +9,57 @@
   "revision": 1,
   "schema": "work-task-draft/v1",
   "source": {
-    "hierarchy_selection_sha256": "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404",
-    "plan_sha256": "ff2063a3da86ffda334b109b7e6afecd4a1ea5dfd172e977ff0742154f5c1c2d",
-    "skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"
+    "acceptance_criteria": [
+      {
+        "criterion": "Observable",
+        "id": "ACCEPTANCE-001"
+      }
+    ],
+    "artifacts": {
+      "execution": "outputs/work/executions/example",
+      "source": "outputs/work/sources/example",
+      "task": "outputs/work/tasks/example/index.json"
+    },
+    "hierarchy_selection": {
+      "catalog_sha256": "74977ff41dae925d76037c60fcbb6e5c6d950af73416308d5e21ca3b96ef5d54",
+      "decision": "general_only",
+      "entries": [],
+      "schema": "work-hierarchy-selection/v1",
+      "selected_paths": [],
+      "selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59"
+    },
+    "skill_selection": {
+      "decision": "base_only",
+      "schema": "work-skill-selection/v1",
+      "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
+      "skills": []
+    },
+    "snapshot": {
+      "captured_at": "2026-10-03T00:00:00Z",
+      "content": {
+        "path": "source.txt",
+        "sha256": "7207f68cff308aed428d6c1a6b51f48c9778d933fe34dceb8bf26193e4ef87b9",
+        "size": 687
+      },
+      "requirement_id": "example",
+      "schema": "work-source-snapshot/v1",
+      "source": {
+        "kind": "user_text"
+      },
+      "source_id": "SRC-001"
+    }
   },
   "status": "refined",
   "task_candidate": {
+    "acceptance_criteria": [
+      {
+        "criterion": "Result is observable.",
+        "id": "TASK-001-ACCEPTANCE-001"
+      }
+    ],
+    "acceptance_ids": [
+      "ACCEPTANCE-001"
+    ],
     "steps": [
       {
         "action": "Review result.",
@@ -29,8 +74,9 @@
     ],
     "validations": [
       {
-        "acceptance_positions": [
-          1
+        "acceptance_ids": [
+          "ACCEPTANCE-001",
+          "TASK-001-ACCEPTANCE-001"
         ],
         "confirmer": "User",
         "criteria": "Result is observable.",

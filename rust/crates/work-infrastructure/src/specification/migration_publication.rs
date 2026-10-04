@@ -45,6 +45,100 @@ impl MigrationTransactionRepository for LocalMigrationTransaction<'_> {
     }
 }
 
+struct RecoveryBaseline<'a> {
+    root: &'a Path,
+    sources: BTreeMap<String, Vec<u8>>,
+    additional: &'a BTreeMap<String, Vec<u8>>,
+}
+impl MigrationTransactionRepository for RecoveryBaseline<'_> {
+    fn read(&self, relative: &str) -> Result<Vec<u8>, WorkError> {
+        self.sources.get(relative).cloned().ok_or_else(|| {
+            fail(
+                "migration_recovery_request_changed",
+                "The approved original source snapshot is missing.",
+            )
+        })
+    }
+    fn exists(&self, relative: &str) -> Result<bool, WorkError> {
+        Ok(self.sources.contains_key(relative))
+    }
+    fn history_bytes(&self, execution: &str) -> Result<BTreeMap<String, Vec<u8>>, WorkError> {
+        let mut history = execution_history_bytes(self.root, execution)?;
+        for (path, after) in self.additional {
+            if let Some(current) = history.remove(path) {
+                if &current != after && self.sources.get(path) != Some(&current) {
+                    return Err(fail(
+                        "migration_source_changed",
+                        "An approved additional artifact changed during recovery.",
+                    ));
+                }
+            }
+            if path.starts_with(&format!("{execution}/")) {
+                if let Some(before) = self.sources.get(path) {
+                    history.insert(path.clone(), before.clone());
+                }
+            }
+        }
+        Ok(history)
+    }
+}
+
+fn verify_recovery_candidates(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[SkillRootConfig],
+    request: &Value,
+    approved: &str,
+    journal: &Value,
+    additional: &BTreeMap<String, Vec<u8>>,
+) -> Result<(), WorkError> {
+    let mut sources = BTreeMap::new();
+    for file in journal["files"]
+        .as_array()
+        .expect("validated journal files")
+    {
+        if !file["before"].is_null() {
+            let raw = work_operations::derivation::snapshot::decode_snapshot(&file["before"])
+                .map_err(|_| {
+                    fail(
+                        "migration_recovery_request_changed",
+                        "The original source snapshot is invalid.",
+                    )
+                })?;
+            sources.insert(file["path"].as_str().expect("validated path").into(), raw);
+        }
+    }
+    let preview = crate::specification::migration::preview_migration_with_baseline(
+        root,
+        skill_root,
+        configs,
+        request,
+        Some(&sources),
+    )?;
+    require_approved_preview(&preview, approved)?;
+    let mut expected = prepare_transaction(
+        &RecoveryBaseline {
+            root,
+            sources,
+            additional,
+        },
+        request,
+        &preview,
+        additional,
+    )?;
+    expected["state"] = journal["state"].clone();
+    expected["published_count"] = journal["published_count"].clone();
+    if &expected != journal {
+        return Err(WorkError::new(
+            ExitCode::ArtifactIntegrity,
+            "migration_recovery_request_changed",
+            "Recovery requires exact approved candidates, original evidence and unchanged history.",
+            json!({"changed_fields":expected.as_object().unwrap().keys().filter(|key| expected[*key] != journal[*key]).collect::<Vec<_>>()}),
+        ));
+    }
+    Ok(())
+}
+
 pub fn migration_transaction(
     root: &Path,
     request: &Value,
@@ -94,6 +188,29 @@ pub fn publish_migration_with_additional(
     approved_sha256: &str,
     additional: &BTreeMap<String, Vec<u8>>,
 ) -> Result<Value, WorkError> {
+    publish_migration_with_guard(
+        root,
+        skill_root,
+        configs,
+        request,
+        operation,
+        approved_sha256,
+        additional,
+        || Ok(()),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn publish_migration_with_guard(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[SkillRootConfig],
+    request: &Value,
+    operation: &str,
+    approved_sha256: &str,
+    additional: &BTreeMap<String, Vec<u8>>,
+    guard: impl FnOnce() -> Result<(), WorkError>,
+) -> Result<Value, WorkError> {
     let paths = publication_paths(request, approved_sha256)?;
     let execution = paths.execution.as_str();
     let journal_path = paths.journal;
@@ -128,6 +245,15 @@ pub fn publish_migration_with_additional(
                     "Recovery requires the identical approved migration request.",
                 ));
             }
+            verify_recovery_candidates(
+                root,
+                skill_root,
+                configs,
+                request,
+                approved_sha256,
+                &journal,
+                additional,
+            )?;
             (json!({"fingerprint":approved_sha256}), journal)
         }
         _ => {
@@ -149,6 +275,29 @@ pub fn publish_migration_with_additional(
     let writer = storage_path(root, &format!("{execution}/.work-state-writer.lock"))?;
     let _guard = LocalWriterLock.acquire(&writer)?;
     require_no_spec_update(root, execution, ignored)?;
+    if operation == "recover" {
+        verify_recovery_candidates(
+            root,
+            skill_root,
+            configs,
+            request,
+            approved_sha256,
+            &transaction,
+            additional,
+        )?;
+    } else {
+        let fresh_preview = preview_migration(root, skill_root, configs, request)?;
+        require_approved_preview(&fresh_preview, approved_sha256)?;
+        let fresh_transaction =
+            migration_transaction_with_additional(root, request, &fresh_preview, additional)?;
+        if fresh_transaction != transaction {
+            return Err(fail(
+                "migration_source_changed",
+                "Migration sources or history changed before publication.",
+            ));
+        }
+    }
+    guard()?;
     if operation == "apply" {
         write_journal(root, &journal_path, &transaction)?;
     }
@@ -361,5 +510,78 @@ mod tests {
                 }
             }
         }
+    }
+    #[test]
+    fn recovery_rejects_self_consistent_journal_with_unapproved_candidate_bytes() {
+        let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+        let fixture =
+            repo.join("crates/work-infrastructure/fixtures/specification-migration/reconstruction");
+        let request: Value =
+            serde_json::from_slice(&fs::read(fixture.join("request.json")).unwrap()).unwrap();
+        let root = std::env::temp_dir().join(format!(
+            "work-migration-forged-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let mut original = BTreeMap::new();
+        for source in request["sources"].as_array().unwrap() {
+            let path = source["path"].as_str().unwrap();
+            let raw = fs::read(fixture.join(path)).unwrap();
+            fs::create_dir_all(root.join(path).parent().unwrap()).unwrap();
+            fs::write(root.join(path), &raw).unwrap();
+            original.insert(path.to_owned(), raw);
+        }
+        let skill = repo.join("../skills/work");
+        let preview = preview_migration(&root, &skill, &[], &request).unwrap();
+        let approved = preview["fingerprint"].as_str().unwrap();
+        let transaction = migration_transaction(&root, &request, &preview).unwrap();
+        let paths = publication_paths(&request, approved).unwrap();
+        let mut forged = transaction.clone();
+        let target = "outputs/work/tasks/example/index.json";
+        let row = forged["files"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|row| row["path"] == target)
+            .unwrap();
+        row["after"] = work_operations::derivation::snapshot::encode_snapshot(b"unapproved bytes");
+        forged["metadata"]["candidate_sha256"][target] =
+            json!(fingerprint::raw(b"unapproved bytes"));
+        let hash = work_operations::derivation::transaction::approval_sha256(
+            &forged["files"],
+            &forged["metadata"],
+        );
+        forged["approval_sha256"] = json!(hash);
+        forged["transaction_id"] = json!(
+            work_operations::derivation::identity::derived_transaction_id("MIGRATION", &hash)
+                .unwrap()
+        );
+        validate_transaction(&forged).unwrap();
+        fs::create_dir_all(root.join(&paths.execution)).unwrap();
+        write_journal(&root, &paths.journal, &forged).unwrap();
+        let journal_before = fs::read(root.join(&paths.journal)).unwrap();
+        assert_eq!(
+            publish_migration(&root, &skill, &[], &request, "recover", approved)
+                .unwrap_err()
+                .reason_code,
+            "migration_recovery_request_changed"
+        );
+        assert_eq!(fs::read(root.join(&paths.journal)).unwrap(), journal_before);
+        for (path, raw) in &original {
+            assert_eq!(fs::read(root.join(path)).unwrap(), *raw);
+        }
+        assert!(!root.join(&paths.marker).exists());
+        fs::write(
+            root.join(&paths.journal),
+            render_transaction(&transaction).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            publish_migration(&root, &skill, &[], &request, "recover", approved).unwrap()["publication_status"],
+            "published"
+        );
     }
 }

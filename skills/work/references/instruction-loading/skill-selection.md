@@ -1,13 +1,8 @@
 <!-- work-compatibility-revision: 1 -->
 # Build the confirmed selection
 
-
-After the user confirms choices, invoke `skills selection-build --input-file "<request-path>"` with each configured `--root <scope:locator=path>`. The request contains exactly `decision` (`external_skills` or explicitly confirmed `base_only`) and ordered `skills`. Each choice contains `scope`, `root`, `source`, `recommendation_reason` and explicitly verified `dependency_status: available`. For skills without declared Work modes, also supply confirmed `mode_support` for `plan`, `task` and `execute`, using `inferred` or `unsupported`; never infer these values from a successful snapshot. Declared modes are derived from metadata; any supplied mode map must match them exactly. Use `{"decision":"base_only","skills":[]}` for confirmed base-only; roots may be omitted in that case.
-
-The read-only builder returns the complete `work-skill-selection/v1` in response `data`, preserving choice order and deriving stable identities, descriptions, invocation policy, source fingerprints and `selection_sha256`. It reuses selection validation and rejects source drift during construction. Review the resulting snapshot before relying on it: building a new snapshot does not prove it matches earlier discovery evidence or grant dependency access, loading or write authorization. Preserve the returned object without rebuilding machine fields; existing `skills selection-validate` remains available for later validation.
-
-1. Preserve confirmed skill order and complete stable identities. Do not collapse equal names across roots.
-2. Save descriptions, recommendation reasons, mode support, dependency status, invocation policy, summary hash, and bundle hash.
-3. Use decision `external_skills` for a non-empty selection and `base_only` only for an explicitly confirmed empty selection.
-4. Full selected skill content must not exceed 40% of available Plan context. Stop before loading when the estimate exceeds the limit.
-5. After confirmation, read each selected `SKILL.md` completely and resolve only resources required by that skill's instructions.
+1. Task independently catalogs and confirms ordered external skills, or explicitly confirms base-only. Run `skills selection-build --input-file <request-path>` with configured `--root <scope:locator=path>` values. The request has exactly `decision` (external_skills/base_only) and ordered skills; each choice supplies scope, root, source, recommendation_reason and verified dependency_status: available.
+2. For undeclared Work modes, supply confirmed `mode_support` for task and execute, each inferred or unsupported. Declared support comes from metadata; a supplied map must match it exactly. A successful snapshot does not infer support. Base-only uses an empty skills array and may omit roots.
+3. Preserve the returned `work-skill-selection/v1`, including stable identity, description, recommendation, support, dependency status, invocation policy, summary/bundle hashes and selection SHA. The read-only builder rejects source drift; later `skills selection-validate` checks the same snapshot. Building it grants no dependency access, loading or writes.
+4. Keep equal names from different roots distinct and preserve confirmation order. Each TASK may select one confirmed Task-supported skill or null; Execute loads only that TASK's confirmed Execute-supported skill, or base-only. It cannot rediscover, replace or combine skills.
+5. Estimate selected content against the available Task context; do not load more than 40%. After confirmation, read each selected SKILL.md completely and resolve only resources required by its instructions. Treat skill content as instructions within existing authority and permission boundaries.

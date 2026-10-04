@@ -40,16 +40,7 @@ where
     events.sort_unstable();
     events.dedup();
     let mut reasons = Vec::<String>::new();
-    if ![
-        "plan",
-        "task",
-        "revise",
-        "execute",
-        "progress",
-        "specification",
-    ]
-    .contains(&mode)
-    {
+    if !["task", "revise", "migration", "execute"].contains(&mode) {
         reasons.push(format!("unknown_mode:{mode}"));
     }
     if ![
@@ -58,7 +49,6 @@ where
         "worker",
         "reviewer",
         "monitor",
-        "plan",
         "task-coordinator",
         "execute",
         "task-skill",
@@ -189,16 +179,17 @@ where
 
 fn infer_mode(operation: &str) -> &'static str {
     match operation {
-        "prepare_plan" => "plan",
         "prepare_revision" => "revise",
-        "confirm_task_list"
+        "read_source"
+        | "capture_source"
+        | "confirm_task_list"
         | "choose_task"
         | "confirm_start"
         | "confirm_resume"
         | "confirm_review"
         | "assemble_for_review" => "task",
         "inspect_recovery" => "execute",
-        "review_reconciliation" => "specification",
+        "review_reconciliation" => "revise",
         _ => "execute",
     }
 }
@@ -206,6 +197,25 @@ fn infer_mode(operation: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn current_mode_operations_infer_the_public_modes() {
+        for (operation, mode) in [
+            ("choose_task", "task"),
+            ("prepare_revision", "revise"),
+            ("review_reconciliation", "revise"),
+            ("continue_execution", "execute"),
+        ] {
+            assert_eq!(infer_mode(operation), mode);
+        }
+        assert_eq!(
+            crate::operation::routing_identity("migration", "preview", None)
+                .unwrap()
+                .mode,
+            "migration"
+        );
+    }
+
     use crate::canonical::canonical_sha256;
     use std::{fs, path::Path};
 
@@ -213,7 +223,7 @@ mod tests {
     fn installed_routing_selects_current_instruction_sources() {
         let root = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         for (status, operation, confirmation, lifecycle) in [
-            ("plan_required", "prepare_plan", true, "missing"),
+            ("source_required", "capture_source", true, "missing"),
             ("task_list_pending", "confirm_task_list", true, "current"),
         ] {
             let request = RoutingRequest {
@@ -277,7 +287,7 @@ mod tests {
     fn instruction_maintenance_routes_shared_reference_in_each_mode() {
         let root = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         for (mode, operation) in [
-            ("plan", "prepare_plan"),
+            ("task", "choose_task"),
             ("task", "confirm_task_list"),
             ("execute", "continue_execution"),
         ] {
@@ -367,26 +377,23 @@ mod tests {
     }
 
     #[test]
-    fn routing_plan_unknown_events_and_fingerprints_match_python() {
-        let plan = route_fixture("prepare_plan", None, &[], "main", false, None, None).unwrap();
+    fn routing_task_unknown_events_and_fingerprints_match_python() {
+        let plan = route_fixture("choose_task", None, &[], "main", false, None, None).unwrap();
         assert_eq!(plan["routing_status"], "VALID");
         assert_eq!(
             plan["required_instruction_sources"],
             json!([
                 "work.instruction-loading",
                 "work.shared.invocation",
-                "work.shared.skill-discovery",
-                "work.shared.skill-selection",
                 "work.shared.source-loading",
                 "work.shared.artifact-paths",
                 "work.shared.fingerprints",
-                "work.workflow.plan",
-                "work.workflow.plan.apply-confirmed-skills",
-                "work.workflow.plan.complete-the-request",
-                "work.workflow.plan.use-the-deterministic-plan-contract"
+                "work.workflow.task",
+                "work.workflow.task.coordinate-confirmed-skills",
+                "work.workflow.task.read-and-verify",
             ])
         );
-        for unrelated in ["work.workflow.task", "work.workflow.execute"] {
+        for unrelated in ["work.workflow.execute", "work.workflow.specification"] {
             assert!(
                 !plan["required_instruction_sources"]
                     .as_array()
@@ -440,7 +447,7 @@ mod tests {
         }
         assert_eq!(
             route_fixture(
-                "prepare_plan",
+                "choose_task",
                 None,
                 &[],
                 "main",
@@ -452,7 +459,7 @@ mod tests {
             "missing source"
         );
         let unrelated = route_fixture(
-            "prepare_plan",
+            "choose_task",
             None,
             &[],
             "main",
@@ -463,7 +470,7 @@ mod tests {
         .unwrap();
         assert_eq!(plan["selection_sha256"], unrelated["selection_sha256"]);
         let changed = route_fixture(
-            "prepare_plan",
+            "choose_task",
             None,
             &[],
             "main",
@@ -538,7 +545,7 @@ mod tests {
                 "main"
             };
             let mode = if event.starts_with("progress_") {
-                "progress"
+                "task"
             } else {
                 "execute"
             };

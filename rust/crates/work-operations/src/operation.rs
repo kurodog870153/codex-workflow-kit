@@ -60,17 +60,21 @@ pub fn routing_identity(
         role: "main".into(),
     };
     match command {
-        "plan" => {
-            route.mode = "plan";
-            route.next_action = "prepare_plan";
+        "source" => {
+            route.mode = "task";
+            route.next_action = if operation == "capture" {
+                "capture_source"
+            } else {
+                "read_source"
+            };
         }
         "migration" => {
-            route.mode = "specification";
+            route.mode = "migration";
             route.next_action = "review_reconciliation";
             route.formal_events.push("migration");
         }
         "specification" => {
-            route.mode = "specification";
+            route.mode = "revise";
             route.next_action = "review_reconciliation";
             route
                 .formal_events
@@ -85,7 +89,12 @@ pub fn routing_identity(
             route.next_action = "choose_task";
         }
         "progress" => {
-            route.mode = "progress";
+            route.mode = "task";
+            route.next_action = if operation == "read" {
+                "confirm_resume"
+            } else {
+                "confirm_review"
+            };
             route.formal_events.push(if operation == "read" {
                 "progress_read"
             } else {
@@ -127,14 +136,14 @@ mod tests {
     fn every_public_operation_has_an_explicit_effect() {
         let table: Value = serde_json::from_str(EFFECTS).unwrap();
         for (command, count) in [
-            ("plan", 3),
+            ("source", 3),
             ("task", 7),
-            ("specification", 8),
+            ("specification", 9),
             ("migration", 6),
             ("execute", 16),
             ("delegation", 2),
             ("progress", 4),
-            ("handoff", 13),
+            ("handoff", 7),
         ] {
             assert_eq!(table[command].as_object().unwrap().len(), count);
             for (operation, effect) in table[command].as_object().unwrap() {
@@ -162,6 +171,18 @@ mod tests {
                 .side_effect_boundary(),
             "authorized_atomic_write"
         );
+        for operation in ["read", "validate"] {
+            assert_eq!(
+                operation_effect("source", operation),
+                Some(OperationEffect::ReadOnly)
+            );
+            assert_eq!(
+                routing_identity("source", operation, None)
+                    .unwrap()
+                    .next_action,
+                "read_source"
+            );
+        }
         assert_eq!(operation_effect("task", "unknown"), None);
         assert_eq!(operation_effect("task", "draft-save"), None);
     }
@@ -171,7 +192,7 @@ mod tests {
         assert_eq!(
             routing_identity("migration", "apply", None).unwrap(),
             OperationRouting {
-                mode: "specification",
+                mode: "migration",
                 next_action: "review_reconciliation",
                 formal_events: vec!["migration"],
                 role: "main".into()
