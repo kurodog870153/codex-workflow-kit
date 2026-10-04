@@ -207,6 +207,7 @@ pub fn require_no_spec_update(
                     ".work-spec-update-",
                     ".work-spec-migration-",
                     ".work-source-refresh-",
+                    ".work-instruction-migration-",
                 ]
                 .iter()
                 .any(|prefix| name.starts_with(prefix))
@@ -400,7 +401,7 @@ mod tests {
     }
 
     #[test]
-    fn journal_publication_and_resume_match_python_progress() {
+    fn journal_publication_and_resume_match_current_contract_progress() {
         let root = std::env::temp_dir().join(format!(
             "work-spec-journal-{}-{}",
             std::process::id(),
@@ -413,7 +414,7 @@ mod tests {
         let metadata = json!({"request":{},"artifacts":{},"affected_task_ids":[],"history_sha256":{},"source_sha256":{},"candidate_sha256":{}});
         let files = json!([{"phase":10,"path":"one.json","operation":"add","after":encode_snapshot(b"one")},{"phase":20,"path":"two.json","operation":"add","after":encode_snapshot(b"two")}]);
         let approval = approval_sha256(&files, &metadata);
-        let value = json!({"schema":"work-spec-transaction/v1","transaction_id":derived_transaction_id("UPDATE", &approval).unwrap(),"approval_sha256":approval,"state":"prepared","published_count":0,"metadata":metadata,"files":files});
+        let value = json!({"schema":"work-spec-transaction","transaction_id":derived_transaction_id("UPDATE", &approval).unwrap(),"approval_sha256":approval,"state":"prepared","published_count":0,"metadata":metadata,"files":files});
         write_journal(&root, "journal.json", &value).unwrap();
         assert_eq!(
             publish_journal(&root, "journal.json", "journal.json.done").unwrap()["status"],

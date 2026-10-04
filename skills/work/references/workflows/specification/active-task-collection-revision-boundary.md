@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # Active TASK collection revision boundary
 
 1. The validated TASK collection's `artifacts.task` selects its formal `index.json`; every referenced item belongs to that collection. Single-file `task.json` is unsupported. Source Snapshot evidence is immutable and verified from its actual bytes, manifest and completion marker.

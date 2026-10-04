@@ -59,7 +59,7 @@ pub fn create(
     };
     let relative = allocator.allocate(&relative)?;
     Ok(
-        json!({"schema":"work-transaction-workspace/v1","requirement_id":requirement_id,
+        json!({"schema":"work-transaction-workspace","requirement_id":requirement_id,
         "workflow_id":workflow_id,"transaction_id":transaction_id,"path":relative}),
     )
 }

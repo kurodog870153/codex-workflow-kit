@@ -125,7 +125,7 @@ pub fn save_prepared_initial_task(
         )
     })?;
     let index = &candidate["index"];
-    if prepared.schema != PublicSchema::WorkTaskDraftPrepareV1
+    if prepared.schema != PublicSchema::WorkTaskDraftPrepare
         || candidate["request"] != *index
         || !prepared.drafts.is_empty()
         || index["requirement_id"] != requirement_id
@@ -223,7 +223,7 @@ pub fn save_prepared_list_task(
             json!({}),
         )
     })?;
-    if prepared.schema != PublicSchema::WorkTaskDraftPrepareV1
+    if prepared.schema != PublicSchema::WorkTaskDraftPrepare
         || revision < 2
         || proposed["requirement_id"] != requirement_id
         || candidate["index"]["revision"] != revision
@@ -372,7 +372,7 @@ pub fn save_prepared_source_task(
             json!({}),
         )
     })?;
-    if prepared.schema != PublicSchema::WorkTaskDraftPrepareV1
+    if prepared.schema != PublicSchema::WorkTaskDraftPrepare
         || revision < 2
         || candidate["index"]["requirement_id"] != requirement_id
         || candidate["request"]["selections"].as_object().is_none()

@@ -8,43 +8,12 @@ pub use work_model::instruction::{
     InstructionSelection, LoadedSource, ModeCatalog, SourceSet, SourceSummary,
 };
 
-pub fn compatibility_revision(content: &[u8]) -> Result<u64, &'static str> {
-    let marker = b"<!-- work-compatibility-revision: ";
-    let mut revision = None;
-    for line in content.split(|byte| *byte == b'\n') {
-        let Some(number) = line
-            .strip_prefix(marker)
-            .and_then(|line| line.strip_suffix(b" -->"))
-        else {
-            continue;
-        };
-        if number.is_empty() || number[0] == b'0' || !number.iter().all(u8::is_ascii_digit) {
-            continue;
-        }
-        let Ok(number) = std::str::from_utf8(number)
-            .expect("ASCII digits")
-            .parse::<u64>()
-        else {
-            continue;
-        };
-        if revision.replace(number).is_some() {
-            return Err("duplicate_instruction_compatibility_revision");
-        }
-    }
-    Ok(revision.unwrap_or(1))
-}
-
-pub fn source_summary(
-    kind: &str,
-    logical_name: &str,
-    content: &[u8],
-) -> Result<SourceSummary, &'static str> {
-    Ok(SourceSummary {
+pub fn source_summary(kind: &str, logical_name: &str, content: &[u8]) -> SourceSummary {
+    SourceSummary {
         kind: kind.into(),
         logical_name: logical_name.into(),
         canonical_sha256: fingerprint::raw(content),
-        compatibility_revision: compatibility_revision(content)?,
-    })
+    }
 }
 
 pub fn from_sources(mode: &str, hierarchy: Hierarchy, sources: Vec<LoadedSource>) -> SourceSet {
@@ -91,18 +60,40 @@ mod tests {
     use crate::canonical::sha256_hex;
 
     #[test]
-    fn revision_marker_and_source_hash() {
-        assert_eq!(compatibility_revision(b"text\n").unwrap(), 1);
-        assert_eq!(
-            compatibility_revision(b"<!-- work-compatibility-revision: 2 -->\n").unwrap(),
-            2
-        );
-        assert_eq!(compatibility_revision(b"<!-- work-compatibility-revision: 2 -->\n<!-- work-compatibility-revision: 3 -->\n").unwrap_err(), "duplicate_instruction_compatibility_revision");
-        assert_eq!(
-            source_summary("workflow", "work.test", b"text\n")
-                .unwrap()
-                .canonical_sha256,
-            sha256_hex(b"text\n")
-        );
+    fn source_identity_and_hash_treat_markers_as_ordinary_content() {
+        for raw in [
+            b"text\n".as_slice(),
+            b"<!-- work-compatibility-revision: 2 -->\n<!-- work-compatibility-revision: 3 -->\n"
+                .as_slice(),
+        ] {
+            let source = source_summary("workflow", "work.test", raw);
+            assert_eq!(source.kind, "workflow");
+            assert_eq!(source.logical_name, "work.test");
+            assert_eq!(source.canonical_sha256, sha256_hex(raw));
+            assert!(
+                serde_json::to_value(source)
+                    .unwrap()
+                    .get("compatibility_revision")
+                    .is_none()
+            );
+        }
+    }
+    #[test]
+    fn source_summary_rejects_retired_revision_instead_of_defaulting() {
+        let current = serde_json::json!({"kind":"workflow","logical_name":"work.test","canonical_sha256":"a".repeat(64)});
+        assert!(serde_json::from_value::<SourceSummary>(current.clone()).is_ok());
+        for revision in [
+            serde_json::json!(1),
+            serde_json::json!(0),
+            serde_json::Value::Null,
+        ] {
+            let mut stale = current.clone();
+            stale["compatibility_revision"] = revision;
+            assert!(serde_json::from_value::<SourceSummary>(stale.clone()).is_err());
+            assert!(
+                serde_json::from_value::<work_model::task::index::TaskInstructionSource>(stale)
+                    .is_err()
+            );
+        }
     }
 }

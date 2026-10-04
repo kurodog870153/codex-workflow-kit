@@ -243,7 +243,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn python_task_change_cases_match_formal_artifact_edits() {
+    fn current_contract_task_change_cases_match_formal_artifact_edits() {
         let ids = vec!["TASK-001".into()];
         let change = json!({
             "id":"TASK-CHANGE-001","spec_id":"TASK-SPEC-001","date":"2026-09-07",

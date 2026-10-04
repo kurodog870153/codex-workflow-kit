@@ -21,7 +21,7 @@ pub fn resolve(
         )
     })?;
     let paths = repository.default_paths(&id)?;
-    Ok(json!({"schema":"work-paths/v1","project_root":project_root,
+    Ok(json!({"schema":"work-paths","project_root":project_root,
         "requirement_id":id.as_str(),"paths":paths}))
 }
 

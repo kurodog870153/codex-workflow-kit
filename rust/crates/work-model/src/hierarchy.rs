@@ -81,19 +81,19 @@ mod tests {
         let items = &registry["items"];
         assert!(
             serde_json::from_value::<Hierarchy>(
-                items["work-hierarchy/v1"]["description"]["example"].clone()
+                items["work-hierarchy"]["description"]["example"].clone()
             )
             .is_ok()
         );
         assert!(
             serde_json::from_value::<HierarchySelection>(
-                items["work-hierarchy-selection/v1"]["description"]["example"].clone()
+                items["work-hierarchy-selection"]["description"]["example"].clone()
             )
             .is_ok()
         );
         assert!(
             serde_json::from_value::<HierarchySelectionValidation>(
-                items["work-hierarchy-selection-validation/v1"]["description"]["example"].clone()
+                items["work-hierarchy-selection-validation"]["description"]["example"].clone()
             )
             .is_ok()
         );

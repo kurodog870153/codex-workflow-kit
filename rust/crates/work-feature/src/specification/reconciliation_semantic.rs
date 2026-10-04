@@ -117,7 +117,7 @@ pub fn prepare_semantic_selection(
         }
     } else {
         crate::specification::migration_prepare::validate_semantic_request(&json!({
-            "schema":"work-spec-migration-prepare-request/v1", "mode":"revision",
+            "schema":"work-spec-migration-prepare-request", "mode":"revision",
             "requirement_id":requirement,"reason":reason,"edits":edits,
             "semantic_decisions":decisions,"sources":semantic["sources"],
         }))?;
@@ -257,7 +257,7 @@ mod tests {
     #[test]
     fn missing_execution_stops_before_artifact_ports() {
         let semantic = json!({
-            "schema":"work-spec-reconciliation-prepare-request/v1",
+            "schema":"work-spec-reconciliation-prepare-request",
             "requirement_id":"example",
             "task_position":1,
             "attempt_position":1,
@@ -273,7 +273,7 @@ mod tests {
     }
     #[test]
     fn incorporation_requires_reviewed_evidence_before_execution_discovery() {
-        let request = json!({"schema":"work-spec-reconciliation-prepare-request/v1","requirement_id":"example","task_position":1,"attempt_position":1,"choice":"all","reason":"Reviewed change",
+        let request = json!({"schema":"work-spec-reconciliation-prepare-request","requirement_id":"example","task_position":1,"attempt_position":1,"choice":"all","reason":"Reviewed change",
             "edits":[{"target":{"artifact":"task_item","task_id":"TASK-001"},"field":"goal","after":"Reviewed goal"}],"semantic_decisions":[]});
         assert_eq!(
             prepare_semantic_selection(&MissingExecution, &request)

@@ -353,11 +353,11 @@ mod tests {
     #[test]
     fn boundary_change_marks_saved_draft_and_downstream_task() {
         let source = crate::task::source::fixture_context();
-        let discussion = json!({"schema":"work-task-draft/v1","requirement_id":"example","task_id":"TASK-001","revision":1,
+        let discussion = json!({"schema":"work-task-draft","requirement_id":"example","task_id":"TASK-001","revision":1,
             "boundary_revision":1,"source":source,"instructions_sha256":"d".repeat(64),"status":"refined",
             "notes":["Detail"],"confirmed_decisions":[{"statement":"Decision","rationale":"Reason"}],"tentative":[],"open_questions":[],"next_discussion_point":null});
         let raw = canonical_json(&discussion).unwrap();
-        let previous = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":2,"source":source,
+        let previous = json!({"schema":"work-task-planning-index","requirement_id":"example","revision":2,"source":source,
             "current_task_id":"TASK-001","tasks":[
                 {"id":"TASK-001","title":"Task one","goal":"Original","scope":["Source"],"skill_id":null,"dependencies":[],
                  "status":"refined","boundary_revision":1,"instructions_sha256":"d".repeat(64),"draft_ref":{"save_revision":2,"revision":1,"sha256":sha256_hex(&raw)}},
@@ -401,7 +401,7 @@ mod tests {
         let mut tasks = Vec::new();
         for number in 1..=3 {
             let id = format!("TASK-{number:03}");
-            let discussion = json!({"schema":"work-task-draft/v1","requirement_id":"example","task_id":id,
+            let discussion = json!({"schema":"work-task-draft","requirement_id":"example","task_id":id,
                 "revision":1,"boundary_revision":1,"source":source,"instructions_sha256":"d".repeat(64),
                 "status":"refined","notes":["Detail"],"confirmed_decisions":[{"statement":"Decision","rationale":"Reason"}],
                 "tentative":[],"open_questions":[],"next_discussion_point":null});
@@ -414,7 +414,7 @@ mod tests {
             );
             drafts.insert(id, raw);
         }
-        let previous = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":4,
+        let previous = json!({"schema":"work-task-planning-index","requirement_id":"example","revision":4,
             "current_task_id":"TASK-001","source":source,"tasks":tasks});
 
         let mut boundary = previous.clone();

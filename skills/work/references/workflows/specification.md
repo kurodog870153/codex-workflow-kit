@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 2 -->
 # Internal Specification Revision
 
 1. Use this entry only when it appears in the CLI-produced canonical selection manifest.

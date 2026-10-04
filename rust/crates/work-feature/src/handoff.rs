@@ -244,7 +244,7 @@ pub fn verify_task_to_execute(
             issue.details,
         )
     })?;
-    result["schema"] = json!("work-handoff-source-validation/v1");
+    result["schema"] = json!("work-handoff-source-validation");
     result["task_path"] = expected["artifacts"]["task"].clone();
     result["source"] = expected["source"].clone();
     let _: work_model::handoff::HandoffSourceValidation = serde_json::from_value(result.clone())
@@ -804,7 +804,7 @@ pub fn verify_return_against_expected(
             issue.details,
         )
     })?;
-    result["schema"] = json!("work-handoff-source-validation/v1");
+    result["schema"] = json!("work-handoff-source-validation");
     result["task_path"] = expected["artifacts"]["task"].clone();
     result["source"] = expected["source"].clone();
     let _: work_model::handoff::HandoffSourceValidation = serde_json::from_value(result.clone())

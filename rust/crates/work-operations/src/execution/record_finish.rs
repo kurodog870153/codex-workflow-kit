@@ -135,7 +135,7 @@ mod tests {
         let index = json!({"lock":{"kind":"execution","task_id":"TASK-001",
             "attempt_id":"ATTEMPT-001","record_id":"VAL-001",
             "execute_instructions_sha256":null}});
-        let request = json!({"schema":"work-record-finish-request/v1",
+        let request = json!({"schema":"work-record-finish-request",
             "record":{"outcome":"failed","evidence":"Validation failed."}});
         assert_eq!(
             build_record_finish_candidates(&task, &attempt, &index, "TASK-001", &request)
@@ -157,13 +157,13 @@ mod tests {
 
     #[test]
     fn successful_validation_records_attempt_and_releases_record_lock() {
-        let authorization = json!({"schema":"work-attempt-authorization/v1",
+        let authorization = json!({"schema":"work-attempt-authorization",
             "task_id":"TASK-001","commands":[],"validations":[{"id":"VAL-001","acceptance_ids":["ACCEPTANCE-001"]}],
             "modifiable_files":[],"working_directories":[],"external_operations":[],
             "allowed_deviations":[],"reapproval_conditions":["scope_expansion",
                 "source_or_worktree_drift","failure_divergence","retry","recovery","unknown_result"],
             "authorization_evidence":"Approved"});
-        let attempt = json!({"acceptance_results":[{"id":"ACCEPTANCE-001","status":"pending","evidence":[]}],"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
+        let attempt = json!({"acceptance_results":[{"id":"ACCEPTANCE-001","status":"pending","evidence":[]}],"schema":"work-attempt","attempt_id":"ATTEMPT-001",
             "task_spec_id":"TASK-SPEC-001","task_id":"TASK-001","skill_id":null,
             "status":"in_progress","task_collection_sha256":"a".repeat(64),
             "task_index_sha256":"b".repeat(64),"task_item_sha256":"c".repeat(64),
@@ -188,7 +188,7 @@ mod tests {
         index["lock"] = build_execution_lock("TASK-001", "ATTEMPT-001", &"e".repeat(64));
         index["lock"]["record_id"] = json!("VAL-001");
         let task = json!({"id":"TASK-001","traceability":{"acceptance_ids":["ACCEPTANCE-001"]},"commands":[],"operations":[],"validations":[{"id":"VAL-001","acceptance_ids":["ACCEPTANCE-001"]}]});
-        let request = json!({"schema":"work-record-finish-request/v1",
+        let request = json!({"schema":"work-record-finish-request",
             "record":{"outcome":"passed","evidence":"Validation passed."}});
         let candidate =
             build_record_finish_candidates(&task, &attempt, &index, "TASK-001", &request).unwrap();

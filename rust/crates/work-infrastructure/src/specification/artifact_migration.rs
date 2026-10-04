@@ -70,7 +70,7 @@ fn relationship_diagnostics(
             "next_command":"migration semantic-prepare","mode":"reconstruction"}));
     };
     if let Some((index, index_raw)) = &index {
-        if index["schema"] == "work-task-index/v1" {
+        if index["schema"] == "work-task-index" {
             let requirement = index["requirement_id"].as_str().unwrap_or("");
             if let Err(error) =
                 work_operations::task::source::validate_formal_context(index, requirement)
@@ -101,7 +101,7 @@ fn relationship_diagnostics(
                 }
             }
             if let Some((execution, _)) = &execution {
-                if execution["schema"] == "work-execution-index/v1" {
+                if execution["schema"] == "work-execution-index" {
                     for (code, actual, expected) in [
                         (
                             "execution_spec_mismatch",
@@ -142,7 +142,7 @@ fn relationship_diagnostics(
         }
     }
     if let Some((index, _)) = &index {
-        if index["schema"] == "work-task-index/v1" {
+        if index["schema"] == "work-task-index" {
             let directory = index_path.rsplit_once('/').map_or("", |(parent, _)| parent);
             for row in index["tasks"].as_array().into_iter().flatten() {
                 let Some(relative) = row["path"].as_str() else {
@@ -365,7 +365,7 @@ pub fn analyze_with_evidence(
     };
     let fingerprint = fingerprint::structured(&evidence)
         .map_err(|_| fail("migration_fingerprint", "Analysis cannot be fingerprinted."))?;
-    let result = json!({"schema":"work-artifact-migration-analysis/v1",
+    let result = json!({"schema":"work-artifact-migration-analysis",
         "requirement_id":requirement,"items":items,"fingerprint":fingerprint,
         "diagnostics":diagnostics});
     serde_json::from_value::<ArtifactMigrationAnalysis>(result.clone()).map_err(|_| {
@@ -397,8 +397,7 @@ pub fn prepare_request(root: &Path, analysis: &Value, choices: &Value) -> Result
             "Broken artifact relations require reviewed reconstruction.",
         ));
     }
-    if reviewed.schema != PublicSchema::WorkArtifactMigrationAnalysisV1 || reviewed.items.is_empty()
-    {
+    if reviewed.schema != PublicSchema::WorkArtifactMigrationAnalysis || reviewed.items.is_empty() {
         return Err(fail(
             "migration_analysis",
             "Analysis has no migration items.",
@@ -498,7 +497,7 @@ pub fn prepare_request(root: &Path, analysis: &Value, choices: &Value) -> Result
         decisions.push(decision);
     }
     let request = ArtifactMigrationRequest {
-        schema: PublicSchema::WorkArtifactMigrationRequestV1,
+        schema: PublicSchema::WorkArtifactMigrationRequest,
         requirement_id: analysis["requirement_id"]
             .as_str()
             .unwrap_or_default()
@@ -540,7 +539,7 @@ pub fn prepare_request(root: &Path, analysis: &Value, choices: &Value) -> Result
         LocalFiles.create_new(&path, &raw)?;
     }
     Ok(
-        json!({"schema":"work-artifact-migration-prepared/v1","request_path":relative,
+        json!({"schema":"work-artifact-migration-prepared","request_path":relative,
         "request_sha256":work_operations::derivation::fingerprint::raw(&raw),"executable":request.executable(),"request":value}),
     )
 }
@@ -889,7 +888,7 @@ pub fn preview(
         Value::Null
     };
     let ready = ready && relationship_error.is_null();
-    Ok(json!({"schema":"work-artifact-migration-preview/v1",
+    Ok(json!({"schema":"work-artifact-migration-preview",
         "status":if ready {"ready"} else {"blocked"},
         "request_sha256":approved_sha256,"items":items,
         "relationship_error":relationship_error}))
@@ -905,7 +904,7 @@ pub fn execute(
     let request = read_request(root, relative, approved_sha256)?;
     if !request.executable() {
         return Ok(
-            json!({"schema":"work-artifact-migration-result/v1","status":"blocked",
+            json!({"schema":"work-artifact-migration-result","status":"blocked",
             "request_sha256":approved_sha256,"items":[],"reconciliation":"blocked"}),
         );
     }
@@ -997,7 +996,7 @@ pub fn execute(
         json!({"status":"blocked","code":"migration_items_incomplete"})
     };
     let valid = complete && reconciliation["status"] == "valid";
-    Ok(json!({"schema":"work-artifact-migration-result/v1",
+    Ok(json!({"schema":"work-artifact-migration-result",
         "status":if valid {"completed"} else {"incomplete"},
         "request_sha256":approved_sha256,"items":statuses,"reconciliation":reconciliation}))
 }
@@ -1074,7 +1073,7 @@ pub fn recover(
         json!({"status":"blocked","code":"migration_items_incomplete"})
     };
     let valid = complete && reconciliation["status"] == "valid";
-    Ok(json!({"schema":"work-artifact-migration-result/v1",
+    Ok(json!({"schema":"work-artifact-migration-result",
         "status":if valid {"completed"} else {"incomplete"},
         "request_sha256":approved_sha256,"items":statuses,"reconciliation":reconciliation}))
 }
@@ -1137,7 +1136,7 @@ pub fn verify(
         &request.requirement_id,
     )?;
     Ok(
-        json!({"schema":"work-spec-migration-verification/v1","status":"valid",
+        json!({"schema":"work-spec-migration-verification","status":"valid",
         "mode":"artifact","fingerprint":approved_sha256,
         "request_path":relative,"results":results,"final_chain":chain}),
     )
@@ -1279,7 +1278,7 @@ mod tests {
             "blocked"
         );
         let invalid_modify = json!([{"id":analysis["items"][0]["id"],
-            "action":"modify","content":{"schema":"work-task-index/v1"}}]);
+            "action":"modify","content":{"schema":"work-task-index"}}]);
         assert_eq!(
             prepare_request(&root, &analysis, &invalid_modify)
                 .unwrap_err()

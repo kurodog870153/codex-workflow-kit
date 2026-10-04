@@ -121,7 +121,7 @@ impl TransactionDeriver {
                     .unwrap_or(""),
             )?,
         };
-        let journal = json!({"schema":"work-spec-transaction/v1","transaction_id":id,
+        let journal = json!({"schema":"work-spec-transaction","transaction_id":id,
             "approval_sha256":approval,"state":"prepared","published_count":0,
             "metadata":metadata,"files":files});
         validate_transaction(&journal)?;

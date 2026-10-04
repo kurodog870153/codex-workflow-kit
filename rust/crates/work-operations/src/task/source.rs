@@ -157,7 +157,7 @@ pub fn validate_choices(value: &Value) -> Result<(), TaskIssue> {
     let selected = hierarchy_typed.selected_paths.clone();
     let entries = hierarchy_typed.entries.clone();
     let catalog = &hierarchy_typed.catalog_sha256;
-    if hierarchy_typed.schema.as_str() != "work-hierarchy-selection/v1"
+    if hierarchy_typed.schema.as_str() != "work-hierarchy-selection"
         || !valid_sha256(catalog)
         || hierarchy_typed.selection_sha256
             != fingerprint::hierarchy_selection(decision, &selected, &entries, catalog)
@@ -202,7 +202,7 @@ pub fn validate_choices(value: &Value) -> Result<(), TaskIssue> {
     let skill = &value["skill_selection"];
     let decision = skill["decision"].as_str().unwrap_or("");
     let rows = skill["skills"].as_array().expect("typed skills");
-    if skills_typed.schema.as_str() != "work-skill-selection/v1"
+    if skills_typed.schema.as_str() != "work-skill-selection"
         || skills_typed.selection_sha256 != fingerprint::skill_selection(decision, rows)
         || (decision == "base_only" && !rows.is_empty())
         || (decision == "external_skills" && rows.is_empty())
@@ -331,7 +331,9 @@ pub fn validate_formal_context(value: &Value, requirement: &str) -> Result<(), T
 
 #[cfg(test)]
 pub(crate) fn fixture_context() -> Value {
-    work_model::contract_data::registry_value()["items"]["work-task-planning-index/v1"]["description"]["example"]["source"].clone()
+    work_model::contract_data::registry_value()["items"]["work-task-planning-index"]["description"]
+        ["example"]["source"]
+        .clone()
 }
 
 #[cfg(test)]
@@ -425,7 +427,7 @@ mod tests {
     fn freshly_fingerprinted_incomplete_skill_is_rejected() {
         let mut context = fixture_context();
         let rows = vec![json!({"id":"skill","mode_support":{"task":"declared"}})];
-        context["skill_selection"] = json!({"schema":"work-skill-selection/v1","decision":"external_skills","selection_sha256":fingerprint::skill_selection("external_skills",&rows),"skills":rows});
+        context["skill_selection"] = json!({"schema":"work-skill-selection","decision":"external_skills","selection_sha256":fingerprint::skill_selection("external_skills",&rows),"skills":rows});
         assert_eq!(
             validate_choices(&context).unwrap_err().reason_code,
             "invalid_task_skill_selection"
@@ -439,7 +441,7 @@ mod tests {
             json!({"path":"other","mode_support":{},"mode_metadata":{},"recommendation_reason":"Required."}),
         ];
         let catalog = "a".repeat(64);
-        context["hierarchy_selection"] = json!({"schema":"work-hierarchy-selection/v1","decision":"instruction_paths","selected_paths":paths,"entries":entries,"catalog_sha256":catalog,"selection_sha256":fingerprint::hierarchy_selection("instruction_paths",&paths,&entries,&catalog)});
+        context["hierarchy_selection"] = json!({"schema":"work-hierarchy-selection","decision":"instruction_paths","selected_paths":paths,"entries":entries,"catalog_sha256":catalog,"selection_sha256":fingerprint::hierarchy_selection("instruction_paths",&paths,&entries,&catalog)});
         assert_eq!(
             validate_choices(&context).unwrap_err().reason_code,
             "invalid_task_hierarchy_selection"

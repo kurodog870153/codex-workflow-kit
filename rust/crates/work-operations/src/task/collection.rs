@@ -17,7 +17,7 @@ pub(crate) fn collection_fingerprint_sha256(
     references: &[TaskItemReference],
 ) -> String {
     let fingerprint = TaskCollectionFingerprint {
-        schema: PublicSchema::WorkTaskCollectionFingerprintV1,
+        schema: PublicSchema::WorkTaskCollectionFingerprint,
         task_index_sha256: index_sha256.into(),
         items: references
             .iter()
@@ -56,7 +56,7 @@ pub fn semantic_projection(
     let mut artifacts = index.artifacts;
     artifacts.task = task_path.into();
     TaskCollectionProjection {
-        schema: PublicSchema::WorkTaskCollectionProjectionV1,
+        schema: PublicSchema::WorkTaskCollectionProjection,
         requirement_id: index.requirement_id,
         spec_id: index.spec_id,
         status: index.status,
@@ -136,7 +136,7 @@ mod tests {
         let index_sha256 = "c".repeat(64);
         let item_sha256 = "a".repeat(64);
         let fingerprint = TaskCollectionFingerprint {
-            schema: PublicSchema::WorkTaskCollectionFingerprintV1,
+            schema: PublicSchema::WorkTaskCollectionFingerprint,
             task_index_sha256: index_sha256.clone(),
             items: vec![TaskFingerprintItem {
                 id: "TASK-001".into(),
@@ -145,13 +145,13 @@ mod tests {
         };
         assert_eq!(
             serde_json::to_value(&fingerprint).unwrap(),
-            json!({"schema":"work-task-collection-fingerprint/v1",
+            json!({"schema":"work-task-collection-fingerprint",
                 "task_index_sha256":"c".repeat(64),
                 "items":[{"id":"TASK-001","task_item_sha256":"a".repeat(64)}]})
         );
         assert_eq!(
             collection_fingerprint_sha256(&"c".repeat(64), &[first.clone(), second.clone()]),
-            "87e0e7695438c2e22ca4ad7e1e23ece55be20dcc995bc76174ed4d479c7f0efc"
+            "36f7a8d7b942cd29739fa1950700271e32f7bc1edba9cf8adf33d2f39afa96f7"
         );
         assert_ne!(
             collection_fingerprint_sha256(&"c".repeat(64), &[first.clone(), second.clone()]),

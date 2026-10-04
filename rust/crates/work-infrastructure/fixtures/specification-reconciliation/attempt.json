@@ -1,70 +1,70 @@
 {
-  "status": "completed",
-  "task_id": "TASK-001",
   "attempt_id": "ATTEMPT-001",
-  "task_spec_id": "TASK-SPEC-001",
   "execution_deviations": [
     {
-      "schema": "work-execution-deviation/v1",
-      "deviation_id": "DEVIATION-001",
       "approved_preview_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "decision": {
+        "evidence": "User approved this exact deviation preview.",
+        "outcome": "approved"
+      },
+      "deviation_id": "DEVIATION-001",
       "proposal": {
-        "schema": "work-execution-deviation-proposal/v1",
-        "task_id": "TASK-001",
-        "attempt_id": "ATTEMPT-001",
+        "action": {
+          "kind": "replace_command",
+          "record_id": "CMD-001",
+          "replacement": {
+            "argv": [
+              "C:/tools/tool.cmd",
+              "test"
+            ],
+            "mode": "argv"
+          }
+        },
         "anchor_record_id": "CMD-001",
+        "attempt_id": "ATTEMPT-001",
+        "gap": "The executable is not available through PATH.",
+        "impact": {
+          "acceptance_criteria_changed": false,
+          "deliverables_changed": false,
+          "external_side_effect_boundary_changed": false,
+          "requirement_changed": false,
+          "safety_boundary_changed": false,
+          "scope_changed": false,
+          "summary": "Use the absolute executable path without changing command effects."
+        },
+        "modifiable_files": [],
+        "schema": "work-execution-deviation-proposal",
+        "side_effects": [
+          "Runs the existing validation command."
+        ],
         "task_basis": [
           "CMD-001",
           "STEP-001"
         ],
-        "gap": "The executable is not available through PATH.",
-        "action": {
-          "kind": "replace_command",
-          "record_id": "CMD-001",
-          "replacement": {
-            "mode": "argv",
-            "argv": [
-              "C:/tools/tool.cmd",
-              "test"
-            ]
-          }
-        },
-        "modifiable_files": [],
-        "impact": {
-          "summary": "Use the absolute executable path without changing command effects.",
-          "requirement_changed": false,
-          "scope_changed": false,
-          "acceptance_criteria_changed": false,
-          "deliverables_changed": false,
-          "safety_boundary_changed": false,
-          "external_side_effect_boundary_changed": false
-        },
-        "side_effects": [
-          "Runs the existing validation command."
-        ]
+        "task_id": "TASK-001"
       },
+      "reconciliation_status": "pending",
+      "schema": "work-execution-deviation",
       "supplemental_authorization": {
-        "schema": "work-execution-deviation-authorization/v1",
-        "preview_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
         "action": {
           "kind": "replace_command",
           "record_id": "CMD-001",
           "replacement": {
-            "mode": "argv",
             "argv": [
               "C:/tools/tool.cmd",
               "test"
-            ]
+            ],
+            "mode": "argv"
           }
         },
+        "authorization_evidence": "User approved this exact deviation preview.",
         "modifiable_files": [],
-        "authorization_evidence": "User approved this exact deviation preview."
-      },
-      "decision": {
-        "outcome": "approved",
-        "evidence": "User approved this exact deviation preview."
-      },
-      "reconciliation_status": "pending"
+        "preview_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "schema": "work-execution-deviation-authorization"
+      }
     }
-  ]
+  ],
+  "status": "completed",
+  "task_id": "TASK-001",
+  "task_spec_id": "TASK-SPEC-001"
 }

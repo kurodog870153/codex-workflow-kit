@@ -71,7 +71,7 @@ pub fn validate_transaction(value: &Value) -> Result<(), TransactionIssue> {
         ],
         &[],
     )?;
-    if value["schema"] != "work-spec-transaction/v1" || !sha(&value["approval_sha256"]) {
+    if value["schema"] != "work-spec-transaction" || !sha(&value["approval_sha256"]) {
         return Err(issue(
             "invalid_contract_value",
             "The specification transaction identity is invalid.",
@@ -242,7 +242,7 @@ struct Ordered<'a> {
 }
 
 fn order(path: &[String], document: Option<&str>) -> &'static [&'static str] {
-    if document == Some("work-spec-update-request/v1")
+    if document == Some("work-spec-update-request")
         && path.starts_with(&["metadata".to_owned(), "request".to_owned()])
     {
         let nested = &path[2..];
@@ -295,14 +295,14 @@ fn order(path: &[String], document: Option<&str>) -> &'static [&'static str] {
     {
         let nested = &path[position + 1..];
         return match schema {
-            "work-task-index/v1" => crate::task::ordering::fields(
+            "work-task-index" => crate::task::ordering::fields(
                 nested,
                 crate::task::ordering::TaskDocumentKind::Index,
             ),
-            "work-task-item/v1" => {
+            "work-task-item" => {
                 crate::task::ordering::fields(nested, crate::task::ordering::TaskDocumentKind::Item)
             }
-            "work-execution-index/v1" => crate::execution::index::order(nested),
+            "work-execution-index" => crate::execution::index::order(nested),
             _ => &[],
         };
     }
@@ -373,7 +373,7 @@ impl Serialize for Ordered<'_> {
                         .map(String::as_str),
                 )
                 .collect::<Vec<_>>();
-            if self.document.as_deref() == Some("work-spec-update-request/v1")
+            if self.document.as_deref() == Some("work-spec-update-request")
                 && matches!(self.path.as_slice(), [metadata, hashes] if metadata == "metadata" && (hashes == "source_sha256" || hashes == "candidate_sha256"))
             {
                 keys.sort_by_key(|key| {
@@ -460,7 +460,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn shared_journal_identity_snapshot_and_progress_cases_match_python() {
+    fn shared_journal_identity_snapshot_and_progress_cases_match_current_contract() {
         let metadata = json!({"request":{"schema":"test/v1"},"artifacts":{},
             "affected_task_ids":["TASK-001"],"history_sha256":{},
             "source_sha256":{},"candidate_sha256":{}});
@@ -473,7 +473,7 @@ mod tests {
         let approval = approval_sha256(&files, &metadata);
         let id = derived_transaction_id("UPDATE", &approval).unwrap();
         assert_eq!(id, derived_transaction_id("UPDATE", &approval).unwrap());
-        let value = json!({"schema":"work-spec-transaction/v1","transaction_id":id,
+        let value = json!({"schema":"work-spec-transaction","transaction_id":id,
             "approval_sha256":approval,"state":"prepared","published_count":0,
             "metadata":metadata,"files":files});
         validate_transaction(&value).unwrap();
@@ -530,7 +530,7 @@ mod tests {
     }
 
     #[test]
-    fn python_transaction_example_matches_bytes_and_progress() {
+    fn current_contract_transaction_example_matches_bytes_and_progress() {
         let metadata = json!({"request":{"schema":"example/v1"},"artifacts":{},"affected_task_ids":["TASK-001"],"history_sha256":{},"source_sha256":{},"candidate_sha256":{}});
         let files = json!([{"phase":10,"path":"example.json","operation":"add","after":encode_snapshot(b"{}") }]);
         let approval = approval_sha256(&files, &metadata);
@@ -538,12 +538,12 @@ mod tests {
             approval,
             "655c3708cea35b6203cbeb668548c7f85921daf87dccb47d7abe3420c204a798"
         );
-        let value = json!({"schema":"work-spec-transaction/v1","transaction_id":derived_transaction_id("UPDATE", &approval).unwrap(),"approval_sha256":approval,"state":"prepared","published_count":0,"metadata":metadata,"files":files});
+        let value = json!({"schema":"work-spec-transaction","transaction_id":derived_transaction_id("UPDATE", &approval).unwrap(),"approval_sha256":approval,"state":"prepared","published_count":0,"metadata":metadata,"files":files});
         let raw = render_transaction(&value).unwrap();
-        assert_eq!(raw.len(), 696);
+        assert_eq!(raw.len(), 693);
         assert_eq!(
             sha256_hex(&raw),
-            "963388f30a045a484f2807bfeebfbea5920c18159cb03706b217ea5468d835e1"
+            "5b335245063ed28f9fae63429818eb6b73b3fbcb772d0f88fb3b681db2d01ca5"
         );
         let mut incomplete = value;
         incomplete["published_count"] = json!(1);

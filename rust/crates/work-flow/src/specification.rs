@@ -56,7 +56,7 @@ pub fn prepare_reconciliation(
     let migration = if selection.choice == "retain_only" {
         Value::Null
     } else {
-        let request = json!({"schema":"work-spec-migration-prepare-request/v1",
+        let request = json!({"schema":"work-spec-migration-prepare-request",
             "mode":"revision","requirement_id":selection.requirement,
             "reason":selection.reason,"edits":selection.edits,"sources":semantic["sources"],
             "semantic_decisions":selection.decisions});
@@ -72,7 +72,7 @@ pub fn prepare_reconciliation(
             date,
         )?
     };
-    let request = json!({"schema":"work-spec-reconciliation-preview-request/v1",
+    let request = json!({"schema":"work-spec-reconciliation-preview-request",
         "attempt_path":selection.attempt_path,"choice":selection.choice,
         "deviation_ids":selection.selected,"migration":migration});
     let result = preview(&request)?;

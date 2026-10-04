@@ -125,7 +125,7 @@ pub fn read_progress(
     Ok(work_model::progress::verified::<
         work_model::progress::ProgressRead,
     >(
-        json!({"schema":"work-progress-read/v1","status":"saved","path":relative,"sha256":fingerprint::raw(&raw),"progress":value}),
+        json!({"schema":"work-progress-read","status":"saved","path":relative,"sha256":fingerprint::raw(&raw),"progress":value}),
     ))
 }
 
@@ -179,7 +179,7 @@ pub fn preview_progress(
     Ok(work_model::progress::verified::<
         work_model::progress::ProgressReview,
     >(
-        json!({"schema":"work-progress-preview/v1","status":"valid","path":relative,"expected_revision":expected_revision,"approved_sha256":approved,"progress":value,"source_validation":"not_checked","evidence_trust":"historical_context_only","formal_readiness":"not_established"}),
+        json!({"schema":"work-progress-preview","status":"valid","path":relative,"expected_revision":expected_revision,"approved_sha256":approved,"progress":value,"source_validation":"not_checked","evidence_trust":"historical_context_only","formal_readiness":"not_established"}),
     ))
 }
 
@@ -279,7 +279,7 @@ pub fn prepare_progress(
     for (field, value) in supplied {
         content.insert(field.clone(), value.clone());
     }
-    content.insert("schema".into(), json!("work-discussion-progress/v1"));
+    content.insert("schema".into(), json!("work-discussion-progress"));
     content.insert("requirement_id".into(), json!(requirement_id));
     content.insert("mode".into(), json!(mode));
     content.insert("revision".into(), json!(expected_revision + 1));
@@ -295,7 +295,7 @@ pub fn prepare_progress(
             ));
         }
     }
-    prepared["schema"] = json!("work-progress-prepare/v1");
+    prepared["schema"] = json!("work-progress-prepare");
     let _: work_model::progress::ProgressReview =
         serde_json::from_value(prepared.clone()).expect("prepared progress matches its model");
     Ok(prepared)
@@ -468,7 +468,7 @@ pub fn save_progress_raw(
             json!({}),
         ));
     }
-    saved["schema"] = json!("work-progress-save/v1");
+    saved["schema"] = json!("work-progress-save");
     saved["approved_sha256"] = json!(approved_sha256);
     let _: work_model::progress::ProgressSave =
         serde_json::from_value(saved.clone()).expect("saved progress matches its model");

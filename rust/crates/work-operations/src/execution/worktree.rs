@@ -81,7 +81,7 @@ pub fn inspect_records(
     }
     let snapshot = work_model::execution::response::verified::<
         work_model::execution::response::WorktreeSnapshot,
-    >(json!({"schema":"work-execute-worktree-snapshot/v1","records":included}));
+    >(json!({"schema":"work-execute-worktree-snapshot","records":included}));
     let encoded = serde_json::to_vec(&snapshot).expect("JSON snapshot serializes");
     let snapshot_sha256 = canonical_sha256(&encoded).expect("JSON snapshot is UTF-8");
     json!({"snapshot_sha256":snapshot_sha256,"excluded_execution_change_count":excluded,
@@ -118,7 +118,7 @@ mod tests {
         assert_eq!(result["review_status"], "required");
         assert_eq!(
             result["snapshot_sha256"],
-            "312e40aa0fc72d8431e584d438079cc8ca790bedeee324eda4238a11ad8c42ca"
+            "726b1e33fa9ee9e186cace4a70bfe50b0de8e575b9948c43753725f4245afbd8"
         );
         let after_execution_change = vec![
             records[0].clone(),

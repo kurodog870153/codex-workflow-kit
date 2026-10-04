@@ -72,10 +72,10 @@ pub fn validate_update_request(value: &Value) -> Result<(), UpdateIssue> {
         &["source_confirmation"],
         "spec__update_collection",
     )?;
-    if value["schema"] != "work-spec-update-request/v1" {
+    if value["schema"] != "work-spec-update-request" {
         return Err(issue(
             "spec_update_schema",
-            "Use work-spec-update-request/v1.",
+            "Use work-spec-update-request.",
             json!({}),
             true,
         ));
@@ -301,8 +301,7 @@ mod tests {
     #[test]
     fn update_contract_preserves_null_and_rejects_invalid_hash_and_nested_fields() {
         let registry = example();
-        let value =
-            registry["items"]["work-spec-update-request/v1"]["description"]["example"].clone();
+        let value = registry["items"]["work-spec-update-request"]["description"]["example"].clone();
         validate_update_request(&value).unwrap();
         let mut nullable = value.clone();
         nullable["task_index"]["decisions"] = Value::Null;
@@ -333,8 +332,7 @@ mod tests {
     #[test]
     fn old_schema_and_single_file_request_are_rejected_before_io() {
         let registry = example();
-        let value =
-            registry["items"]["work-spec-update-request/v1"]["description"]["example"].clone();
+        let value = registry["items"]["work-spec-update-request"]["description"]["example"].clone();
         let mut old = value.clone();
         old["schema"] = json!("work-spec-update-request/v2");
         assert_eq!(
@@ -355,8 +353,7 @@ mod tests {
     #[test]
     fn plan_candidate_and_baseline_are_rejected_by_model_and_validator() {
         let registry = example();
-        let value =
-            registry["items"]["work-spec-update-request/v1"]["description"]["example"].clone();
+        let value = registry["items"]["work-spec-update-request"]["description"]["example"].clone();
         let _: work_model::specification::SpecUpdateRequest =
             serde_json::from_value(value.clone()).unwrap();
         let mut plan = value.clone();

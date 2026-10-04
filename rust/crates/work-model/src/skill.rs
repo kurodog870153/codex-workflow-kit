@@ -133,31 +133,31 @@ mod contract_tests {
         let items = &registry["items"];
         assert!(
             serde_json::from_value::<SkillBundle>(
-                items["work-skill-bundle/v1"]["description"]["example"].clone()
+                items["work-skill-bundle"]["description"]["example"].clone()
             )
             .is_ok()
         );
         assert!(
             serde_json::from_value::<SkillCatalog>(
-                items["work-skill-catalog/v1"]["description"]["example"].clone()
+                items["work-skill-catalog"]["description"]["example"].clone()
             )
             .is_ok()
         );
         assert!(
             serde_json::from_value::<SkillSelectionValidation>(
-                items["work-skill-selection-validation/v1"]["description"]["example"].clone()
+                items["work-skill-selection-validation"]["description"]["example"].clone()
             )
             .is_ok()
         );
         assert!(
             serde_json::from_value::<SkillSelection>(
-                items["work-skill-selection/v1"]["description"]["example"].clone()
+                items["work-skill-selection"]["description"]["example"].clone()
             )
             .is_ok()
         );
         assert!(
             serde_json::from_value::<SkillSnapshot>(
-                items["work-skill-snapshot/v1"]["description"]["example"].clone()
+                items["work-skill-snapshot"]["description"]["example"].clone()
             )
             .is_ok()
         );

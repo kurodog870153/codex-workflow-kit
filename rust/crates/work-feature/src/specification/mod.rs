@@ -29,7 +29,7 @@ use crate::error::{ExitCode, WorkError};
 use crate::instruction::InstructionSourceRepository;
 use crate::ports::SourceSnapshotReader;
 use crate::skill::{SkillRoot, SkillSnapshotRepository};
-use crate::task::{CollectionInput, validate_collection};
+use crate::task::{CollectionInput, validate_collection, validate_revision_baseline};
 
 pub struct SpecificationBaseline<'a> {
     pub task_path: &'a str,
@@ -114,17 +114,15 @@ pub fn preview_update<H, S, P>(
     skill_roots: &[SkillRoot],
     request: &Value,
     baseline: SpecificationBaseline<'_>,
+    routing: &mut impl crate::workflow::WorkflowRoutingRepository,
 ) -> Result<SpecificationPreview, WorkError>
 where
     H: InstructionSourceRepository,
     S: SkillSnapshotRepository,
     P: ArtifactPathRepository + SourceSnapshotReader,
 {
-    if request["schema"] != "work-spec-update-request/v1" {
-        return Err(fail(
-            "spec_update_schema",
-            "Use work-spec-update-request/v1.",
-        ));
+    if request["schema"] != "work-spec-update-request" {
+        return Err(fail("spec_update_schema", "Use work-spec-update-request."));
     }
     work_operations::specification::update::validate_update_request(request).map_err(|issue| {
         WorkError::new(
@@ -146,7 +144,7 @@ where
             "The reviewed source fingerprints changed.",
         ));
     }
-    let baseline_validation = validate_collection(
+    let baseline_validation = validate_revision_baseline(
         instructions,
         skills,
         paths,
@@ -291,7 +289,7 @@ where
                 "The candidate TASK change ID is missing.",
             )
         })?;
-    let rebuilt = rebuild_execution_index(
+    let mut rebuilt = rebuild_execution_index(
         &old_execution,
         &validation["collection_contract"],
         &validation,
@@ -306,6 +304,15 @@ where
             issue.details,
         )
     })?;
+    if request.get("source_confirmation").is_some() {
+        rebuilt["instruction_selection_manifest"] = crate::instruction::migration_manifest(
+            routing,
+            "execute",
+            "execution_bound",
+            "select_task_for_execution",
+            &rebuilt,
+        )?;
+    }
     let execution_raw = render_execution_index(&rebuilt).map_err(|_| {
         fail(
             "invalid_contract_value",
@@ -441,7 +448,7 @@ where
         }
     }
     let result = work_model::specification::verified::<work_model::specification::SpecUpdate>(
-        json!({"schema":"work-spec-update/v1","status":"valid",
+        json!({"schema":"work-spec-update","status":"valid",
         "requirement_id":request["task_index"]["requirement_id"],"record_id":id,
         "approved_sha256":approval,"affected_task_ids":affected,"changed_fields":changed,
         "validation":{"task_collection":validation,"execution_index":"valid",

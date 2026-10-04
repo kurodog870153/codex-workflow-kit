@@ -359,7 +359,7 @@ mod tests {
     }
 
     #[test]
-    fn normalized_and_resolved_project_paths_match_python_cases() {
+    fn normalized_and_resolved_project_paths_match_current_contract_cases() {
         assert_eq!(
             normalize_relative_path(".\\outputs\\work\\task.json").unwrap(),
             "outputs/work/task.json"

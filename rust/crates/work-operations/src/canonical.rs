@@ -244,7 +244,7 @@ mod tests {
     use serde_json::Value;
 
     #[test]
-    fn portable_path_identity_matches_python_unicode_16() {
+    fn portable_path_identity_matches_current_contract_unicode_16() {
         assert_eq!(portable_path_identity("Straße/CAFÉ"), "strasse/café");
         assert_eq!(
             portable_path_identity("STRASSE/cafe\u{301}"),
@@ -282,7 +282,7 @@ mod tests {
     }
 
     #[test]
-    fn migration_fingerprints_match_python_bytes() {
+    fn migration_fingerprints_match_current_contract_bytes() {
         let fixtures: Value = serde_json::from_str(include_str!(
             "../../../crates/work-operations/fixtures.json"
         ))
@@ -330,7 +330,7 @@ mod tests {
     }
 
     #[test]
-    fn json_contract_render_parse_and_canonical_bytes_match_python() {
+    fn json_contract_render_parse_and_canonical_bytes_match_current_contract() {
         let contract = serde_json::json!({"schema":"example/v1","名稱":"工作"});
         let rendered = canonical_json(&contract).unwrap();
         assert_eq!(
@@ -364,7 +364,7 @@ mod tests {
     }
 
     #[test]
-    fn json_contract_parser_rejects_python_invalid_inputs() {
+    fn json_contract_parser_rejects_current_contract_invalid_inputs() {
         assert_eq!(
             parse_json_contract(br#"{"schema":"one","schema":"two"}"#),
             Err(JsonContractIssue::DuplicateKey("schema".into()))
@@ -396,7 +396,7 @@ mod tests {
     }
 
     #[test]
-    fn instruction_fingerprint_keeps_python_frame_order_and_source_kinds() {
+    fn instruction_fingerprint_keeps_current_contract_frame_order_and_source_kinds() {
         let sources = [
             InstructionSource {
                 kind: "workflow",

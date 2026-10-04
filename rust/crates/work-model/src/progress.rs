@@ -121,11 +121,11 @@ mod tests {
                     .unwrap_or_else(|error| panic!("{}: {error}", $id));
             };
         }
-        example!("work-discussion-progress/v1", DiscussionProgress);
-        example!("work-progress-save-request/v1", ProgressSaveRequest);
-        example!("work-progress-preview/v1", ProgressReview);
-        example!("work-progress-prepare/v1", ProgressReview);
-        example!("work-progress-read/v1", ProgressRead);
-        example!("work-progress-save/v1", ProgressSave);
+        example!("work-discussion-progress", DiscussionProgress);
+        example!("work-progress-save-request", ProgressSaveRequest);
+        example!("work-progress-preview", ProgressReview);
+        example!("work-progress-prepare", ProgressReview);
+        example!("work-progress-read", ProgressRead);
+        example!("work-progress-save", ProgressSave);
     }
 }

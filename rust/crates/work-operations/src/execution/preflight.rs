@@ -303,7 +303,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn eligibility_and_confirmations_follow_python_order() {
+    fn eligibility_and_confirmations_follow_current_contract_order() {
         let collection = json!({"tasks":[{"id":"TASK-001","dependencies":[],"inputs":[]},
             {"id":"TASK-002","dependencies":["TASK-001"],"inputs":[{"id":"INPUT-001","kind":"external"}]}]});
         let index = json!({"tasks":[{"id":"TASK-001","status":"pending"},{"id":"TASK-002","status":"pending"}]});

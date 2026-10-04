@@ -4,16 +4,16 @@
       "name": "missing_arguments",
       "argv": [],
       "exit_code": 2,
-      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"rejected\",\n  \"reason_code\": \"cli_usage_error\",\n  \"message\": \"The CLI arguments are invalid.\",\n  \"data\": {\n    \"reason\": \"the following arguments are required: --project-root, command\"\n  }\n}\n",
+      "stdout": "{\n  \"schema\": \"work-cli-result\",\n  \"status\": \"rejected\",\n  \"reason_code\": \"cli_usage_error\",\n  \"message\": \"The CLI arguments are invalid.\",\n  \"data\": {\n    \"reason\": \"error: 'work' requires a subcommand but one was not provided\\n  [subcommands: contract, paths, hierarchy, instructions, fingerprint, skills, handoff, attempt, correction, progress, task, specification, workflow, workspace, execute, invocation, migration, delegation, source, help]\\n\\nUsage: work [OPTIONS] --project-root <project_root> <COMMAND>\\n\\nFor more information, try '--help'.\"\n  }\n}\n",
       "stderr": ""
     },
     {
-      "name": "removed_stdin",
+      "name": "unknown_stdin",
       "argv": [
         "--stdin"
       ],
       "exit_code": 2,
-      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"rejected\",\n  \"reason_code\": \"stdin_removed\",\n  \"message\": \"Write the JSON request to a UTF-8 file and use --input-file <path>.\",\n  \"data\": {\n    \"replacement\": \"--input-file\"\n  }\n}\n",
+      "stdout": "{\n  \"schema\": \"work-cli-result\",\n  \"status\": \"rejected\",\n  \"reason_code\": \"cli_usage_error\",\n  \"message\": \"The CLI arguments are invalid.\",\n  \"data\": {\n    \"reason\": \"error: unexpected argument '--stdin' found\\n\\nUsage: work [OPTIONS] --project-root <project_root> <COMMAND>\\n\\nFor more information, try '--help'.\"\n  }\n}\n",
       "stderr": ""
     },
     {
@@ -27,7 +27,7 @@
         "example"
       ],
       "exit_code": 0,
-      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"paths\": {\n      \"execution\": \"outputs/work/executions/example\",\n      \"source\": \"outputs/work/sources/example\",\n      \"task\": \"outputs/work/tasks/example/index.json\"\n    },\n    \"requirement_id\": \"example\",\n    \"schema\": \"work-paths/v1\"\n  }\n}\n",
+      "stdout": "{\n  \"schema\": \"work-cli-result\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"paths\": {\n      \"execution\": \"outputs/work/executions/example\",\n      \"source\": \"outputs/work/sources/example\",\n      \"task\": \"outputs/work/tasks/example/index.json\"\n    },\n    \"requirement_id\": \"example\",\n    \"schema\": \"work-paths\"\n  }\n}\n",
       "stderr": ""
     },
     {
@@ -42,7 +42,7 @@
         "example"
       ],
       "exit_code": 0,
-      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"paths\": {\n      \"execution\": \"outputs/work/executions/example\",\n      \"source\": \"outputs/work/sources/example\",\n      \"task\": \"outputs/work/tasks/example/index.json\"\n    },\n    \"project_root\": \"<PROJECT_ROOT>\",\n    \"requirement_id\": \"example\",\n    \"schema\": \"work-paths/v1\"\n  }\n}\n",
+      "stdout": "{\n  \"schema\": \"work-cli-result\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"paths\": {\n      \"execution\": \"outputs/work/executions/example\",\n      \"source\": \"outputs/work/sources/example\",\n      \"task\": \"outputs/work/tasks/example/index.json\"\n    },\n    \"project_root\": \"<PROJECT_ROOT>\",\n    \"requirement_id\": \"example\",\n    \"schema\": \"work-paths\"\n  }\n}\n",
       "stderr": ""
     },
     {
@@ -54,7 +54,7 @@
         "list"
       ],
       "exit_code": 0,
-      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"schema\": \"work-contract-catalog/v1\"\n  }\n}\n",
+      "stdout": "{\n  \"schema\": \"work-cli-result\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"schema\": \"work-contract-catalog\"\n  }\n}\n",
       "stderr": ""
     },
     {
@@ -67,7 +67,7 @@
         "--help"
       ],
       "exit_code": 0,
-      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"help\": \"usage: work specification reconciliation-recover [-h] --input-file INPUT_FILE\\n                                         --user-config-root USER_CONFIG_ROOT\\n                                         [--skill-root SKILL_ROOT]\\n                                         --approved-sha256 APPROVED_SHA256\\n\\noptions:\\n  -h, --help            Return command help in a JSON response.\\n  --input-file INPUT_FILE\\n  --user-config-root USER_CONFIG_ROOT\\n  --skill-root SKILL_ROOT\\n  --approved-sha256 APPROVED_SHA256\\n\"\n  }\n}\n",
+      "stdout": "{\n  \"schema\": \"work-cli-result\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"help\": \"usage: work specification reconciliation-recover [-h] --input-file INPUT_FILE\\n                                         --user-config-root USER_CONFIG_ROOT\\n                                         [--skill-root SKILL_ROOT]\\n                                         --approved-sha256 APPROVED_SHA256\\n\\noptions:\\n  -h, --help            Return command help in a JSON response.\\n  --input-file INPUT_FILE\\n  --user-config-root USER_CONFIG_ROOT\\n  --skill-root SKILL_ROOT\\n  --approved-sha256 APPROVED_SHA256\\n\"\n  }\n}\n",
       "stderr": ""
     },
     {
@@ -79,7 +79,7 @@
         "--help"
       ],
       "exit_code": 0,
-      "stdout": "{\n  \"schema\": \"work-cli-result/v1\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"help\": \"usage: work specification [-h] {prepare,preview,apply,verify,recover,reconciliation-prepare,reconciliation-preview,reconciliation-apply,reconciliation-recover} ...\\n\\npositional arguments:\\n  {prepare,preview,apply,verify,recover,reconciliation-prepare,reconciliation-preview,reconciliation-apply,reconciliation-recover}\\n    prepare             Prepare a semantic specification revision.\\n    preview             Validate and review a prepared revision.\\n    apply               Publish an approved revision.\\n    verify              Verify a published revision.\\n    recover             Recover an interrupted approved revision.\\n    reconciliation-prepare\\n                        Prepare execution deviation reconciliation.\\n    reconciliation-preview\\n                        Review execution deviation reconciliation.\\n    reconciliation-apply\\n                        Publish approved execution deviation reconciliation.\\n    reconciliation-recover\\n                        Recover approved execution deviation reconciliation.\\n\\noptions:\\n  -h, --help            Return command help in a JSON response.\\n\"\n  }\n}\n",
+      "stdout": "{\n  \"schema\": \"work-cli-result\",\n  \"status\": \"success\",\n  \"reason_code\": \"ok\",\n  \"message\": \"The command completed successfully.\",\n  \"data\": {\n    \"help\": \"usage: work specification [-h] {prepare,preview,apply,verify,recover,reconciliation-prepare,reconciliation-preview,reconciliation-apply,reconciliation-recover} ...\\n\\npositional arguments:\\n  {prepare,preview,apply,verify,recover,reconciliation-prepare,reconciliation-preview,reconciliation-apply,reconciliation-recover}\\n    prepare             Prepare a semantic specification revision.\\n    preview             Validate and review a prepared revision.\\n    apply               Publish an approved revision.\\n    verify              Verify a published revision.\\n    recover             Recover an interrupted approved revision.\\n    reconciliation-prepare\\n                        Prepare execution deviation reconciliation.\\n    reconciliation-preview\\n                        Review execution deviation reconciliation.\\n    reconciliation-apply\\n                        Publish approved execution deviation reconciliation.\\n    reconciliation-recover\\n                        Recover approved execution deviation reconciliation.\\n\\noptions:\\n  -h, --help            Return command help in a JSON response.\\n\"\n  }\n}\n",
       "stderr": ""
     }
   ]

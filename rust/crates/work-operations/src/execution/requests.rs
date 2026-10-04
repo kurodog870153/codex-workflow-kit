@@ -64,7 +64,7 @@ pub fn validate_attempt_start_request(value: &Value) -> Result<(), ExecutionIssu
         "attempt_start_invalid_object_fields",
         "The JSON object has missing or unknown fields.",
     )?;
-    if value["schema"] != "work-attempt-start-request/v1" {
+    if value["schema"] != "work-attempt-start-request" {
         return Err(issue(
             "attempt_start_invalid_schema",
             "The Attempt-start request schema is invalid.",
@@ -189,7 +189,7 @@ pub fn validate_attempt_close_request(value: &Value) -> Result<(), ExecutionIssu
         "attempt_close_invalid_fields",
         "The attempt-close request has missing or unknown fields.",
     )?;
-    if value["schema"] != "work-attempt-close-request/v1" {
+    if value["schema"] != "work-attempt-close-request" {
         return Err(issue(
             "attempt_close_invalid_schema",
             "The attempt-close request schema is invalid.",
@@ -276,7 +276,7 @@ pub fn validate_record_finish_request(value: &Value) -> Result<(), ExecutionIssu
         "record_finish_invalid_fields",
         "The record-finish request has missing or unknown fields.",
     )?;
-    if value["schema"] != "work-record-finish-request/v1" {
+    if value["schema"] != "work-record-finish-request" {
         return Err(issue(
             "record_finish_invalid_schema",
             "The record-finish request schema is invalid.",
@@ -342,7 +342,7 @@ pub fn validate_correction_create_request(value: &Value) -> Result<(), Execution
         "correction_create_invalid_fields",
         "The Correction create request has missing or unknown fields.",
     )?;
-    if value["schema"] != "work-correction-create-request/v1" {
+    if value["schema"] != "work-correction-create-request" {
         return Err(issue(
             "correction_create_invalid_schema",
             "The Correction create request schema is invalid.",
@@ -383,9 +383,9 @@ pub fn validate_correction_create_request(value: &Value) -> Result<(), Execution
 
 pub fn validate_recovery_request(value: &Value, prepare: bool) -> Result<(), ExecutionIssue> {
     let schema = if prepare {
-        "work-execution-recovery-prepare-request/v1"
+        "work-execution-recovery-prepare-request"
     } else {
-        "work-execution-recovery-request/v1"
+        "work-execution-recovery-request"
     };
     let required = if prepare {
         &["schema", "transaction", "attempt_id"][..]
@@ -497,14 +497,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn close_and_recovery_rejections_match_python_contracts() {
+    fn close_and_recovery_rejections_match_current_contract_contracts() {
         assert!(
             validate_attempt_close_request(
-                &json!({"schema":"work-attempt-close-request/v1","status":"completed"})
+                &json!({"schema":"work-attempt-close-request","status":"completed"})
             )
             .is_ok()
         );
-        let stopped = json!({"schema":"work-attempt-close-request/v1","status":"stopped","final_type":"other","reason":"Paused","authorization_evidence":"Approved"});
+        let stopped = json!({"schema":"work-attempt-close-request","status":"stopped","final_type":"other","reason":"Paused","authorization_evidence":"Approved"});
         assert!(validate_attempt_close_request(&stopped).is_ok());
         let mut incomplete = stopped;
         incomplete
@@ -517,7 +517,7 @@ mod tests {
                 .reason_code,
             "attempt_close_missing_authorization_evidence"
         );
-        let recovery = json!({"schema":"work-execution-recovery-request/v1","transaction":"record_begin","attempt_id":"ATTEMPT-001",
+        let recovery = json!({"schema":"work-execution-recovery-request","transaction":"record_begin","attempt_id":"ATTEMPT-001",
             "transaction_files":[".work-a.tmp",".work-b.tmp"]});
         assert!(validate_recovery_request(&recovery, false).is_ok());
         let mut with_evidence = recovery.clone();
@@ -542,20 +542,20 @@ mod tests {
     }
 
     #[test]
-    fn attempt_close_request_field_and_status_cases_match_python() {
-        let base = json!({"schema":"work-attempt-close-request/v1","status":"completed"});
+    fn attempt_close_request_field_and_status_cases_match_current_contract() {
+        let base = json!({"schema":"work-attempt-close-request","status":"completed"});
         assert!(validate_attempt_close_request(&base).is_ok());
         for status in ["stopped", "blocked"] {
             assert!(
                 validate_attempt_close_request(&json!({
-                    "schema":"work-attempt-close-request/v1","status":status,
+                    "schema":"work-attempt-close-request","status":status,
                     "final_type":"other","reason":"Recorded reason.",
                     "authorization_evidence":"User approved this closure."
                 }))
                 .is_ok()
             );
         }
-        let invalid = json!({"schema":"work-attempt-close-request/v1","status":"in_progress"});
+        let invalid = json!({"schema":"work-attempt-close-request","status":"in_progress"});
         assert_eq!(
             validate_attempt_close_request(&invalid)
                 .unwrap_err()
@@ -573,7 +573,7 @@ mod tests {
         let issue = validate_attempt_close_request(&missing).unwrap_err();
         assert_eq!(issue.reason_code, "attempt_close_missing_final_details");
         assert_eq!(issue.details["missing"], json!(["final_type", "reason"]));
-        let blank = json!({"schema":"work-attempt-close-request/v1","status":"blocked",
+        let blank = json!({"schema":"work-attempt-close-request","status":"blocked",
             "final_type":"other","reason":" ","authorization_evidence":"Approved"});
         assert_eq!(
             validate_attempt_close_request(&blank)
@@ -581,7 +581,7 @@ mod tests {
                 .reason_code,
             "attempt_close_empty_final_detail"
         );
-        let fields = json!({"schema":"work-attempt-close-request/v1","extra":true});
+        let fields = json!({"schema":"work-attempt-close-request","extra":true});
         let issue = validate_attempt_close_request(&fields).unwrap_err();
         assert_eq!(issue.reason_code, "attempt_close_invalid_fields");
         assert_eq!(issue.details["missing"], json!(["status"]));
@@ -589,16 +589,16 @@ mod tests {
     }
 
     #[test]
-    fn attempt_start_request_continuation_and_errors_match_python() {
+    fn attempt_start_request_continuation_and_errors_match_current_contract() {
         let authorization = json!({
-            "schema":"work-attempt-authorization/v1","task_id":"TASK-001",
+            "schema":"work-attempt-authorization","task_id":"TASK-001",
             "commands":[],"validations":[],"modifiable_files":[],
             "working_directories":[],"external_operations":[],"allowed_deviations":[],
             "reapproval_conditions":["scope_expansion","source_or_worktree_drift",
                 "failure_divergence","retry","recovery","unknown_result"],
             "authorization_evidence":"User approved this exact Attempt scope."
         });
-        let base = json!({"schema":"work-attempt-start-request/v1",
+        let base = json!({"schema":"work-attempt-start-request",
             "worktree_snapshot_sha256":"a".repeat(64),"authorization":authorization});
         assert!(validate_attempt_start_request(&base).is_ok());
         let mut continuation = base.clone();
@@ -647,8 +647,8 @@ mod tests {
     }
 
     #[test]
-    fn record_finish_request_values_match_python() {
-        let base = json!({"schema":"work-record-finish-request/v1",
+    fn record_finish_request_values_match_current_contract() {
+        let base = json!({"schema":"work-record-finish-request",
             "record":{"outcome":"passed"}});
         assert!(validate_record_finish_request(&base).is_ok());
         let mut modified = base.clone();
@@ -660,25 +660,25 @@ mod tests {
                 "record_finish_invalid_schema",
             ),
             (
-                json!({"schema":"work-record-finish-request/v1","record":[]}),
+                json!({"schema":"work-record-finish-request","record":[]}),
                 "record_finish_invalid_record",
             ),
             (
-                json!({"schema":"work-record-finish-request/v1","record":{"outcome":"passed"},
+                json!({"schema":"work-record-finish-request","record":{"outcome":"passed"},
                 "modified_files":[]}),
                 "record_finish_invalid_modified_files",
             ),
             (
-                json!({"schema":"work-record-finish-request/v1","record":{"outcome":"passed"},
+                json!({"schema":"work-record-finish-request","record":{"outcome":"passed"},
                 "modified_files":[""]}),
                 "record_finish_invalid_modified_file",
             ),
             (
-                json!({"schema":"work-record-finish-request/v1","record":{"id":"VAL-001"}}),
+                json!({"schema":"work-record-finish-request","record":{"id":"VAL-001"}}),
                 "record_finish_machine_fields",
             ),
             (
-                json!({"schema":"work-record-finish-request/v1","record":{"kind":"validation"}}),
+                json!({"schema":"work-record-finish-request","record":{"kind":"validation"}}),
                 "record_finish_machine_fields",
             ),
         ] {
@@ -692,8 +692,8 @@ mod tests {
     }
 
     #[test]
-    fn execution_recovery_request_variants_match_python() {
-        let base = json!({"schema":"work-execution-recovery-request/v1",
+    fn execution_recovery_request_variants_match_current_contract() {
+        let base = json!({"schema":"work-execution-recovery-request",
             "transaction":"record_begin","attempt_id":"ATTEMPT-001",
             "transaction_files":["prepared.tmp"]});
         assert!(validate_recovery_request(&base, false).is_ok());
@@ -754,12 +754,12 @@ mod tests {
 
     #[test]
     fn start_correction_and_record_requests_reject_invalid_fields() {
-        let authorization = json!({"schema":"work-attempt-authorization/v1","task_id":"TASK-001",
+        let authorization = json!({"schema":"work-attempt-authorization","task_id":"TASK-001",
             "commands":[],"validations":[],"modifiable_files":[],"working_directories":[],
             "external_operations":[],"allowed_deviations":[],
             "reapproval_conditions":["scope_expansion","source_or_worktree_drift","failure_divergence",
                 "retry","recovery","unknown_result"],"authorization_evidence":"Approved"});
-        let start = json!({"schema":"work-attempt-start-request/v1","worktree_snapshot_sha256":"0".repeat(64),"authorization":authorization});
+        let start = json!({"schema":"work-attempt-start-request","worktree_snapshot_sha256":"0".repeat(64),"authorization":authorization});
         assert!(validate_attempt_start_request(&start).is_ok());
         let mut missing_authorization = start.clone();
         missing_authorization["authorization"] = json!({});
@@ -785,16 +785,16 @@ mod tests {
                 .reason_code,
             "attempt_start_invalid_worktree_snapshot"
         );
-        let correction = json!({"schema":"work-correction-create-request/v1","target_attempt_id":"ATTEMPT-001",
+        let correction = json!({"schema":"work-correction-create-request","target_attempt_id":"ATTEMPT-001",
             "field":"records[0]","correct_value":"passed","reason":"Fix","invalidates_completion":true});
         assert!(validate_correction_create_request(&correction).is_ok());
-        let finish = json!({"schema":"work-record-finish-request/v1","record":{"outcome":"passed","evidence":"ok"}});
+        let finish = json!({"schema":"work-record-finish-request","record":{"outcome":"passed","evidence":"ok"}});
         assert!(validate_record_finish_request(&finish).is_ok());
     }
 
     #[test]
-    fn correction_create_request_acceptance_and_rejections_match_python() {
-        let request = json!({"schema":"work-correction-create-request/v1",
+    fn correction_create_request_acceptance_and_rejections_match_current_contract() {
+        let request = json!({"schema":"work-correction-create-request",
             "target_attempt_id":"ATTEMPT-001","field":"records[0].outcome",
             "correct_value":"passed","reason":"Correct the recorded outcome.",
             "invalidates_completion":true});

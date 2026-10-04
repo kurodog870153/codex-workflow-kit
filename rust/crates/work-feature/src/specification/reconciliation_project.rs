@@ -90,10 +90,10 @@ pub fn load_sources(
             )
         })?
     } else {
-        json!({"schema":"work-spec-reconciliation-ledger/v1",
+        json!({"schema":"work-spec-reconciliation-ledger",
             "attempt_path":attempt_path,"entries":[]})
     };
-    if ledger["schema"] != "work-spec-reconciliation-ledger/v1"
+    if ledger["schema"] != "work-spec-reconciliation-ledger"
         || ledger["attempt_path"] != attempt_path
     {
         return Err(fail(
@@ -165,8 +165,8 @@ mod tests {
     }
     #[test]
     fn legacy_migration_candidate_stops_before_attempt_and_preview_ports() {
-        let request = json!({"schema":"work-spec-reconciliation-preview-request/v1", "attempt_path":"outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json", "choice":"all", "deviation_ids":[],
-            "migration":{"schema":"work-spec-migration-preview-request/v1","sources":[],"semantic_decisions":[],"candidates":[{"path":"old.json","kind":"plan","content":{}}]}});
+        let request = json!({"schema":"work-spec-reconciliation-preview-request", "attempt_path":"outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json", "choice":"all", "deviation_ids":[],
+            "migration":{"schema":"work-spec-migration-preview-request","sources":[],"semantic_decisions":[],"candidates":[{"path":"old.json","kind":"plan","content":{}}]}});
         let error = preview_from_repository(&UnusedRepository, &request, |_| {
             panic!("legacy migration must stop before callback")
         })

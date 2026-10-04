@@ -394,7 +394,7 @@ pub fn prepare_semantic_task_request(
         entries.push(entry);
     }
     let mut index = previous.clone().unwrap_or_else(
-        || json!({"schema":"work-task-planning-index/v1","requirement_id":requirement_id}),
+        || json!({"schema":"work-task-planning-index","requirement_id":requirement_id}),
     );
     index["revision"] = json!(expected_revision + 1);
     index["source"] = source.clone();
@@ -453,7 +453,7 @@ pub fn prepare_semantic_task_request(
         Ok(work_model::task::response::typed_response::<
             work_model::task::response::TaskDraftPrepare,
         >(
-            json!({"schema":"work-task-draft-prepare/v1","status":"prepared",
+            json!({"schema":"work-task-draft-prepare","status":"prepared",
             "request":{"index":index,"reason":reason},"index":prepared.index,
             "affected_task_ids":prepared.affected_task_ids,"drafts":drafts}),
         ))
@@ -468,7 +468,7 @@ pub fn prepare_semantic_task_request(
         Ok(work_model::task::response::typed_response::<
             work_model::task::response::TaskDraftPrepare,
         >(
-            json!({"schema":"work-task-draft-prepare/v1","status":"prepared",
+            json!({"schema":"work-task-draft-prepare","status":"prepared",
             "request":index,"index":index,"affected_task_ids":ids,"drafts":{}}),
         ))
     }

@@ -22,7 +22,7 @@ pub fn preview_reconciliation(
 ) -> Result<Value, WorkError> {
     crate::specification::reconciliation_input::validate_preview_fields(request)?;
     crate::specification::reconciliation_input::validate_ledger_entries(existing_ledger)?;
-    if existing_ledger["schema"] != "work-spec-reconciliation-ledger/v1"
+    if existing_ledger["schema"] != "work-spec-reconciliation-ledger"
         || existing_ledger["attempt_path"] != attempt_path
     {
         return Err(fail(
@@ -30,7 +30,7 @@ pub fn preview_reconciliation(
             "The ledger must belong to the selected Attempt.",
         ));
     }
-    if request["schema"] != "work-spec-reconciliation-preview-request/v1" {
+    if request["schema"] != "work-spec-reconciliation-preview-request" {
         return Err(fail(
             "reconciliation_preview_schema",
             "A reconciliation preview request is required.",
@@ -85,7 +85,7 @@ pub fn preview_reconciliation(
         .iter()
         .filter(|row| row["id"] == task_id)
         .collect::<Vec<_>>();
-    if execution_index["schema"] != "work-execution-index/v1"
+    if execution_index["schema"] != "work-execution-index"
         || matching.len() != 1
         || matching[0]["latest_attempt"] != attempt_id
         || execution_index["task_spec_id"] != attempt["task_spec_id"]
@@ -213,12 +213,12 @@ pub fn preview_reconciliation(
             .as_str()
             .cmp(&right["deviation_id"].as_str())
     });
-    let ledger = json!({"schema":"work-spec-reconciliation-ledger/v1",
+    let ledger = json!({"schema":"work-spec-reconciliation-ledger",
         "attempt_path":attempt_path,"entries":entries});
     let ready = migration_preview.is_none_or(|value| value["writable_ready"] == true);
     Ok(work_model::specification::verified::<
         work_model::specification::SpecReconciliationPreview,
-    >(json!({"schema":"work-spec-reconciliation-preview/v1",
+    >(json!({"schema":"work-spec-reconciliation-preview",
         "status":if ready {"ready"} else {"blocked"},
         "attempt_path":attempt_path,"attempt_sha256":attempt_sha,
         "choice":request["choice"],"pending_deviation_ids":pending,
@@ -262,7 +262,7 @@ mod tests {
             .extend([retained, unapproved]);
         let raw = serde_json::to_vec(&attempt).unwrap();
         let ledger =
-            json!({"schema":"work-spec-reconciliation-ledger/v1","attempt_path":path,"entries":[]});
+            json!({"schema":"work-spec-reconciliation-ledger","attempt_path":path,"entries":[]});
         let migration: Value =
             serde_json::from_slice(&fs::read(fixture.join("migration-preview.json")).unwrap())
                 .unwrap();
@@ -357,7 +357,7 @@ mod tests {
     }
 
     #[test]
-    fn reviewed_choices_and_fingerprints_match_python() {
+    fn reviewed_choices_and_fingerprints_match_current_contract() {
         let fixture = Path::new(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../crates/work-infrastructure/fixtures/specification-reconciliation"
@@ -387,7 +387,7 @@ mod tests {
                 &attempt_raw,
                 &attempt,
                 &index,
-                &json!({"schema":"work-spec-reconciliation-ledger/v1",
+                &json!({"schema":"work-spec-reconciliation-ledger",
                     "attempt_path":request["attempt_path"],"entries":[]}),
                 supplied,
             )

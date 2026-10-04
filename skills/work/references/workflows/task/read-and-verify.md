@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # Read and verify
 
 Run `<work-cli> task status --requirement-id <requirement-id> --user-config-root <user-config-root>` with confirmed `--skill-root` values first; add `--task-id <task-id>` for an explicit choice. Status verifies the committed index and selected historical discussion, reports boundaries and `next_action`, and checks the fixed Source and TASK-owned skill and instruction selections. Review drift before relying on saved decisions.

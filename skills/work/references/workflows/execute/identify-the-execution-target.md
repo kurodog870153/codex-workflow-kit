@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # Identify the execution target
 
 

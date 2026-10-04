@@ -434,7 +434,7 @@ mod tests {
     #[test]
     fn source_change_marks_only_changed_and_downstream_tasks() {
         let source = crate::task::source::fixture_context();
-        let previous = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,"source":source,
+        let previous = json!({"schema":"work-task-planning-index","requirement_id":"example","revision":1,"source":source,
             "current_task_id":"TASK-001","tasks":[
                 {"id":"TASK-001","title":"First","goal":"Goal","scope":["Scope"],"skill_id":null,"dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64)},
                 {"id":"TASK-002","title":"Second","goal":"Goal","scope":["Scope"],"skill_id":null,"dependencies":["TASK-001"],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64)}]});
@@ -498,7 +498,7 @@ mod tests {
     fn unchanged_source_does_not_prepare_a_write() {
         let source = crate::task::source::fixture_context();
         let selection = json!({"selected_paths":[],"references":[]});
-        let previous = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":2,"source":source,
+        let previous = json!({"schema":"work-task-planning-index","requirement_id":"example","revision":2,"source":source,
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Task","goal":"Goal","scope":["Scope"],
             "skill_id":null,"dependencies":[],"status":"planned","boundary_revision":1,
             "instructions_sha256":"d".repeat(64),"instruction_selection":selection}]});

@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # Independent Task discussion progress
 
 1. Task alone owns discussion progress. An explicit save or `$work task -- resume <requirement-id>` uses the private progress-saver under the main flow's actual runtime ownership, or the same role's fallback. The saver faithfully preserves supplied content; it does not choose requirements, skills or decisions.

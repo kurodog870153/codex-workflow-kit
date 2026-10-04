@@ -200,15 +200,11 @@ pub fn next_action_guidance(next_action: &str, requirement_id: &str, artifacts: 
             None,
             json!({"input_file":"<capture-metadata-file>","payload_file":"<original-source-bytes-file>"}),
         ),
-        "confirm_task_list" => (
-            Some("task prepare"),
-            Some("work-task-semantic-request/v1"),
-            {
-                let mut value = task;
-                value["input_file"] = json!("<semantic-input-file>");
-                value
-            },
-        ),
+        "confirm_task_list" => (Some("task prepare"), Some("work-task-semantic-request"), {
+            let mut value = task;
+            value["input_file"] = json!("<semantic-input-file>");
+            value
+        }),
         "choose_task" => (Some("task status"), None, task.clone()),
         "confirm_start" | "confirm_resume" | "confirm_review" => (
             Some("task status"),
@@ -218,7 +214,7 @@ pub fn next_action_guidance(next_action: &str, requirement_id: &str, artifacts: 
         "select_task_for_execution" | "confirm_retry" => (Some("execute preflight"), None, execute),
         "review_reconciliation" => (
             Some("specification reconciliation-prepare"),
-            Some("work-spec-reconciliation-prepare-request/v1"),
+            Some("work-spec-reconciliation-prepare-request"),
             {
                 let mut value = common;
                 value["input_file"] = json!("<semantic-input-file>");
@@ -306,7 +302,7 @@ mod tests {
     }
 
     #[test]
-    fn active_lock_and_reconciliation_routes_match_python() {
+    fn active_lock_and_reconciliation_routes_match_current_contract() {
         let fingerprint = "c".repeat(64);
         let index = json!({
             "overall_status":"in_progress",
@@ -354,7 +350,7 @@ mod tests {
         assert_eq!(guidance["command"], "specification reconciliation-prepare");
         assert_eq!(
             guidance["request_contract_id"],
-            "work-spec-reconciliation-prepare-request/v1"
+            "work-spec-reconciliation-prepare-request"
         );
         assert_eq!(
             guidance["semantic_input_contract"],

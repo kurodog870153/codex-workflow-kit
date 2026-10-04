@@ -1,5 +1,5 @@
 {
-  "schema": "work-attempt/v1",
+  "schema": "work-attempt",
   "attempt_id": "ATTEMPT-002",
   "task_spec_id": "TASK-SPEC-001",
   "task_id": "TASK-001",
@@ -9,11 +9,11 @@
   "task_index_sha256": "ea48a1345166fa95712c22514832461e69c21527fb29ae7f28ec729621105a55",
   "task_item_sha256": "4163cece835cd731ccdf0186ee34e628a2fa1f35c4cd60c0578427f9044104c1",
   "task_instructions_sha256": "b1d52e3219a13a4e70dbac355a6db5aeed775db321b6a2fa18a0b74b8866dd83",
-  "execute_instructions_sha256": "493a50f30e6531655cf042512891fd4553bd6dfbc73c66b9f442a42604ff7616",
-  "hierarchy_selection_sha256": "e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59",
+  "execute_instructions_sha256": "b59c7bd54ff609b542e759e0e4ad36fe6fb17393daf9f07048d204cfa1492789",
+  "hierarchy_selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569",
   "execute_skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
   "authorization": {
-    "schema": "work-attempt-authorization/v1",
+    "schema": "work-attempt-authorization",
     "task_id": "TASK-001",
     "commands": [],
     "validations": [],
@@ -31,7 +31,7 @@
     ],
     "authorization_evidence": "User approved this exact Attempt scope."
   },
-  "authorization_sha256": "30a8dd5343d43861e6a2f0846add3362ed674ca0be96dcdb4020d9004e6ff7aa",
+  "authorization_sha256": "ccea937193965426f001ff0fe5d4a9f23a9a17ad2686d235fa9f81e0cec943e9",
   "started_at": "2026-09-01T10:00+08:00",
   "records": [],
   "acceptance_results": [

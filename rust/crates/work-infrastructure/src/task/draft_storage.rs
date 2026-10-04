@@ -71,7 +71,7 @@ impl LocalTaskDraftStorage {
         Ok(work_model::task::response::typed_response::<
             work_model::task::response::TaskDraftPrepare,
         >(
-            json!({"schema":"work-task-draft-prepare/v1","status":"prepared",
+            json!({"schema":"work-task-draft-prepare","status":"prepared",
             "request":request.raw_request,"index":prepared.index,
             "affected_task_ids":prepared.affected_task_ids,"drafts":{}}),
         ))
@@ -672,7 +672,7 @@ impl LocalTaskDraftStorage {
         Ok(work_model::task::response::typed_response::<
             work_model::task::response::TaskDraftSave,
         >(
-            json!({"schema":"work-task-draft-save/v1","requirement_id":requirement_id,"revision":prepared.revision,"status":"saved","mirror_status":mirror}),
+            json!({"schema":"work-task-draft-save","requirement_id":requirement_id,"revision":prepared.revision,"status":"saved","mirror_status":mirror}),
         ))
     }
 
@@ -744,7 +744,7 @@ impl LocalTaskDraftStorage {
             }
             if current == prepared.index {
                 return Ok(
-                    json!({"schema":"work-task-draft-list-update/v1","status":"already_completed","revision":prepared.revision,"affected_task_ids":prepared.affected_task_ids}),
+                    json!({"schema":"work-task-draft-list-update","status":"already_completed","revision":prepared.revision,"affected_task_ids":prepared.affected_task_ids}),
                 );
             }
         } else {
@@ -800,7 +800,7 @@ impl LocalTaskDraftStorage {
             )
         })?;
         Ok(
-            json!({"schema":"work-task-draft-list-update/v1","status":if recover {"recovered"} else {"saved"},
+            json!({"schema":"work-task-draft-list-update","status":if recover {"recovered"} else {"saved"},
             "requirement_id":requirement_id,"revision":prepared.revision,"affected_task_ids":prepared.affected_task_ids,"display_copies":"not_updated"}),
         )
     }
@@ -875,7 +875,7 @@ impl LocalTaskDraftStorage {
             }
             if *current == prepared.index {
                 return Ok(
-                    json!({"schema":"work-task-draft-source-update/v1","status":"already_completed","revision":prepared.revision,"affected_task_ids":prepared.affected_task_ids}),
+                    json!({"schema":"work-task-draft-source-update","status":"already_completed","revision":prepared.revision,"affected_task_ids":prepared.affected_task_ids}),
                 );
             }
         } else {
@@ -931,7 +931,7 @@ impl LocalTaskDraftStorage {
             )
         })?;
         Ok(
-            json!({"schema":"work-task-draft-source-update/v1","status":if recover {"recovered"} else {"saved"},
+            json!({"schema":"work-task-draft-source-update","status":if recover {"recovered"} else {"saved"},
             "requirement_id":requirement_id,"revision":prepared.revision,"affected_task_ids":prepared.affected_task_ids,"display_copies":"not_updated"}),
         )
     }
@@ -1125,7 +1125,7 @@ impl LocalTaskDraftStorage {
         Ok(work_model::task::response::typed_response::<
             work_model::task::response::TaskDraftRecovery,
         >(
-            json!({"schema":"work-task-draft-recovery/v1","requirement_id":requirement_id,"revision":prepared.revision,"status":status,"display_copy":if draft.is_some() {"not_updated"} else {"not_applicable"}}),
+            json!({"schema":"work-task-draft-recovery","requirement_id":requirement_id,"revision":prepared.revision,"status":status,"display_copy":if draft.is_some() {"not_updated"} else {"not_applicable"}}),
         ))
     }
 }
@@ -1216,7 +1216,7 @@ mod tests {
         fs::create_dir(&root).unwrap();
         let storage = LocalTaskDraftStorage { project_root: root };
         let source = fixture_source(&storage);
-        let previous = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,"source":source,
+        let previous = json!({"schema":"work-task-planning-index","requirement_id":"example","revision":1,"source":source,
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Task","goal":"Goal","scope":["Scope"],"skill_id":null,
             "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64)}]});
         storage.save_planning(&previous, 0, None).unwrap();
@@ -1436,7 +1436,7 @@ mod tests {
         ));
         fs::create_dir(&root).unwrap();
         let storage = LocalTaskDraftStorage { project_root: root };
-        let previous = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
+        let previous = json!({"schema":"work-task-planning-index","requirement_id":"example","revision":1,
             "source":fixture_source(&storage),
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Before","goal":"Goal","scope":["Scope"],"skill_id":null,
             "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64)}]});
@@ -1455,7 +1455,7 @@ mod tests {
                     .read(&storage.path("example", "history/2/index.json").unwrap())
                     .unwrap()
             ),
-            "35d98d2cf3a8db4c57ac254805580c51b8b16a677f2b7764b93e1ef69dd37a58"
+            "454715541f06b0b68d7119958b51b95eb88342c96c3899449ad4f45935ec4556"
         );
         assert_eq!(
             storage.read_planning_index("example").unwrap()["tasks"][0]["boundary_revision"],
@@ -1539,7 +1539,7 @@ mod tests {
         assert_eq!(pending["status"], "recovery_required");
         assert_eq!(pending["next_action"], "inspect_recovery");
         assert!(!absent.exists());
-        let index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
+        let index = json!({"schema":"work-task-planning-index","requirement_id":"example","revision":1,
             "source":fixture_source(&storage),
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Task","goal":"Goal","scope":["Scope"],"skill_id":null,
             "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64)}]});
@@ -1608,7 +1608,7 @@ mod tests {
         let storage = LocalTaskDraftStorage { project_root: root };
         let source = fixture_source(&storage);
         let draft = |task_id: &str| {
-            json!({"schema":"work-task-draft/v1","requirement_id":"example",
+            json!({"schema":"work-task-draft","requirement_id":"example",
                 "task_id":task_id,"revision":1,"boundary_revision":1,"source":source,
                 "instructions_sha256":"d".repeat(64),"status":"in_progress","notes":["Discussion"],
                 "confirmed_decisions":[],"tentative":[],"open_questions":["Which test?"],
@@ -1616,7 +1616,7 @@ mod tests {
         };
         let first_raw = canonical_json(&draft("TASK-001")).unwrap();
         let second_raw = canonical_json(&draft("TASK-002")).unwrap();
-        let index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":3,
+        let index = json!({"schema":"work-task-planning-index","requirement_id":"example","revision":3,
             "source":source,"current_task_id":"TASK-001","tasks":[
                 {"id":"TASK-001","title":"Task","goal":"Result","scope":["Source"],"skill_id":null,
                  "dependencies":[],"status":"in_progress","boundary_revision":1,"instructions_sha256":"d".repeat(64),
@@ -1680,7 +1680,7 @@ mod tests {
         ));
         fs::create_dir(&root).unwrap();
         let storage = LocalTaskDraftStorage { project_root: root };
-        let index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
+        let index = json!({"schema":"work-task-planning-index","requirement_id":"example","revision":1,
             "source":fixture_source(&storage),
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Task","goal":"Goal","scope":["Scope"],"skill_id":null,
             "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64)}]});
@@ -1694,12 +1694,12 @@ mod tests {
                     .read(&storage.path("example", "index.json").unwrap())
                     .unwrap()
             ),
-            "738bcedc9a1d6b4939191bd65a71aea574f8b25a293b356623347f1506b9e118"
+            "652c95ddcb7dd1921feb6ff0f05435ad89754a2fad1dc08e20d8cb82e445bb0b"
         );
         let mut next = index.clone();
         next["revision"] = json!(2);
         next["tasks"][0]["status"] = json!("in_progress");
-        let draft = json!({"schema":"work-task-draft/v1","requirement_id":"example","task_id":"TASK-001","revision":1,
+        let draft = json!({"schema":"work-task-draft","requirement_id":"example","task_id":"TASK-001","revision":1,
             "boundary_revision":1,"source":index["source"],"instructions_sha256":"d".repeat(64),"status":"in_progress",
             "notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],"next_discussion_point":"Continue discussion."});
         assert_eq!(
@@ -1712,7 +1712,7 @@ mod tests {
                     .read(&storage.path("example", "history/2/TASK-001.json").unwrap())
                     .unwrap()
             ),
-            "e3d19a57c369c6d7a428608d3d6149269fb8f170f067a6fee886183d8ba4ce80"
+            "30cb70bad80b1ef09d82509a9236c0c16d7aa9eeee729ee16ca9b7eed548deab"
         );
         assert_eq!(
             storage.status("example", None).unwrap()["next_action"],
@@ -1791,7 +1791,7 @@ mod tests {
         ));
         fs::create_dir(&root).unwrap();
         let storage = LocalTaskDraftStorage { project_root: root };
-        let index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
+        let index = json!({"schema":"work-task-planning-index","requirement_id":"example","revision":1,
             "source":fixture_source(&storage),
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Task","goal":"Goal","scope":["Scope"],"skill_id":null,
             "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64),
@@ -1800,7 +1800,7 @@ mod tests {
         let mut next = index.clone();
         next["revision"] = json!(2);
         next["tasks"][0]["status"] = json!("in_progress");
-        let draft = json!({"schema":"work-task-draft/v1","requirement_id":"example","task_id":"TASK-001","revision":1,
+        let draft = json!({"schema":"work-task-draft","requirement_id":"example","task_id":"TASK-001","revision":1,
             "boundary_revision":1,"source":index["source"],"instructions_sha256":"d".repeat(64),"status":"in_progress",
             "notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],"next_discussion_point":"Continue discussion."});
         let current_path = storage.path("example", "index.json").unwrap();
@@ -1900,7 +1900,7 @@ mod tests {
         fs::create_dir(&outside).unwrap();
         fs::create_dir_all(root.join("outputs/work/tasks")).unwrap();
         symlink(&outside, root.join("outputs/work/tasks/example")).unwrap();
-        let index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
+        let index = json!({"schema":"work-task-planning-index","requirement_id":"example","revision":1,
             "source":fixture_source(&storage),
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Task","goal":"Goal","scope":["Scope"],"skill_id":null,
             "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64)}]});
@@ -1926,7 +1926,7 @@ mod tests {
         ));
         fs::create_dir(&root).unwrap();
         let storage = LocalTaskDraftStorage { project_root: root };
-        let index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
+        let index = json!({"schema":"work-task-planning-index","requirement_id":"example","revision":1,
             "source":fixture_source(&storage),
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Task","goal":"Goal","scope":["Scope"],"skill_id":null,
             "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64)}]});
@@ -1995,7 +1995,7 @@ mod tests {
         let mut next = index.clone();
         next["revision"] = json!(2);
         next["tasks"][0]["status"] = json!("in_progress");
-        let draft = json!({"schema":"work-task-draft/v1","requirement_id":"example","task_id":"TASK-001","revision":1,
+        let draft = json!({"schema":"work-task-draft","requirement_id":"example","task_id":"TASK-001","revision":1,
             "boundary_revision":1,"source":index["source"],"instructions_sha256":"d".repeat(64),"status":"in_progress",
             "notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],"next_discussion_point":"Continue discussion."});
         storage.save_planning(&next, 1, Some(&draft)).unwrap();
@@ -2295,7 +2295,7 @@ mod tests {
         proposed["tasks"][0]["status"] = json!("in_progress");
         proposed["tasks"][0]["instruction_selection"] =
             json!({"selected_paths":[],"references":[]});
-        let draft = json!({"schema":"work-task-draft/v1","requirement_id":"example",
+        let draft = json!({"schema":"work-task-draft","requirement_id":"example",
             "task_id":"TASK-001","revision":1,
             "boundary_revision":previous["tasks"][0]["boundary_revision"],
             "source":previous["source"],
@@ -2406,7 +2406,7 @@ mod tests {
         .unwrap();
         let absolute = root.join("outputs/work/sources/example/SRC-001/source.txt");
         let loaded = work_feature::instruction::load(&instructions, "task", &[], &[]).unwrap();
-        let index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
+        let index = json!({"schema":"work-task-planning-index","requirement_id":"example","revision":1,
             "source":source,
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Task","goal":"Result",
                 "scope":["Source"],"skill_id":null,"dependencies":[],"status":"planned",
@@ -2468,7 +2468,7 @@ mod tests {
     }
 
     #[test]
-    fn source_check_matches_python_artifact_and_error_fixtures() {
+    fn source_check_matches_current_contract_artifact_and_error_fixtures() {
         let fixtures = PathBuf::from(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../crates/work-infrastructure/fixtures/task-draft-sources"
@@ -2513,7 +2513,7 @@ mod tests {
             let result = match storage.check_sources(&request) {
                 Ok(value) => json!({"exit_code":0,"result":value}),
                 Err(error) => json!({"exit_code":error.exit_code as i32,"result":{
-                    "schema":"work-error/v1","code":error.reason_code,
+                    "schema":"work-error","code":error.reason_code,
                     "message":error.message,"details":error.details}}),
             };
             assert_eq!(result, expected, "{name}");

@@ -65,7 +65,7 @@ pub fn finish_preview(input: MigrationPreviewInput<'_>) -> Result<Value, WorkErr
     })?;
     Ok(work_model::specification::verified::<
         work_model::specification::SpecMigrationPreview,
-    >(json!({"schema":"work-spec-migration-preview/v1",
+    >(json!({"schema":"work-spec-migration-preview",
         "status":if ready {"ready"} else {"blocked"},"documents":all_paths,
         "diffs":diffs,"validator_results":validators,"relationship_results":relationships,
         "unresolved_items":unresolved,"fingerprint":fingerprint,"writable_ready":ready})))

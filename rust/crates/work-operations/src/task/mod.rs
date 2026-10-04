@@ -115,7 +115,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn python_dependency_cases_match() {
+    fn current_contract_dependency_cases_match() {
         let ids: Vec<_> = (1..=4).map(|n| format!("TASK-{n:03}")).collect();
         let dependencies = BTreeMap::from([
             (ids[0].clone(), vec![]),

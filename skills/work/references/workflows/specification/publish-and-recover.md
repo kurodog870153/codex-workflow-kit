@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # Publish and recover
 
 1. Obtain or reuse continuation approval bound to the complete reviewed candidates and fingerprint. Bind a separately included progress checkpoint to its own displayed fingerprint. Run `specification apply --input-file "<request-path>" --approved-sha256 <approved-sha256>` with the same project, user configuration and skill roots. Changed Source proof, instructions, candidate bytes or history invalidates approval.

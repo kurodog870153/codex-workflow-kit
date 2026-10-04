@@ -300,7 +300,7 @@ where
     let mut contract = index.clone();
     let object = contract.as_object_mut().expect("validated TASK index");
     object.remove("changes");
-    object.insert("schema".into(), json!("work-task-execution-view/v1"));
+    object.insert("schema".into(), json!("work-task-execution-view"));
     object.insert(
         "tasks".into(),
         Value::Array(
@@ -318,7 +318,7 @@ where
                 .collect(),
         ),
     );
-    let validation = json!({"schema":"work-task-execution-validation/v1",
+    let validation = json!({"schema":"work-task-execution-validation",
         "requirement_id":validated["requirement_id"],"spec_id":validated["spec_id"],
         "task_ids":validated["task_ids"],
         "task_collection_sha256":validated["task_collection_sha256"],
@@ -370,6 +370,71 @@ pub fn load_collection_with_file_state<H, S, P, R>(
     skill_roots: &[SkillRoot],
     index_path: &str,
     validate_file_state: bool,
+) -> Result<Value, WorkError>
+where
+    H: InstructionSourceRepository,
+    S: SkillSnapshotRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
+    R: TaskCollectionRepository,
+{
+    load_collection_with_policy(
+        instructions,
+        skills,
+        paths,
+        repository,
+        skill_roots,
+        index_path,
+        CollectionPolicy {
+            file_state: validate_file_state,
+            revision_baseline: false,
+        },
+    )
+}
+
+/// Validate a current, byte-bound baseline for reviewed Revise only. This never
+/// authorizes Task execution and does not accept historical schema or fields.
+pub fn load_revision_baseline<H, S, P, R>(
+    instructions: &H,
+    skills: &S,
+    paths: &P,
+    repository: &R,
+    skill_roots: &[SkillRoot],
+    index_path: &str,
+) -> Result<Value, WorkError>
+where
+    H: InstructionSourceRepository,
+    S: SkillSnapshotRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
+    R: TaskCollectionRepository,
+{
+    load_collection_with_policy(
+        instructions,
+        skills,
+        paths,
+        repository,
+        skill_roots,
+        index_path,
+        CollectionPolicy {
+            file_state: true,
+            revision_baseline: true,
+        },
+    )
+}
+
+#[derive(Clone, Copy)]
+struct CollectionPolicy {
+    file_state: bool,
+    revision_baseline: bool,
+}
+
+fn load_collection_with_policy<H, S, P, R>(
+    instructions: &H,
+    skills: &S,
+    paths: &P,
+    repository: &R,
+    skill_roots: &[SkillRoot],
+    index_path: &str,
+    policy: CollectionPolicy,
 ) -> Result<Value, WorkError>
 where
     H: InstructionSourceRepository,
@@ -433,7 +498,7 @@ where
             json!({"missing": expected.difference(&observed).collect::<Vec<_>>(), "orphan": observed.difference(&expected).collect::<Vec<_>>()}),
         ));
     }
-    validate_collection_with_file_state(
+    validate_collection_with_policy(
         instructions,
         skills,
         paths,
@@ -443,7 +508,7 @@ where
             item_raw: &items,
             index_path,
         },
-        validate_file_state,
+        policy,
     )
 }
 
@@ -469,6 +534,57 @@ pub fn validate_collection_with_file_state<H, S, P>(
     skill_roots: &[SkillRoot],
     input: CollectionInput<'_>,
     validate_file_state: bool,
+) -> Result<Value, WorkError>
+where
+    H: InstructionSourceRepository,
+    S: SkillSnapshotRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
+{
+    validate_collection_with_policy(
+        instructions,
+        skills,
+        paths,
+        skill_roots,
+        input,
+        CollectionPolicy {
+            file_state: validate_file_state,
+            revision_baseline: false,
+        },
+    )
+}
+
+pub fn validate_revision_baseline<H, S, P>(
+    instructions: &H,
+    skills: &S,
+    paths: &P,
+    skill_roots: &[SkillRoot],
+    input: CollectionInput<'_>,
+) -> Result<Value, WorkError>
+where
+    H: InstructionSourceRepository,
+    S: SkillSnapshotRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
+{
+    validate_collection_with_policy(
+        instructions,
+        skills,
+        paths,
+        skill_roots,
+        input,
+        CollectionPolicy {
+            file_state: false,
+            revision_baseline: true,
+        },
+    )
+}
+
+fn validate_collection_with_policy<H, S, P>(
+    instructions: &H,
+    skills: &S,
+    paths: &P,
+    skill_roots: &[SkillRoot],
+    input: CollectionInput<'_>,
+    policy: CollectionPolicy,
 ) -> Result<Value, WorkError>
 where
     H: InstructionSourceRepository,
@@ -521,6 +637,7 @@ where
     let mut item_validations: BTreeMap<String, Value> = BTreeMap::new();
     let mut items = Vec::new();
     let mut source_sets = Vec::new();
+    let mut stored_selections = Vec::new();
     for reference in index["tasks"].as_array().expect("validated references") {
         let task_id = reference["id"].as_str().expect("validated ID");
         let raw = &input.item_raw[task_id];
@@ -554,26 +671,41 @@ where
             &index["hierarchy_selection"],
             &format!("{task_id}.instruction_selection.selected_paths"),
         )?;
-        source_sets.push(validate_selection_value(
-            instructions,
-            "task",
-            selection,
-            &format!("{task_id}.instruction_selection"),
-        )?);
+        if policy.revision_baseline {
+            stored_selections.push(crate::instruction::stored_selection(
+                selection,
+                Some(&selected_paths),
+            )?);
+        } else {
+            source_sets.push(validate_selection_value(
+                instructions,
+                "task",
+                selection,
+                &format!("{task_id}.instruction_selection"),
+            )?);
+        }
         item_validations.insert(task_id.into(), validation);
         items.push(
             serde_json::from_value::<TaskItem>(item).expect("validated TASK item matches Model"),
         );
     }
-    let document_selection = task_document_selection(&source_sets)?;
-    validate_task_document_selection(&index["instruction_selection"], &document_selection)?;
+    let document_selection = if policy.revision_baseline {
+        crate::instruction::stored_document_selection(
+            &index["instruction_selection"],
+            &stored_selections,
+        )?
+    } else {
+        let current = task_document_selection(&source_sets)?;
+        validate_task_document_selection(&index["instruction_selection"], &current)?;
+        current
+    };
     let typed_index: TaskIndex =
         serde_json::from_value(index.clone()).expect("validated TASK index matches Model");
     let projection =
         serde_json::to_value(semantic_projection(typed_index, items, input.index_path))
             .expect("TASK projection serializes");
     let semantics = validate_task_semantics(&projection).map_err(domain)?;
-    if validate_file_state {
+    if policy.file_state {
         let mut existence = BTreeMap::new();
         for task in projection["tasks"].as_array().expect("validated TASKs") {
             for file in task["files"].as_array().into_iter().flatten() {
@@ -622,7 +754,7 @@ where
     Ok(work_model::task::response::typed_response::<
         work_model::task::response::TaskCollectionValidation,
     >(json!({
-        "schema": "work-task-collection-validation/v1", "requirement_id": index["requirement_id"], "spec_id": index["spec_id"],
+        "schema": "work-task-collection-validation", "requirement_id": index["requirement_id"], "spec_id": index["spec_id"],
         "task_ids": task_ids, "task_count": task_ids.len(), "task_index_sha256": fingerprint::raw(input.index_raw),
         "task_item_sha256": item_hashes, "task_collection_sha256": collection_sha, "source_sha256": source_sha,
         "instructions_sha256": document_selection["instructions_sha256"], "task_instructions_sha256": semantics["task_instruction_hashes"],

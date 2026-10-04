@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # Load only the target skill
 
 

@@ -358,7 +358,7 @@ pub(super) fn publish_migration_with_guard(
     }
     Ok(work_model::specification::verified::<
         work_model::specification::SpecMigrationPublication,
-    >(json!({"schema":"work-spec-migration-publication/v1",
+    >(json!({"schema":"work-spec-migration-publication",
         "status":if operation == "recover" {"recovered"} else {"updated"},
         "fingerprint":preview["fingerprint"],
         "transaction_approval_sha256":transaction["approval_sha256"],
@@ -374,7 +374,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
-    fn reconstruction_publication_matches_python_journal_and_response() {
+    fn reconstruction_publication_matches_current_contract_journal_and_response() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture =
             repo.join("crates/work-infrastructure/fixtures/specification-migration/reconstruction");

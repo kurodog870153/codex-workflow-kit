@@ -85,7 +85,7 @@ pub struct SupplementalAuthorization {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DeviationAuthorizationSchema {
-    #[serde(rename = "work-execution-deviation-authorization/v1")]
+    #[serde(rename = "work-execution-deviation-authorization")]
     V1,
 }
 

@@ -149,7 +149,7 @@ pub fn build_initial_execution_index(
             "instructions_sha256":validation["task_instructions_sha256"][id],"acceptance_results":crate::execution::acceptance::pending(crate::execution::acceptance::task_ids(task))})
         })
         .collect();
-    let index = json!({"schema":"work-execution-index/v1","requirement_id":collection["requirement_id"],
+    let index = json!({"schema":"work-execution-index","requirement_id":collection["requirement_id"],
         "title":"Execution","task_spec_id":collection["spec_id"],
         "task_collection_sha256":validation["task_collection_sha256"],
         "task_index_sha256":validation["task_index_sha256"],
@@ -214,7 +214,7 @@ fn strict_fields(
 }
 
 pub fn validate_execution_index(index: &Value, raw: &[u8]) -> Result<Value, ExecutionIssue> {
-    if index["schema"] != "work-execution-index/v1" {
+    if index["schema"] != "work-execution-index" {
         return Err(issue(
             "invalid_execution_index_schema",
             "Invalid execution index schema.",
@@ -484,7 +484,7 @@ pub fn validate_execution_index(index: &Value, raw: &[u8]) -> Result<Value, Exec
     let _: work_model::execution::index::ExecutionIndex =
         serde_json::from_value(index.clone()).expect("validated execution index matches model");
     Ok(
-        json!({"schema":"work-execution-index-validation/v1","requirement_id":index["requirement_id"],
+        json!({"schema":"work-execution-index-validation","requirement_id":index["requirement_id"],
         "task_spec_id":index["task_spec_id"],"overall_status":index["overall_status"],
         "index_sha256":sha256_hex(raw),"task_count":rows.len()}),
     )
@@ -691,7 +691,7 @@ mod tests {
     use super::*;
     use crate::canonical::sha256_hex;
 
-    fn python_instruction_index() -> Value {
+    fn current_contract_instruction_index() -> Value {
         let collection = json!({"requirement_id":"example","spec_id":"TASK-SPEC-001",
             "tasks":[{"id":"TASK-001","skill_id":null}]});
         let validation = json!({"task_collection_sha256":"a".repeat(64),
@@ -758,11 +758,11 @@ mod tests {
     }
 
     #[test]
-    fn instruction_index_v1_fields_order_and_legacy_rejections_match_python() {
-        let index = python_instruction_index();
+    fn instruction_index_current_fields_order_and_legacy_rejections_match_current_contract() {
+        let index = current_contract_instruction_index();
         let result = validate_instruction_fixture(&index).unwrap();
-        assert_eq!(index["schema"], "work-execution-index/v1");
-        assert_eq!(result["schema"], "work-execution-index-validation/v1");
+        assert_eq!(index["schema"], "work-execution-index");
+        assert_eq!(result["schema"], "work-execution-index-validation");
         assert_eq!(result["overall_status"], "pending");
         for (field, value) in [
             ("task_collection_sha256", "a"),
@@ -866,8 +866,8 @@ mod tests {
     }
 
     #[test]
-    fn instruction_audit_fields_and_legacy_rejections_match_python() {
-        let mut index = python_instruction_index();
+    fn instruction_audit_fields_and_legacy_rejections_match_current_contract() {
+        let mut index = current_contract_instruction_index();
         index["latest_task_instruction_audit"] = json!("TASK-INSTRUCTION-AUDIT-001");
         index["overall_status"] = json!("blocked");
         index["tasks"][0]["status"] = json!("blocked");
@@ -976,7 +976,7 @@ mod tests {
         let raw = render_execution_index(&index).unwrap();
         assert_eq!(
             sha256_hex(&raw),
-            "0b1d82c0895b1184a00ab99772861d24989eb07a0c21c6069e913010f94ce8ed"
+            "7a41e7ea05816a69b9d456cd84e3c3598d450d40027ddc397182fa8e6ec87b7e"
         );
         assert_eq!(
             validate_execution_index(&index, &raw).unwrap()["task_count"],
@@ -1008,7 +1008,7 @@ mod tests {
     fn ordering_preserves_task_reason_lock_and_command_fields() {
         let value = json!({"acceptance_results":[],
             "zzz": 2, "aaa": 1,
-            "schema": "work-execution-index/v1",
+            "schema": "work-execution-index",
             "task_collection_sha256": "a", "task_index_sha256": "b",
             "overall_status": "in_progress",
             "tasks": [{"status_reason": {"ref": "ATTEMPT-001", "kind": "attempt"},

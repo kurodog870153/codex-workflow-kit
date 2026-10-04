@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 2 -->
 # Task Workflow
 
 1. Use this entry only when it appears in the CLI-produced canonical selection manifest.

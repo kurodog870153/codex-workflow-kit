@@ -41,7 +41,7 @@ pub fn prepare_reconstruction_request(
             "The reconstruction preparation is invalid.",
         )
     })?;
-    if request["schema"] != "work-spec-migration-prepare-request/v1"
+    if request["schema"] != "work-spec-migration-prepare-request"
         || request["mode"] != "reconstruction"
     {
         return Err(fail(
@@ -272,7 +272,7 @@ pub fn prepare_reconstruction_request(
                 issue.details,
             )
         })?;
-        let mut item = json!({"schema":"work-task-item/v1","id":id,"title":task["title"],
+        let mut item = json!({"schema":"work-task-item","id":id,"title":task["title"],
             "goal":task["goal"],"skill_id":task["skill_id"],
             "instruction_selection":selection,
             "traceability":{"acceptance_ids":task["candidate"]["acceptance_ids"]},
@@ -285,7 +285,7 @@ pub fn prepare_reconstruction_request(
         }
         items.insert(id.clone(), item);
     }
-    let mut index = json!({"schema":"work-task-index/v1",
+    let mut index = json!({"schema":"work-task-index",
         "requirement_id":request["requirement_id"],"spec_id":"TASK-SPEC-001",
         "status":"confirmed","title":request["task_title"],"summary":request["task_summary"],
         "artifacts":context["artifacts"],
@@ -432,11 +432,9 @@ pub fn prepare_reconstruction_request(
     }
     Ok(work_model::specification::verified::<
         work_model::specification::SpecMigrationPreviewRequest,
-    >(
-        json!({"schema":"work-spec-migration-preview-request/v1",
+    >(json!({"schema":"work-spec-migration-preview-request",
         "sources":sources,"candidates":documents,
-        "semantic_decisions":request["semantic_decisions"].as_array().cloned().unwrap_or_default()})
-    ))
+        "semantic_decisions":request["semantic_decisions"].as_array().cloned().unwrap_or_default()})))
 }
 
 #[cfg(test)]
@@ -446,7 +444,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
-    fn semantic_reconstruction_matches_python_candidate_and_preview() {
+    fn semantic_reconstruction_matches_current_contract_candidate_and_preview() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture =
             repo.join("crates/work-infrastructure/fixtures/specification-migration/reconstruction");

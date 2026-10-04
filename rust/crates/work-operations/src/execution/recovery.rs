@@ -442,7 +442,7 @@ pub fn validate_record_finish_recovery(
                 .expect("validated record")
                 .remove(field);
         }
-        let mut request = json!({"schema":"work-record-finish-request/v1","record":result_record});
+        let mut request = json!({"schema":"work-record-finish-request","record":result_record});
         if let Some(evidence) = input.authorization_evidence {
             request["authorization_evidence"] = json!(evidence);
         }
@@ -537,7 +537,7 @@ pub struct AttemptCloseRecoveryTarget {
 }
 
 fn close_request(attempt: &Value) -> Value {
-    let mut request = json!({"schema":"work-attempt-close-request/v1",
+    let mut request = json!({"schema":"work-attempt-close-request",
         "status":attempt["status"]});
     if attempt["status"] != "completed" {
         request["final_type"] = attempt["final_type"].clone();
@@ -665,13 +665,13 @@ mod tests {
 
     #[test]
     fn record_finish_recovery_rejects_tampered_prepared_attempt() {
-        let authorization = json!({"schema":"work-attempt-authorization/v1",
+        let authorization = json!({"schema":"work-attempt-authorization",
             "task_id":"TASK-001","commands":[],"validations":[{"id":"VAL-001","acceptance_ids":["ACCEPTANCE-001"]}],
             "modifiable_files":[],"working_directories":[],"external_operations":[],
             "allowed_deviations":[],"reapproval_conditions":["scope_expansion",
                 "source_or_worktree_drift","failure_divergence","retry","recovery","unknown_result"],
             "authorization_evidence":"Approved"});
-        let attempt = json!({"acceptance_results":crate::execution::acceptance::pending(["ACCEPTANCE-001".to_owned()]),"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
+        let attempt = json!({"acceptance_results":crate::execution::acceptance::pending(["ACCEPTANCE-001".to_owned()]),"schema":"work-attempt","attempt_id":"ATTEMPT-001",
             "task_spec_id":"TASK-SPEC-001","task_id":"TASK-001","skill_id":null,
             "status":"in_progress","task_collection_sha256":"a".repeat(64),
             "task_index_sha256":"b".repeat(64),"task_item_sha256":"c".repeat(64),
@@ -696,7 +696,7 @@ mod tests {
         index["lock"] = build_execution_lock("TASK-001", "ATTEMPT-001", &"e".repeat(64));
         index["lock"]["record_id"] = json!("VAL-001");
         let task = json!({"id":"TASK-001","traceability":{"acceptance_ids":["ACCEPTANCE-001"]},"commands":[],"operations":[],"validations":[{"id":"VAL-001","acceptance_ids":["ACCEPTANCE-001"]}]});
-        let request = json!({"schema":"work-record-finish-request/v1","record":{"outcome":"passed","evidence":"Passed"}});
+        let request = json!({"schema":"work-record-finish-request","record":{"outcome":"passed","evidence":"Passed"}});
         let prepared =
             build_record_finish_candidates(&task, &attempt, &index, "TASK-001", &request)
                 .unwrap()
@@ -740,7 +740,7 @@ mod tests {
             .reason_code,
             "execution_recovery_record_finish_target_mismatch"
         );
-        let failed_request = json!({"schema":"work-record-finish-request/v1","record":{"outcome":"failed","evidence":"Failed"},"authorization_evidence":"Fresh failure authorization"});
+        let failed_request = json!({"schema":"work-record-finish-request","record":{"outcome":"failed","evidence":"Failed"},"authorization_evidence":"Fresh failure authorization"});
         let failed_candidate =
             build_record_finish_candidates(&task, &attempt, &index, "TASK-001", &failed_request)
                 .unwrap();
@@ -773,7 +773,7 @@ mod tests {
         retry_index["lock"]["record_id"] = json!("VAL-001#1");
         retry_index["lock"]["retry_authorization_evidence"] = json!("Fresh retry authorization");
         let retry_index_raw = render_execution_index(&retry_index).unwrap();
-        let retry_request = json!({"schema":"work-record-finish-request/v1","record":{"outcome":"passed","evidence":"Retry passed"}});
+        let retry_request = json!({"schema":"work-record-finish-request","record":{"outcome":"passed","evidence":"Retry passed"}});
         let retried = build_record_finish_candidates(
             &task,
             &failed,

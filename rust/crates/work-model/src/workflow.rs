@@ -22,7 +22,6 @@ pub struct WorkflowState {
     pub required_checks: Vec<String>,
     pub artifacts: BTreeMap<String, String>,
     pub routing_status: ManifestRoutingStatus,
-    pub router_compatibility_revision: u64,
     pub required_instruction_sources: Vec<String>,
     pub source_order: Vec<String>,
     pub selection_sha256: String,
@@ -45,7 +44,7 @@ mod tests {
     #[test]
     fn public_workflow_example_matches_model() {
         let registry: Value = crate::contract_data::registry_value();
-        let example = &registry["items"]["work-workflow-state/v1"]["description"]["example"];
+        let example = &registry["items"]["work-workflow-state"]["description"]["example"];
         serde_json::from_value::<WorkflowState>(example.clone()).unwrap();
     }
 }

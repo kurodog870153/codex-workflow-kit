@@ -173,7 +173,7 @@ pub fn build_selection(
     let hash =
         fingerprint::hierarchy_selection(decision, &paths, &entries, &catalog.catalog_sha256);
     let result = json!({
-        "schema": "work-hierarchy-selection/v1",
+        "schema": "work-hierarchy-selection",
         "decision": decision,
         "selected_paths": paths,
         "entries": entries,
@@ -202,7 +202,7 @@ pub fn validate_selection(
             "selection_sha256",
         ],
     )?;
-    if selection["schema"] != "work-hierarchy-selection/v1" {
+    if selection["schema"] != "work-hierarchy-selection" {
         return Err(contract(
             "invalid_hierarchy_selection_schema",
             "The hierarchy selection schema is invalid.",
@@ -325,7 +325,7 @@ pub fn validate_selection(
         ));
     }
     validate_task_paths(repository, &selected_paths, value, "hierarchy_selection")?;
-    let result = json!({"schema": "work-hierarchy-selection-validation/v1", "status": "valid", "hierarchy_selection": value});
+    let result = json!({"schema": "work-hierarchy-selection-validation", "status": "valid", "hierarchy_selection": value});
     let _: work_model::hierarchy::HierarchySelectionValidation =
         serde_json::from_value(result.clone())
             .expect("validated hierarchy selection matches its model");

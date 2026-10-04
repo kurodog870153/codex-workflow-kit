@@ -491,13 +491,13 @@ where
         ));
     }
     repository.check_recovery_idle(target.execution_dir)?;
-    let recovery_request = json!({"schema":"work-execution-recovery-request/v1",
+    let recovery_request = json!({"schema":"work-execution-recovery-request",
         "transaction":transaction,"attempt_id":attempt_id,"transaction_files":files});
     validate_recovery_request(&recovery_request, false).map_err(rule)?;
     Ok(work_model::execution::response::verified::<
         work_model::execution::response::ExecutionRecoveryPrepare,
     >(
-        json!({"schema":"work-execution-recovery-prepare/v1","status":"prepared",
+        json!({"schema":"work-execution-recovery-prepare","status":"prepared",
         "request":recovery_request,"task_id":target.task_id,
         "attempt_path":attempt_path,"index_path":index_path,"lock":index["lock"],
         "attempt_status":attempt["status"],"evidence":evidence,
@@ -608,7 +608,7 @@ where
     Ok(work_model::execution::response::verified::<
         work_model::execution::response::CorrectionCreateResponse,
     >(
-        json!({"schema":"work-correction-create/v1","task_id":target.task_id,
+        json!({"schema":"work-correction-create","task_id":target.task_id,
         "attempt_id":attempt_id,"correction_id":correction_id,
         "correction_path":format!("{}/{}/{attempt_id}/corrections/{correction_id}.json",
             target.execution_dir, target.task_id),
@@ -1291,7 +1291,7 @@ where
         formalize_semantic_action(&semantic["action"], task, &attempt, anchor).map_err(rule)?;
     let proposal = work_model::execution::response::verified::<
         work_model::execution::deviation::DeviationProposal,
-    >(json!({"schema":"work-execution-deviation-proposal/v1",
+    >(json!({"schema":"work-execution-deviation-proposal",
         "task_id":target.task_id,"attempt_id":attempt_id,"anchor_record_id":anchor,
         "task_basis":basis,"gap":semantic["gap"],"action":action,
         "modifiable_files":semantic["modifiable_files"],"impact":semantic["impact"],
@@ -1694,7 +1694,7 @@ pub fn record_command_correction_from_context(
     Ok(work_model::execution::response::verified::<
         work_model::execution::response::CommandCorrectionResponse,
     >(
-        json!({"schema":"work-command-correction/v1","task_id":task_id,
+        json!({"schema":"work-command-correction","task_id":task_id,
         "attempt_id":attempt_id,"record_id":record_id,
         "index_path":format!("{execution_dir}/index.json"),
         "correction_status":"recorded","lock_status":"record_reserved"}),
@@ -2002,12 +2002,10 @@ pub fn begin_record_from_context(
     })?;
     Ok(work_model::execution::response::verified::<
         work_model::execution::response::RecordBeginResponse,
-    >(
-        json!({"schema":"work-record-begin/v1","task_id":task_id,
+    >(json!({"schema":"work-record-begin","task_id":task_id,
         "attempt_id":attempt_id,"base_record_id":base_record_id,"record_id":record_id,
         "record_kind":record_kind,"index_path":format!("{execution_dir}/index.json"),
-        "lock_status":"record_reserved"})
-    ))
+        "lock_status":"record_reserved"})))
 }
 
 pub fn finish_record_from_context(
@@ -2097,7 +2095,7 @@ pub fn finish_record_from_context(
     Ok(work_model::execution::response::verified::<
         work_model::execution::response::RecordFinishResponse,
     >(
-        json!({"schema":"work-record-finish/v1","task_id":task_id,
+        json!({"schema":"work-record-finish","task_id":task_id,
         "attempt_id":attempt_id,"record_id":candidates.record_id,
         "record_kind":candidates.record_kind,
         "attempt_path":format!("{execution_dir}/{task_id}/{attempt_id}/attempt.json"),
@@ -2292,7 +2290,7 @@ pub fn close_attempt_from_context(
     Ok(work_model::execution::response::verified::<
         work_model::execution::response::AttemptCloseResponse,
     >(
-        json!({"schema":"work-attempt-close/v1","task_id":task_id,
+        json!({"schema":"work-attempt-close","task_id":task_id,
         "attempt_id":attempt_id,"attempt_path":format!("{execution_dir}/{task_id}/{attempt_id}/attempt.json"),
         "index_path":format!("{execution_dir}/index.json"),
         "attempt_status":request["status"],"task_status":task_status,
@@ -2387,7 +2385,7 @@ pub fn inspect_worktree(
     let report = inspect_records(&records, execution_dir, task_id, target, &dependencies);
     Ok(work_model::execution::response::verified::<
         work_model::execution::response::ExecuteWorktree,
-    >(json!({"schema":"work-execute-worktree/v1",
+    >(json!({"schema":"work-execute-worktree",
         "requirement_id":preflight["requirement_id"],
         "task_spec_id":preflight["task_spec_id"],"task_id":task_id,
         "task_collection_sha256":preflight["task_collection_sha256"],
@@ -2669,7 +2667,7 @@ pub fn start_attempt_from_preflight(
     Ok(work_model::execution::response::verified::<
         work_model::execution::response::AttemptStartResponse,
     >(
-        json!({"schema":"work-attempt-start/v1","task_id":task_id,
+        json!({"schema":"work-attempt-start","task_id":task_id,
         "attempt_id":attempt_id,
         "attempt_path":format!("{execution_dir}/{task_id}/{attempt_id}/attempt.json"),
         "index_path":format!("{execution_dir}/index.json"),"status":"started",
@@ -2924,7 +2922,7 @@ pub fn prepare_execute_preflight(
             json!({"task_id":task_id,"skill_id":task["skill_id"]}),
         ));
     }
-    let skill_selection = json!({"schema":"work-skill-selection/v1","decision":decision,
+    let skill_selection = json!({"schema":"work-skill-selection","decision":decision,
         "selection_sha256":skill_selection_sha256(decision, &selected_skills),
         "skills":selected_skills});
     let row = base["index"]["tasks"]
@@ -2935,7 +2933,7 @@ pub fn prepare_execute_preflight(
         .expect("preflight verified TASK row");
     Ok(work_model::execution::response::verified::<
         work_model::execution::response::ExecutePreflight,
-    >(json!({"schema":"work-execute-preflight/v1",
+    >(json!({"schema":"work-execute-preflight",
         "requirement_id":validation["collection_contract"]["requirement_id"],
         "task_spec_id":validation["collection_contract"]["spec_id"],
         "task_id":task_id,"skill_id":task["skill_id"],"task_path":task_path,
@@ -3029,7 +3027,7 @@ mod tests {
     }
 
     #[test]
-    fn attempt_close_instruction_reason_and_blocking_record_match_python() {
+    fn attempt_close_instruction_reason_and_blocking_record_match_current_contract() {
         let task = json!({"instruction_selection":{"selected_paths":["web/backend/java/jpa"],
             "resolved_paths":["general","web","web/backend","web/backend/java","web/backend/java/jpa"]}});
         let selection = json!({"selected_paths":["web/backend/java/jpa"],
@@ -3127,13 +3125,13 @@ mod tests {
         let replacement = json!({"mode":"argv","argv":["printf","corrected"]});
         let action = json!({"kind":"replace_command","record_id":"CMD-001",
             "replacement":replacement});
-        let authorization = json!({"schema":"work-attempt-authorization/v1",
+        let authorization = json!({"schema":"work-attempt-authorization",
             "task_id":"TASK-001","commands":[{"id":"CMD-001"}],"validations":[],
             "modifiable_files":[],"working_directories":[],"external_operations":[],
             "allowed_deviations":[action],"reapproval_conditions":["scope_expansion",
                 "source_or_worktree_drift","failure_divergence","retry","recovery","unknown_result"],
             "authorization_evidence":"Approved"});
-        let attempt = json!({"acceptance_results":[],"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
+        let attempt = json!({"acceptance_results":[],"schema":"work-attempt","attempt_id":"ATTEMPT-001",
             "task_spec_id":"TASK-SPEC-001","task_id":"TASK-001","skill_id":null,
             "status":"in_progress","task_collection_sha256":"a".repeat(64),
             "task_index_sha256":"b".repeat(64),"task_item_sha256":"c".repeat(64),
@@ -3143,7 +3141,7 @@ mod tests {
             "execute_skill_selection_sha256":"0".repeat(64),
             "authorization_sha256":canonical_json_sha256(&authorization).unwrap(),
             "authorization":authorization,"started_at":"2026-09-01T10:00+08:00","records":[]});
-        let mut index = json!({"acceptance_results":[],"schema":"work-execution-index/v1","requirement_id":"demo",
+        let mut index = json!({"acceptance_results":[],"schema":"work-execution-index","requirement_id":"demo",
             "title":"Execution","task_spec_id":"TASK-SPEC-001",
             "task_collection_sha256":"a".repeat(64),"task_index_sha256":"b".repeat(64),
             "task_instructions_sha256":"d".repeat(64),
@@ -3157,7 +3155,7 @@ mod tests {
         let task = json!({"id":"TASK-001","commands":[{"id":"CMD-001","mode":"argv",
             "argv":["printf","ok"]}],"operations":[],"validations":[],
             "instruction_selection":{"selected_paths":[],"resolved_paths":[]}});
-        let mut manifest=work_model::contract_data::registry_value()["items"]["work-source-snapshot/v1"]["description"]["example"].clone();
+        let mut manifest=work_model::contract_data::registry_value()["items"]["work-source-snapshot"]["description"]["example"].clone();
         manifest["requirement_id"] = json!("demo");
         manifest["content"] =
             json!({"path":"source.txt","size":12,"sha256":sha256_hex(b"requirements")});
@@ -3201,7 +3199,7 @@ mod tests {
         };
         let selected = json!({"selected_paths":[],"resolved_paths":[],
             "instructions_sha256":"e".repeat(64)});
-        let request = json!({"schema":"work-command-run-request/v1","timeout_seconds":60});
+        let request = json!({"schema":"work-command-run-request","timeout_seconds":60});
         let source_files = HashMap::from([("task/index.json".into(), b"task".to_vec())]);
         let make_context = || CommandPrepareContext {
             lifecycle: RecordBeginContext {
@@ -3247,7 +3245,7 @@ mod tests {
             &correction_repo,
             make_context().lifecycle,
             "task/index.json",
-            &json!({"schema":"work-command-correction-request/v1",
+            &json!({"schema":"work-command-correction-request",
                 "actual_command":replacement,"reason":"Correct the argument"}),
             &selected,
         )
@@ -3277,7 +3275,7 @@ mod tests {
                 .reason_code,
             "command_run_source_changed"
         );
-        let deviation_proposal = json!({"schema":"work-execution-deviation-proposal/v1",
+        let deviation_proposal = json!({"schema":"work-execution-deviation-proposal",
             "task_id":"TASK-001","attempt_id":"ATTEMPT-001",
             "anchor_record_id":"CMD-001","task_basis":["CMD-001"],
             "gap":"The reviewed command differs.","action":action,
@@ -3330,7 +3328,6 @@ mod tests {
                         kind: "instruction".into(),
                         logical_name: "execute.general".into(),
                         canonical_sha256: "a".repeat(64),
-                        compatibility_revision: 1,
                     },
                     canonical_content: b"execute\n".to_vec(),
                 }],
@@ -3481,13 +3478,13 @@ mod tests {
 
     #[test]
     fn record_begin_context_publishes_only_a_valid_reservation() {
-        let authorization = json!({"schema":"work-attempt-authorization/v1",
+        let authorization = json!({"schema":"work-attempt-authorization",
             "task_id":"TASK-001","commands":[{"id":"CMD-001"}],"validations":[],
             "modifiable_files":[],"working_directories":[],"external_operations":[],
             "allowed_deviations":[],"reapproval_conditions":["scope_expansion",
                 "source_or_worktree_drift","failure_divergence","retry","recovery","unknown_result"],
             "authorization_evidence":"Approved"});
-        let attempt = json!({"acceptance_results":[],"schema":"work-attempt/v1","attempt_id":"ATTEMPT-001",
+        let attempt = json!({"acceptance_results":[],"schema":"work-attempt","attempt_id":"ATTEMPT-001",
             "task_spec_id":"TASK-SPEC-001","task_id":"TASK-001","skill_id":null,
             "status":"in_progress","task_collection_sha256":"a".repeat(64),
             "task_index_sha256":"b".repeat(64),"task_item_sha256":"c".repeat(64),
@@ -3497,7 +3494,7 @@ mod tests {
             "execute_skill_selection_sha256":"0".repeat(64),
             "authorization_sha256":canonical_json_sha256(&authorization).unwrap(),
             "authorization":authorization,"started_at":"2026-09-01T10:00+08:00","records":[]});
-        let index = json!({"acceptance_results":[],"schema":"work-execution-index/v1","requirement_id":"demo",
+        let index = json!({"acceptance_results":[],"schema":"work-execution-index","requirement_id":"demo",
             "title":"Execution","task_spec_id":"TASK-SPEC-001",
             "task_collection_sha256":"a".repeat(64),"task_index_sha256":"b".repeat(64),
             "task_instructions_sha256":"d".repeat(64),
@@ -3583,7 +3580,7 @@ mod tests {
             "record_begin_index_identity_mismatch"
         );
         let close_repository = FakeAttemptClose::default();
-        let close_request = json!({"schema":"work-attempt-close-request/v1","status":"completed"});
+        let close_request = json!({"schema":"work-attempt-close-request","status":"completed"});
         let selection = json!({"selected_paths":[],"resolved_paths":[],
             "instructions_sha256":"e".repeat(64)});
         let closed = close_attempt_from_context(
@@ -3614,7 +3611,7 @@ mod tests {
         validate_execution_index(&closed_index, index_after).unwrap();
         assert_eq!(closed_attempt["status"], "completed");
         assert!(closed_index.get("lock").is_none());
-        let proposal = json!({"schema":"work-execution-deviation-proposal/v1","task_id":"TASK-001","attempt_id":"ATTEMPT-001","anchor_record_id":"CMD-001","task_basis":["CMD-001"],"gap":"The acceptance boundary requires coordinated revision.","action":{"kind":"skip_record","record_id":"CMD-001","reason":"Stop for specification revision."},"modifiable_files":[],"impact":{"summary":"Acceptance changed.","requirement_changed":false,"scope_changed":false,"acceptance_criteria_changed":true,"deliverables_changed":false,"safety_boundary_changed":false,"external_side_effect_boundary_changed":false},"side_effects":[]});
+        let proposal = json!({"schema":"work-execution-deviation-proposal","task_id":"TASK-001","attempt_id":"ATTEMPT-001","anchor_record_id":"CMD-001","task_basis":["CMD-001"],"gap":"The acceptance boundary requires coordinated revision.","action":{"kind":"skip_record","record_id":"CMD-001","reason":"Stop for specification revision."},"modifiable_files":[],"impact":{"summary":"Acceptance changed.","requirement_changed":false,"scope_changed":false,"acceptance_criteria_changed":true,"deliverables_changed":false,"safety_boundary_changed":false,"external_side_effect_boundary_changed":false},"side_effects":[]});
         let preview =
             build_deviation_preview(&proposal, "command", &std::collections::BTreeMap::new())
                 .unwrap();
@@ -3631,7 +3628,7 @@ mod tests {
         let mut reserved = index.clone();
         reserved["lock"]["record_id"] = json!("CMD-001");
         let reserved_raw = render_execution_index(&reserved).unwrap();
-        let stopped = json!({"schema":"work-attempt-close-request/v1","status":"stopped","final_type":"specification_defect","reason":"Return to Task for coordinated revision.","authorization_evidence":"Approved specification close"});
+        let stopped = json!({"schema":"work-attempt-close-request","status":"stopped","final_type":"specification_defect","reason":"Return to Task for coordinated revision.","authorization_evidence":"Approved specification close"});
         let sink = FakeAttemptClose::default();
         let context = || RecordBeginContext {
             collection: &collection,
@@ -3882,7 +3879,7 @@ mod tests {
     #[test]
     fn complete_preflight_selects_execute_references_and_source_fingerprints() {
         let source = json!({"kind":"instruction","logical_name":"task.general",
-            "canonical_sha256":"a".repeat(64),"compatibility_revision":1});
+            "canonical_sha256":"a".repeat(64)});
         let validation = json!({"collection_contract":{"requirement_id":"demo",
             "skill_selection":{"skills":[]},"spec_id":"TASK-SPEC-001","artifacts":{"task":"task/index.json","execution":"execution"},
             "tasks":[{"id":"TASK-001","skill_id":null,"dependencies":[],"inputs":[],"files":[],
@@ -4019,13 +4016,13 @@ mod tests {
             skilled_validation["collection_contract"]["skill_selection"]["skills"]
         );
         result["snapshot_sha256"] = json!("0".repeat(64));
-        let authorization = json!({"schema":"work-attempt-authorization/v1",
+        let authorization = json!({"schema":"work-attempt-authorization",
             "task_id":"TASK-001","commands":[],"validations":[],"modifiable_files":[],
             "working_directories":[],"external_operations":[],"allowed_deviations":[],
             "reapproval_conditions":["scope_expansion","source_or_worktree_drift",
                 "failure_divergence","retry","recovery","unknown_result"],
             "authorization_evidence":"Approved"});
-        let request = json!({"schema":"work-attempt-start-request/v1",
+        let request = json!({"schema":"work-attempt-start-request",
             "worktree_snapshot_sha256":"0".repeat(64),"authorization":authorization});
         let sink = FakeAttemptStart::default();
         let index = parse_json_contract(&repository.0).unwrap();
@@ -4082,7 +4079,7 @@ mod tests {
             source: source_raw,
             stored: RefCell::new(None),
         };
-        let retry_request = json!({"schema":"work-attempt-start-request/v1",
+        let retry_request = json!({"schema":"work-attempt-start-request",
             "worktree_snapshot_sha256":"0".repeat(64),
             "authorization":request["authorization"],
             "continuation":{"source_attempt_id":"ATTEMPT-001","carried_records":[]}});
@@ -4132,7 +4129,7 @@ mod tests {
     }
 
     #[test]
-    fn missing_record_task_keeps_python_workflow_exit_and_details() {
+    fn missing_record_task_keeps_current_contract_workflow_exit_and_details() {
         let error = rule(ExecutionIssue {
             reason_code: "record_begin_task_not_found",
             message: "The requested TASK is not present in the execution index.",

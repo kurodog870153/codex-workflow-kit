@@ -44,7 +44,7 @@ where
     S: SkillSnapshotRepository,
     P: ArtifactPathRepository + SourceSnapshotReader,
 {
-    if request["schema"] != "work-spec-migration-preview-request/v1" {
+    if request["schema"] != "work-spec-migration-preview-request" {
         return Err(fail(
             "migration_preview_schema",
             "A migration preview request is required.",

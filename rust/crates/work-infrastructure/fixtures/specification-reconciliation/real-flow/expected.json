@@ -1,23 +1,23 @@
 {
   "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
-  "attempt_sha256": "2ae0e20ec5913132a1fe9b6e04ac9bc0c1adecbc1db250cdd3273324f82d80d8",
+  "attempt_sha256": "d0034312a3ef3f6ad0d6839aca77e4bf3f8db090f27099f2125a6fc14f3f9f1f",
   "choice": "retain_only",
   "deviation_classifications": {
     "DEVIATION-001": "retain_only"
   },
-  "fingerprint": "51f75bd5b3187fda1d39b311da088085349fe1874c7f0994cb58b89d7f03f25b",
+  "fingerprint": "8b03f4ba79c40da3da6f7f2b36b00333f63d58a11455573675bd6e96ddcd6ab3",
   "ledger": {
     "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
     "entries": [
       {
-        "attempt_sha256": "2ae0e20ec5913132a1fe9b6e04ac9bc0c1adecbc1db250cdd3273324f82d80d8",
+        "attempt_sha256": "d0034312a3ef3f6ad0d6839aca77e4bf3f8db090f27099f2125a6fc14f3f9f1f",
         "deviation_id": "DEVIATION-001",
         "outcome": "retained",
-        "reconciliation_fingerprint": "51f75bd5b3187fda1d39b311da088085349fe1874c7f0994cb58b89d7f03f25b",
+        "reconciliation_fingerprint": "8b03f4ba79c40da3da6f7f2b36b00333f63d58a11455573675bd6e96ddcd6ab3",
         "target": "retain_only"
       }
     ],
-    "schema": "work-spec-reconciliation-ledger/v1"
+    "schema": "work-spec-reconciliation-ledger"
   },
   "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
   "migration_preview": null,
@@ -29,7 +29,7 @@
   "retained_deviation_ids": [
     "DEVIATION-001"
   ],
-  "schema": "work-spec-reconciliation-preview/v1",
+  "schema": "work-spec-reconciliation-preview",
   "selected_deviation_ids": [],
   "status": "ready"
 }

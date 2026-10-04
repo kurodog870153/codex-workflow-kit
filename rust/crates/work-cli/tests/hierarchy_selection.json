@@ -1,5 +1,5 @@
 {
-  "catalog_sha256": "74977ff41dae925d76037c60fcbb6e5c6d950af73416308d5e21ca3b96ef5d54",
+  "catalog_sha256": "3e51eaedbc128afd999c796bd337d9471c15411d3e66677383e6fd188e90f390",
   "decision": "instruction_paths",
   "entries": [
     {
@@ -29,9 +29,9 @@
       "recommendation_reason": "The work uses JPA persistence."
     }
   ],
-  "schema": "work-hierarchy-selection/v1",
+  "schema": "work-hierarchy-selection",
   "selected_paths": [
     "programming-language/java/persistence/jpa"
   ],
-  "selection_sha256": "4fa69b9cab7def44cd2074409359e9ad8195e4df8431bc384ea8108e9ae241a5"
+  "selection_sha256": "09f625e5f7eb7df2820a14f809f982bc723ecf6e72422beb7e6b196281543e7b"
 }

@@ -162,7 +162,7 @@ pub fn validate_command_correction_request(request: &Value) -> Result<(), Execut
             json!({"missing":missing,"unknown":unknown}),
         ));
     }
-    if request["schema"] != "work-command-correction-request/v1" {
+    if request["schema"] != "work-command-correction-request" {
         return Err(issue(
             "command_correction_invalid_schema",
             "The command-correction request schema is invalid.",
@@ -277,8 +277,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn command_correction_request_matches_python_contract_cases() {
-        let mut request = json!({"schema":"work-command-correction-request/v1",
+    fn command_correction_request_matches_current_contract_contract_cases() {
+        let mut request = json!({"schema":"work-command-correction-request",
             "actual_command":{"mode":"argv","argv":["tool","new"]},
             "reason":"Use the authorized argument."});
         validate_command_correction_request(&request).unwrap();
@@ -320,7 +320,7 @@ mod tests {
                 .reason_code,
             "command_correction_invalid_schema"
         );
-        request["schema"] = json!("work-command-correction-request/v1");
+        request["schema"] = json!("work-command-correction-request");
         for (field, value) in [
             ("record_id", json!("CMD-001")),
             (
@@ -354,7 +354,7 @@ mod tests {
         let index = json!({"lock":{"kind":"execution","task_id":"TASK-001",
             "attempt_id":"ATTEMPT-001","record_id":"CMD-001",
             "execute_instructions_sha256":"a".repeat(64)}});
-        let request = json!({"schema":"work-command-correction-request/v1",
+        let request = json!({"schema":"work-command-correction-request",
             "actual_command":actual,"reason":"Use full path"});
         let (candidate, id) =
             build_command_correction_candidate(&task, &attempt, &index, "TASK-001", &request)

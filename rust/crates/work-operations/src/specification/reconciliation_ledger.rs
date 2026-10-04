@@ -23,7 +23,7 @@ pub fn validate_ledger(ledger: &Value) -> Result<(), &'static str> {
     let typed: work_model::specification::ReconciliationLedger =
         serde_json::from_value(ledger.clone())
             .map_err(|_| "The reconciliation ledger is invalid.")?;
-    if typed.schema != "work-spec-reconciliation-ledger/v1" || typed.attempt_path.is_empty() {
+    if typed.schema != "work-spec-reconciliation-ledger" || typed.attempt_path.is_empty() {
         return Err("The reconciliation ledger identity is invalid.");
     }
     let mut previous: Option<&str> = None;
@@ -73,7 +73,7 @@ pub fn render_ledger(ledger: &Value) -> Result<Vec<u8>, &'static str> {
         });
     }
     let ordered = Ledger {
-        schema: "work-spec-reconciliation-ledger/v1",
+        schema: "work-spec-reconciliation-ledger",
         attempt_path: ledger["attempt_path"]
             .as_str()
             .ok_or("The ledger Attempt path is missing.")?,
@@ -92,7 +92,7 @@ mod tests {
 
     #[test]
     fn ledger_rejects_plan_targets_duplicates_and_invalid_proofs() {
-        let mut ledger = json!({"schema":"work-spec-reconciliation-ledger/v1","attempt_path":"execution/TASK-001/ATTEMPT-001/attempt.json","entries":[{"deviation_id":"DEVIATION-001","outcome":"incorporated","target":"task_and_execution","attempt_sha256":"a".repeat(64),"reconciliation_fingerprint":"b".repeat(64)}]});
+        let mut ledger = json!({"schema":"work-spec-reconciliation-ledger","attempt_path":"execution/TASK-001/ATTEMPT-001/attempt.json","entries":[{"deviation_id":"DEVIATION-001","outcome":"incorporated","target":"task_and_execution","attempt_sha256":"a".repeat(64),"reconciliation_fingerprint":"b".repeat(64)}]});
         render_ledger(&ledger).unwrap();
         ledger["entries"][0]["target"] = json!("plan_and_task");
         assert!(render_ledger(&ledger).is_err());
@@ -108,10 +108,10 @@ mod tests {
     #[test]
     fn ledger_rendering_preserves_field_order_and_newline() {
         let raw = render_ledger(
-            &json!({"schema":"work-spec-reconciliation-ledger/v1","attempt_path":"a","entries":[]}),
+            &json!({"schema":"work-spec-reconciliation-ledger","attempt_path":"a","entries":[]}),
         )
         .unwrap();
-        assert!(raw.starts_with(b"{\n  \"schema\": \"work-spec-reconciliation-ledger/v1\","));
+        assert!(raw.starts_with(b"{\n  \"schema\": \"work-spec-reconciliation-ledger\","));
         assert!(raw.ends_with(b"\n"));
     }
 }

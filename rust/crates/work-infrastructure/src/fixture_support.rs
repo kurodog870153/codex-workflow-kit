@@ -1,6 +1,58 @@
 //! Artifact builders used by process boundary integration tests.
 
 use serde_json::Value;
+pub use work_operations::derivation::graph::ArtifactNode;
+
+/// Prepare a complete case in memory. Protected entries include historical raw
+/// evidence and deliberate negative-test damage; callers explicitly select them.
+/// No file is written, including when derivation or evidence validation fails.
+pub fn stage_fixture_case<F>(
+    original: &std::collections::BTreeMap<String, Vec<u8>>,
+    protected: &std::collections::BTreeSet<String>,
+    derive: F,
+) -> Result<std::collections::BTreeMap<String, Vec<u8>>, String>
+where
+    F: FnOnce(&mut std::collections::BTreeMap<String, Vec<u8>>) -> Result<(), String>,
+{
+    for path in protected {
+        if !original.contains_key(path) {
+            return Err(format!("missing protected fixture: {path}"));
+        }
+    }
+    let mut candidate = original.clone();
+    derive(&mut candidate)?;
+    for path in protected {
+        if candidate.get(path) != original.get(path) {
+            return Err(format!("protected fixture changed: {path}"));
+        }
+    }
+    Ok(candidate)
+}
+
+/// Render current Task and Execute as one candidate using Operations' topology.
+/// Inputs are cloned so failed binding cannot leave a partly updated case.
+pub fn rebuild_fixture_bindings(
+    index: &Value,
+    items: &std::collections::BTreeMap<String, Vec<u8>>,
+    execution: Option<&Value>,
+    changed_roots: &std::collections::BTreeSet<ArtifactNode>,
+) -> Result<(Vec<u8>, Option<Vec<u8>>), String> {
+    let mut index = index.clone();
+    let mut execution = execution.cloned();
+    let index_raw = work_operations::derivation::graph::reconcile_artifact_bindings(
+        &mut index,
+        items,
+        execution.as_mut(),
+        changed_roots,
+    )
+    .map_err(|issue| issue.reason_code().to_owned())?;
+    let execution_raw = execution
+        .as_ref()
+        .map(render_execution_index)
+        .transpose()
+        .map_err(|issue| issue.to_string())?;
+    Ok((index_raw, execution_raw))
+}
 
 pub fn render_task_index(value: &Value) -> Result<Vec<u8>, serde_json::Error> {
     work_operations::task::ordering::render_task(
@@ -57,15 +109,13 @@ pub fn valid_sha256(value: &str) -> bool {
 pub fn validate_contract_example(id: &str, value: &Value) -> Result<(), String> {
     use work_operations::execution::deviation;
     let execution = match id {
-        "work-execution-deviation-proposal/v1" => {
-            Some(deviation::validate_deviation_proposal(value))
-        }
-        "work-execution-deviation/v1" => Some(deviation::validate_deviation_artifact(value)),
-        "work-execution-deviation-preview/v1" => Some(deviation::validate_deviation_preview(value)),
-        "work-execution-deviation-record/v1" => {
+        "work-execution-deviation-proposal" => Some(deviation::validate_deviation_proposal(value)),
+        "work-execution-deviation" => Some(deviation::validate_deviation_artifact(value)),
+        "work-execution-deviation-preview" => Some(deviation::validate_deviation_preview(value)),
+        "work-execution-deviation-record" => {
             Some(deviation::validate_deviation_record_response(value))
         }
-        "work-execution-deviation-semantic-request/v1" => {
+        "work-execution-deviation-semantic-request" => {
             Some(deviation::validate_semantic_deviation_request(value))
         }
         _ => None,
@@ -74,11 +124,11 @@ pub fn validate_contract_example(id: &str, value: &Value) -> Result<(), String> 
         return result.map_err(|issue| issue.reason_code.to_owned());
     }
     match id {
-        "work-spec-prepare-request/v1" => {
+        "work-spec-prepare-request" => {
             work_operations::specification::prepare::validate_prepare_request(value)
                 .map_err(|issue| issue.reason_code.to_owned())
         }
-        "work-spec-verification-request/v1" => {
+        "work-spec-verification-request" => {
             work_operations::specification::verification::validate_request(value)
                 .map_err(|issue| issue.reason_code.to_owned())
         }
@@ -251,4 +301,17 @@ pub fn historical_execute_skill_root(
     copy(&current.join("references"), &root.join("references"))?;
     restore_historical_execute_instructions(&root)?;
     Ok(root)
+}
+
+/// Prepare current transaction bytes for isolated recovery tests, with no writes.
+pub use work_operations::derivation::transaction::{
+    PublicationOrder, TransactionInput, TransactionKind,
+};
+
+pub fn derive_fixture_transaction(input: TransactionInput) -> Result<(Vec<u8>, String), String> {
+    let derived = work_operations::derivation::transaction::TransactionDeriver::derive(input)
+        .map_err(|issue| issue.reason_code.to_owned())?;
+    let raw = work_operations::specification::transaction::render_transaction(&derived.journal)
+        .map_err(|issue| issue.reason_code.to_owned())?;
+    Ok((raw, derived.approval_sha256))
 }

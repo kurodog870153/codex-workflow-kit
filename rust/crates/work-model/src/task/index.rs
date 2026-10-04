@@ -26,8 +26,6 @@ pub struct TaskInstructionSource {
     pub kind: String,
     pub logical_name: String,
     pub canonical_sha256: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub compatibility_revision: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

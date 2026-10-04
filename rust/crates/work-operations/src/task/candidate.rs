@@ -903,7 +903,7 @@ mod tests {
             formal["validations"][0]["acceptance_ids"],
             json!(["ACCEPTANCE-001"])
         );
-        // Draft storage uses sorted keys; Python's generic renderer keeps insertion order.
+        // Draft storage uses sorted keys; the generic renderer keeps insertion order.
         assert_eq!(
             crate::canonical::sha256_hex(&crate::canonical::canonical_json(&formal).unwrap()),
             "0c5d6dd7197651b224ab6b1c363e659c95d24ca8151020a9117af0af06631ee9"

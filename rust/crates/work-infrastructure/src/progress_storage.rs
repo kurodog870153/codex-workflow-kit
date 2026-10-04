@@ -148,7 +148,7 @@ mod tests {
     };
 
     fn example() -> serde_json::Value {
-        json!({"schema":"work-discussion-progress/v1","requirement_id":"example","mode":"task","revision":1,"status":"discussion_only","title":"Example","request":"Example request.","current_task_id":null,"context":{},"source_status":[],"notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],"next_discussion_point":"Continue."})
+        json!({"schema":"work-discussion-progress","requirement_id":"example","mode":"task","revision":1,"status":"discussion_only","title":"Example","request":"Example request.","current_task_id":null,"context":{},"source_status":[],"notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],"next_discussion_point":"Continue."})
     }
 
     #[test]
@@ -175,13 +175,13 @@ mod tests {
         let preview = preview_progress(&storage, &candidate, 0).unwrap();
         assert_eq!(
             preview["approved_sha256"],
-            "10d7595bd4446bbcdf6163ea5ed6bbb6e09f373a1e27cda4d8ce009c2d91f9d2"
+            "a0082819b36e8120797f5edc5f4b4e33116f7adbd0c3b2971ea83555a0769516"
         );
         let approved = preview["approved_sha256"].as_str().unwrap();
         let saved = save_progress(&storage, &candidate, 0, approved).unwrap();
         assert_eq!(
             saved["sha256"],
-            "b90169bf066792c522bd693097a9b3347313520cc68fcd80108646f21c217bd3"
+            "b43e8b4fe1b6a66a2f2353f62a59082c56b9f1ae45511890a26d3fcb9d8f7d5e"
         );
         assert_eq!(
             read_progress(&storage, "example", "task").unwrap()["progress"],
@@ -195,7 +195,7 @@ mod tests {
         );
         let prepared =
             prepare_progress(&storage, &json!({"title":"Revised"}), "example", "task", 1).unwrap();
-        assert_eq!(prepared["schema"], "work-progress-prepare/v1");
+        assert_eq!(prepared["schema"], "work-progress-prepare");
         let second = save_progress(
             &storage,
             &prepared["progress"],
@@ -412,11 +412,11 @@ mod tests {
         ));
         fs::create_dir(&root).unwrap();
         let storage = LocalProgressStorage { project_root: root };
-        let raw = br#"{"schema":"work-discussion-progress/v1","requirement_id":"example","mode":"task","revision":1,"status":"discussion_only","title":"Example","request":"Example request.","current_task_id":null,"context":{"z":1,"a":2},"source_status":[],"notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],"next_discussion_point":"Continue."}"#;
+        let raw = br#"{"schema":"work-discussion-progress","requirement_id":"example","mode":"task","revision":1,"status":"discussion_only","title":"Example","request":"Example request.","current_task_id":null,"context":{"z":1,"a":2},"source_status":[],"notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],"next_discussion_point":"Continue."}"#;
         let preview = preview_progress_raw(&storage, raw, 0).unwrap();
         assert_eq!(
             preview["approved_sha256"],
-            "6e70c6ea74c508737af22b07d93f8c9820430bc67a249e7fa9f510ae202bc8e7"
+            "3ed93c18d99a0c5acf64a2b6a0d3f642395037548d302b369de42b574c85b56a"
         );
         let saved = save_progress_raw(
             &storage,
@@ -427,7 +427,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             saved["sha256"],
-            "7cab21bbfc69efcfdbc5fb37c0aead2042ae07f47bb2cce24ca013662be2de63"
+            "b6643764e52be97a860af6d91387cbc853c3168b9218353af294a7a041c328ca"
         );
         assert_eq!(
             read_progress(&storage, "example", "task").unwrap()["sha256"],

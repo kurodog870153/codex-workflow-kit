@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # Shared handoff procedure
 
 1. A handoff is conversation data, separate from a private delegation envelope. Preserve incoming JSON unchanged and independently select the receiver's routes, TASK and Attempt/preflight context. Supply all confirmed skill roots for current-source verification.

@@ -693,7 +693,7 @@ mod tests {
     }
 
     #[test]
-    fn closed_attempt_returns_match_python_stopped_and_blocked() {
+    fn closed_attempt_returns_match_current_contract_stopped_and_blocked() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let historical_skill =
             crate::fixture_support::historical_execute_skill_root(&repo.join("../skills/work"))
@@ -867,7 +867,7 @@ mod tests {
             project_root: storage.project_root.clone(),
         };
         for direction in ["plan_to_task", "task_to_plan", "execute_to_plan"] {
-            let legacy = json!({"schema":"work-handoff/v1", "direction":direction});
+            let legacy = json!({"schema":"work-handoff", "direction":direction});
             assert_eq!(
                 work_feature::handoff::validate_task_handoff(&paths, &legacy)
                     .unwrap_err()
@@ -886,7 +886,7 @@ mod tests {
     }
 
     #[test]
-    fn task_to_execute_matches_python_reference_from_formal_collection() {
+    fn task_to_execute_matches_current_contract_reference_from_formal_collection() {
         let storage = LocalHandoffStorage {
             project_root: PathBuf::from(concat!(
                 env!("CARGO_MANIFEST_DIR"),
@@ -898,12 +898,12 @@ mod tests {
         let task_path = "outputs/work/tasks/example/index.json";
         let request = json!({"summary":"Start execution."});
         let source = json!({"stage":"task","task_spec_id":"TASK-SPEC-001","task_id":"TASK-001",
-            "task_collection_sha256":"d21c60bb7cc40e955e31c40cb819ddd94fdaf38d20bf0cda26b1b4733ac776a8",
-            "task_index_sha256":"c643a96b52b4246dd174cc97394ae145cb20b5b9946cf45016b469210295ab32",
-            "task_item_sha256":"38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca",
-            "task_instructions_sha256":"571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+            "task_collection_sha256":"4e3997b468542b7bc5f97d772ae1d7d7f6b347c069e1da8ab2b543224232fa01",
+            "task_index_sha256":"c514f4cebc7539b4d54832711869aa958bd50cdee89259fa806e0be52edf3161",
+            "task_item_sha256":"dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77",
+            "task_instructions_sha256":"99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
             "skill_id":null,"skill_selection_sha256":"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"});
-        let expected = json!({"schema":"work-handoff/v1","marker":"WORK-HANDOFF",
+        let expected = json!({"schema":"work-handoff","marker":"WORK-HANDOFF",
             "direction":"task_to_execute","requirement_id":"example",
             "artifacts":{"source":"outputs/work/sources/example","task":task_path,
                 "execution":"outputs/work/executions/example"},
@@ -918,7 +918,7 @@ mod tests {
             storage
                 .verify_task_to_execute(task_path, "TASK-001", &expected)
                 .unwrap(),
-            json!({"schema":"work-handoff-source-validation/v1","status":"valid",
+            json!({"schema":"work-handoff-source-validation","status":"valid",
                 "direction":"task_to_execute","marker":"WORK-HANDOFF","requirement_id":"example",
                 "source_stage":"task","target_stage":"execute","task_path":task_path,"source":source})
         );
@@ -1096,7 +1096,7 @@ mod tests {
     }
 
     #[test]
-    fn execute_preflight_returns_match_python_both_directions() {
+    fn execute_preflight_returns_match_current_contract_both_directions() {
         let storage = LocalHandoffStorage {
             project_root: PathBuf::from(concat!(
                 env!("CARGO_MANIFEST_DIR"),
@@ -1111,10 +1111,10 @@ mod tests {
             "requested_changes":["Clarify scope."],"preserve":["Current behavior."],
             "affected_ids":["TASK-001"],"validation_requirements":["Review criteria."]});
         let source = json!({"stage":"execute","task_spec_id":"TASK-SPEC-001","task_id":"TASK-001",
-            "task_collection_sha256":"d21c60bb7cc40e955e31c40cb819ddd94fdaf38d20bf0cda26b1b4733ac776a8",
-            "task_index_sha256":"c643a96b52b4246dd174cc97394ae145cb20b5b9946cf45016b469210295ab32",
-            "task_item_sha256":"38c7f1fa64c080601a866891e5c0629e233b34ad3f5d559ed2a026559d07b4ca",
-            "task_instructions_sha256":"571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
+            "task_collection_sha256":"4e3997b468542b7bc5f97d772ae1d7d7f6b347c069e1da8ab2b543224232fa01",
+            "task_index_sha256":"c514f4cebc7539b4d54832711869aa958bd50cdee89259fa806e0be52edf3161",
+            "task_item_sha256":"dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77",
+            "task_instructions_sha256":"99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
             "skill_id":null,"execute_skill_selection_sha256":"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
             "execution_context":{"attempt":{"status":"not_created"},"phase":"preflight",
                 "issue_type":"specification_defect","reason":"Specification defect."}});
@@ -1125,7 +1125,7 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 result,
-                json!({"schema":"work-handoff/v1","marker":"WORK-HANDOFF",
+                json!({"schema":"work-handoff","marker":"WORK-HANDOFF",
                 "direction":direction,"requirement_id":"example",
                 "artifacts":{"source":"outputs/work/sources/example","task":task_path,
                     "execution":"outputs/work/executions/example"},
@@ -1139,7 +1139,7 @@ mod tests {
                 storage
                     .verify_preflight_return(direction, task_path, "TASK-001", &result,)
                     .unwrap(),
-                json!({"schema":"work-handoff-source-validation/v1","status":"valid",
+                json!({"schema":"work-handoff-source-validation","status":"valid",
                 "direction":direction,"marker":"WORK-HANDOFF","requirement_id":"example",
                 "source_stage":"execute","target_stage":target,
                 "task_path":task_path,"source":source})

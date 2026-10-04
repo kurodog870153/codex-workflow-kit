@@ -106,7 +106,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn generated_timestamp_formats_match_python_contract() {
+    fn generated_timestamp_formats_match_current_contract_contract() {
         let stamp = local_timestamp();
         assert_eq!(stamp.len(), 22);
         assert!(matches!(stamp.as_bytes()[16], b'+' | b'-'));

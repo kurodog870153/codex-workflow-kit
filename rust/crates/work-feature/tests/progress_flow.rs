@@ -49,7 +49,7 @@ impl ProgressRepository for MemoryProgress {
 
 fn progress(revision: u64, note: &str) -> Value {
     json!({
-        "schema": "work-discussion-progress/v1", "requirement_id": "example",
+        "schema": "work-discussion-progress", "requirement_id": "example",
         "mode": "task", "revision": revision, "status": "discussion_only",
         "title": "Example", "request": "Example request.", "current_task_id": null,
         "context": {}, "source_status": [], "notes": [note],
@@ -107,7 +107,7 @@ fn first_prepare_validates_before_repository_access_and_does_not_read_history() 
         semantic.remove(field);
     }
     let prepared = prepare_progress(&repo, &Value::Object(semantic), "example", "task", 0).unwrap();
-    assert_eq!(prepared["schema"], "work-progress-prepare/v1");
+    assert_eq!(prepared["schema"], "work-progress-prepare");
     assert_eq!(prepared["progress"]["revision"], 1);
     assert_eq!(
         repo.calls.borrow().as_slice(),

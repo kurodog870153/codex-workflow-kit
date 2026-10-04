@@ -69,7 +69,7 @@ echo   10. css
 echo   11. tailwind
 echo   12. spring-boot
 echo Select multiple branches with spaces. Parent branches are included automatically.
-echo Previously installed branches and stale files will be kept, even with general only.
+echo Only selected branches will be installed; previous files remain in the recovery directory.
 set "hierarchy_selection="
 set /p "hierarchy_selection=Select hierarchy numbers, enter "all", or press Enter for general only: "
 if not defined hierarchy_selection set "hierarchy_selection=1"
@@ -126,18 +126,15 @@ if errorlevel 1 goto install_error
 set "target_work=!transaction_directory!\prepared"
 mkdir "!target_work!"
 if errorlevel 1 goto install_error
-if exist "!final_work!\" (
-    xcopy "!final_work!\*" "!target_work!\" /E /I /H /K /R /Y /Q >nul
-    if errorlevel 2 goto install_error
-)
-
 call :install_base
-if errorlevel 1 goto install_error
-call :refresh_existing_instructions
 if errorlevel 1 goto install_error
 call :install_selected_instructions
 if errorlevel 1 goto install_error
 call :install_binary
+if errorlevel 1 goto install_error
+fc /b "!built_work!" "!target_work!\scripts\work.exe" >nul
+if errorlevel 1 goto install_error
+"!target_work!\scripts\work.exe" --help >nul 2>nul
 if errorlevel 1 goto install_error
 
 if exist "!final_work!\" (
@@ -159,7 +156,7 @@ if errorlevel 1 (
 set "target_work=!final_work!"
 echo Installation recovery directory: "!transaction_directory!".
 echo Work skill installed in "!target_work!".
-echo Existing matching files were overwritten. Stale files were not removed.
+echo Work was replaced with a clean installation. Previous files remain in the recovery directory.
 pause
 exit /b 0
 
@@ -477,22 +474,6 @@ if defined include_css for %%M in (task execute) do (
 if defined include_tailwind for %%M in (task execute) do (
     call :copy_instruction "%%M" "web\frontend\css\tailwind"
     if errorlevel 1 exit /b 1
-)
-exit /b 0
-
-:refresh_existing_instructions
-for /r "%source_work%\references\instructions" %%F in (instructions.md) do (
-    set "instruction_relative=%%~fF"
-    set "instruction_relative=!instruction_relative:%source_work%\=!"
-    if exist "!target_work!\!instruction_relative!" (
-        call :copy_file "!instruction_relative!"
-        if errorlevel 1 exit /b 1
-        set "branch_relative=!instruction_relative:\instructions.md=!"
-        if exist "!source_work!\!branch_relative!\references\" (
-            call :copy_tree "!branch_relative!\references"
-            if errorlevel 1 exit /b 1
-        )
-    )
 )
 exit /b 0
 

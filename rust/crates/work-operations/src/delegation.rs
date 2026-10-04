@@ -19,10 +19,10 @@ fn issue(message: &'static str) -> DelegationIssue {
 
 pub fn role_marker(role: &str) -> Option<&'static str> {
     match role {
-        "task-coordinator" | "execute" => Some("WORK_DELEGATION_V1"),
-        "task-skill" => Some("WORK_TASK_SKILL_V1"),
-        "artifact-editor" => Some("WORK_ARTIFACT_EDIT_V1"),
-        "progress-saver" => Some("WORK_PROGRESS_SAVE_V1"),
+        "task-coordinator" | "execute" => Some("WORK_DELEGATION"),
+        "task-skill" => Some("WORK_TASK_SKILL"),
+        "artifact-editor" => Some("WORK_ARTIFACT_EDIT"),
+        "progress-saver" => Some("WORK_PROGRESS_SAVE"),
         _ => None,
     }
 }
@@ -59,7 +59,7 @@ pub fn build_envelope(
     if !mode_allowed(role, mode) || request.trim().is_empty() || !context.is_object() {
         return Err(issue("The delegation envelope structure is invalid."));
     }
-    let envelope = json!({"schema":"work-delegation-envelope/v1","marker":marker,"skill":"$work","role":role,"sender":sender_for_role(role).expect("known role"),"mode":mode,"project_root":project_root,"skill_root":skill_root,"request":request,"context":context});
+    let envelope = json!({"schema":"work-delegation-envelope","marker":marker,"skill":"$work","role":role,"sender":sender_for_role(role).expect("known role"),"mode":mode,"project_root":project_root,"skill_root":skill_root,"request":request,"context":context});
     let _: work_model::delegation::DelegationEnvelope = serde_json::from_value(envelope.clone())
         .expect("built delegation envelope matches its model");
     Ok(envelope)
@@ -90,7 +90,7 @@ pub fn validate_envelope(
                 ]
                 .iter()
                 .all(|field| object.contains_key(*field))
-                && object["schema"] == "work-delegation-envelope/v1"
+                && object["schema"] == "work-delegation-envelope"
                 && object["marker"].is_string()
                 && object["skill"] == "$work"
                 && object["role"]
@@ -112,7 +112,7 @@ pub fn validate_envelope(
     if sender_for_role(role) != Some(sender) {
         return Err(issue("The expected sender cannot delegate to this role."));
     }
-    if object["schema"] != "work-delegation-envelope/v1"
+    if object["schema"] != "work-delegation-envelope"
         || object["marker"] != marker
         || object["skill"] != "$work"
         || object["role"] != role
@@ -152,7 +152,7 @@ pub fn validate_envelope(
 }
 
 pub fn validation_result(role: &str, mode: &str, resume: bool) -> Value {
-    let result = json!({"schema":"work-delegation-validation/v1","status":"valid","role":role,"mode":mode,"scope":if resume { "discussion_restoration" } else { "role_context" },"source_validation":"not_checked","sender_authentication":"not_checked","grants_authorization":false});
+    let result = json!({"schema":"work-delegation-validation","status":"valid","role":role,"mode":mode,"scope":if resume { "discussion_restoration" } else { "role_context" },"source_validation":"not_checked","sender_authentication":"not_checked","grants_authorization":false});
     let _: work_model::delegation::DelegationValidation =
         serde_json::from_value(result.clone()).expect("delegation validation matches its model");
     result
@@ -304,7 +304,7 @@ mod tests {
     }
 
     #[test]
-    fn python_envelope_literal_errors_precede_receiver_mismatch() {
+    fn current_contract_envelope_literal_errors_precede_receiver_mismatch() {
         let (project_root, skill_root) = absolute_roots();
         let envelope = build_envelope(
             "task-coordinator",
@@ -373,7 +373,7 @@ mod tests {
             validate_envelope(&envelope, "execute", "parent", project_root, skill_root).is_err()
         );
         let mut wrong_marker = envelope;
-        wrong_marker["marker"] = json!("WORK_PROGRESS_SAVE_V1");
+        wrong_marker["marker"] = json!("WORK_PROGRESS_SAVE");
         assert_eq!(
             validate_envelope(
                 &wrong_marker,
@@ -389,13 +389,45 @@ mod tests {
     }
 
     #[test]
-    fn python_envelope_example_has_exact_canonical_bytes() {
-        let example = json!({"schema":"work-delegation-envelope/v1","marker":"WORK_DELEGATION_V1","skill":"$work","role":"task-coordinator","sender":"parent","mode":"task","project_root":"/project","skill_root":"/work","request":"Confirmed role request.","context":{"task_source":{}}});
+    fn receiving_roles_reject_versioned_markers() {
+        let (project_root, skill_root) = absolute_roots();
+        for (role, mode) in [
+            ("task-coordinator", "task"),
+            ("task-skill", "task"),
+            ("execute", "execute"),
+            ("artifact-editor", "task"),
+            ("progress-saver", "task"),
+        ] {
+            let mut envelope = build_envelope(
+                role,
+                mode,
+                "Confirmed request",
+                project_root,
+                skill_root,
+                &json!({"repository_evidence":[]}),
+            )
+            .unwrap();
+            let sender = sender_for_role(role).unwrap();
+            validate_envelope(&envelope, role, sender, project_root, skill_root).unwrap();
+            envelope["marker"] = json!(format!("{}_V1", role_marker(role).unwrap()));
+            assert_eq!(
+                validate_envelope(&envelope, role, sender, project_root, skill_root)
+                    .unwrap_err()
+                    .reason_code,
+                "delegation_boundary_mismatch",
+                "{role}"
+            );
+        }
+    }
+
+    #[test]
+    fn current_contract_envelope_example_has_exact_canonical_bytes() {
+        let example = json!({"schema":"work-delegation-envelope","marker":"WORK_DELEGATION","skill":"$work","role":"task-coordinator","sender":"parent","mode":"task","project_root":"/project","skill_root":"/work","request":"Confirmed role request.","context":{"task_source":{}}});
         let mut raw = serde_json::to_vec_pretty(&OrderedEnvelope(&example)).unwrap();
         raw.push(b'\n');
         assert_eq!(
             crate::canonical::sha256_hex(&raw),
-            "2ae6e350dfd39569555d3bf230bf7b21aa768ed3c11e18a4371becb32e3f46a2"
+            "75719577aa23351afba2135ba64dbf66d8f39278e97355feba0767d2c5817877"
         );
     }
 }

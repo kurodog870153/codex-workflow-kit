@@ -1,19 +1,20 @@
-<!-- work-compatibility-revision: 1 -->
-# Artifact compatibility migration
+# Compare raw evidence with current artifacts
 
 1. Use `$work migration -- <request>` for existing Source/TASK/Execution artifacts or original legacy evidence that must be compared with the current contracts. Migration is a maintenance mode, separate from initial Task creation and Execute authorization. Obtain the requirement ID and clarify semantic choices before publication.
 2. Run read-only `migration analyze --requirement-id <id>` with optional repeated `--artifact source|task|execute` and explicit `--evidence-path <path>` for additional original evidence. Review each source path, exact raw SHA, compatibility finding, proposed route and current contract description. A damaged or unparseable source remains evidence; it is not required to validate before reconstruction.
 3. Preserve every inspected original byte and immutable Source/Attempt/Correction record. The AI compares those bytes with the current requirement, acceptance, Task and Execution contracts, records ambiguities and asks only for actual semantic decisions. Deterministic paths, canonical fields, IDs and fingerprints come from the CLI; analysis or machine proposals grant no write approval.
 
+Analysis accepts old, unsupported, damaged and binary evidence as exact raw bytes. No historical DTO, schema alias, dual-read parser or upgrade chain is used; every reviewed replacement must validate against the sole current contract before publication.
+
 ## Ordinary artifact decisions
 
 1. For a directly proposed compatible change, record one apply/modify/skip/abort choice per analysis item. Modify supplies complete reviewed content; skip needs a reason. Abort ends preparation. A required skip leaves the prepared run blocked, not executable.
-2. Submit `work-artifact-migration-decisions/v1` with the unchanged analysis and choices to `migration prepare --input-file <file>`. It rechecks original raw evidence and saves an immutable request under the requirement migration directory.
+2. Submit `work-artifact-migration-decisions` with the unchanged analysis and choices to `migration prepare --input-file <file>`. It rechecks original raw evidence and saves an immutable request under the requirement migration directory.
 3. Use `migration preview --request-path <saved-path> --approved-sha256 <request-sha>` and approve that exact request and candidate set. Apply/recover/verify use the same saved path and request SHA. The owning journals preserve completed files and resume only their approved candidates; incomplete/blocked is not success.
 
 ## Semantic revision and reconstruction
 
-1. When related artifacts need a complete new representation or semantic revision, submit strict `work-spec-migration-prepare-request/v1` to `migration prepare --input-file <file>`. Supply requirement_id and the complete explicitly reviewed `sources` list of project-relative paths and raw_sha256. Source snapshots require the original full triplet; every existing replacement target and raw history relevant to the selected operation must be accounted for.
+1. When related artifacts need a complete new representation or semantic revision, submit strict `work-spec-migration-prepare-request` to `migration prepare --input-file <file>`. Supply requirement_id and the complete explicitly reviewed `sources` list of project-relative paths and raw_sha256. Source snapshots require the original full triplet; every existing replacement target and raw history relevant to the selected operation must be accounted for.
 2. A valid baseline uses mode revision with confirmed typed semantic Specification edits. An incompatible baseline uses mode reconstruction with confirmed Task context, main acceptance, title/summary, ordered semantic TASKs and optional execution defaults. If a Source snapshot can be established, preserve its actual proof. Otherwise explicitly approve migration provenance containing the complete original raw evidence and approval SHA; do not fabricate a Source snapshot.
 3. Reconstruction uses source-relative semantic TASK positions/local keys; the producer creates canonical IDs, item/index candidates, Execution bindings and source evidence. Do not submit handcrafted replacement bytes through this prepare entry or copy machine fields from stale artifacts.
 4. Review prepared data.request and its complete preview, candidate diff, relationships and unresolved items. Only Task index/items and Execution index are writable candidates; immutable original sources remain evidence, not publication targets. Individual schema validity is insufficient: require complete collection, path, source, instruction/hierarchy/skill, cross-file identity, lifecycle and history validation.

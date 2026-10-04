@@ -30,7 +30,7 @@
         "recovery",
         "unknown_result"
       ],
-      "schema": "work-attempt-authorization/v1",
+      "schema": "work-attempt-authorization",
       "task_id": "TASK-001",
       "validations": [
         {
@@ -47,9 +47,9 @@
       ],
       "working_directories": []
     },
-    "authorization_sha256": "a9f97e21b53598fe97e7496540ddea58c42b1b4f0b18b62ae255ad860cf8df85",
+    "authorization_sha256": "99a2acd5192dc137daa12339fbcac481085780803b62b84fe30fae20923d82a8",
     "ended_at": "2026-09-26T10:00+08:00",
-    "execute_instructions_sha256": "493a50f30e6531655cf042512891fd4553bd6dfbc73c66b9f442a42604ff7616",
+    "execute_instructions_sha256": "b59c7bd54ff609b542e759e0e4ad36fe6fb17393daf9f07048d204cfa1492789",
     "execute_skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
     "execution_deviations": [
       {
@@ -78,7 +78,7 @@
             "summary": "Record the runtime-only retry decision."
           },
           "modifiable_files": [],
-          "schema": "work-execution-deviation-proposal/v1",
+          "schema": "work-execution-deviation-proposal",
           "side_effects": [],
           "task_basis": [
             "VAL-001",
@@ -87,7 +87,7 @@
           "task_id": "TASK-001"
         },
         "reconciliation_status": "pending",
-        "schema": "work-execution-deviation/v1",
+        "schema": "work-execution-deviation",
         "supplemental_authorization": {
           "action": {
             "kind": "skip_record",
@@ -97,7 +97,7 @@
           "authorization_evidence": "User approved the runtime deviation.",
           "modifiable_files": [],
           "preview_sha256": "651c035e125ee14f7d5b89f61025aac3959427e4c86a25bd7f68188430eb3fd0",
-          "schema": "work-execution-deviation-authorization/v1"
+          "schema": "work-execution-deviation-authorization"
         }
       }
     ],
@@ -111,7 +111,7 @@
         "status": "skipped"
       }
     ],
-    "schema": "work-attempt/v1",
+    "schema": "work-attempt",
     "skill_id": null,
     "started_at": "2026-09-26T10:00+08:00",
     "status": "completed",

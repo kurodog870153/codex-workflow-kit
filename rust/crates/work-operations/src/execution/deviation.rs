@@ -431,7 +431,7 @@ pub fn validate_deviation_proposal(proposal: &Value) -> Result<(), ExecutionIssu
         ],
         &["modifiable_files"],
     )?;
-    if proposal["schema"] != "work-execution-deviation-proposal/v1" {
+    if proposal["schema"] != "work-execution-deviation-proposal" {
         return Err(issue(
             "invalid_execution_deviation_schema",
             "A nested deviation schema is invalid.",
@@ -527,7 +527,7 @@ pub fn validate_deviation_preview(value: &Value) -> Result<(), ExecutionIssue> {
         ],
         &[],
     )?;
-    if value["schema"] != "work-execution-deviation-preview/v1" {
+    if value["schema"] != "work-execution-deviation-preview" {
         return Err(issue(
             "invalid_execution_deviation_schema",
             "The deviation preview schema is invalid.",
@@ -581,7 +581,7 @@ pub fn validate_deviation_record_response(value: &Value) -> Result<(), Execution
         ],
         &[],
     )?;
-    if value["schema"] != "work-execution-deviation-record/v1" {
+    if value["schema"] != "work-execution-deviation-record" {
         return Err(issue(
             "invalid_execution_deviation_schema",
             "The deviation record schema is invalid.",
@@ -634,7 +634,7 @@ pub fn validate_deviation_artifact(value: &Value) -> Result<(), ExecutionIssue> 
         ],
         &[],
     )?;
-    if value["schema"] != "work-execution-deviation/v1" {
+    if value["schema"] != "work-execution-deviation" {
         return Err(issue(
             "invalid_execution_deviation_schema",
             "The execution deviation schema is invalid.",
@@ -673,7 +673,7 @@ pub fn validate_deviation_artifact(value: &Value) -> Result<(), ExecutionIssue> 
         ));
     }
     fields(decision, &["outcome", "evidence"], &[])?;
-    if authorization["schema"] != "work-execution-deviation-authorization/v1" {
+    if authorization["schema"] != "work-execution-deviation-authorization" {
         return Err(issue(
             "invalid_execution_deviation_schema",
             "A nested deviation schema is invalid.",
@@ -754,7 +754,7 @@ pub fn build_deviation_preview(
     let blocking =
         crate::execution::deviation_reconciliation_target(proposal) == "task_and_execution";
     let mut preview = json!({
-        "schema":"work-execution-deviation-preview/v1",
+        "schema":"work-execution-deviation-preview",
         "proposal":proposal,
         "record_kind":record_kind,
         "action_validation":"passed",
@@ -816,12 +816,12 @@ pub fn append_approved_deviation(
     })?;
     let proposal = &preview["proposal"];
     let artifact = json!({
-        "schema":"work-execution-deviation/v1",
+        "schema":"work-execution-deviation",
         "deviation_id":deviation_id,
         "approved_preview_sha256":approved_sha256,
         "proposal":proposal,
         "supplemental_authorization":{
-            "schema":"work-execution-deviation-authorization/v1",
+            "schema":"work-execution-deviation-authorization",
             "preview_sha256":approved_sha256,
             "action":proposal["action"],
             "modifiable_files":proposal["modifiable_files"],
@@ -836,7 +836,7 @@ pub fn append_approved_deviation(
     deviations.push(artifact);
     candidate["execution_deviations"] = json!(deviations);
     let response = json!({
-        "schema":"work-execution-deviation-record/v1",
+        "schema":"work-execution-deviation-record",
         "task_id":proposal["task_id"],
         "attempt_id":proposal["attempt_id"],
         "deviation_id":deviation_id,
@@ -1060,7 +1060,7 @@ mod tests {
             validate_deviation_preview(&legacy).unwrap_err().reason_code,
             "deviation_preview_classification_mismatch"
         );
-        let mut record = json!({"schema":"work-execution-deviation-record/v1",
+        let mut record = json!({"schema":"work-execution-deviation-record",
             "task_id":"TASK-001","attempt_id":"ATTEMPT-001","deviation_id":"DEVIATION-001",
             "attempt_path":"outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
             "classification":"task_only","blocking":false,"record_status":"recorded",
@@ -1125,7 +1125,7 @@ mod tests {
     }
 
     pub(super) fn strict_proposal() -> Value {
-        json!({"schema":"work-execution-deviation-proposal/v1","task_id":"TASK-001",
+        json!({"schema":"work-execution-deviation-proposal","task_id":"TASK-001",
             "attempt_id":"ATTEMPT-001","anchor_record_id":"CMD-001",
             "task_basis":["CMD-001","STEP-001"],"gap":"The executable is unavailable.",
             "action":{"kind":"replace_command","record_id":"CMD-001",
@@ -1330,9 +1330,9 @@ mod tests {
     }
 
     #[test]
-    fn reviewed_preview_and_record_match_python_binding() {
+    fn reviewed_preview_and_record_match_current_contract_binding() {
         let proposal = json!({
-            "schema":"work-execution-deviation-proposal/v1", "task_id":"TASK-001",
+            "schema":"work-execution-deviation-proposal", "task_id":"TASK-001",
             "attempt_id":"ATTEMPT-001", "anchor_record_id":"CMD-001",
             "task_basis":["CMD-001","STEP-001"],
             "gap":"The executable is not available through PATH.",
@@ -1349,7 +1349,7 @@ mod tests {
         let preview = build_deviation_preview(&proposal, "command", &sources).unwrap();
         assert_eq!(
             preview["preview_sha256"],
-            "586e486193dcc246527de57f048708463dc20abf0cd03f5c840e6145271d61fa"
+            "dcd6eb7d977ffd940df4cebffdf78ed993a4ba7c720dc03b197e4caab5c16ff3"
         );
         let attempt = json!({"authorization":{"authorization_evidence":"Original"}});
         let approved = preview["preview_sha256"].as_str().unwrap();
@@ -1399,16 +1399,16 @@ mod tests {
     fn approved_deviation_binds_preview_action_scope_and_evidence() {
         let action = json!({"kind":"replace_command","record_id":"CMD-001",
             "replacement":{"mode":"argv","argv":["tool","test"]}});
-        let value = json!({"schema":"work-execution-deviation/v1","deviation_id":"DEVIATION-001",
+        let value = json!({"schema":"work-execution-deviation","deviation_id":"DEVIATION-001",
             "approved_preview_sha256":"c".repeat(64),
-            "proposal":{"schema":"work-execution-deviation-proposal/v1","task_id":"TASK-001",
+            "proposal":{"schema":"work-execution-deviation-proposal","task_id":"TASK-001",
                 "attempt_id":"ATTEMPT-001","anchor_record_id":"CMD-001","task_basis":["CMD-001"],
                 "gap":"A command needs an equivalent path.","action":action,"modifiable_files":[],
                 "impact":{"summary":"Equivalent command path.","requirement_changed":false,
                     "scope_changed":false,"acceptance_criteria_changed":false,"deliverables_changed":false,
                     "safety_boundary_changed":false,"external_side_effect_boundary_changed":false},
                 "side_effects":["Runs the existing command."]},
-            "supplemental_authorization":{"schema":"work-execution-deviation-authorization/v1",
+            "supplemental_authorization":{"schema":"work-execution-deviation-authorization",
                 "preview_sha256":"c".repeat(64),"action":action,
                 "modifiable_files":[],"authorization_evidence":"Approved"},
             "decision":{"outcome":"approved","evidence":"Approved"},"reconciliation_status":"pending"});

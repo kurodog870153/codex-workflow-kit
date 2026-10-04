@@ -18,7 +18,7 @@
     "新增驗收條件"
   ],
   "requirement_id": "example",
-  "schema": "work-handoff/v1",
+  "schema": "work-handoff",
   "source": {
     "attempt_sha256": "c05dba7498fd4b4383eeb2c7e6ed01fc83362419b8684d33fa869a6837982d4b",
     "execute_skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
@@ -33,11 +33,11 @@
     },
     "skill_id": null,
     "stage": "execute",
-    "task_collection_sha256": "14f480ef6582ca3359a8c284a4648214b8ccef2856841c4e1b4866318173c5d8",
+    "task_collection_sha256": "bf96bff1dd62ce53c9616fdd546bbedb19d1c1e30f6879c5c97fe1d22aa9990c",
     "task_id": "TASK-001",
-    "task_index_sha256": "0f23bcda95d41c7d908a5c5c1dfe058029d0f82f8bbb81a5bb6b43a41273bc31",
-    "task_instructions_sha256": "571c6f4a8ad51193da49f5860788e9bcff8dbf400de76daf5f4ab692f954f758",
-    "task_item_sha256": "4bedcceb18c974eabb4656f0586e078058f4d4eead9e349ffbdab729d413bed8",
+    "task_index_sha256": "ab205d17ceda46970edd207965c60e96f5ff42735046eab1cfcbe27830fdd530",
+    "task_instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+    "task_item_sha256": "a49a2399ffb755915b7c0f94e97258aca936cc930340054dd50da4af90a5fbca",
     "task_spec_id": "TASK-SPEC-001"
   },
   "summary": "調整已確認範圍",

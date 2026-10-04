@@ -1,11 +1,11 @@
 {
-  "schema": "work-spec-migration-preview/v1",
-  "status": "ready",
-  "documents": [],
   "diffs": [],
-  "validator_results": [],
-  "relationship_results": [],
-  "unresolved_items": [],
+  "documents": [],
   "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "relationship_results": [],
+  "schema": "work-spec-migration-preview",
+  "status": "ready",
+  "unresolved_items": [],
+  "validator_results": [],
   "writable_ready": true
 }

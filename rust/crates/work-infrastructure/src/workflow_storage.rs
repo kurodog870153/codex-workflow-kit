@@ -347,7 +347,7 @@ pub fn load_latest_attempts(
                         "The reconciliation ledger is invalid.",
                     )
                 })?;
-            if ledger["schema"] != "work-spec-reconciliation-ledger/v1"
+            if ledger["schema"] != "work-spec-reconciliation-ledger"
                 || ledger["attempt_path"] != relative
             {
                 return Err(fail(
@@ -617,7 +617,7 @@ mod tests {
     }
 
     #[test]
-    fn latest_attempt_and_ledger_match_python_workflow_view() {
+    fn latest_attempt_and_ledger_match_current_contract_workflow_view() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture =
             repo.join("crates/work-infrastructure/fixtures/specification-reconciliation/real-flow");

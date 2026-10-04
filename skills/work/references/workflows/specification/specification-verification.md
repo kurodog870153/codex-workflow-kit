@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # Specification verification
 
 1. After successful ordinary `specification apply` or authorized recovery, transport the returned `verification_request` unchanged to read-only `specification verify --input-file "<request-path>" --user-config-root "<user-config-root>"` with identical project and skill roots. No routine additional confirmation is needed within an already authorized continuation.

@@ -286,7 +286,7 @@ mod tests {
     use super::*;
     use work_operations::delegation::{build_envelope, validation_result};
 
-    fn python_expected(role: &str, storage: &LocalDelegationStorage) -> Value {
+    fn role_fixture(role: &str, storage: &LocalDelegationStorage) -> Value {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let raw = std::fs::read(
             repo.join("crates/work-infrastructure/fixtures/delegation-role")
@@ -316,9 +316,9 @@ mod tests {
             .unwrap(),
         )
         .unwrap();
-        let request = json!({"schema":"work-delegation-build-request/v1","role":"task-coordinator","request":"Coordinate confirmed work.","planning_source":{"snapshot":index["source"]["manifest"],"artifacts":index["artifacts"],"hierarchy_selection":index["hierarchy_selection"],"skill_selection":index["skill_selection"],"acceptance_criteria":index["acceptance_criteria"]}});
+        let request = json!({"schema":"work-delegation-build-request","role":"task-coordinator","request":"Coordinate confirmed work.","planning_source":{"snapshot":index["source"]["manifest"],"artifacts":index["artifacts"],"hierarchy_selection":index["hierarchy_selection"],"skill_selection":index["skill_selection"],"acceptance_criteria":index["acceptance_criteria"]}});
         let envelope = storage.build_task_coordinator(&request).unwrap();
-        assert_eq!(envelope, python_expected("task-coordinator", &storage));
+        assert_eq!(envelope, role_fixture("task-coordinator", &storage));
         assert_eq!(
             storage
                 .validate_task_coordinator(&envelope, "task-coordinator", "parent")
@@ -333,13 +333,13 @@ mod tests {
                 .validate_task_coordinator(&drifted, "task-coordinator", "parent")
                 .is_err()
         );
-        let legacy = python_expected("plan", &storage);
+        let legacy = role_fixture("plan", &storage);
         assert!(
             storage
                 .validate_task_coordinator(&legacy, "plan", "parent")
                 .is_err()
         );
-        assert!(storage.build_task_coordinator(&json!({"schema":"work-delegation-build-request/v1","role":"plan","request":"Coordinate confirmed work.","source_plan_path":"missing.json"})).is_err());
+        assert!(storage.build_task_coordinator(&json!({"schema":"work-delegation-build-request","role":"plan","request":"Coordinate confirmed work.","source_plan_path":"missing.json"})).is_err());
     }
 
     #[test]
@@ -352,12 +352,12 @@ mod tests {
         };
         let envelope = storage
             .build_execute_role(&json!({
-                "schema":"work-delegation-build-request/v1","role":"execute",
+                "schema":"work-delegation-build-request","role":"execute",
                 "request":"Execute selected TASK.",
                 "task_path":"outputs/work/tasks/example/index.json","task_id":"TASK-001",
             }))
             .unwrap();
-        assert_eq!(envelope, python_expected("execute", &storage));
+        assert_eq!(envelope, role_fixture("execute", &storage));
         assert_eq!(envelope["mode"], "execute");
         assert_eq!(envelope["context"]["target_task"]["id"], "TASK-001");
         assert_eq!(
@@ -397,7 +397,7 @@ mod tests {
     }
 
     #[test]
-    fn progress_saver_context_matches_python_reference() {
+    fn progress_saver_context_matches_current_contract_reference() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let storage = LocalDelegationStorage {
             project_root: repo.join("crates/work-infrastructure/fixtures/delegation-role"),
@@ -419,13 +419,13 @@ mod tests {
         }
         let envelope = storage
             .build_progress_saver(&json!({
-                "schema":"work-delegation-build-request/v1","role":"progress-saver",
+                "schema":"work-delegation-build-request","role":"progress-saver",
                 "mode":"task","request":"Save discussion progress.",
                 "source_progress_path":"outputs/work/progress/example/task/progress.json",
                 "content":content,"continuation_point":"Continue discussion",
             }))
             .unwrap();
-        assert_eq!(envelope, python_expected("progress-saver", &storage));
+        assert_eq!(envelope, role_fixture("progress-saver", &storage));
         assert_eq!(
             storage
                 .validate_progress_saver(&envelope, "parent")
@@ -535,7 +535,7 @@ mod tests {
             skill_root: repo.join("../skills/work"),
             skill_configs: vec![],
         };
-        let request = json!({"schema":"work-delegation-build-request/v1","role":"artifact-editor","mode":"execute","request":"Revise confirmed artifact.","source_plan_path":"outputs/work/plans/example.json","confirmed_request":{"reason":"Reviewed"},"decisions":["Confirmed revision"],"affected_task_ids":["TASK-001"],"continuation_point":"Return to Execute"});
+        let request = json!({"schema":"work-delegation-build-request","role":"artifact-editor","mode":"execute","request":"Revise confirmed artifact.","source_plan_path":"outputs/work/plans/example.json","confirmed_request":{"reason":"Reviewed"},"decisions":["Confirmed revision"],"affected_task_ids":["TASK-001"],"continuation_point":"Return to Execute"});
         assert_eq!(
             storage
                 .build_artifact_editor(&request)
@@ -566,17 +566,14 @@ mod tests {
         };
         let envelope = storage
             .build_artifact_editor(&json!({
-                "schema":"work-delegation-build-request/v1","role":"artifact-editor",
+                "schema":"work-delegation-build-request","role":"artifact-editor",
                 "mode":"execute","request":"Revise confirmed artifact.",
                 "task_path":"outputs/work/tasks/example/index.json",
-                "confirmed_request":{"schema":"work-spec-prepare-request/v1","requirement_id":"example","reason":"Reviewed","edits":[{"target":{"artifact":"task_item","task_id":"TASK-001"},"field":"goal","after":"Reviewed goal"}]},"decisions":["Confirmed revision"],
+                "confirmed_request":{"schema":"work-spec-prepare-request","requirement_id":"example","reason":"Reviewed","edits":[{"target":{"artifact":"task_item","task_id":"TASK-001"},"field":"goal","after":"Reviewed goal"}]},"decisions":["Confirmed revision"],
                 "affected_task_ids":["TASK-001"],"continuation_point":"Return to Execute",
             }))
             .unwrap();
-        assert_eq!(
-            envelope,
-            python_expected("artifact-editor-formal", &storage)
-        );
+        assert_eq!(envelope, role_fixture("artifact-editor-formal", &storage));
         assert_eq!(
             envelope["context"]["artifacts"]["task"],
             "outputs/work/tasks/example/index.json"
@@ -621,12 +618,12 @@ mod tests {
         };
         let envelope = storage
             .build_task_skill(&json!({
-                "schema":"work-delegation-build-request/v1","role":"task-skill",
+                "schema":"work-delegation-build-request","role":"task-skill",
                 "request":"Refine selected TASK.",
                 "task_path":"outputs/work/tasks/example/index.json","task_id":"TASK-001",
             }))
             .unwrap();
-        assert_eq!(envelope, python_expected("task-skill", &storage));
+        assert_eq!(envelope, role_fixture("task-skill", &storage));
         assert_eq!(
             storage
                 .validate_task_skill(&envelope, "task-coordinator")
@@ -738,7 +735,7 @@ mod tests {
     }
 
     #[test]
-    fn role_context_missing_fields_match_python_rejection_messages() {
+    fn role_context_missing_fields_match_current_contract_rejection_messages() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         for (role, relative, required, message) in [
             (
@@ -786,12 +783,12 @@ mod tests {
             if role == "plan" {
                 assert!(
                     storage
-                        .validate_task_coordinator(&python_expected(role, &storage), role, "parent")
+                        .validate_task_coordinator(&role_fixture(role, &storage), role, "parent")
                         .is_err()
                 );
                 continue;
             }
-            let mut envelope = python_expected(role, &storage);
+            let mut envelope = role_fixture(role, &storage);
             envelope["context"]
                 .as_object_mut()
                 .unwrap()
@@ -850,12 +847,12 @@ mod tests {
             if role == "plan" {
                 assert!(
                     storage
-                        .validate_task_coordinator(&python_expected(role, &storage), role, "parent")
+                        .validate_task_coordinator(&role_fixture(role, &storage), role, "parent")
                         .is_err()
                 );
                 continue;
             }
-            let envelope = python_expected(role, &storage);
+            let envelope = role_fixture(role, &storage);
             let before = envelope.clone();
             let result = match role {
                 "plan" | "task-coordinator" => {
@@ -908,13 +905,13 @@ mod tests {
             if role == "plan" {
                 assert!(
                     storage
-                        .validate_task_coordinator(&python_expected(role, &storage), role, "parent")
+                        .validate_task_coordinator(&role_fixture(role, &storage), role, "parent")
                         .is_err()
                 );
                 continue;
             }
-            let mut envelope = python_expected(role, &storage);
-            envelope["context"]["saved_progress"] = json!({"schema":"work-discussion-progress/v1"});
+            let mut envelope = role_fixture(role, &storage);
+            envelope["context"]["saved_progress"] = json!({"schema":"work-discussion-progress"});
             let result = match role {
                 "plan" => storage.validate_task_coordinator(&envelope, role, "parent"),
                 "execute" => storage.validate_execute_role(&envelope, "parent"),

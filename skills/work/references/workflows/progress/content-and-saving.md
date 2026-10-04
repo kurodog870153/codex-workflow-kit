@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # Content and saving
 
 Create a requirement-owned workspace using `workspace create --workflow-id progress --requirement-id <requirement-id>` for the parent envelope, semantic content, prepared candidate and validation response.

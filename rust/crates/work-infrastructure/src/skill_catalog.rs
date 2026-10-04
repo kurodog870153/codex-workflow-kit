@@ -250,7 +250,7 @@ impl SkillSnapshotRepository for LocalSkillCatalog {
         Ok(work_model::skill::verified::<
             work_model::skill::SkillSnapshot,
         >(
-            json!({"schema": "work-skill-snapshot/v1", "skill": skill, "bundle": bundle}),
+            json!({"schema": "work-skill-snapshot", "skill": skill, "bundle": bundle}),
         ))
     }
 }

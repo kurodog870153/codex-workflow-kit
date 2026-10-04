@@ -1,12 +1,12 @@
 {
-  "schema": "work-execution-index/v1",
+  "schema": "work-execution-index",
   "task_spec_id": "TASK-SPEC-001",
+  "acceptance_results": [],
   "tasks": [
     {
       "id": "TASK-001",
-      "latest_attempt": "ATTEMPT-001",
-      "acceptance_results": []
+      "acceptance_results": [],
+      "latest_attempt": "ATTEMPT-001"
     }
-  ],
-  "acceptance_results": []
+  ]
 }

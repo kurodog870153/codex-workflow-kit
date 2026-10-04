@@ -424,7 +424,7 @@ pub fn build_save_documents(
         .expect("selected TASK");
     target["status"] = request["status"].clone();
     target["instruction_selection"] = checked["instruction_selection"].clone();
-    let mut draft = json!({"schema":"work-task-draft/v1",
+    let mut draft = json!({"schema":"work-task-draft",
         "requirement_id":requirement_id,"task_id":task_id,
         "revision":entry["draft_ref"]["revision"].as_u64().unwrap_or(0) + 1,
         "boundary_revision":entry["boundary_revision"],"source":previous["source"],
@@ -898,7 +898,7 @@ pub fn resolve_instruction_selection(
         return stored.cloned().ok_or_else(|| {
             workflow(
                 "draft_selection_required",
-                "Confirm instruction paths and references for this legacy TASK before continuing.",
+                "Confirm instruction paths and references for this Task draft before continuing.",
             )
         });
     };
@@ -1009,7 +1009,7 @@ pub fn check_validated_sources(
     Ok(work_model::task::response::typed_response::<
         work_model::task::response::TaskDraftSourceCheck,
     >(
-        json!({"schema":"work-task-draft-source-check/v1","status":"valid",
+        json!({"schema":"work-task-draft-source-check","status":"valid",
         "requirement_id":requirement_id,"task_id":input.task_id,"revision":input.expected_revision,
         "source":input.index["source"],"skill_id":skill_id,
         "instructions_sha256":loaded.instructions_sha256,"instruction_selection":selected}),
@@ -1033,7 +1033,7 @@ pub fn status(
             ));
         }
         return Ok(
-            json!({"schema":"work-task-draft-status/v1","requirement_id":requirement_id,
+            json!({"schema":"work-task-draft-status","requirement_id":requirement_id,
             "status":if recovery_required {"recovery_required"} else {"not_initialized"},
             "revision":null,"current_task_id":null,"selected_task_id":null,
             "counts":{"planned":0,"in_progress":0,"refined":0,"needs_review":0},"tasks":[],"discussion":null,
@@ -1074,7 +1074,7 @@ pub fn status(
             ),
         );
     }
-    let mut result = json!({"schema":"work-task-draft-status/v1","requirement_id":requirement_id,"status":"saved",
+    let mut result = json!({"schema":"work-task-draft-status","requirement_id":requirement_id,"status":"saved",
         "revision":index["revision"],"current_task_id":index["current_task_id"],"selected_task_id":selected_id,
         "counts":counts,"tasks":tasks,"discussion":null,"next_action":"confirm_task_list","required_checks":["source inspect"],
         "requires_user_confirmation":true,"source_validation":"not_checked","assembly_validation":"not_performed",
@@ -1142,10 +1142,10 @@ mod tests {
 
     fn planning_source() -> Value {
         let catalog = "a".repeat(64);
-        json!({"snapshot":work_model::contract_data::registry_value()["items"]["work-source-snapshot/v1"]["description"]["example"],
+        json!({"snapshot":work_model::contract_data::registry_value()["items"]["work-source-snapshot"]["description"]["example"],
         "artifacts":{"source":"outputs/work/sources/example","task":"outputs/work/tasks/example/index.json","execution":"outputs/work/executions/example"},
-        "hierarchy_selection":{"schema":"work-hierarchy-selection/v1","decision":"general_only","selected_paths":[],"entries":[],"catalog_sha256":catalog,"selection_sha256":fingerprint::hierarchy_selection("general_only",&[],&[],&catalog)},
-        "skill_selection":{"schema":"work-skill-selection/v1","decision":"base_only","skills":[],"selection_sha256":fingerprint::skill_selection("base_only",&[])},
+        "hierarchy_selection":{"schema":"work-hierarchy-selection","decision":"general_only","selected_paths":[],"entries":[],"catalog_sha256":catalog,"selection_sha256":fingerprint::hierarchy_selection("general_only",&[],&[],&catalog)},
+        "skill_selection":{"schema":"work-skill-selection","decision":"base_only","skills":[],"selection_sha256":fingerprint::skill_selection("base_only",&[])},
         "acceptance_criteria":[{"id":"ACCEPTANCE-001","criterion":"Result is observable."}]})
     }
     struct DraftInstructions;
@@ -1187,7 +1187,7 @@ mod tests {
 
     #[test]
     fn list_update_prepares_exact_history_file_set() {
-        let previous = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
+        let previous = json!({"schema":"work-task-planning-index","requirement_id":"example","revision":1,
             "source":planning_source(),
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Before","goal":"Goal","scope":["Scope"],"skill_id":null,
             "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64)}]});
@@ -1246,11 +1246,11 @@ mod tests {
     }
 
     #[test]
-    fn empty_progress_and_planned_action_match_python() {
+    fn empty_progress_and_planned_action_match_current_contract() {
         let empty = status("example", None, None, None, false).unwrap();
         assert_eq!(empty["status"], "not_initialized");
         assert_eq!(empty["next_action"], "confirm_task_list");
-        let index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
+        let index = json!({"schema":"work-task-planning-index","requirement_id":"example","revision":1,
             "source":planning_source(),
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Task","goal":"Goal","scope":["Scope"],"skill_id":null,
             "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64)}]});
@@ -1267,7 +1267,7 @@ mod tests {
         let mut next = initialized.index.clone();
         next["revision"] = json!(2);
         next["tasks"][0]["status"] = json!("in_progress");
-        let draft = json!({"schema":"work-task-draft/v1","requirement_id":"example","task_id":"TASK-001","revision":1,
+        let draft = json!({"schema":"work-task-draft","requirement_id":"example","task_id":"TASK-001","revision":1,
             "boundary_revision":1,"source":index["source"],"instructions_sha256":"d".repeat(64),"status":"in_progress",
             "notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],"next_discussion_point":"Continue discussion."});
         let saved = prepare_save(&next, 1, Some(&index), Some(&draft)).unwrap();
@@ -1284,8 +1284,8 @@ mod tests {
     }
 
     #[test]
-    fn status_planned_selection_and_missing_current_match_python() {
-        let index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
+    fn status_planned_selection_and_missing_current_match_current_contract() {
+        let index = json!({"schema":"work-task-planning-index","requirement_id":"example","revision":1,
             "source":planning_source(),
             "current_task_id":"TASK-001","tasks":[
                 {"id":"TASK-001","title":"Task","goal":"Result","scope":["Source"],"skill_id":null,
@@ -1328,8 +1328,8 @@ mod tests {
     }
 
     #[test]
-    fn status_saved_and_refined_actions_match_python() {
-        let mut index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":3,
+    fn status_saved_and_refined_actions_match_current_contract() {
+        let mut index = json!({"schema":"work-task-planning-index","requirement_id":"example","revision":3,
             "source":planning_source(),
             "current_task_id":"TASK-001","tasks":[
                 {"id":"TASK-001","title":"Task","goal":"Result","scope":["Source"],"skill_id":null,
@@ -1337,7 +1337,7 @@ mod tests {
                  "draft_ref":{"save_revision":2,"revision":1,"sha256":"e".repeat(64)}},
                 {"id":"TASK-002","title":"Task","goal":"Result","scope":["Source"],"skill_id":null,
                  "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64)}]});
-        let mut discussion = json!({"schema":"work-task-draft/v1","requirement_id":"example","task_id":"TASK-001","revision":1,
+        let mut discussion = json!({"schema":"work-task-draft","requirement_id":"example","task_id":"TASK-001","revision":1,
             "boundary_revision":1,"source":index["source"],"instructions_sha256":"d".repeat(64),"status":"in_progress",
             "notes":["具體討論"],"confirmed_decisions":[],"tentative":[],"open_questions":["Which test?"],
             "next_discussion_point":"Confirm test."});
@@ -1382,7 +1382,7 @@ mod tests {
 
     #[test]
     fn draft_source_check_respects_saved_selection_and_live_fingerprints() {
-        let index = json!({"schema":"work-task-planning-index/v1","requirement_id":"example","revision":1,
+        let index = json!({"schema":"work-task-planning-index","requirement_id":"example","revision":1,
             "source":planning_source(),
             "current_task_id":"TASK-001","tasks":[{"id":"TASK-001","title":"Task","goal":"Goal","scope":["Scope"],"skill_id":null,
             "dependencies":[],"status":"planned","boundary_revision":1,"instructions_sha256":"d".repeat(64),
@@ -1426,13 +1426,28 @@ mod tests {
                 .reason_code,
             "draft_selection_mismatch"
         );
+        for obsolete_schema in ["work-task-planning-index/v1", "work-task-planning-index/v2"] {
+            let mut obsolete = index.clone();
+            obsolete["schema"] = json!(obsolete_schema);
+            let obsolete_input = DraftSourceCheck {
+                index: &obsolete,
+                task_id: "TASK-001",
+                expected_revision: 1,
+                source: &obsolete["source"],
+                selected_paths: Some(&[]),
+                reference_names: Some(&[]),
+            };
+            assert!(check_validated_sources(&DraftInstructions, &obsolete_input).is_err());
+            assert_eq!(obsolete["schema"], obsolete_schema);
+        }
+        input.reference_names = None;
         input.selected_paths = None;
-        let mut legacy = index.clone();
-        legacy["tasks"][0]
+        let mut unselected = index.clone();
+        unselected["tasks"][0]
             .as_object_mut()
             .unwrap()
             .remove("instruction_selection");
-        input.index = &legacy;
+        input.index = &unselected;
         assert_eq!(
             check_validated_sources(&DraftInstructions, &input)
                 .unwrap_err()
@@ -1510,19 +1525,19 @@ mod tests {
             "draft_selection_mismatch"
         );
 
-        let legacy = json!({});
+        let unselected = json!({});
         assert_eq!(
-            resolve_instruction_selection(&legacy, None, None)
+            resolve_instruction_selection(&unselected, None, None)
                 .unwrap_err()
                 .reason_code,
             "draft_selection_required"
         );
         assert_eq!(
-            resolve_instruction_selection(&legacy, Some(&[]), None).unwrap(),
+            resolve_instruction_selection(&unselected, Some(&[]), None).unwrap(),
             json!({"selected_paths":[],"references":[]})
         );
         assert_eq!(
-            resolve_instruction_selection(&legacy, None, Some(&[]))
+            resolve_instruction_selection(&unselected, None, Some(&[]))
                 .unwrap_err()
                 .reason_code,
             "draft_selection_incomplete"

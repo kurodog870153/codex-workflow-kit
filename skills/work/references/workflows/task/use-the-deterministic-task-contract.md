@@ -1,4 +1,3 @@
-<!-- work-compatibility-revision: 1 -->
 # Use the deterministic TASK contract
 
 1. Use `task preview` to assemble the saved refined candidates from their fixed Source and Task-owned selections. Review the complete collection and initial Execution bytes, and bind approval to the returned fingerprint.

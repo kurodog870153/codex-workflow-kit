@@ -19,7 +19,7 @@
           "target": "retain_only"
         }
       ],
-      "schema": "work-spec-reconciliation-ledger/v1"
+      "schema": "work-spec-reconciliation-ledger"
     },
     "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
     "migration_preview": null,
@@ -31,7 +31,7 @@
     "retained_deviation_ids": [
       "DEVIATION-001"
     ],
-    "schema": "work-spec-reconciliation-preview/v1",
+    "schema": "work-spec-reconciliation-preview",
     "selected_deviation_ids": [],
     "status": "ready"
   },
@@ -40,6 +40,6 @@
     "choice": "retain_only",
     "deviation_ids": [],
     "migration": null,
-    "schema": "work-spec-reconciliation-preview-request/v1"
+    "schema": "work-spec-reconciliation-preview-request"
   }
 }

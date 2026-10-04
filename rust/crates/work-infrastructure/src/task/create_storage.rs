@@ -342,7 +342,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             sha256_hex(&work_operations::canonical::canonical_json(&index).unwrap()),
-            "1568544f5a927a2ceb110d0f6a70af0c07ed05258e6422a79b198be45c1522d4"
+            "7fbd7294fca31e21b226ea8ec25e2fa70ba3c92f5513a765a742c0f5d98160a3"
         );
         let prepared = work_operations::task::create::prepare_collection(
             &actual["contract"],
@@ -359,11 +359,11 @@ mod tests {
         );
         assert_eq!(
             sha256_hex(&prepared.approval_bytes),
-            "8701bbd8b4887436602dafe4825e5f544cb7a0ed9672aca05d7992a8af340b5d"
+            "448099a9224417d764c925175999a3000b6cc0c42bcd8f9a86f0e650683d63f4"
         );
         assert_eq!(
             actual["approval_sha256"],
-            "396501cd0bcd76950db7fcebefaade1a6966933be619cfb606d086f1c80b3829"
+            "e800b27e0f65d8b85f9cff66e1b76b76068cf4465adc174d8f2244354135b52f"
         );
         let execution_raw =
             work_operations::execution::index::render_execution_index(&actual["execution_index"])

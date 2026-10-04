@@ -50,11 +50,7 @@ use work_infrastructure::execution_storage::{AttemptStartRecoveryRequest, LocalE
 use work_infrastructure::files::resolve_project_path;
 use work_infrastructure::handoff_storage::LocalHandoffStorage;
 use work_infrastructure::hierarchy_catalog::LocalHierarchyCatalog;
-use work_infrastructure::instruction::migration::{apply_migration, build_migration};
-use work_infrastructure::instruction::refresh::{
-    apply_source_refresh, apply_source_refresh_all, build_refresh, preview_source_refresh_all,
-    source_impact,
-};
+use work_infrastructure::instruction::refresh::source_impact;
 use work_infrastructure::progress_storage::LocalProgressStorage;
 use work_infrastructure::routing_sources::RoutingSourceSession;
 use work_infrastructure::skill_catalog::{LocalSkillCatalog, SkillRootConfig};
@@ -550,7 +546,7 @@ fn require_collection_path(path: &str) -> Result<(), WorkError> {
 fn specification_summary(result: &Value) -> Value {
     let source = result.get("preview").unwrap_or(result);
     let mut summary = json!({
-        "schema":"work-specification-summary/v1",
+        "schema":"work-specification-summary",
         "status":source["status"],"record_id":source["record_id"],
         "approved_sha256":source["approved_sha256"],
         "affected_task_ids":source["affected_task_ids"],
@@ -675,7 +671,7 @@ fn dispatch(
         ),
         ["migration", "prepare"] => {
             let request = input_json(input)?;
-            if request["schema"] == "work-spec-migration-prepare-request/v1" {
+            if request["schema"] == "work-spec-migration-prepare-request" {
                 let raw = &required_input(input)?.raw;
                 let configs = skill_configs(&string_list(parsed, "skill_root"))?;
                 let output = parsed.arguments.get("output_file").and_then(Value::as_str);
@@ -692,7 +688,7 @@ fn dispatch(
                     write_prepared_output,
                 );
             }
-            if request["schema"] != "work-artifact-migration-decisions/v1" {
+            if request["schema"] != "work-artifact-migration-decisions" {
                 return Err(WorkError::new(
                     ExitCode::Contract,
                     "migration_decisions_schema",
@@ -942,54 +938,11 @@ fn dispatch(
         ["instructions", "impact"] => {
             work_flow::instruction::impact(|| source_impact(root, skill_root))
         }
-        ["instructions", "refresh-preview"] => work_flow::instruction::refresh_preview(|| {
-            Ok(build_refresh(root, skill_root, argument(parsed, "requirement_id")?)?.preview)
-        }),
-        ["instructions", "refresh-apply" | "refresh-recover"] => {
-            work_flow::instruction::refresh_apply(|| {
-                apply_source_refresh(
-                    root,
-                    skill_root,
-                    argument(parsed, "requirement_id")?,
-                    argument(parsed, "approved_sha256")?,
-                    if parsed.path[1] == "refresh-recover" {
-                        "recover"
-                    } else {
-                        "apply"
-                    },
-                )
-            })
-        }
-        ["instructions", "refresh-preview-all"] => {
-            work_flow::instruction::refresh_preview_all(|| {
-                preview_source_refresh_all(root, skill_root)
-            })
-        }
-        ["instructions", "refresh-apply-all" | "refresh-recover-all"] => {
-            work_flow::instruction::refresh_apply_all(|| {
-                apply_source_refresh_all(
-                    root,
-                    skill_root,
-                    argument(parsed, "approved_sha256")?,
-                    if parsed.path[1] == "refresh-recover-all" {
-                        "recover"
-                    } else {
-                        "apply"
-                    },
-                )
-            })
-        }
-        ["instructions", "migration-preview"] => work_flow::instruction::migration_preview(|| {
-            Ok(build_migration(root, skill_root, argument(parsed, "requirement_id")?)?.preview)
-        }),
-        ["instructions", "migration-apply"] => work_flow::instruction::migration_apply(|| {
-            apply_migration(
-                root,
-                skill_root,
-                argument(parsed, "requirement_id")?,
-                argument(parsed, "approved_sha256")?,
-            )
-        }),
+        ["instructions", "recover"] => work_infrastructure::recovery::recover_instruction_journal(
+            root,
+            argument(parsed, "journal_path")?,
+            argument(parsed, "approved_sha256")?,
+        ),
         ["skills", "catalog"] => skill_catalog(
             &LocalSkillCatalog {
                 roots: skill_configs(&string_list(parsed, "root"))?,
@@ -1325,7 +1278,7 @@ fn dispatch(
         }
         ["task", "save"] => {
             let request = input_json(input)?;
-            if request["schema"] == "work-task-draft-prepare/v1" {
+            if request["schema"] == "work-task-draft-prepare" {
                 if parsed.arguments.contains_key("task_id")
                     || parsed.arguments.get("general_only") == Some(&json!(true))
                     || parsed.arguments.contains_key("instruction_path")
@@ -1773,7 +1726,6 @@ fn brief_field(name: &str) -> bool {
         "recovery_required",
         "required_checks",
         "routing_status",
-        "router_compatibility_revision",
         "required_instruction_sources",
         "source_order",
         "routing_reasons",
@@ -1794,11 +1746,7 @@ fn brief_field(name: &str) -> bool {
 fn brief(value: &Value) -> Value {
     if matches!(
         value["schema"].as_str(),
-        Some(
-            "work-source-read/v1"
-                | "work-source-validation/v1"
-                | "work-artifact-migration-analysis/v1"
-        )
+        Some("work-source-read" | "work-source-validation" | "work-artifact-migration-analysis")
     ) {
         return value.clone();
     }
@@ -2052,7 +2000,7 @@ mod tests {
         ];
         let (exit, result) = run_with_skill_root(&args, &repo.join("../skills/work"));
         assert_eq!(exit, ExitCode::IoFailure as i32);
-        assert_eq!(result.schema, "work-cli-result/v1");
+        assert_eq!(result.schema, "work-cli-result");
         assert_eq!(result.reason_code, "execute_preflight_task_missing");
     }
 
@@ -2075,7 +2023,7 @@ mod tests {
             &fs::read(project.join("outputs/work/tasks/example/index.json")).unwrap(),
         )
         .unwrap();
-        let request = json!({"schema":"work-delegation-build-request/v1","role":"task-coordinator","request":"Coordinate the confirmed TASK work.","planning_source":{"snapshot":index["source"]["manifest"],"artifacts":index["artifacts"],"hierarchy_selection":index["hierarchy_selection"],"skill_selection":index["skill_selection"],"acceptance_criteria":index["acceptance_criteria"]}});
+        let request = json!({"schema":"work-delegation-build-request","role":"task-coordinator","request":"Coordinate the confirmed TASK work.","planning_source":{"snapshot":index["source"]["manifest"],"artifacts":index["artifacts"],"hierarchy_selection":index["hierarchy_selection"],"skill_selection":index["skill_selection"],"acceptance_criteria":index["acceptance_criteria"]}});
         fs::write(&input, serde_json::to_vec(&request).unwrap()).unwrap();
         let base = [
             "--project-root".to_owned(),
@@ -2097,7 +2045,7 @@ mod tests {
         );
         assert_eq!(exit, 0);
         assert_eq!(built.data["sender"], "parent");
-        assert_eq!(built.data["marker"], "WORK_DELEGATION_V1");
+        assert_eq!(built.data["marker"], "WORK_DELEGATION");
         assert_eq!(
             built.data["context"]["task_source"]["source"],
             index["source"]
@@ -2246,9 +2194,9 @@ mod tests {
         assert_eq!((brief_exit, verbose_exit), (0, 0));
         assert_eq!(
             (brief.schema, brief.reason_code.as_str()),
-            ("work-cli-result/v1", "ok")
+            ("work-cli-result", "ok")
         );
-        assert_eq!(brief.data["schema"], "work-paths/v1");
+        assert_eq!(brief.data["schema"], "work-paths");
         assert_eq!(brief.data["paths"], verbose.data["paths"]);
         assert_eq!(brief.data["requirement_id"], "example");
         assert_eq!(brief.data.as_object().unwrap().len(), 3);
@@ -2261,7 +2209,7 @@ mod tests {
     #[test]
     fn specification_summary_omits_complete_candidate_documents() {
         let preview = json!({
-            "schema":"work-spec-update/v1",
+            "schema":"work-spec-update",
             "status":"valid",
             "record_id":"SPEC-UPDATE-002",
             "approved_sha256":"a".repeat(64),
@@ -2271,7 +2219,7 @@ mod tests {
             "candidate":{"plan":{},"task":{},"index":{}}
         });
         let result = json!({
-            "schema":"work-spec-prepare/v1",
+            "schema":"work-spec-prepare",
             "request":{},
             "preview":preview,
             "output_file":"prepared.json",
@@ -2281,7 +2229,7 @@ mod tests {
         assert_eq!(
             specification_summary(&result),
             json!({
-                "schema":"work-specification-summary/v1",
+                "schema":"work-specification-summary",
                 "status":"valid",
                 "record_id":"SPEC-UPDATE-002",
                 "approved_sha256":"a".repeat(64),
@@ -2328,7 +2276,7 @@ mod tests {
             input.to_string_lossy().into_owned(),
         ]);
         assert_eq!(exit, ExitCode::CliUsage as i32);
-        assert_eq!(required.schema, "work-cli-result/v1");
+        assert_eq!(required.schema, "work-cli-result");
         assert_eq!(required.reason_code, "task_path_required");
         let (exit, unexpected) = invoke(vec![
             "--path".into(),
@@ -2337,7 +2285,7 @@ mod tests {
             "outputs/work/tasks/other/task.json".into(),
         ]);
         assert_eq!(exit, ExitCode::CliUsage as i32);
-        assert_eq!(unexpected.schema, "work-cli-result/v1");
+        assert_eq!(unexpected.schema, "work-cli-result");
         assert_eq!(unexpected.reason_code, "unexpected_task_path");
     }
 
@@ -2382,7 +2330,7 @@ mod tests {
     }
 
     #[test]
-    fn skill_catalog_and_snapshot_cli_match_python_cases() {
+    fn skill_catalog_and_snapshot_cli_match_current_contract_cases() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let base = std::env::temp_dir().join(format!(
             "work-cli-skills-catalog-{}-{}",
@@ -2416,7 +2364,7 @@ mod tests {
         };
         let (exit, catalog) = invoke(vec!["catalog".into(), "--root".into(), root.clone()]);
         assert_eq!(exit, 0);
-        assert_eq!(catalog.data["schema"], "work-skill-catalog/v1");
+        assert_eq!(catalog.data["schema"], "work-skill-catalog");
         assert_eq!(catalog.data["skills"][0]["name"], "frontend");
         let (exit, snapshot) = invoke(vec![
             "snapshot".into(),
@@ -2426,7 +2374,7 @@ mod tests {
             "frontend/SKILL.md".into(),
         ]);
         assert_eq!(exit, 0);
-        assert_eq!(snapshot.data["schema"], "work-skill-snapshot/v1");
+        assert_eq!(snapshot.data["schema"], "work-skill-snapshot");
         assert_eq!(
             snapshot.data["bundle"]["bundle_sha256"]
                 .as_str()
@@ -2436,7 +2384,7 @@ mod tests {
         );
         let (exit, invalid) = invoke(vec!["catalog".into(), "--root".into(), "repo".into()]);
         assert_eq!(exit, ExitCode::CliUsage as i32);
-        assert_eq!(invalid.schema, "work-cli-result/v1");
+        assert_eq!(invalid.schema, "work-cli-result");
         assert_eq!(invalid.reason_code, "invalid_skill_root_argument");
         assert_eq!(fs::read_dir(project).unwrap().count(), 0);
     }
@@ -2480,7 +2428,7 @@ mod tests {
         fs::write(&request, r#"{"decision":"base_only","skills":[]}"#).unwrap();
         let (exit, built) = invoke("selection-build");
         assert_eq!(exit, 0);
-        assert_eq!(built.data["schema"], "work-skill-selection/v1");
+        assert_eq!(built.data["schema"], "work-skill-selection");
         assert_eq!(
             built.data["selection_sha256"],
             work_infrastructure::fixture_support::selection_sha256("base_only", &[])
@@ -2488,10 +2436,7 @@ mod tests {
         fs::write(&request, serde_json::to_vec(&built.data).unwrap()).unwrap();
         let (exit, validated) = invoke("selection-validate");
         assert_eq!(exit, 0);
-        assert_eq!(
-            validated.data["schema"],
-            "work-skill-selection-validation/v1"
-        );
+        assert_eq!(validated.data["schema"], "work-skill-selection-validation");
         assert_eq!(validated.data["status"], "valid");
         fs::write(
             &request,
@@ -2524,7 +2469,7 @@ mod tests {
             &repo.join("../skills/work"),
         );
         assert_eq!(exit, ExitCode::InputFormat as i32);
-        assert_eq!(response.schema, "work-cli-result/v1");
+        assert_eq!(response.schema, "work-cli-result");
         assert_eq!(response.reason_code, "invalid_json_contract");
     }
 
@@ -2544,7 +2489,7 @@ mod tests {
             &repo.join("../skills/work"),
         );
         assert_eq!(exit, ExitCode::InputFormat as i32);
-        assert_eq!(response.schema, "work-cli-result/v1");
+        assert_eq!(response.schema, "work-cli-result");
         assert_eq!(response.reason_code, "invalid_json_contract");
     }
 
@@ -2571,25 +2516,25 @@ mod tests {
         };
         let (exit, catalog) = invoke(&["list"]);
         assert_eq!(exit, 0);
-        assert_eq!(catalog.data["schema"], "work-contract-catalog/v1");
+        assert_eq!(catalog.data["schema"], "work-contract-catalog");
         let ids: Vec<_> = catalog.data["contracts"]
             .as_array()
             .unwrap()
             .iter()
             .map(|entry| entry["id"].as_str().unwrap())
             .collect();
-        assert!(ids.contains(&"work-task-semantic-request/v1"));
+        assert!(ids.contains(&"work-task-semantic-request"));
         assert!(!ids.contains(&"work-plan-prepare-request/v1"));
-        let (exit, description) = invoke(&["describe", "work-contract-catalog/v1"]);
+        let (exit, description) = invoke(&["describe", "work-contract-catalog"]);
         assert_eq!(exit, 0);
-        assert_eq!(description.data["schema"], "work-contract-description/v1");
-        assert_eq!(description.data["id"], "work-contract-catalog/v1");
+        assert_eq!(description.data["schema"], "work-contract-description");
+        assert_eq!(description.data["id"], "work-contract-catalog");
         let (exit, unknown) = invoke(&["describe", "work-unknown/v1"]);
         assert_eq!(exit, ExitCode::Contract as i32);
         assert_eq!(unknown.reason_code, "unknown_contract_id");
-        let (exit, record) = invoke(&["scaffold", "work-record-finish-request/v1"]);
+        let (exit, record) = invoke(&["scaffold", "work-record-finish-request"]);
         assert_eq!(exit, 0);
-        assert_eq!(record.data["schema"], "work-contract-scaffold/v1");
+        assert_eq!(record.data["schema"], "work-contract-scaffold");
         assert_eq!(
             record.data["canonical_order"],
             json!([
@@ -2599,16 +2544,16 @@ mod tests {
                 "authorization_evidence"
             ])
         );
-        let (exit, nonrequest) = invoke(&["scaffold", "work-contract-catalog/v1"]);
+        let (exit, nonrequest) = invoke(&["scaffold", "work-contract-catalog"]);
         assert_eq!(exit, ExitCode::Contract as i32);
         assert_eq!(nonrequest.reason_code, "contract_scaffold_requires_request");
-        let (exit, generated) = invoke(&["scaffold", "work-spec-update-request/v1"]);
+        let (exit, generated) = invoke(&["scaffold", "work-spec-update-request"]);
         assert_eq!(exit, ExitCode::Contract as i32);
         assert_eq!(
             generated.reason_code,
             "generated_request_not_caller_constructible"
         );
-        let correction = "work-command-correction-request/v1";
+        let correction = "work-command-correction-request";
         let (exit, description) = invoke(&["describe", correction]);
         assert_eq!(exit, 0);
         let command = description.data["fields"]
@@ -2886,7 +2831,7 @@ mod tests {
             &repo.join("../skills/work"),
         );
         assert_eq!(exit, 0);
-        assert_eq!(response.data["schema"], "work-transaction-workspace/v1");
+        assert_eq!(response.data["schema"], "work-transaction-workspace");
         assert_eq!(response.data["requirement_id"], "example");
         assert_eq!(response.data["workflow_id"], "specification");
         let id = response.data["transaction_id"].as_str().unwrap();
@@ -2909,7 +2854,7 @@ mod tests {
     }
 
     #[test]
-    fn paths_and_text_fingerprint_emit_python_brief_fields() {
+    fn paths_and_text_fingerprint_emit_current_contract_brief_fields() {
         let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../.."));
         let root = root.canonicalize().unwrap();
         let root_string = root.to_string_lossy().into_owned();
@@ -2949,7 +2894,7 @@ mod tests {
     }
 
     #[test]
-    fn hierarchy_resolve_projects_python_path_fields() {
+    fn hierarchy_resolve_projects_current_contract_path_fields() {
         let (exit, result) = run(&[
             "--project-root".into(),
             concat!(env!("CARGO_MANIFEST_DIR"), "/../..").into(),
@@ -2997,7 +2942,7 @@ mod tests {
             &skill_root,
         );
         assert_eq!(exit, 0);
-        assert_eq!(response.data["schema"], "work-hierarchy-selection/v1");
+        assert_eq!(response.data["schema"], "work-hierarchy-selection");
         assert!(work_infrastructure::fixture_support::valid_sha256(
             response.data["selection_sha256"].as_str().unwrap()
         ));
@@ -3034,7 +2979,7 @@ mod tests {
             &skill_root,
         );
         assert_eq!(exit, 0);
-        assert_eq!(selected.data["schema"], "work-instruction-selection/v1");
+        assert_eq!(selected.data["schema"], "work-instruction-selection");
         assert_eq!(
             selected.data["instruction_selection"]["selected_paths"],
             json!([])
@@ -3042,7 +2987,7 @@ mod tests {
     }
 
     #[test]
-    fn instruction_cli_catalog_resolve_load_select_match_python_cases() {
+    fn instruction_cli_catalog_resolve_load_select_match_current_contract_cases() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let skill_root = repo.join("../skills/work");
         let prefix = vec![
@@ -3078,7 +3023,7 @@ mod tests {
         ] {
             let (exit, response) = call(&["catalog", "--mode", mode]);
             assert_eq!(exit, 0);
-            assert_eq!(response.data["schema"], "work-instruction-catalog/v1");
+            assert_eq!(response.data["schema"], "work-instruction-catalog");
             assert_eq!(response.data["mode"], mode);
             assert_eq!(response.data["paths"], json!(paths));
             assert_eq!(
@@ -3116,7 +3061,7 @@ mod tests {
         ];
         let (exit, resolved) = call(&["resolve", "--mode", "task", leaves[0], leaves[1]]);
         assert_eq!(exit, 0);
-        assert_eq!(resolved.data["schema"], "work-hierarchy/v1");
+        assert_eq!(resolved.data["schema"], "work-hierarchy");
         assert_eq!(resolved.data["selected_paths"], json!(leaves));
         assert_eq!(
             resolved.data["resolved_paths"],
@@ -3194,7 +3139,7 @@ mod tests {
             .collect::<Vec<_>>();
         let (exit, loaded) = call(&load_args);
         assert_eq!(exit, 0);
-        assert_eq!(loaded.data["schema"], "work-instructions/v1");
+        assert_eq!(loaded.data["schema"], "work-instructions");
         assert_eq!(loaded.data["mode"], "task");
         assert_eq!(
             loaded.data["sources"]
@@ -3221,14 +3166,14 @@ mod tests {
             loaded.data["instructions_sha256"].as_str().unwrap()
         ));
         for source in loaded.data["sources"].as_array().unwrap() {
-            assert_eq!(source.as_object().unwrap().len(), 4);
+            assert_eq!(source.as_object().unwrap().len(), 3);
         }
         let select_args = std::iter::once("select")
             .chain(source_args)
             .collect::<Vec<_>>();
         let (exit, selected) = call(&select_args);
         assert_eq!(exit, 0);
-        assert_eq!(selected.data["schema"], "work-instruction-selection/v1");
+        assert_eq!(selected.data["schema"], "work-instruction-selection");
         assert_eq!(selected.data["mode"], "task");
         assert_eq!(
             selected.data["instruction_selection"]
@@ -3277,7 +3222,7 @@ mod tests {
     }
 
     #[test]
-    fn skill_catalog_and_workflow_entrypoints_match_python_reference() {
+    fn skill_catalog_and_workflow_entrypoints_match_current_contract_reference() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let skill_root = repo.join("../skills/work");
         let prefix = [
@@ -3309,7 +3254,7 @@ mod tests {
         assert_eq!(exit, 0);
         assert_eq!(
             catalog.data,
-            json!({"schema":"work-skill-catalog/v1","skills":[],"unavailable":[]})
+            json!({"schema":"work-skill-catalog","skills":[],"unavailable":[]})
         );
         let (exit, workflow) = run_with_skill_root(
             &[
@@ -3379,7 +3324,7 @@ mod tests {
     }
 
     #[test]
-    fn attempt_input_validation_matches_python_reference() {
+    fn attempt_input_validation_matches_current_contract_reference() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo.join("crates/work-infrastructure/fixtures/specification-reconciliation/real-flow/outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json");
         let (exit, result) = run(&[
@@ -3395,13 +3340,13 @@ mod tests {
         assert_eq!(
             result.data,
             json!({"attempt_id":"ATTEMPT-001","record_count":1,"result":"valid",
-                "schema":"work-attempt-validation/v1","status":"completed",
+                "schema":"work-attempt-validation","status":"completed",
                 "task_id":"TASK-001","task_spec_id":"TASK-SPEC-001"})
         );
     }
 
     #[test]
-    fn handoff_validation_matches_python_reference() {
+    fn handoff_validation_matches_current_contract_reference() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo.join("crates/work-infrastructure/fixtures/handoff-closed/stopped");
         let (exit, result) = run_with_skill_root(
@@ -3423,7 +3368,7 @@ mod tests {
         assert_eq!(
             result.data,
             json!({"direction":"execute_to_task","marker":"WORK-HANDOFF",
-            "requirement_id":"example","schema":"work-handoff-validation/v1",
+            "requirement_id":"example","schema":"work-handoff-validation",
             "source_stage":"execute","status":"valid","target_stage":"task"})
         );
     }
@@ -3456,7 +3401,7 @@ mod tests {
         assert_eq!(result.data["counts"]["planned"], 1);
         assert_eq!(
             result.data["tasks"][0]["instructions_sha256"],
-            "48975c28f9dbc77acb7af7d733f6b3188b6ce22ba603f9f923abcf1af040af9d"
+            "7189f9caea8f9ceaede9d487145486dc8f02ab1e8c822985c5d3c0f7ff144490"
         );
         let (exit, selected) = run_with_skill_root(
             &[
@@ -3504,12 +3449,12 @@ mod tests {
         assert_eq!(result.data["source_validation"], "valid");
         assert_eq!(
             result.data["tasks"][0]["instructions_sha256"],
-            "48975c28f9dbc77acb7af7d733f6b3188b6ce22ba603f9f923abcf1af040af9d"
+            "7189f9caea8f9ceaede9d487145486dc8f02ab1e8c822985c5d3c0f7ff144490"
         );
     }
 
     #[test]
-    fn task_collection_validation_matches_python_reference() {
+    fn task_collection_validation_matches_current_contract_reference() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo.join("crates/work-infrastructure/fixtures/handoff-closed/stopped");
         let (exit, result) = run_with_skill_root(
@@ -3530,7 +3475,7 @@ mod tests {
         assert_eq!(result.data["task_count"], 2);
         assert_eq!(
             result.data["task_collection_sha256"],
-            "14f480ef6582ca3359a8c284a4648214b8ccef2856841c4e1b4866318173c5d8"
+            "bf96bff1dd62ce53c9616fdd546bbedb19d1c1e30f6879c5c97fe1d22aa9990c"
         );
     }
 
@@ -3585,7 +3530,7 @@ mod tests {
         assert_eq!(exit, 0, "{analysis:?}");
         assert_eq!(analysis.data["items"].as_array().unwrap().len(), 1);
         let input = root.join("decisions.json");
-        let choices = json!({"schema":"work-artifact-migration-decisions/v1",
+        let choices = json!({"schema":"work-artifact-migration-decisions",
             "analysis":analysis.data,"choices":[{"id":analysis.data["items"][0]["id"],"action":"modify","content":serde_json::from_slice::<Value>(&fs::read(&fixture).unwrap()).unwrap()}]});
         fs::write(&input, serde_json::to_vec(&choices).unwrap()).unwrap();
         let (exit, prepared) = invoke(vec![

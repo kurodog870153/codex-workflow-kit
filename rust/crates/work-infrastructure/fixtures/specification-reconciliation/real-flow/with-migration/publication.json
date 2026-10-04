@@ -1,20 +1,20 @@
 {
   "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
-  "attempt_sha256": "2ae0e20ec5913132a1fe9b6e04ac9bc0c1adecbc1db250cdd3273324f82d80d8",
+  "attempt_sha256": "d0034312a3ef3f6ad0d6839aca77e4bf3f8db090f27099f2125a6fc14f3f9f1f",
   "deviation_classifications": {
     "DEVIATION-001": "task_only"
   },
   "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
-  "ledger_sha256": "d324a0b6de317090209c0fec56d89f9c3e83ba900707f94586a51042fb20b42d",
+  "ledger_sha256": "61636ce82d9bc27a6dc04107e5dca0b8fcc4cd08ea72a02873b813e57a426de2",
   "publication": {
-    "completion_marker": "outputs/work/executions/example/.work-spec-migration-98EA34979D74.json.done",
+    "completion_marker": "outputs/work/executions/example/.work-spec-migration-2D6D9FB30ADB.json.done",
     "documents": [
       "outputs/work/executions/example/index.json",
       "outputs/work/tasks/example/index.json",
       "outputs/work/tasks/example/tasks/TASK-001.json"
     ],
-    "fingerprint": "98ea34979d7422dcc23a0a8ef5605c1c9cb833a1c82299b23a520b0cd3829204",
-    "journal": "outputs/work/executions/example/.work-spec-migration-98EA34979D74.json",
+    "fingerprint": "2d6d9fb30adb4955cb93bb61f1c271f9f928b00c290127ebd0e7675705a2ceba",
+    "journal": "outputs/work/executions/example/.work-spec-migration-2D6D9FB30ADB.json",
     "publication_status": "published",
     "relationship_results": [
       {
@@ -30,9 +30,9 @@
         "status": "passed"
       }
     ],
-    "schema": "work-spec-migration-publication/v1",
+    "schema": "work-spec-migration-publication",
     "status": "updated",
-    "transaction_approval_sha256": "28bc813e897221fec187d583731bb3056019f7a77a250409260bac6d879b1a3f",
+    "transaction_approval_sha256": "0d086aca25c4e837ab4d6ea8cd9b4df97f2ade6d50cd276f14d6b40cb9fab502",
     "validator_results": [
       {
         "name": "task_collection",
@@ -44,9 +44,9 @@
       }
     ]
   },
-  "reconciliation_fingerprint": "548a4fc87d13029587fe5a011b7447ff513cb67c6764253840c493cd30615983",
+  "reconciliation_fingerprint": "336aa7736f8af1675aaf111ac4d7ab7215379de6c601f9803cf2620f896cfe3b",
   "retained_deviation_ids": [],
-  "schema": "work-spec-reconciliation-publication/v1",
+  "schema": "work-spec-reconciliation-publication",
   "selected_deviation_ids": [
     "DEVIATION-001"
   ],
