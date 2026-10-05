@@ -1,6 +1,7 @@
 //! Process-boundary response contract for Work.
 
 pub mod contract;
+pub mod discussion;
 pub mod parser;
 pub mod runtime;
 
@@ -296,7 +297,7 @@ mod tests {
     #[test]
     fn migration_error_envelopes_match_current_contract_stdout() {
         let fixtures: Value = serde_json::from_str(include_str!(
-            "../../../crates/work-operations/fixtures.json"
+            "../../../crates/work-operations/fixtures/migration.json"
         ))
         .unwrap();
         for case in fixtures["cli_cases"].as_array().unwrap().iter().take(2) {
@@ -316,7 +317,7 @@ mod tests {
     #[test]
     fn migration_success_envelope_matches_current_contract_stdout() {
         let fixtures: Value = serde_json::from_str(include_str!(
-            "../../../crates/work-operations/fixtures.json"
+            "../../../crates/work-operations/fixtures/migration.json"
         ))
         .unwrap();
         let case = &fixtures["cli_cases"][2];

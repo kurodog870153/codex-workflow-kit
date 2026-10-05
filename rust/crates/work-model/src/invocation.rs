@@ -41,8 +41,8 @@ pub struct ImplicitInvocationRequest {
 #[serde(rename_all = "snake_case")]
 pub enum InvocationEntryKind {
     Workflow,
-    ProgressResume,
-    TaskPlanning,
+    DiscussionResume,
+    TaskDiscussion,
     Migration,
 }
 

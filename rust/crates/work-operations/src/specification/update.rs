@@ -165,7 +165,7 @@ pub fn validate_update_request(value: &Value) -> Result<(), UpdateIssue> {
             "tasks",
             "readiness",
         ],
-        &["execution_defaults", "decisions", "changes"],
+        &["execution_defaults", "decisions", "changes", "discussion"],
         "task_index",
     )?;
     for (task_id, item) in value["task_items"].as_object().expect("checked item map") {
@@ -210,6 +210,27 @@ pub fn validate_update_request(value: &Value) -> Result<(), UpdateIssue> {
             )
         },
     )?;
+    if let Some(trace) = value["task_index"].get("discussion") {
+        let ids = value["task_index"]["tasks"]
+            .as_array()
+            .expect("strict model checked TASK references")
+            .iter()
+            .map(|task| task["id"].as_str().expect("strict TASK ID").to_owned())
+            .collect::<Vec<_>>();
+        crate::discussion::validate_trace(
+            trace,
+            value["task_index"]["requirement_id"].as_str().unwrap_or(""),
+            &ids,
+        )
+        .map_err(|error| {
+            issue(
+                error.0,
+                "Formal discussion provenance is invalid.",
+                json!({"location":"task_index.discussion"}),
+                false,
+            )
+        })?;
+    }
     Ok(())
 }
 
@@ -327,6 +348,14 @@ mod tests {
         let error = validate_update_request(&changed).unwrap_err();
         assert_eq!(error.reason_code, "invalid_object_fields");
         assert_eq!(error.details["location"], "task_items.TASK-001");
+        let mut traced = value.clone();
+        traced["task_index"]["discussion"] = json!({"session_path":"outputs/work/discussions/example/session.json","revision":1,"content_sha256":"a".repeat(64),"decision_versions":{"D001":1},"task_decisions":{"TASK-001":["D001"]}});
+        validate_update_request(&traced).unwrap();
+        traced["task_index"]["discussion"]["task_decisions"]["TASK-001"] = json!(["D002"]);
+        assert_eq!(
+            validate_update_request(&traced).unwrap_err().reason_code,
+            "invalid_discussion_trace"
+        );
     }
 
     #[test]

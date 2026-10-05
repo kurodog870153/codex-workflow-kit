@@ -36,7 +36,7 @@ metadata:
 6. [強制] TASK 的 hierarchy 路徑須為已確認 Task selection 的有效子集，非空路徑完整存在於 Task 與 Execute catalog；instruction sources 只保存 `kind`、`logical_name`、`canonical_sha256`，不保存來源 layer 或絕對路徑。
 7. [強制] Source、正式 TASK 入口與 Execution 預設位於 `outputs/work/sources/<requirement-id>/`、`outputs/work/tasks/<requirement-id>/index.json`、`outputs/work/executions/<requirement-id>/`。非預設路徑須同時確認三個專案相對位置與同一需求編號；每次讀寫完整套用共用路徑安全檢查。
 8. [強制] 需求編號使用合法且可攜的識別；沿用使用者目前輸入或正式交接明列的值，不由檔名或其他對話推測。首次 Source capture 前缺少編號時，先詢問使用者提供並確認，再進行 capture 預覽與核准；不得延到完整候選後才確認。進度保存或編號確認不代表 capture 或正式核准。
-9. [強制] 結構化規劃進度使用 `work-task-planning-index` 與 `work-task-draft` 保存；獨立討論進度依共用 discussion progress 流程記錄。進度、草稿、`refined` 或保存確認均不是正式核准，不得交給 Execute。
+9. [強制] 每個需求的所有 TASK 共用單一 `work-discussion-session`，保存在 `outputs/work/discussions/<requirement-id>/session.json` 與不可變 history；先確認範圍保存授權，再於每輪讀取已提交狀態。問題映射須先保存並驗證後才提問；保存、決策確認及規劃完成均不是正式核准，不得交給 Execute。
 10. [強制] 所有必要決策完成後以 `task preview` 驗證並展示完整初版候選；正式核准綁定 `approval_sha256`，再以 `task apply` 一次發布完整集合，不由 AI 手動寫入正式 JSON。
 
 ## 4. 驗證與交接

@@ -270,7 +270,7 @@ where
                 "A context replacement must review every active Task.",
             ));
         }
-        work_operations::task::draft_source::validate_context_confirmation(
+        work_operations::task::source_confirmation::validate_context_confirmation(
             &old_index,
             &old_index,
             &new_source,

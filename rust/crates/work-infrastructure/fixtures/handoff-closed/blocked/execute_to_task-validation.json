@@ -4,7 +4,7 @@
   "requirement_id": "example",
   "schema": "work-handoff-source-validation",
   "source": {
-    "attempt_sha256": "2d7e0e2b6ebe63f73e01cb556bccfc07da67a9a0f92fb2624ff005d8041b4596",
+    "attempt_sha256": "c2b4cfbcba9360f4965b1f497f1a27b8150fc6cae23efd07323685db486c829e",
     "execute_skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
     "execution_context": {
       "attempt": {
@@ -17,11 +17,11 @@
     },
     "skill_id": null,
     "stage": "execute",
-    "task_collection_sha256": "bf96bff1dd62ce53c9616fdd546bbedb19d1c1e30f6879c5c97fe1d22aa9990c",
+    "task_collection_sha256": "f283fd528a9e19c85a4501fd753885829771efbb20d72dc846a566bf7b465478",
     "task_id": "TASK-001",
-    "task_index_sha256": "ab205d17ceda46970edd207965c60e96f5ff42735046eab1cfcbe27830fdd530",
-    "task_instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
-    "task_item_sha256": "a49a2399ffb755915b7c0f94e97258aca936cc930340054dd50da4af90a5fbca",
+    "task_index_sha256": "bd1f57c00f6767ffcef8b1f2539b8512625fa93750c55647b68ac886e3fb48dc",
+    "task_instructions_sha256": "bbb1285eeb68a50a9c91c7ce8ebadce33aba447624a33ab31f2708f751fee875",
+    "task_item_sha256": "868ccd9b9dbb3d485ae2666825072ea9be8ee7086ca24da12aff1ea82393947f",
     "task_spec_id": "TASK-SPEC-001"
   },
   "source_stage": "execute",

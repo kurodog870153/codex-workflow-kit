@@ -92,6 +92,8 @@ pub struct TaskCollectionProjection {
     pub acceptance_criteria: Vec<super::source::TaskAcceptance>,
     pub instruction_selection: TaskDocumentInstructionSelection,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub discussion: Option<super::discussion_trace::DiscussionTrace>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution_defaults: Option<TaskExecutionDefaults>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub decisions: Option<Vec<TaskIndexDecision>>,

@@ -3,9 +3,9 @@
   "requirement_id": "example",
   "title": "Execution",
   "task_spec_id": "TASK-SPEC-001",
-  "task_collection_sha256": "bf96bff1dd62ce53c9616fdd546bbedb19d1c1e30f6879c5c97fe1d22aa9990c",
-  "task_index_sha256": "ab205d17ceda46970edd207965c60e96f5ff42735046eab1cfcbe27830fdd530",
-  "task_instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+  "task_collection_sha256": "f283fd528a9e19c85a4501fd753885829771efbb20d72dc846a566bf7b465478",
+  "task_index_sha256": "bd1f57c00f6767ffcef8b1f2539b8512625fa93750c55647b68ac886e3fb48dc",
+  "task_instructions_sha256": "bbb1285eeb68a50a9c91c7ce8ebadce33aba447624a33ab31f2708f751fee875",
   "hierarchy_selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569",
   "skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
   "overall_status": "pending",
@@ -21,8 +21,8 @@
       "id": "TASK-001",
       "status": "blocked",
       "skill_id": null,
-      "task_item_sha256": "a49a2399ffb755915b7c0f94e97258aca936cc930340054dd50da4af90a5fbca",
-      "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+      "task_item_sha256": "868ccd9b9dbb3d485ae2666825072ea9be8ee7086ca24da12aff1ea82393947f",
+      "instructions_sha256": "bbb1285eeb68a50a9c91c7ce8ebadce33aba447624a33ab31f2708f751fee875",
       "acceptance_results": [
         {
           "id": "ACCEPTANCE-001",
@@ -45,8 +45,8 @@
       "id": "TASK-002",
       "status": "pending",
       "skill_id": null,
-      "task_item_sha256": "1fa8dac195d0981c013617f1575049f632a3eea69ad4ad8bdd4b07e73c0ec2d3",
-      "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+      "task_item_sha256": "ac842f806b800eff6d38a12d34684eaf60ef99a23f5d97d93095dba024cce239",
+      "instructions_sha256": "bbb1285eeb68a50a9c91c7ce8ebadce33aba447624a33ab31f2708f751fee875",
       "acceptance_results": [
         {
           "id": "ACCEPTANCE-001",

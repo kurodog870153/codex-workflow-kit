@@ -2,7 +2,7 @@
 
 use work_model::identifiers::RequirementId;
 use work_model::schema::PublicSchema;
-use work_model::source_snapshot::{SnapshotSource, SourceSnapshot};
+use work_model::source::snapshot::{SnapshotSource, SourceSnapshot};
 
 use crate::derivation::fingerprint;
 

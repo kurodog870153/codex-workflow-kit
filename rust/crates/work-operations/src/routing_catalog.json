@@ -151,6 +151,49 @@
       "work.shared.artifact-paths",
       "work.shared.fingerprints",
       "work.shared.internal-envelope"
+    ],
+    "initialize_discussion": [
+      "work.instruction-loading",
+      "work.workflow.task",
+      "work.shared.invocation",
+      "work.shared.skill-discovery",
+      "work.shared.skill-selection",
+      "work.shared.source-loading",
+      "work.shared.artifact-paths",
+      "work.shared.fingerprints",
+      "work.workflow.task.saved-planning-entry-point",
+      "work.workflow.task.initialize-and-save"
+    ],
+    "update_discussion": [
+      "work.instruction-loading",
+      "work.workflow.task",
+      "work.shared.invocation",
+      "work.shared.source-loading",
+      "work.shared.artifact-paths",
+      "work.shared.fingerprints",
+      "work.workflow.task.coordinate-confirmed-skills",
+      "work.workflow.task.initialize-and-save"
+    ],
+    "answer_discussion": [
+      "work.instruction-loading",
+      "work.workflow.task",
+      "work.shared.discussion-progress",
+      "work.shared.invocation",
+      "work.shared.source-loading",
+      "work.shared.artifact-paths",
+      "work.shared.fingerprints",
+      "work.workflow.task.independent-discussion-progress",
+      "work.workflow.task.saved-planning-entry-point"
+    ],
+    "preview_task": [
+      "work.instruction-loading",
+      "work.workflow.task",
+      "work.shared.invocation",
+      "work.shared.source-loading",
+      "work.shared.artifact-paths",
+      "work.shared.fingerprints",
+      "work.workflow.task.use-the-deterministic-task-contract",
+      "work.workflow.task.formalization-boundary"
     ]
   },
   "events": {
@@ -195,18 +238,6 @@
     "migration": [
       "work.shared.artifact-migration"
     ],
-    "progress_read": [
-      "work.workflow.progress",
-      "work.shared.discussion-progress",
-      "work.workflow.progress.ownership-and-identity",
-      "work.workflow.progress.resume-in-task"
-    ],
-    "progress_save": [
-      "work.workflow.progress",
-      "work.shared.discussion-progress",
-      "work.workflow.progress.ownership-and-identity",
-      "work.workflow.progress.content-and-saving"
-    ],
     "reconciliation": [
       "work.shared.artifact-revision"
     ],
@@ -227,6 +258,18 @@
     ],
     "instruction_maintenance": [
       "work.shared.instruction-maintenance"
+    ],
+    "discussion_read": [
+      "work.workflow.discussion",
+      "work.shared.discussion-progress",
+      "work.workflow.discussion.ownership-and-identity",
+      "work.workflow.discussion.resume-in-task"
+    ],
+    "discussion_save": [
+      "work.workflow.discussion",
+      "work.shared.discussion-progress",
+      "work.workflow.discussion.ownership-and-identity",
+      "work.workflow.discussion.content-and-saving"
     ]
   },
   "modes": {},
@@ -375,22 +418,6 @@
       "references/workflows/execute/use-the-canonical-attempt-contract.md",
       222
     ],
-    "work.workflow.progress": [
-      "references/workflows/progress.md",
-      100
-    ],
-    "work.workflow.progress.content-and-saving": [
-      "references/workflows/progress/content-and-saving.md",
-      205
-    ],
-    "work.workflow.progress.ownership-and-identity": [
-      "references/workflows/progress/ownership-and-identity.md",
-      204
-    ],
-    "work.workflow.progress.resume-in-task": [
-      "references/workflows/progress/resume-in-task.md",
-      206
-    ],
     "work.workflow.specification": [
       "references/workflows/specification.md",
       100
@@ -466,6 +493,22 @@
     "work.workflow.task.file-and-failure-semantics": [
       "references/workflows/task/file-and-failure-semantics.md",
       245
+    ],
+    "work.workflow.discussion": [
+      "references/workflows/discussion.md",
+      100
+    ],
+    "work.workflow.discussion.content-and-saving": [
+      "references/workflows/discussion/content-and-saving.md",
+      205
+    ],
+    "work.workflow.discussion.ownership-and-identity": [
+      "references/workflows/discussion/ownership-and-identity.md",
+      204
+    ],
+    "work.workflow.discussion.resume-in-task": [
+      "references/workflows/discussion/resume-in-task.md",
+      206
     ]
   }
 }

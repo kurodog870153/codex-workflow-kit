@@ -4,7 +4,7 @@ use crate::protocol::valid_sha256;
 use crate::task::TaskIssue;
 use serde_json::{Value, json};
 use std::collections::HashSet;
-use work_model::task::draft::PlanningSource;
+use work_model::task::planning::PlanningSource;
 use work_model::task::source::{TaskAcceptance, TaskArtifactPaths};
 fn issue(code: &'static str, message: &'static str, location: &str) -> TaskIssue {
     TaskIssue {
@@ -331,9 +331,8 @@ pub fn validate_formal_context(value: &Value, requirement: &str) -> Result<(), T
 
 #[cfg(test)]
 pub(crate) fn fixture_context() -> Value {
-    work_model::contract_data::registry_value()["items"]["work-task-planning-index"]["description"]
-        ["example"]["source"]
-        .clone()
+    let index=work_model::contract_data::registry_value()["items"]["work-task-index"]["description"]["example"].clone();
+    json!({"snapshot":index["source"]["manifest"],"artifacts":index["artifacts"],"hierarchy_selection":index["hierarchy_selection"],"skill_selection":index["skill_selection"],"acceptance_criteria":index["acceptance_criteria"]})
 }
 
 #[cfg(test)]

@@ -26,6 +26,7 @@ const COLLECTION: &[&str] = &[
     "skill_selection",
     "acceptance_criteria",
     "instruction_selection",
+    "discussion",
     "execution_defaults",
     "decisions",
     "tasks",
@@ -45,6 +46,7 @@ const INDEX: &[&str] = &[
     "skill_selection",
     "acceptance_criteria",
     "instruction_selection",
+    "discussion",
     "execution_defaults",
     "tasks",
     "decisions",
@@ -139,7 +141,7 @@ pub(crate) fn fields(path: &[String], kind: TaskDocumentKind) -> &'static [&'sta
             ];
         }
     }
-    if let Some(order) = crate::instruction_refresh::manifest_field_order(path) {
+    if let Some(order) = crate::instruction::refresh::manifest_field_order(path) {
         return order;
     }
     let nested = if path.first().is_some_and(|field| field == "task_index") {
@@ -224,6 +226,13 @@ pub(crate) fn fields(path: &[String], kind: TaskDocumentKind) -> &'static [&'sta
         };
     };
     match last {
+        "discussion" => &[
+            "session_path",
+            "revision",
+            "content_sha256",
+            "decision_versions",
+            "task_decisions",
+        ],
         "artifacts" => &["source", "task", "execution"],
         "source" => &["kind", "manifest", "sources", "approval_sha256"],
         "manifest" => &[

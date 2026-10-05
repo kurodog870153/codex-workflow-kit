@@ -141,13 +141,13 @@ fn classify_entry(mode: InvocationMode, request: &str) -> Result<InvocationEntry
             .parse::<RequirementId>()
             .map_err(|issue| requirement_issue(request_words[1], issue))?;
         entry = InvocationEntry {
-            kind: InvocationEntryKind::ProgressResume,
+            kind: InvocationEntryKind::DiscussionResume,
             requirement_id: Some(id.as_str().into()),
         };
     } else if mode == InvocationMode::Task && request_words.len() == 1 {
         if let Ok(id) = request_words[0].parse::<RequirementId>() {
             entry = InvocationEntry {
-                kind: InvocationEntryKind::TaskPlanning,
+                kind: InvocationEntryKind::TaskDiscussion,
                 requirement_id: Some(id.as_str().into()),
             };
         }
@@ -234,11 +234,11 @@ mod tests {
         assert_eq!(parsed["request"], "  resume issue55\n");
         assert_eq!(
             parsed["entry"],
-            json!({"kind":"progress_resume","requirement_id":"issue55"})
+            json!({"kind":"discussion_resume","requirement_id":"issue55"})
         );
         assert_eq!(
             parse_invocation("$work task -- issue55").unwrap()["entry"],
-            json!({"kind":"task_planning","requirement_id":"issue55"})
+            json!({"kind":"task_discussion","requirement_id":"issue55"})
         );
         assert_eq!(
             parse_invocation("$work task -- resume BAD")
@@ -292,11 +292,11 @@ mod tests {
         }
         assert_eq!(
             parse_invocation("$work task -- resume example-12\n").unwrap()["entry"],
-            json!({"kind":"progress_resume","requirement_id":"example-12"})
+            json!({"kind":"discussion_resume","requirement_id":"example-12"})
         );
         assert_eq!(
             parse_invocation("$work task -- example-12").unwrap()["entry"],
-            json!({"kind":"task_planning","requirement_id":"example-12"})
+            json!({"kind":"task_discussion","requirement_id":"example-12"})
         );
         for request in [
             "resume",

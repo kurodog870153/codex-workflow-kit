@@ -120,19 +120,6 @@ fn caller_local_transaction_chain(relative: &str, text: &str) -> bool {
             "let id = shared_transaction_id(\"UPDATE\", approval)",
             1,
         )
-    } else if relative == "work-feature/src/progress.rs"
-        && production.contains("use work_operations::progress::{")
-        && production
-            .split("use work_operations::progress::{")
-            .nth(1)
-            .and_then(|imports| imports.split(';').next())
-            .is_some_and(|imports| contains_identifier(imports, "approval_sha256"))
-    {
-        production.replacen(
-            "let approved = approval_sha256(",
-            "let approved = shared_progress_approval(",
-            1,
-        )
     } else {
         production.to_owned()
     };
@@ -326,11 +313,11 @@ fn guard_detects_forbidden_production_fixtures() {
         "fn update_task_collection_sha256() {}"
     ));
     assert!(caller_local_transaction_chain(
-        "work-feature/src/progress.rs",
+        "work-feature/src/discussion/assembly.rs",
         "let approved = approval_sha256(raw); approval_sha256(other);"
     ));
     assert!(caller_local_transaction_chain(
-        "work-feature/src/progress.rs",
+        "work-feature/src/discussion/assembly.rs",
         "let approved = approval_sha256(raw);"
     ));
     assert!(caller_local_transaction_chain(

@@ -898,10 +898,10 @@ mod tests {
         let task_path = "outputs/work/tasks/example/index.json";
         let request = json!({"summary":"Start execution."});
         let source = json!({"stage":"task","task_spec_id":"TASK-SPEC-001","task_id":"TASK-001",
-            "task_collection_sha256":"4e3997b468542b7bc5f97d772ae1d7d7f6b347c069e1da8ab2b543224232fa01",
-            "task_index_sha256":"c514f4cebc7539b4d54832711869aa958bd50cdee89259fa806e0be52edf3161",
-            "task_item_sha256":"dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77",
-            "task_instructions_sha256":"99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+            "task_collection_sha256":"0a89ab8518e109f74a3b515b15cd9879d53e3475c8232cced6a9d141a77d4716",
+            "task_index_sha256":"5a6561e945ac751d2afe854caea5657dda95b6492416fe834f1f435e171deb1b",
+            "task_item_sha256":"f1071ad659955de4e360da6b0e53b6f99870d9bede067bb26e0341749c594abb",
+            "task_instructions_sha256":"bbb1285eeb68a50a9c91c7ce8ebadce33aba447624a33ab31f2708f751fee875",
             "skill_id":null,"skill_selection_sha256":"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959"});
         let expected = json!({"schema":"work-handoff","marker":"WORK-HANDOFF",
             "direction":"task_to_execute","requirement_id":"example",
@@ -1111,10 +1111,10 @@ mod tests {
             "requested_changes":["Clarify scope."],"preserve":["Current behavior."],
             "affected_ids":["TASK-001"],"validation_requirements":["Review criteria."]});
         let source = json!({"stage":"execute","task_spec_id":"TASK-SPEC-001","task_id":"TASK-001",
-            "task_collection_sha256":"4e3997b468542b7bc5f97d772ae1d7d7f6b347c069e1da8ab2b543224232fa01",
-            "task_index_sha256":"c514f4cebc7539b4d54832711869aa958bd50cdee89259fa806e0be52edf3161",
-            "task_item_sha256":"dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77",
-            "task_instructions_sha256":"99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+            "task_collection_sha256":"0a89ab8518e109f74a3b515b15cd9879d53e3475c8232cced6a9d141a77d4716",
+            "task_index_sha256":"5a6561e945ac751d2afe854caea5657dda95b6492416fe834f1f435e171deb1b",
+            "task_item_sha256":"f1071ad659955de4e360da6b0e53b6f99870d9bede067bb26e0341749c594abb",
+            "task_instructions_sha256":"bbb1285eeb68a50a9c91c7ce8ebadce33aba447624a33ab31f2708f751fee875",
             "skill_id":null,"execute_skill_selection_sha256":"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
             "execution_context":{"attempt":{"status":"not_created"},"phase":"preflight",
                 "issue_type":"specification_defect","reason":"Specification defect."}});
@@ -1219,7 +1219,7 @@ mod tests {
         );
         assert_eq!(
             work_feature::execution::preflight_index(
-                &crate::execution_storage::LocalExecutionStorage {
+                &crate::execution::storage::LocalExecutionStorage {
                     project_root: storage.project_root.clone()
                 },
                 &validation,

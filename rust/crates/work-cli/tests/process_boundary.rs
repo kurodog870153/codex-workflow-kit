@@ -8,12 +8,16 @@ use std::{fs, path::PathBuf};
 use serde_json::Value;
 use serde_json::json;
 use work_flow::error::ExitCode;
-use work_flow::progress::preview_value;
-use work_infrastructure::progress_storage::LocalProgressStorage;
 use work_infrastructure::writer_lock::{LocalWriterLock, WriterLock};
 
 fn executable() -> &'static str {
-    env!("CARGO_BIN_EXE_work")
+    static EXECUTABLE: OnceLock<String> = OnceLock::new();
+    EXECUTABLE
+        .get_or_init(|| {
+            std::env::var("WORK_TEST_EXECUTABLE")
+                .unwrap_or_else(|_| env!("CARGO_BIN_EXE_work").to_owned())
+        })
+        .as_str()
 }
 
 fn project_root() -> String {
@@ -64,54 +68,6 @@ fn run(arguments: &[String]) -> Output {
         .args(arguments)
         .output()
         .expect("launch work")
-}
-
-#[test]
-fn progress_public_commands_reject_plan_mode_without_creating_history() {
-    let root = std::env::temp_dir().join(format!(
-        "work-progress-task-only-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    fs::create_dir_all(&root).unwrap();
-    let input = root.join("progress.json");
-    let progress = json!({"schema":"work-discussion-progress","requirement_id":"example","mode":"plan","revision":1,"status":"discussion_only","title":"Historical discussion","request":"Original requirement","current_task_id":null,"context":{},"source_status":[],"notes":[],"confirmed_decisions":[],"tentative":[],"open_questions":[],"next_discussion_point":"Review."});
-    let raw = serde_json::to_vec(&progress).unwrap();
-    fs::write(&input, &raw).unwrap();
-    for action in ["prepare", "read", "validate", "save"] {
-        let mut args = vec![
-            "--project-root".to_owned(),
-            root.to_string_lossy().into_owned(),
-            "progress".into(),
-            action.into(),
-        ];
-        if action != "read" {
-            args.extend([
-                "--input-file".into(),
-                input.to_string_lossy().into_owned(),
-                "--expected-revision".into(),
-                "0".into(),
-            ]);
-        }
-        if matches!(action, "prepare" | "read") {
-            args.extend([
-                "--requirement-id".into(),
-                "example".into(),
-                "--mode".into(),
-                "plan".into(),
-            ]);
-        }
-        if action == "save" {
-            args.extend(["--approved-sha256".into(), "0".repeat(64)]);
-        }
-        let output = Command::new(executable()).args(&args).output().unwrap();
-        assert!(!output.status.success(), "{action}");
-        assert!(!root.join("outputs").exists());
-        assert_eq!(fs::read(&input).unwrap(), raw);
-    }
 }
 
 #[test]
@@ -397,699 +353,6 @@ fn artifact_render_data_round_trips_without_cli_envelope() {
 }
 
 #[test]
-fn task_semantic_prepare_and_source_replacement_preserve_immutable_snapshots() {
-    fn copy_tree(source: &Path, target: &Path) {
-        fs::create_dir_all(target).unwrap();
-        for entry in fs::read_dir(source).unwrap() {
-            let entry = entry.unwrap();
-            let destination = target.join(entry.file_name());
-            if entry.file_type().unwrap().is_dir() {
-                copy_tree(&entry.path(), &destination);
-            } else {
-                fs::copy(entry.path(), destination).unwrap();
-            }
-        }
-    }
-    let repo = PathBuf::from(project_root());
-    let fixture = repo.join("rust/crates/work-infrastructure/fixtures/task-draft-sources/valid");
-    let project = std::env::temp_dir().join(format!(
-        "work-task-semantic-cli-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    let skill = project.join("work");
-    let installed = skill.join("scripts/work");
-    fs::create_dir_all(installed.parent().unwrap()).unwrap();
-    fs::copy(executable(), &installed).unwrap();
-    copy_tree(
-        &repo.join("skills/work/references"),
-        &skill.join("references"),
-    );
-    work_infrastructure::fixture_support::copy_fixture_sources(&fixture, &project).unwrap();
-    let source: Value = serde_json::from_slice::<Value>(
-        &fs::read(fixture.join("outputs/work/tasks/example/drafts/index.json")).unwrap(),
-    )
-    .unwrap()["source"]
-        .clone();
-    let source_file = project.join("outputs/work/sources/example/SRC-001/source.txt");
-    let source_raw = fs::read(&source_file).unwrap();
-    let input = project.join("semantic.json");
-    fs::write(
-        &input,
-        serde_json::to_vec(
-            &json!({"source":source,"upsert":[{"title":"Task","goal":"Result",
-        "scope":["Source"],"skill_id":null,
-        "instruction_selection":{"selected_paths":[],"references":[]},"dependencies":[]}],
-        "remove_task_ids":[],"current_task":{"upsert_position":1},"reason":null}),
-        )
-        .unwrap(),
-    )
-    .unwrap();
-    let output = Command::new(&installed)
-        .args([
-            "--project-root".to_owned(),
-            project.to_string_lossy().into_owned(),
-            "--verbose".into(),
-            "task".into(),
-            "prepare".into(),
-            "--input-file".into(),
-            input.to_string_lossy().into_owned(),
-            "--requirement-id".into(),
-            "example".into(),
-            "--user-config-root".into(),
-            project.to_string_lossy().into_owned(),
-        ])
-        .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stdout)
-    );
-    assert!(output.stderr.is_empty());
-    let response: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(response["data"]["status"], "prepared");
-    assert_eq!(response["data"]["index"]["tasks"][0]["id"], "TASK-001");
-    assert_eq!(fs::read(&source_file).unwrap(), source_raw);
-    assert!(!project.join("outputs/work/tasks").exists());
-    let approved = project.join("approved-task.json");
-    fs::write(&approved, serde_json::to_vec(&response["data"]).unwrap()).unwrap();
-    let save_args = [
-        "--project-root",
-        project.to_str().unwrap(),
-        "--verbose",
-        "task",
-        "save",
-        "--input-file",
-        approved.to_str().unwrap(),
-        "--requirement-id",
-        "example",
-        "--user-config-root",
-        project.to_str().unwrap(),
-    ];
-    let mut changed = source_raw.clone();
-    changed[0] ^= 1;
-    fs::write(&source_file, &changed).unwrap();
-    let drift = Command::new(&installed).args(save_args).output().unwrap();
-    assert_eq!(
-        drift.status.code(),
-        Some(5),
-        "{}",
-        String::from_utf8_lossy(&drift.stdout)
-    );
-    let drift: Value = serde_json::from_slice(&drift.stdout).unwrap();
-    assert_eq!(drift["reason_code"], "source_hash_mismatch");
-    assert!(!project.join("outputs/work/tasks").exists());
-    fs::write(&source_file, &source_raw).unwrap();
-    let saved = Command::new(&installed).args(save_args).output().unwrap();
-    assert!(
-        saved.status.success(),
-        "{}",
-        String::from_utf8_lossy(&saved.stdout)
-    );
-    let saved: Value = serde_json::from_slice(&saved.stdout).unwrap();
-    assert_eq!(saved["data"]["status"], "saved");
-    let storage = work_infrastructure::task::draft_storage::LocalTaskDraftStorage {
-        project_root: project.clone(),
-    };
-    assert_eq!(
-        storage.read_planning_index("example").unwrap(),
-        response["data"]["index"]
-    );
-    let repeated = Command::new(&installed).args(save_args).output().unwrap();
-    assert!(repeated.status.success());
-    let repeated: Value = serde_json::from_slice(&repeated.stdout).unwrap();
-    assert_eq!(repeated["data"]["status"], "already_completed");
-    let revision_request = project.join("revision.json");
-    fs::write(
-        &revision_request,
-        serde_json::to_vec(&json!({
-        "upsert":[
-            {"existing_task_id":"TASK-001","title":"Task","goal":"Result",
-                "scope":["Source"],"skill_id":null,"dependencies":[]},
-            {"title":"Follow-up","goal":"Additional result","scope":["Source"],
-                "skill_id":null,"instruction_selection":{"selected_paths":[],"references":[]},
-                "dependencies":[{"existing_task_id":"TASK-001"}]}
-        ],"remove_task_ids":[],"current_task":{"upsert_position":2},
-        "reason":"Add confirmed follow-up"}))
-        .unwrap(),
-    )
-    .unwrap();
-    let revised = Command::new(&installed)
-        .args([
-            "--project-root",
-            project.to_str().unwrap(),
-            "--verbose",
-            "task",
-            "prepare",
-            "--input-file",
-            revision_request.to_str().unwrap(),
-            "--requirement-id",
-            "example",
-            "--user-config-root",
-            project.to_str().unwrap(),
-        ])
-        .output()
-        .unwrap();
-    assert!(
-        revised.status.success(),
-        "{}",
-        String::from_utf8_lossy(&revised.stdout)
-    );
-    let revised: Value = serde_json::from_slice(&revised.stdout).unwrap();
-    assert_eq!(revised["data"]["index"]["revision"], 2);
-    fs::write(&approved, serde_json::to_vec(&revised["data"]).unwrap()).unwrap();
-    let rejected_revision = Command::new(&installed)
-        .args(save_args)
-        .args(["--expected-revision", "2"])
-        .output()
-        .unwrap();
-    assert_eq!(
-        rejected_revision.status.code(),
-        Some(ExitCode::CliUsage as i32)
-    );
-    let rejected_revision: Value = serde_json::from_slice(&rejected_revision.stdout).unwrap();
-    assert_eq!(
-        rejected_revision["reason_code"],
-        "invalid_initial_task_save_options"
-    );
-    assert_eq!(
-        storage.read_planning_index("example").unwrap()["revision"],
-        1
-    );
-    let saved_revision = Command::new(&installed).args(save_args).output().unwrap();
-    assert!(
-        saved_revision.status.success(),
-        "{}",
-        String::from_utf8_lossy(&saved_revision.stdout)
-    );
-    let saved_revision: Value = serde_json::from_slice(&saved_revision.stdout).unwrap();
-    assert_eq!(saved_revision["data"]["revision"], 2);
-    assert_eq!(
-        storage.read_planning_index("example").unwrap(),
-        revised["data"]["index"]
-    );
-    let replacement = work_infrastructure::fixture_support::capture_planning_context(
-        &project,
-        "example",
-        b"Confirmed source change\n",
-        &source["hierarchy_selection"],
-        &source["skill_selection"],
-        &source["acceptance_criteria"],
-    )
-    .unwrap();
-    let replacement_file = project.join(format!(
-        "outputs/work/sources/example/{}/source.txt",
-        replacement["snapshot"]["source_id"].as_str().unwrap()
-    ));
-    let replacement_raw = fs::read(&replacement_file).unwrap();
-    let status = Command::new(&installed)
-        .args([
-            "--project-root",
-            project.to_str().unwrap(),
-            "--verbose",
-            "task",
-            "status",
-            "--requirement-id",
-            "example",
-            "--user-config-root",
-            project.to_str().unwrap(),
-        ])
-        .output()
-        .unwrap();
-    assert!(
-        status.status.success(),
-        "{}",
-        String::from_utf8_lossy(&status.stdout)
-    );
-    let status: Value = serde_json::from_slice(&status.stdout).unwrap();
-    assert_eq!(status["data"]["source_validation"], "valid");
-    assert_eq!(
-        status["data"]["required_checks"],
-        json!(["source inspect", "task status"])
-    );
-    let source_request = project.join("source-update.json");
-    fs::write(
-        &source_request,
-        serde_json::to_vec(&json!({
-            "reason":"Confirmed Source change","source":replacement,
-            "source_confirmation":work_infrastructure::fixture_support::source_confirmation(&storage.read_planning_index("example").unwrap(),&replacement),
-            "selections":{
-                "TASK-001":{"selected_paths":[],"references":[]},
-                "TASK-002":{"selected_paths":[],"references":[]}
-            }
-        }))
-        .unwrap(),
-    )
-    .unwrap();
-    let confirmed_request: Value =
-        serde_json::from_slice(&fs::read(&source_request).unwrap()).unwrap();
-    let prior_evidence: Vec<_> = [
-        "outputs/work/sources/example/SRC-001/manifest.json",
-        "outputs/work/sources/example/SRC-001/manifest.json.done",
-        "outputs/work/tasks/example/drafts/history/1/index.json",
-        "outputs/work/tasks/example/drafts/history/2/index.json",
-    ]
-    .into_iter()
-    .map(|relative| (relative, fs::read(project.join(relative)).unwrap()))
-    .collect();
-    let baseline_index =
-        fs::read(project.join("outputs/work/tasks/example/drafts/index.json")).unwrap();
-    for (pointer, value) in [
-        ("/source_confirmation/retained_acceptance_ids", json!([])),
-        (
-            "/source_confirmation/task_reviews/TASK-001/skills",
-            json!(""),
-        ),
-        (
-            "/source_confirmation/complete_requirement_review",
-            json!(false),
-        ),
-        (
-            "/source/hierarchy_selection/selection_sha256",
-            json!("0".repeat(64)),
-        ),
-    ] {
-        let mut invalid = confirmed_request.clone();
-        *invalid.pointer_mut(pointer).unwrap() = value;
-        fs::write(&source_request, serde_json::to_vec(&invalid).unwrap()).unwrap();
-        let rejected = Command::new(&installed)
-            .args([
-                "--project-root",
-                project.to_str().unwrap(),
-                "--verbose",
-                "task",
-                "prepare",
-                "--input-file",
-                source_request.to_str().unwrap(),
-                "--requirement-id",
-                "example",
-                "--user-config-root",
-                project.to_str().unwrap(),
-            ])
-            .output()
-            .unwrap();
-        assert!(!rejected.status.success(), "{pointer}");
-        assert_eq!(
-            fs::read(project.join("outputs/work/tasks/example/drafts/index.json")).unwrap(),
-            baseline_index
-        );
-        assert!(
-            !project
-                .join("outputs/work/tasks/example/drafts/history/3")
-                .exists()
-        );
-    }
-    let mut multi = confirmed_request.clone();
-    multi["sources"] = json!([replacement.clone(), replacement.clone()]);
-    fs::write(&source_request, serde_json::to_vec(&multi).unwrap()).unwrap();
-    let rejected = Command::new(&installed)
-        .args([
-            "--project-root",
-            project.to_str().unwrap(),
-            "--verbose",
-            "task",
-            "prepare",
-            "--input-file",
-            source_request.to_str().unwrap(),
-            "--requirement-id",
-            "example",
-            "--user-config-root",
-            project.to_str().unwrap(),
-        ])
-        .output()
-        .unwrap();
-    assert!(!rejected.status.success());
-    assert_eq!(
-        fs::read(project.join("outputs/work/tasks/example/drafts/index.json")).unwrap(),
-        baseline_index
-    );
-    fs::write(
-        &source_request,
-        serde_json::to_vec(&confirmed_request).unwrap(),
-    )
-    .unwrap();
-    let source_candidate = Command::new(&installed)
-        .args([
-            "--project-root",
-            project.to_str().unwrap(),
-            "--verbose",
-            "task",
-            "prepare",
-            "--input-file",
-            source_request.to_str().unwrap(),
-            "--requirement-id",
-            "example",
-            "--user-config-root",
-            project.to_str().unwrap(),
-        ])
-        .output()
-        .unwrap();
-    assert!(
-        source_candidate.status.success(),
-        "{}",
-        String::from_utf8_lossy(&source_candidate.stdout)
-    );
-    let source_candidate: Value = serde_json::from_slice(&source_candidate.stdout).unwrap();
-    assert_eq!(source_candidate["data"]["index"]["revision"], 3);
-    assert_eq!(
-        source_candidate["data"]["affected_task_ids"],
-        json!(["TASK-001", "TASK-002"])
-    );
-    fs::write(
-        &approved,
-        serde_json::to_vec(&source_candidate["data"]).unwrap(),
-    )
-    .unwrap();
-    let mut changed = replacement_raw.clone();
-    changed[0] ^= 1;
-    fs::write(&replacement_file, &changed).unwrap();
-    let stale = Command::new(&installed).args(save_args).output().unwrap();
-    assert!(!stale.status.success());
-    assert_eq!(
-        storage.read_planning_index("example").unwrap()["revision"],
-        2
-    );
-    fs::write(&replacement_file, &replacement_raw).unwrap();
-    let rejected_source_revision = Command::new(&installed)
-        .args(save_args)
-        .args(["--expected-revision", "2"])
-        .output()
-        .unwrap();
-    assert_eq!(
-        rejected_source_revision.status.code(),
-        Some(ExitCode::CliUsage as i32)
-    );
-    let rejected_source_revision: Value =
-        serde_json::from_slice(&rejected_source_revision.stdout).unwrap();
-    assert_eq!(
-        rejected_source_revision["reason_code"],
-        "invalid_initial_task_save_options"
-    );
-    assert_eq!(
-        storage.read_planning_index("example").unwrap()["revision"],
-        2
-    );
-    let source_saved = Command::new(&installed).args(save_args).output().unwrap();
-    assert!(
-        source_saved.status.success(),
-        "{}",
-        String::from_utf8_lossy(&source_saved.stdout)
-    );
-    assert_eq!(
-        storage.read_planning_index("example").unwrap(),
-        source_candidate["data"]["index"]
-    );
-    let recorded: Value = serde_json::from_slice(
-        &fs::read(project.join("outputs/work/tasks/example/drafts/history/3/source-update.json"))
-            .unwrap(),
-    )
-    .unwrap();
-    assert_eq!(
-        recorded["request"]["source_confirmation"],
-        confirmed_request["source_confirmation"]
-    );
-    assert_eq!(fs::read(&replacement_file).unwrap(), replacement_raw);
-    assert_eq!(fs::read(&source_file).unwrap(), source_raw);
-    for (relative, raw) in prior_evidence {
-        assert_eq!(fs::read(project.join(relative)).unwrap(), raw, "{relative}");
-    }
-
-    let source_repeated = Command::new(&installed).args(save_args).output().unwrap();
-    assert!(source_repeated.status.success());
-    let source_repeated: Value = serde_json::from_slice(&source_repeated.stdout).unwrap();
-    assert_eq!(source_repeated["data"]["status"], "already_completed");
-}
-
-#[test]
-fn task_preview_and_apply_create_only_the_first_formal_collection() {
-    let fixture = PathBuf::from(project_root())
-        .join("rust/crates/work-infrastructure/fixtures/task-assembly");
-    let root = std::env::temp_dir().join(format!(
-        "work-task-public-lifecycle-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    work_infrastructure::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
-    let source: Value = serde_json::from_slice::<Value>(
-        &fs::read(fixture.join("index.json")).unwrap(),
-    )
-    .unwrap()["source"]
-        .clone();
-    let semantic = root.join("semantic.json");
-    fs::write(&semantic, serde_json::to_vec(&json!({
-        "source":source,"upsert":[{"title":"Task","goal":"Result","scope":["Source"],"skill_id":null,
-            "instruction_selection":{"selected_paths":[],"references":["task.general.task-records"]},
-            "dependencies":[]}],"remove_task_ids":[],
-        "current_task":{"upsert_position":1},"reason":null
-    })).unwrap()).unwrap();
-    let public_args = |command: &str, input: &Path, task_id: Option<&str>| {
-        let mut args = vec![
-            "--project-root".into(),
-            root.to_string_lossy().into_owned(),
-            "--verbose".into(),
-            "task".into(),
-            command.into(),
-            "--input-file".into(),
-            input.to_string_lossy().into_owned(),
-            "--requirement-id".into(),
-            "example".into(),
-            "--user-config-root".into(),
-            root.to_string_lossy().into_owned(),
-        ];
-        if let Some(task_id) = task_id {
-            args.extend(["--task-id".into(), task_id.into()]);
-        }
-        args
-    };
-    let prepared = run(&public_args("prepare", &semantic, None));
-    assert!(
-        prepared.status.success(),
-        "{}",
-        String::from_utf8_lossy(&prepared.stdout)
-    );
-    let prepared: Value = serde_json::from_slice(&prepared.stdout).unwrap();
-    let approved = root.join("approved.json");
-    fs::write(&approved, serde_json::to_vec(&prepared["data"]).unwrap()).unwrap();
-    let saved = run(&public_args("save", &approved, None));
-    assert!(
-        saved.status.success(),
-        "{}",
-        String::from_utf8_lossy(&saved.stdout)
-    );
-    let fixture_draft: Value =
-        serde_json::from_slice(&fs::read(fixture.join("draft.json")).unwrap()).unwrap();
-    let discussion = root.join("discussion.json");
-    fs::write(
-        &discussion,
-        serde_json::to_vec(&json!({
-            "status":"refined","notes":[],"confirmed_decisions":[],"tentative":[],
-            "open_questions":[],"next_discussion_point":null,
-            "task_candidate":fixture_draft["task_candidate"]
-        }))
-        .unwrap(),
-    )
-    .unwrap();
-    let saved = run(&public_args("save", &discussion, Some("TASK-001")));
-    assert!(
-        saved.status.success(),
-        "{}",
-        String::from_utf8_lossy(&saved.stdout)
-    );
-    let storage = work_infrastructure::task::draft_storage::LocalTaskDraftStorage {
-        project_root: root.clone(),
-    };
-    let saved_index = storage.read_planning_index("example").unwrap();
-    assert_eq!(saved_index["revision"], 2);
-    assert_eq!(saved_index["tasks"][0]["status"], "refined");
-    assert!(
-        saved_index["tasks"][0]["draft_ref"]["sha256"]
-            .as_str()
-            .is_some()
-    );
-    let status = run(&[
-        "--project-root".into(),
-        root.to_string_lossy().into_owned(),
-        "--verbose".into(),
-        "task".into(),
-        "status".into(),
-        "--requirement-id".into(),
-        "example".into(),
-        "--user-config-root".into(),
-        root.to_string_lossy().into_owned(),
-    ]);
-    assert!(
-        status.status.success(),
-        "{}",
-        String::from_utf8_lossy(&status.stdout)
-    );
-    let status: Value = serde_json::from_slice(&status.stdout).unwrap();
-    assert_eq!(status["data"]["next_action"], "assemble_for_review");
-    assert_eq!(status["data"]["required_checks"], json!(["task preview"]));
-    let metadata = root.join("metadata.json");
-    fs::write(&metadata, fs::read(fixture.join("metadata.json")).unwrap()).unwrap();
-    let args = |command: &str, approval: Option<&str>| {
-        let mut args = vec![
-            "--project-root".into(),
-            root.to_string_lossy().into_owned(),
-            "--verbose".into(),
-            "task".into(),
-            command.into(),
-            "--input-file".into(),
-            metadata.to_string_lossy().into_owned(),
-            "--requirement-id".into(),
-            "example".into(),
-            "--user-config-root".into(),
-            root.to_string_lossy().into_owned(),
-        ];
-        if let Some(approval) = approval {
-            args.extend(["--approved-sha256".into(), approval.into()]);
-        }
-        args
-    };
-    let preview = run(&args("preview", None));
-    assert!(
-        preview.status.success(),
-        "{}",
-        String::from_utf8_lossy(&preview.stdout)
-    );
-    let preview: Value = serde_json::from_slice(&preview.stdout).unwrap();
-    assert!(!root.join("outputs/work/plans").exists());
-    assert!(
-        !root
-            .join("outputs/work/executions/example/index.json")
-            .exists()
-    );
-    assert_eq!(
-        preview["data"]["execution_index"]["schema"],
-        "work-execution-index"
-    );
-    assert!(
-        preview["data"]["execution_index"]["acceptance_results"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|row| row["status"] == "pending" && row["evidence"] == json!([]))
-    );
-    let preview_again = run(&args("preview", None));
-    assert!(preview_again.status.success());
-    assert_eq!(
-        serde_json::from_slice::<Value>(&preview_again.stdout).unwrap()["data"],
-        preview["data"]
-    );
-    let approval = preview["data"]["approval_sha256"].as_str().unwrap();
-    assert!(!root.join("outputs/work/tasks/example/index.json").exists());
-    let source_dir = root.join("outputs/work/sources/example/SRC-001");
-    let source_before: Vec<_> = ["manifest.json", "source.txt", "manifest.json.done"]
-        .into_iter()
-        .map(|name| (name, fs::read(source_dir.join(name)).unwrap()))
-        .collect();
-    let denied = run(&args("apply", Some(&"0".repeat(64))));
-    assert!(!denied.status.success());
-    assert_eq!(
-        serde_json::from_slice::<Value>(&denied.stdout).unwrap()["reason_code"],
-        "draft_approval_mismatch"
-    );
-    assert!(!root.join("outputs/work/tasks/example/index.json").exists());
-    assert!(!root.join("outputs/work/tasks/example/tasks").exists());
-    assert!(!root.join("outputs/work/executions/example").exists());
-    let source_raw = fs::read(source_dir.join("source.txt")).unwrap();
-    let mut drift = source_raw.clone();
-    drift[0] ^= 1;
-    fs::write(source_dir.join("source.txt"), &drift).unwrap();
-    let denied = run(&args("apply", Some(approval)));
-    assert!(!denied.status.success());
-    assert_eq!(
-        serde_json::from_slice::<Value>(&denied.stdout).unwrap()["reason_code"],
-        "source_hash_mismatch"
-    );
-    assert!(!root.join("outputs/work/tasks/example/index.json").exists());
-    assert!(!root.join("outputs/work/executions/example").exists());
-    fs::write(source_dir.join("source.txt"), &source_raw).unwrap();
-    let applied = run(&args("apply", Some(approval)));
-    assert!(
-        applied.status.success(),
-        "{}",
-        String::from_utf8_lossy(&applied.stdout)
-    );
-    let applied: Value = serde_json::from_slice(&applied.stdout).unwrap();
-    assert_eq!(applied["data"]["status"], "created");
-    assert!(root.join("outputs/work/tasks/example/index.json").is_file());
-    assert!(
-        root.join("outputs/work/executions/example/index.json")
-            .is_file()
-    );
-    let validated = run(&[
-        "--project-root".into(),
-        root.to_string_lossy().into_owned(),
-        "--verbose".into(),
-        "task".into(),
-        "validate".into(),
-        "--path".into(),
-        "outputs/work/tasks/example/index.json".into(),
-        "--user-config-root".into(),
-        root.to_string_lossy().into_owned(),
-    ]);
-    assert!(
-        validated.status.success(),
-        "{}",
-        String::from_utf8_lossy(&validated.stdout)
-    );
-    let validation = serde_json::from_slice::<Value>(&validated.stdout).unwrap()["data"].clone();
-    let typed: work_model::task::response::TaskCollectionValidation =
-        serde_json::from_value(validation.clone()).unwrap();
-    assert_eq!(typed.task_count, 1);
-    assert_eq!(
-        validation["task_collection_sha256"],
-        preview["data"]["task_collection_sha256"]
-    );
-    assert!(!root.join("outputs/work/plans").exists());
-    let repeated = run(&args("apply", Some(approval)));
-    assert!(!repeated.status.success());
-    let execution_index = root.join("outputs/work/executions/example/index.json");
-    let execution_before = fs::read(&execution_index).unwrap();
-    fs::remove_file(&execution_index).unwrap();
-    let recovered = run(&args("recover", Some(approval)));
-    assert!(
-        recovered.status.success(),
-        "{}",
-        String::from_utf8_lossy(&recovered.stdout)
-    );
-    let recovered: Value = serde_json::from_slice(&recovered.stdout).unwrap();
-    assert_eq!(recovered["data"]["status"], "recovered");
-    assert!(execution_index.is_file());
-    assert_eq!(fs::read(&execution_index).unwrap(), execution_before);
-    for (name, raw) in &source_before {
-        assert_eq!(fs::read(source_dir.join(name)).unwrap(), *raw);
-    }
-    assert!(!root.join("outputs/work/plans").exists());
-    let repeated_recovery = run(&args("recover", Some(approval)));
-    assert!(repeated_recovery.status.success());
-    let repeated_recovery: Value = serde_json::from_slice(&repeated_recovery.stdout).unwrap();
-    assert_eq!(repeated_recovery["data"]["status"], "already_completed");
-    let task_index_before = fs::read(root.join("outputs/work/tasks/example/index.json")).unwrap();
-    let wrong = run(&args("recover", Some(&"0".repeat(64))));
-    assert!(!wrong.status.success());
-    assert_eq!(fs::read(&execution_index).unwrap(), execution_before);
-    assert_eq!(
-        fs::read(root.join("outputs/work/tasks/example/index.json")).unwrap(),
-        task_index_before
-    );
-    let index_path = root.join("outputs/work/tasks/example/index.json");
-    let mut changed = fs::read(&index_path).unwrap();
-    changed.push(b' ');
-    fs::write(&index_path, changed).unwrap();
-    let conflict = run(&args("recover", Some(approval)));
-    assert!(!conflict.status.success());
-}
-
-#[test]
 fn task_write_commands_reject_legacy_single_file_before_publication() {
     let registry: Value = work_model::contract_data::registry_value();
     let base = std::env::temp_dir().join(format!(
@@ -1168,6 +431,9 @@ fn task_write_commands_reject_legacy_single_file_before_publication() {
 #[test]
 fn removed_task_commands_return_cli_usage_error() {
     for command in [
+        "prepare",
+        "status",
+        "save",
         "draft-init",
         "semantic-prepare",
         "draft-save",
@@ -1218,138 +484,6 @@ fn removed_migration_semantic_commands_return_cli_usage_error() {
         assert_eq!(response["reason_code"], "cli_usage_error", "{command}");
     }
 }
-#[test]
-fn draft_request_cli_saves_small_payload_and_reuses_selection() {
-    fn copy_tree(source: &Path, target: &Path) {
-        fs::create_dir_all(target).unwrap();
-        for entry in fs::read_dir(source).unwrap() {
-            let entry = entry.unwrap();
-            let destination = target.join(entry.file_name());
-            if entry.file_type().unwrap().is_dir() {
-                copy_tree(&entry.path(), &destination);
-            } else {
-                fs::copy(entry.path(), destination).unwrap();
-            }
-        }
-    }
-    let repo = PathBuf::from(project_root());
-    let fixture = repo.join("rust/crates/work-infrastructure/fixtures/task-draft-sources/valid");
-    let base = std::env::temp_dir().join(format!(
-        "work-draft-request-process-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    let root = base.join("project");
-    let skill = base.join("work");
-    let installed = skill.join("scripts/work");
-    fs::create_dir_all(installed.parent().unwrap()).unwrap();
-    fs::copy(executable(), &installed).unwrap();
-    copy_tree(
-        &repo.join("skills/work/references"),
-        &skill.join("references"),
-    );
-    for relative in [
-        "outputs/work/tasks/example/drafts/index.json",
-        "outputs/work/tasks/example/drafts/history/1/index.json",
-    ] {
-        let destination = root.join(relative);
-        fs::create_dir_all(destination.parent().unwrap()).unwrap();
-        fs::copy(fixture.join(relative), destination).unwrap();
-    }
-    work_infrastructure::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
-    let request = base.join("request.json");
-    fs::write(&request, r#"{"status":"in_progress","notes":["Concrete discussion"],"confirmed_decisions":[],"tentative":[],"open_questions":["Which test?"],"next_discussion_point":"Confirm test."}"#).unwrap();
-    let root_arg = root.to_string_lossy().into_owned();
-    let request_arg = request.to_string_lossy().into_owned();
-    for (revision, explicit) in [(1, true), (2, false)] {
-        let mut arguments = vec![
-            "--project-root".to_owned(),
-            root_arg.clone(),
-            "--verbose".to_owned(),
-            "task".to_owned(),
-            "save".to_owned(),
-            "--input-file".to_owned(),
-            request_arg.clone(),
-            "--requirement-id".to_owned(),
-            "example".to_owned(),
-            "--task-id".to_owned(),
-            "TASK-001".to_owned(),
-            "--user-config-root".to_owned(),
-            root_arg.clone(),
-        ];
-        if explicit {
-            arguments.push("--general-only".to_owned());
-        }
-        let output = Command::new(&installed).args(&arguments).output().unwrap();
-        assert_eq!(
-            output.status.code(),
-            Some(0),
-            "{}",
-            String::from_utf8_lossy(&output.stdout)
-        );
-        assert!(output.stderr.is_empty());
-        let response: Value = serde_json::from_slice(&output.stdout).unwrap();
-        assert_eq!(response["data"]["revision"], revision + 1);
-    }
-    let status_args = [
-        "--project-root",
-        root_arg.as_str(),
-        "--verbose",
-        "task",
-        "status",
-        "--requirement-id",
-        "example",
-        "--task-id",
-        "TASK-001",
-        "--user-config-root",
-        root_arg.as_str(),
-    ];
-    let status = Command::new(&installed).args(status_args).output().unwrap();
-    assert!(
-        status.status.success(),
-        "{}",
-        String::from_utf8_lossy(&status.stdout)
-    );
-    let status: Value = serde_json::from_slice(&status.stdout).unwrap();
-    assert_eq!(status["data"]["source_validation"], "valid");
-    let overall = Command::new(&installed)
-        .args([
-            "--project-root",
-            root_arg.as_str(),
-            "--verbose",
-            "task",
-            "status",
-            "--requirement-id",
-            "example",
-            "--user-config-root",
-            root_arg.as_str(),
-        ])
-        .output()
-        .unwrap();
-    assert!(overall.status.success());
-    let overall: Value = serde_json::from_slice(&overall.stdout).unwrap();
-    assert_eq!(overall["data"]["source_validation"], "valid");
-    let source_file = root.join("outputs/work/sources/example/SRC-001/source.txt");
-    let before = fs::read(&source_file).unwrap();
-    let mut changed = before.clone();
-    changed[0] ^= 1;
-    fs::write(&source_file, &changed).unwrap();
-    let drift = Command::new(&installed).args(status_args).output().unwrap();
-    assert_eq!(drift.status.code(), Some(5));
-    let drift: Value = serde_json::from_slice(&drift.stdout).unwrap();
-    assert_eq!(drift["reason_code"], "source_hash_mismatch");
-    fs::write(&source_file, &before).unwrap();
-    let draft: Value = serde_json::from_slice(
-        &fs::read(root.join("outputs/work/tasks/example/drafts/history/3/TASK-001.json")).unwrap(),
-    )
-    .unwrap();
-    assert_eq!(draft["notes"], json!(["Concrete discussion"]));
-    assert_eq!(draft["revision"], 2);
-}
-
 #[test]
 fn removed_task_diagnose_is_rejected() {
     let output = run(&[
@@ -1475,7 +609,7 @@ fn every_public_leaf_has_frozen_help_at_process_boundary() {
         .expect("command manifest");
     let mut count = 0;
     check_help(&manifest["root"], &mut Vec::new(), &mut count);
-    assert_eq!(count, 81);
+    assert_eq!(count, 82);
 }
 
 #[test]
@@ -1497,7 +631,7 @@ fn public_command_tree_matches_frozen_baseline() {
     let mut commands = Vec::new();
     collect(&manifest["root"], &mut Vec::new(), &mut commands);
     commands.sort();
-    assert_eq!(commands.len(), 81);
+    assert_eq!(commands.len(), 82);
     assert_eq!(
         commands
             .iter()
@@ -1506,11 +640,8 @@ fn public_command_tree_matches_frozen_baseline() {
             .collect::<Vec<_>>(),
         [
             "task apply",
-            "task prepare",
             "task preview",
             "task recover",
-            "task save",
-            "task status",
             "task validate"
         ]
     );
@@ -1526,9 +657,6 @@ fn public_command_tree_matches_frozen_baseline() {
         assert!(commands.contains(&new_command.to_owned()));
     }
     for command in [
-        "task prepare",
-        "task status",
-        "task save",
         "task preview",
         "task apply",
         "task recover",
@@ -1545,6 +673,13 @@ fn public_command_tree_matches_frozen_baseline() {
         assert!(commands.contains(&command.to_owned()));
     }
     for removed in [
+        "task prepare",
+        "task save",
+        "task status",
+        "progress prepare",
+        "progress read",
+        "progress save",
+        "progress preview",
         "task spec-prepare",
         "task spec-validate",
         "task spec-update",
@@ -1580,11 +715,11 @@ fn public_command_tree_matches_frozen_baseline() {
                 && command != "instructions recover"
         })
         .collect::<Vec<_>>();
-    assert_eq!(legacy.len(), 69);
+    assert_eq!(legacy.len(), 70);
     let raw = format!("{}\n", legacy.join("\n"));
     assert_eq!(
         work_infrastructure::fixture_support::raw_sha256(raw.as_bytes()),
-        "2ee2cb05f1ff3221752d9be0fe24ba665d1e308a54600780ecab28a900633133"
+        "786b0d4857be2f2c699d78539d92a43b5d59dadc59899eb204a6c98b7b16b474"
     );
 }
 
@@ -2537,131 +1672,6 @@ fn task_delegation_uses_fixed_source_without_plan_and_rejects_legacy_context() {
 }
 
 #[test]
-fn progress_prepare_validate_save_and_resume_across_processes() {
-    let base = std::env::temp_dir().join(format!(
-        "work-progress-process-t25-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    let project = base.join("project");
-    fs::create_dir_all(&project).unwrap();
-    let semantic = base.join("semantic.json");
-    fs::write(
-        &semantic,
-        serde_json::to_vec(
-            &json!({"title":"Resume later","request":"Keep the agreed scope.",
-            "current_task_id":null,"context":{"scope":["Planning"]},"source_status":[],
-            "notes":["Retain evidence"],"confirmed_decisions":[{"statement":"Keep scope"}],
-            "tentative":[],"open_questions":["Which outcome?"],
-            "next_discussion_point":"Confirm outcome."}),
-        )
-        .unwrap(),
-    )
-    .unwrap();
-    let invoke = |arguments: &[&str]| {
-        let output = Command::new(installed_executable())
-            .args(["--project-root", project.to_str().unwrap(), "--verbose"])
-            .args(arguments)
-            .output()
-            .unwrap();
-        assert_eq!(output.status.code(), Some(0), "{arguments:?}: {output:?}");
-        assert!(output.stderr.is_empty());
-        serde_json::from_slice::<Value>(&output.stdout).unwrap()["data"].clone()
-    };
-    let prepared = invoke(&[
-        "progress",
-        "prepare",
-        "--input-file",
-        semantic.to_str().unwrap(),
-        "--requirement-id",
-        "example",
-        "--mode",
-        "task",
-        "--expected-revision",
-        "0",
-    ]);
-    assert_eq!(prepared["schema"], "work-progress-prepare");
-    assert_eq!(prepared["source_validation"], "not_checked");
-    assert_eq!(prepared["evidence_trust"], "historical_context_only");
-    assert_eq!(prepared["formal_readiness"], "not_established");
-    assert!(!project.join("outputs/work").exists());
-    let progress_file = base.join("progress.json");
-    fs::write(
-        &progress_file,
-        serde_json::to_vec(&prepared["progress"]).unwrap(),
-    )
-    .unwrap();
-    for (command, path_flag, path) in [
-        ("plan", "--plan-path", "outputs/work/plans/example.json"),
-        (
-            "task",
-            "--task-path",
-            "outputs/work/tasks/example/index.json",
-        ),
-    ] {
-        let output = Command::new(installed_executable())
-            .args([
-                "--project-root",
-                project.to_str().unwrap(),
-                command,
-                "validate",
-                "--input-file",
-                progress_file.to_str().unwrap(),
-                path_flag,
-                path,
-                "--user-config-root",
-                project.to_str().unwrap(),
-            ])
-            .output()
-            .unwrap();
-        assert_eq!(
-            output.status.code(),
-            Some(if command == "plan" {
-                ExitCode::CliUsage as i32
-            } else {
-                ExitCode::Contract as i32
-            }),
-            "{command}"
-        );
-    }
-    assert!(!project.join("outputs/work").exists());
-    let validated = invoke(&[
-        "progress",
-        "validate",
-        "--input-file",
-        progress_file.to_str().unwrap(),
-        "--expected-revision",
-        "0",
-    ]);
-    assert_eq!(validated["approved_sha256"], prepared["approved_sha256"]);
-    let saved = invoke(&[
-        "progress",
-        "save",
-        "--input-file",
-        progress_file.to_str().unwrap(),
-        "--expected-revision",
-        "0",
-        "--approved-sha256",
-        prepared["approved_sha256"].as_str().unwrap(),
-    ]);
-    let resumed = invoke(&[
-        "progress",
-        "read",
-        "--requirement-id",
-        "example",
-        "--mode",
-        "task",
-    ]);
-    assert_eq!(resumed["progress"], prepared["progress"]);
-    assert_eq!(resumed["sha256"], saved["sha256"]);
-    let managed = project.join("outputs/work");
-    assert_eq!(fs::read_dir(managed).unwrap().count(), 1);
-}
-
-#[test]
 fn specification_task_boundary_continuation_across_installed_processes() {
     use work_flow::task::validate_collection;
     use work_infrastructure::fixture_support::{
@@ -2734,20 +1744,6 @@ fn specification_task_boundary_continuation_across_installed_processes() {
         )
         .unwrap();
         let prepared_path = base.join("prepared.json");
-        let progress_content_path = base.join("progress-content.json");
-        fs::write(
-            &progress_content_path,
-            serde_json::to_vec(&json!({
-                "title":"Specification continuation","request":"Preserve the checkpoint.",
-                "current_task_id":null,"context":{"affected_ids":["TASK-001"]},
-                "source_status":[],"notes":["Candidate reviewed."],
-                "confirmed_decisions":[{"statement":"Use confirmed wording."}],
-                "tentative":[],"open_questions":[],
-                "next_discussion_point":"Continue after verification."
-            }))
-            .unwrap(),
-        )
-        .unwrap();
         let invoke = |arguments: &[&str], expected: i32| -> Value {
             let output = Command::new(installed_executable())
                 .args(["--project-root", project.to_str().unwrap(), "--verbose"])
@@ -2794,41 +1790,6 @@ fn specification_task_boundary_continuation_across_installed_processes() {
             0,
         );
         let spec_approval = validated["data"]["approved_sha256"]
-            .as_str()
-            .unwrap()
-            .to_owned();
-        let progress_prepared = invoke(
-            &[
-                "progress",
-                "prepare",
-                "--input-file",
-                progress_content_path.to_str().unwrap(),
-                "--requirement-id",
-                "example",
-                "--mode",
-                "task",
-                "--expected-revision",
-                "0",
-            ],
-            0,
-        );
-        let progress_path = base.join("progress.json");
-        fs::write(
-            &progress_path,
-            serde_json::to_vec(&progress_prepared["data"]["progress"]).unwrap(),
-        )
-        .unwrap();
-        let progress_approval = invoke(
-            &[
-                "progress",
-                "validate",
-                "--input-file",
-                progress_path.to_str().unwrap(),
-                "--expected-revision",
-                "0",
-            ],
-            0,
-        )["data"]["approved_sha256"]
             .as_str()
             .unwrap()
             .to_owned();
@@ -2911,32 +1872,44 @@ fn specification_task_boundary_continuation_across_installed_processes() {
                 assert_eq!(rejected["reason_code"], "spec_verify_record_mismatch");
             }
 
+            let discussion_fixture =
+                repo.join("rust/crates/work-infrastructure/fixtures/discussion-assembly");
+            let session = work_infrastructure::fixture_support::prepare_discussion_fixture(
+                &discussion_fixture,
+                &project,
+                &skill,
+            )
+            .unwrap();
+            let request = base.join("session-init.json");
+            fs::write(&request,serde_json::to_vec(&json!({"schema":"work-discussion-request","requirement_id":"example","command":{"kind":"init","session":session}})).unwrap()).unwrap();
             let saved = invoke(
                 &[
-                    "progress",
-                    "save",
+                    "discussion",
+                    "init",
                     "--input-file",
-                    progress_path.to_str().unwrap(),
-                    "--expected-revision",
-                    "0",
-                    "--approved-sha256",
-                    &progress_approval,
+                    request.to_str().unwrap(),
+                    "--user-config-root",
+                    project.to_str().unwrap(),
                 ],
                 0,
             );
+            fs::write(&request,serde_json::to_vec(&json!({"schema":"work-discussion-request","requirement_id":"example","command":{"kind":"read"}})).unwrap()).unwrap();
             let restored = invoke(
                 &[
-                    "progress",
+                    "discussion",
                     "read",
-                    "--requirement-id",
-                    "example",
-                    "--mode",
-                    "task",
+                    "--input-file",
+                    request.to_str().unwrap(),
+                    "--user-config-root",
+                    project.to_str().unwrap(),
                 ],
                 0,
             );
-            assert_eq!(saved["data"]["sha256"], restored["data"]["sha256"]);
-            assert_eq!(restored["data"]["progress"]["revision"], 1);
+            assert_eq!(
+                saved["data"]["data"]["view"]["content_sha256"],
+                restored["data"]["data"]["content_sha256"]
+            );
+            assert_eq!(restored["data"]["data"]["revision"], 1);
             assert_eq!(fs::read(&source_path).unwrap(), source_raw);
             let installed: Value = serde_json::from_slice(&fs::read(&item_path).unwrap()).unwrap();
             assert_eq!(installed["goal"], "Confirmed boundary");
@@ -2972,7 +1945,7 @@ fn every_public_command_help_returns_one_json_response() {
         serde_json::from_str(include_str!("../src/parser/commands.json")).unwrap();
     let mut count = 0;
     check(&manifest["root"], &mut Vec::new(), &mut count);
-    assert_eq!(count, 101);
+    assert_eq!(count, 102);
 }
 
 #[test]
@@ -3018,72 +1991,6 @@ fn relative_unicode_request_path_uses_child_cwd_and_utf8_stdout() {
     let response: Value = serde_json::from_slice(&missing.stdout).unwrap();
     assert_eq!(response["reason_code"], "input_file_read_failed");
     assert_eq!(fs::read_dir(PathBuf::from(&root)).unwrap().count(), 0);
-}
-
-#[test]
-fn progress_writer_lock_prevents_another_process_from_publishing() {
-    let root = std::env::temp_dir().join(format!(
-        "work-progress-process-lock-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    fs::create_dir(&root).unwrap();
-    let progress = json!({"schema":"work-discussion-progress",
-        "requirement_id":"example","mode":"task","revision":1,
-        "status":"discussion_only","title":"Example","request":"Example request.",
-        "current_task_id":null,"context":{},"source_status":[],"notes":[],
-        "confirmed_decisions":[],"tentative":[],"open_questions":[],
-        "next_discussion_point":"Continue."});
-    let storage = LocalProgressStorage {
-        project_root: root.clone(),
-    };
-    let approved = preview_value(&storage, &progress, 0).unwrap()["approved_sha256"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    let input = root.join("request.json");
-    fs::write(&input, serde_json::to_vec(&progress).unwrap()).unwrap();
-    let directory = root.join("outputs/work/progress/example/task");
-    fs::create_dir_all(&directory).unwrap();
-    let guard = LocalWriterLock
-        .acquire(&directory.join(".work-state-writer.lock"))
-        .unwrap();
-    let arguments = [
-        "--project-root",
-        root.to_str().unwrap(),
-        "progress",
-        "save",
-        "--input-file",
-        input.to_str().unwrap(),
-        "--expected-revision",
-        "0",
-        "--approved-sha256",
-        &approved,
-    ];
-    let blocked = Command::new(installed_executable())
-        .args(arguments)
-        .output()
-        .unwrap();
-    assert_eq!(
-        blocked.status.code(),
-        Some(work_flow::error::ExitCode::LockConflict as i32)
-    );
-    assert!(blocked.stderr.is_empty());
-    let response: Value = serde_json::from_slice(&blocked.stdout).unwrap();
-    assert_eq!(response["reason_code"], "work_state_writer_busy");
-    assert!(!directory.join("progress.json").exists());
-    assert!(!directory.join("history").exists());
-    drop(guard);
-    let saved = Command::new(installed_executable())
-        .args(arguments)
-        .output()
-        .unwrap();
-    assert_eq!(saved.status.code(), Some(0));
-    assert!(saved.stderr.is_empty());
-    assert!(directory.join("progress.json").is_file());
 }
 
 #[test]
@@ -3304,40 +2211,41 @@ fn workflow_uses_fixed_source_then_task_without_plan_and_rejects_plan_paths() {
     let available = run("next", &[]);
     assert!(available.status.success());
     let available: Value = serde_json::from_slice(&available.stdout).unwrap();
-    assert_eq!(available["data"]["next_action"], "confirm_task_list");
-    assert_eq!(available["data"]["command"], "task prepare");
+    assert_eq!(available["data"]["next_action"], "initialize_discussion");
+    assert_eq!(available["data"]["command"], "discussion init");
     assert!(available["data"]["arguments"].get("plan_path").is_none());
-    let draft_fixture =
-        repo.join("rust/crates/work-infrastructure/fixtures/task-draft-sources/valid");
-    let draft_path = "outputs/work/tasks/example/drafts/index.json";
-    for relative in [
-        draft_path,
-        "outputs/work/tasks/example/drafts/history/1/index.json",
-    ] {
-        let target = project.join(relative);
-        fs::create_dir_all(target.parent().unwrap()).unwrap();
-        let mut saved_index: Value =
-            serde_json::from_slice(&fs::read(draft_fixture.join(relative)).unwrap()).unwrap();
-        let formal_index: Value = serde_json::from_slice(
-            &fs::read(fixture.join("outputs/work/tasks/example/index.json")).unwrap(),
-        )
-        .unwrap();
-        let mut planning = json!({"snapshot":formal_index["source"]["manifest"]});
-        for key in [
-            "artifacts",
-            "hierarchy_selection",
-            "skill_selection",
-            "acceptance_criteria",
-        ] {
-            planning[key] = formal_index[key].clone();
-        }
-        saved_index["source"] = planning;
-        fs::write(
-            target,
-            work_infrastructure::codec::canonical_json(&saved_index).unwrap(),
+    let discussion_fixture =
+        repo.join("rust/crates/work-infrastructure/fixtures/discussion-assembly");
+    let mut session = work_infrastructure::fixture_support::prepare_discussion_fixture(
+        &discussion_fixture,
+        &project,
+        &repo.join("skills/work"),
+    )
+    .unwrap();
+    if let work_model::common::Nullable::Value(source) = &mut session.context.confirmed_source {
+        source.snapshot = serde_json::from_slice(
+            &fs::read(project.join("outputs/work/sources/example/SRC-001/manifest.json")).unwrap(),
         )
         .unwrap();
     }
+    session.commit.content_sha256 =
+        work_infrastructure::fixture_support::discussion_sha256(&session);
+    let input = project.join("init-session.json");
+    fs::write(&input, serde_json::to_vec(&json!({"schema":"work-discussion-request","requirement_id":"example","command":{"kind":"init","session":session}})).unwrap()).unwrap();
+    let initialized = Command::new(installed_executable())
+        .args(&[
+            "--project-root".into(),
+            project.to_string_lossy().into_owned(),
+            "discussion".into(),
+            "init".into(),
+            "--input-file".into(),
+            input.to_string_lossy().into_owned(),
+            "--user-config-root".into(),
+            project.to_string_lossy().into_owned(),
+        ])
+        .output()
+        .unwrap();
+    assert!(initialized.status.success());
     // An unrelated unfinished newer capture must never replace the saved Source.
     fs::create_dir_all(project.join("outputs/work/sources/example/.capture-SRC-002")).unwrap();
     let resumed = run("status", &[]);
@@ -3351,7 +2259,7 @@ fn workflow_uses_fixed_source_then_task_without_plan_and_rejects_plan_paths() {
         resumed["data"]["details"]["source"]["snapshot"]["source_id"],
         "SRC-001"
     );
-    assert_eq!(resumed["data"]["next_action"], "confirm_start");
+    assert_eq!(resumed["data"]["next_action"], "preview_task");
     for relative in [
         "outputs/work/tasks/example/index.json",
         "outputs/work/tasks/example/tasks/TASK-001.json",
@@ -4466,7 +3374,7 @@ fn all_four_public_modes_preserve_both_origins_and_reach_current_commands() {
     fs::create_dir_all(&root).unwrap();
     let input = root.join("invocation-input");
     for (mode, command, action) in [
-        ("task", "task", "prepare"),
+        ("task", "task", "preview"),
         ("revise", "specification", "prepare"),
         ("migration", "migration", "analyze"),
         ("execute", "execute", "preflight"),
@@ -4548,5 +3456,984 @@ fn retired_refresh_commands_are_ordinary_usage_errors() {
         assert!(output.stderr.is_empty());
         let response: Value = serde_json::from_slice(&output.stdout).unwrap();
         assert_eq!(response["reason_code"], "cli_usage_error");
+    }
+}
+
+mod discussion_process_cases {
+    //! Session lifecycle through distinct public executable processes.
+    use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use work_model::common::Nullable;
+    use work_model::discussion::{DiscussionAction, DiscussionSession};
+
+    fn setup(label: &str) -> (PathBuf, DiscussionSession) {
+        static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+        let root = std::env::temp_dir().join(format!(
+            "work-discussion-cli-{label}-{}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
+            SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&root).unwrap();
+        let repo = PathBuf::from(project_root());
+        let fixture = repo.join("rust/crates/work-infrastructure/fixtures/discussion-assembly");
+        work_infrastructure::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
+        let mut session = work_infrastructure::fixture_support::prepare_discussion_fixture(
+            &fixture,
+            &root,
+            &repo.join("skills/work"),
+        )
+        .unwrap();
+        session.authorization.allowed_actions = vec![
+            DiscussionAction::AddDecision,
+            DiscussionAction::UpdateDecision,
+            DiscussionAction::UpdatePlanning,
+            DiscussionAction::PrepareQuestion,
+            DiscussionAction::AnswerQuestion,
+            DiscussionAction::UpdateContext,
+            DiscussionAction::UpdateContinuation,
+        ];
+        session.commit.content_sha256 =
+            work_infrastructure::fixture_support::discussion_sha256(&session);
+        (root, session)
+    }
+
+    fn invoke(root: &Path, group: &str, operation: &str, command: Value, expected: i32) -> Value {
+        let request = root.join(format!("{group}-{operation}-request.json"));
+        fs::write(&request,serde_json::to_vec(&json!({"schema":"work-discussion-request","requirement_id":"example","command":command})).unwrap()).unwrap();
+        let output = run(&[
+            "--project-root".into(),
+            root.to_string_lossy().into_owned(),
+            group.into(),
+            operation.into(),
+            "--input-file".into(),
+            request.to_string_lossy().into_owned(),
+            "--user-config-root".into(),
+            root.to_string_lossy().into_owned(),
+        ]);
+        assert_eq!(
+            output.status.code(),
+            Some(expected),
+            "{group} {operation}: {}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        assert!(output.stderr.is_empty());
+        serde_json::from_slice(&output.stdout).unwrap()
+    }
+
+    fn current(root: &Path) -> Value {
+        invoke(root, "discussion", "read", json!({"kind":"read"}), 0)["data"]["data"].clone()
+    }
+
+    fn local(view: &Value, id: &str, change: Value) -> Value {
+        json!({"operation_id":id,"expected_revision":view["revision"],"previous_sha256":view["content_sha256"],"change":change})
+    }
+
+    fn opaque_decision(id: &str, status: &str) -> work_model::discussion::DiscussionDecision {
+        serde_json::from_value(json!({"id":id,"question":"Storage format?","question_version":1,
+            "options":[{"id":"option_a","label":"JSON","explanation":"Preserve structured fields"},{"id":"option_b","label":"CSV","explanation":"Exchange rows with spreadsheets"}],
+            "status":status,"tentative_option_id":null,
+            "resolution":if status=="confirmed" {json!({"option_id":"option_b","rationale":"Consumers use spreadsheets","confirmation_evidence":"User selected CSV"})} else {Value::Null},
+            "status_reason":"","status_evidence":"","added_reason":"Choose format","task_ids":[],"dependencies":[],"source_references":["source.txt"]})).unwrap()
+    }
+
+    #[test]
+    fn public_resume_fetches_only_confirmed_dependency_answer_and_rationale() {
+        let (root, mut session) = setup("dependency-detail");
+        let d001 = opaque_decision("D001", "confirmed");
+        let mut d002 = opaque_decision("D002", "pending");
+        d002.dependencies = vec!["D001".into()];
+        session.decisions = vec![d001, d002];
+        session.next_decision_number = 3;
+        session.commit.content_sha256 =
+            work_infrastructure::fixture_support::discussion_sha256(&session);
+        invoke(
+            &root,
+            "discussion",
+            "init",
+            json!({"kind":"init","session":session}),
+            0,
+        );
+        // All subsequent reads run in fresh processes, with no chat or Session in memory.
+        let view = current(&root);
+        assert_eq!(view["pending_decision_ids"], json!(["D002"]));
+        let dependent = view["decisions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|d| d["id"] == "D002")
+            .unwrap();
+        assert_eq!(dependent["dependencies"], json!(["D001"]));
+        let before = fs::read(root.join("outputs/work/discussions/example/session.json")).unwrap();
+        let detail = invoke(
+            &root,
+            "discussion",
+            "read",
+            json!({"kind":"read","decision_id":"D001"}),
+            0,
+        )["data"]["data"]
+            .clone();
+        assert_eq!(detail["id"], "D001");
+        assert_eq!(detail["resolution"]["option_id"], "option_b");
+        assert_eq!(detail["options"][1]["label"], "CSV");
+        assert_eq!(
+            detail["resolution"]["rationale"],
+            "Consumers use spreadsheets"
+        );
+        assert_eq!(
+            detail["resolution"]["confirmation_evidence"],
+            "User selected CSV"
+        );
+        for field in ["tasks", "decisions", "authorization", "context", "commit"] {
+            assert!(detail.get(field).is_none(), "{field}");
+        }
+        let missing = invoke(
+            &root,
+            "discussion",
+            "read",
+            json!({"kind":"read","decision_id":"D999"}),
+            4,
+        );
+        assert_eq!(missing["reason_code"], "unknown_decision");
+        assert_eq!(
+            fs::read(root.join("outputs/work/discussions/example/session.json")).unwrap(),
+            before
+        );
+    }
+
+    #[test]
+    fn swapped_display_mapping_rejects_old_answer_even_with_current_revision() {
+        let (root, mut session) = setup("swapped-options");
+        session.decisions = vec![opaque_decision("D001", "pending")];
+        session.next_decision_number = 2;
+        session.commit.content_sha256 =
+            work_infrastructure::fixture_support::discussion_sha256(&session);
+        invoke(
+            &root,
+            "discussion",
+            "init",
+            json!({"kind":"init","session":session}),
+            0,
+        );
+        for (id, version, mapping) in [
+            ("ask-first", 1, json!({"1":"option_a","2":"option_b"})),
+            ("ask-swapped", 2, json!({"1":"option_b","2":"option_a"})),
+        ] {
+            let op = local(
+                &current(&root),
+                id,
+                json!({"action":"prepare_question","question":{"decision_id":"D001","question_version":version,"text":"Storage format?","display_options":mapping}}),
+            );
+            invoke(
+                &root,
+                "discussion",
+                "question",
+                json!({"kind":"question","operation":op}),
+                0,
+            );
+        }
+        let restored = current(&root);
+        assert_eq!(restored["continuation"]["question"]["question_version"], 3);
+        let before = fs::read(root.join("outputs/work/discussions/example/session.json")).unwrap();
+        let old = local(
+            &restored,
+            "old-screen-answer",
+            json!({"action":"answer_question","decision_id":"D001","question_version":2,"display_number":"1","rationale":"Old screen JSON choice","evidence":"Old answer 1"}),
+        );
+        assert_eq!(
+            invoke(
+                &root,
+                "discussion",
+                "answer",
+                json!({"kind":"answer","operation":old}),
+                4
+            )["reason_code"],
+            "stale_discussion_question"
+        );
+        assert_eq!(
+            fs::read(root.join("outputs/work/discussions/example/session.json")).unwrap(),
+            before
+        );
+        assert!(
+            !root
+                .join("outputs/work/discussions/example/history/4")
+                .exists()
+        );
+        let answer = local(
+            &restored,
+            "current-screen-answer",
+            json!({"action":"answer_question","decision_id":"D001","question_version":3,"display_number":"1","rationale":"CSV for spreadsheets","evidence":"New screen answer 1"}),
+        );
+        invoke(
+            &root,
+            "discussion",
+            "answer",
+            json!({"kind":"answer","operation":answer}),
+            0,
+        );
+        let detail = invoke(
+            &root,
+            "discussion",
+            "read",
+            json!({"kind":"read","decision_id":"D001"}),
+            0,
+        );
+        assert_eq!(
+            detail["data"]["data"]["resolution"]["option_id"],
+            "option_b"
+        );
+    }
+
+    #[test]
+    fn decision_rebinding_persists_old_reviews_and_blocks_preview_until_all_reviewed() {
+        let (root, mut session) = setup("rebind-plan");
+        let template = serde_json::to_value(&session.tasks[0]).unwrap();
+        session.tasks = (1..=5)
+            .map(|n| {
+                let raw = serde_json::to_string(&template)
+                    .unwrap()
+                    .replace("TASK-001", &format!("TASK-{n:03}"));
+                serde_json::from_str(&raw).unwrap()
+            })
+            .collect();
+        session.tasks[2].dependencies = vec!["TASK-001".into()];
+        session.tasks[4].dependencies = vec!["TASK-003".into()];
+        session.next_task_number = 6;
+        let mut decision = opaque_decision("D001", "confirmed");
+        decision.task_ids = vec!["TASK-001".into()];
+        session.decisions = vec![decision.clone()];
+        session.next_decision_number = 2;
+        if let Nullable::Value(r) = &mut session.tasks[0].review {
+            r.decision_versions.insert("D001".into(), 1);
+        }
+        let unrelated = serde_json::to_value(&session.tasks[3]).unwrap();
+        session.commit.content_sha256 =
+            work_infrastructure::fixture_support::discussion_sha256(&session);
+        invoke(
+            &root,
+            "discussion",
+            "init",
+            json!({"kind":"init","session":session}),
+            0,
+        );
+        let metadata = json!({"title":"Rebound collection","summary":"Review all affected tasks"});
+        invoke(
+            &root,
+            "task",
+            "preview",
+            json!({"kind":"preview","metadata":metadata}),
+            0,
+        );
+        decision.task_ids = vec!["TASK-002".into()];
+        let op = local(
+            &current(&root),
+            "rebind",
+            json!({"action":"update_decision","decision":decision}),
+        );
+        invoke(
+            &root,
+            "discussion",
+            "update",
+            json!({"kind":"update","operation":op}),
+            0,
+        );
+        // Each history/read/update/preview is a fresh executable process.
+        let persisted = invoke(
+            &root,
+            "discussion",
+            "history",
+            json!({"kind":"history","revision":2}),
+            0,
+        )["data"]["data"]
+            .clone();
+        for i in [0, 1, 2, 4] {
+            assert_eq!(persisted["tasks"][i]["review"]["needs_review"], true);
+        }
+        assert_eq!(persisted["tasks"][3], unrelated);
+        for i in [1, 0, 4, 2] {
+            let mut task = persisted["tasks"][i].clone();
+            task["review"]["needs_review"] = json!(false);
+            task["review"]["semantic_consistency_evidence"] =
+                json!("Reviewed changed decision association");
+            if i == 1 {
+                task["review"]["decision_versions"]["D001"] = json!(1);
+            }
+            let op = local(
+                &current(&root),
+                &format!("review-{i}"),
+                json!({"action":"update_planning","task":task}),
+            );
+            invoke(
+                &root,
+                "discussion",
+                "update",
+                json!({"kind":"update","operation":op}),
+                0,
+            );
+            let expected = if i == 2 { 0 } else { 5 };
+            let response = invoke(
+                &root,
+                "task",
+                "preview",
+                json!({"kind":"preview","metadata":metadata}),
+                expected,
+            );
+            if expected == 5 {
+                assert_eq!(response["reason_code"], "discussion_planning_incomplete");
+            }
+        }
+    }
+
+    #[test]
+    fn opaque_option_content_and_withdrawal_review_allow_normal_task_publication() {
+        let (root, mut session) = setup("withdraw-plan");
+        let mut decision = opaque_decision("D001", "confirmed");
+        decision.task_ids = vec!["TASK-001".into()];
+        session.decisions = vec![decision];
+        session.next_decision_number = 2;
+        session.tasks[0].decision_ids = vec!["D001".into()];
+        session.tasks[0].steps[0]
+            .references
+            .push(serde_json::from_value(json!({"kind":"decisions","key":"D001"})).unwrap());
+        if let Nullable::Value(review) = &mut session.tasks[0].review {
+            review.decision_versions.insert("D001".into(), 1);
+        }
+        session.commit.content_sha256 =
+            work_infrastructure::fixture_support::discussion_sha256(&session);
+        invoke(
+            &root,
+            "discussion",
+            "init",
+            json!({"kind":"init","session":session}),
+            0,
+        );
+        let metadata =
+            json!({"title":"Reviewed collection","summary":"Withdraw superseded choice"});
+        let first = invoke(
+            &root,
+            "task",
+            "preview",
+            json!({"kind":"preview","metadata":metadata}),
+            0,
+        )["data"]["data"]
+            .clone();
+        let statement = first["contract"]["tasks"][0]["decisions"][0]["statement"]
+            .as_str()
+            .unwrap();
+        assert!(
+            statement.contains("CSV") && statement.contains("Exchange rows with spreadsheets"),
+            "{statement}"
+        );
+        assert!(!statement.contains("option_b"));
+        assert_eq!(
+            first["contract"]["tasks"][0]["decisions"][0]["rationale"],
+            "Consumers use spreadsheets"
+        );
+        let mut withdrawn = invoke(
+            &root,
+            "discussion",
+            "read",
+            json!({"kind":"read","decision_id":"D001"}),
+            0,
+        )["data"]["data"]
+            .clone();
+        withdrawn["status"] = json!("withdrawn");
+        withdrawn["status_reason"] = json!("Format no longer required");
+        withdrawn["status_evidence"] = json!("User withdrew format choice");
+        let op = local(
+            &current(&root),
+            "withdraw-choice",
+            json!({"action":"update_decision","decision":withdrawn}),
+        );
+        invoke(
+            &root,
+            "discussion",
+            "update",
+            json!({"kind":"update","operation":op}),
+            0,
+        );
+        let updated = invoke(
+            &root,
+            "discussion",
+            "history",
+            json!({"kind":"history","revision":2}),
+            0,
+        )["data"]["data"]
+            .clone();
+        assert_eq!(updated["decisions"][0]["task_ids"], json!([]));
+        assert_eq!(updated["tasks"][0]["decision_ids"], json!([]));
+        assert_eq!(updated["tasks"][0]["review"]["needs_review"], true);
+        assert!(
+            updated["tasks"][0]["steps"][0]["references"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|r| r["kind"] != "decisions")
+        );
+        let old = invoke(
+            &root,
+            "discussion",
+            "history",
+            json!({"kind":"history","revision":1}),
+            0,
+        )["data"]["data"]
+            .clone();
+        assert_eq!(old["decisions"][0]["task_ids"], json!(["TASK-001"]));
+        assert_eq!(
+            invoke(
+                &root,
+                "task",
+                "preview",
+                json!({"kind":"preview","metadata":metadata}),
+                5
+            )["reason_code"],
+            "discussion_planning_incomplete"
+        );
+        let mut task = updated["tasks"][0].clone();
+        task["review"]["needs_review"] = json!(false);
+        task["review"]["semantic_consistency_evidence"] =
+            json!("Reviewed steps and acceptance after withdrawing the obsolete format constraint");
+        let op = local(
+            &current(&root),
+            "review-withdrawal",
+            json!({"action":"update_planning","task":task}),
+        );
+        invoke(
+            &root,
+            "discussion",
+            "update",
+            json!({"kind":"update","operation":op}),
+            0,
+        );
+        let preview = invoke(
+            &root,
+            "task",
+            "preview",
+            json!({"kind":"preview","metadata":metadata}),
+            0,
+        )["data"]["data"]
+            .clone();
+        assert!(preview["contract"]["tasks"][0].get("decisions").is_none());
+        let view = current(&root);
+        invoke(
+            &root,
+            "task",
+            "apply",
+            json!({"kind":"apply","expected_revision":view["revision"],"session_sha256":view["content_sha256"],"metadata":metadata,"approved_sha256":preview["approval_sha256"],"publication_evidence":"User approved reviewed TASK after withdrawal"}),
+            0,
+        );
+        for (path, raw) in preview["targets"].as_object().unwrap() {
+            assert_eq!(
+                fs::read(root.join(path)).unwrap(),
+                raw.as_str().unwrap().as_bytes()
+            );
+        }
+    }
+
+    #[test]
+    fn d008_restores_numbered_question_deduplicates_old_operation_and_preserves_seven_decisions() {
+        let (root, mut session) = setup("d008");
+        session.decisions=(1..=12).map(|n| {
+            let status=match n {1..=7=>"pending",9=>"deferred",10=>"blocked",11=>"needs_review",_=>"pending"};
+            serde_json::from_value(json!({"id":format!("D{n:03}"),"question":format!("Question {n}?"),"question_version":1,
+                "options":[{"id":"first","label":"First","explanation":"Reason"},{"id":"second","label":"Second","explanation":"Alternative"}],
+                "status":status,"tentative_option_id":null,"resolution":if status=="confirmed" || status=="needs_review" {json!({"option_id":"first","rationale":format!("Rationale {n}"),"confirmation_evidence":format!("User {n}")})} else {Value::Null},
+                "status_reason":"Explicit reason","status_evidence":"User instruction","added_reason":"Required decision","task_ids":[],"dependencies":[],"source_references":["source.txt"]})).unwrap()
+        }).collect();
+        session.next_decision_number = 13;
+        session.commit.content_sha256 =
+            work_infrastructure::fixture_support::discussion_sha256(&session);
+        invoke(
+            &root,
+            "discussion",
+            "init",
+            json!({"kind":"init","session":session}),
+            0,
+        );
+        // Confirm D001–D007 through public processes; none are seeded as confirmed.
+        for number in 1..=7 {
+            let view = current(&root);
+            let id = format!("D{number:03}");
+            let question = local(
+                &view,
+                &format!("question-{id}"),
+                json!({"action":"prepare_question","question":{"decision_id":id,"question_version":1,"text":format!("Question {number}?"),"display_options":{"1":"first","2":"second"}}}),
+            );
+            invoke(
+                &root,
+                "discussion",
+                "question",
+                json!({"kind":"question","operation":question}),
+                0,
+            );
+            let restored = current(&root);
+            let answer = local(
+                &restored,
+                &format!("answer-{id}"),
+                json!({"action":"answer_question","decision_id":id,"question_version":restored["continuation"]["question"]["question_version"],"display_number":"1","rationale":format!("Rationale {number}"),"evidence":format!("User confirmed {id}")}),
+            );
+            invoke(
+                &root,
+                "discussion",
+                "answer",
+                json!({"kind":"answer","operation":answer}),
+                0,
+            );
+        }
+        let committed = invoke(
+            &root,
+            "discussion",
+            "history",
+            json!({"kind":"history","revision":15}),
+            0,
+        )["data"]["data"]
+            .clone();
+        let typed: DiscussionSession = serde_json::from_value(committed).unwrap();
+        let original = serde_json::to_vec(&typed.decisions[..7]).unwrap();
+        let view = current(&root);
+        assert_eq!(
+            (
+                view["progress"]["confirmed"].as_u64(),
+                view["progress"]["known_total"].as_u64(),
+                view["progress"]["remaining"].as_u64()
+            ),
+            (Some(7), Some(12), Some(5))
+        );
+        let question = local(
+            &view,
+            "question-d008",
+            json!({"action":"prepare_question","question":{"decision_id":"D008","question_version":1,"text":"Question 8?","display_options":{"1":"first","2":"second"}}}),
+        );
+        let saved = invoke(
+            &root,
+            "discussion",
+            "question",
+            json!({"kind":"question","operation":question}),
+            0,
+        );
+        assert_eq!(saved["data"]["data"]["saved"], true);
+        // This read happens in a new OS process with no previous conversation state.
+        let restored = current(&root);
+        assert_eq!(
+            restored["continuation"]["question"]["display_options"]["1"],
+            "first"
+        );
+        let answer = local(
+            &restored,
+            "answer-d008",
+            json!({"action":"answer_question","decision_id":"D008","question_version":restored["continuation"]["question"]["question_version"],"display_number":"1","rationale":"Chosen stable format","evidence":"User answered 1"}),
+        );
+        let answered = invoke(
+            &root,
+            "discussion",
+            "answer",
+            json!({"kind":"answer","operation":answer}),
+            0,
+        );
+        assert_eq!(answered["data"]["data"]["view"]["progress"]["confirmed"], 8);
+        let history = invoke(
+            &root,
+            "discussion",
+            "history",
+            json!({"kind":"history","revision":17}),
+            0,
+        )["data"]["data"]
+            .clone();
+        let typed: DiscussionSession = serde_json::from_value(history.clone()).unwrap();
+        assert_eq!(serde_json::to_vec(&typed.decisions[..7]).unwrap(), original);
+        assert!(
+            matches!(&typed.decisions[7].resolution,Nullable::Value(resolution) if resolution.option_id=="first" && resolution.rationale=="Chosen stable format")
+        );
+        let view = current(&root);
+        let update = local(
+            &view,
+            "continuation-after-answer",
+            json!({"action":"update_continuation","current_task_id":null}),
+        );
+        invoke(
+            &root,
+            "discussion",
+            "update",
+            json!({"kind":"update","operation":update}),
+            0,
+        );
+        let before = fs::read(root.join("outputs/work/discussions/example/session.json")).unwrap();
+        let retried = invoke(
+            &root,
+            "discussion",
+            "answer",
+            json!({"kind":"answer","operation":answer}),
+            0,
+        );
+        assert_eq!(retried["data"]["data"]["operation_revision"], 17);
+        assert_eq!(retried["data"]["data"]["view"]["revision"], 18);
+        assert_eq!(
+            fs::read(root.join("outputs/work/discussions/example/session.json")).unwrap(),
+            before
+        );
+        let mut collision = answer.clone();
+        collision["change"]["rationale"] = json!("Different payload");
+        let rejected = invoke(
+            &root,
+            "discussion",
+            "answer",
+            json!({"kind":"answer","operation":collision}),
+            5,
+        );
+        assert_eq!(rejected["data"]["saved"], false);
+        assert_eq!(
+            fs::read(root.join("outputs/work/discussions/example/session.json")).unwrap(),
+            before
+        );
+        let uncommitted = invoke(
+            &root,
+            "discussion",
+            "history",
+            json!({"kind":"history","revision":19}),
+            5,
+        );
+        assert_eq!(
+            uncommitted["reason_code"],
+            "discussion_history_not_committed"
+        );
+        assert!(!root.join("outputs/work/tasks").exists());
+    }
+
+    #[test]
+    fn full_preview_publication_and_recovery_bind_session_source_and_all_target_bytes() {
+        let (root, session) = setup("publication");
+        invoke(
+            &root,
+            "discussion",
+            "init",
+            json!({"kind":"init","session":session}),
+            0,
+        );
+        let source = root.join("outputs/work/sources/example/SRC-001/source.txt");
+        let source_before = fs::read(&source).unwrap();
+        let metadata = json!({"title":"Approved collection","summary":"Complete preview"});
+        let preview = invoke(
+            &root,
+            "task",
+            "preview",
+            json!({"kind":"preview","metadata":metadata}),
+            0,
+        )["data"]["data"]
+            .clone();
+        assert!(preview["contract"].is_object());
+        assert!(preview["execution_index"].is_object());
+        assert_eq!(preview["targets"].as_object().unwrap().len(), 3);
+        let request = json!({"kind":"apply","expected_revision":1,"session_sha256":session.commit.content_sha256,"metadata":metadata,"approved_sha256":preview["approval_sha256"],"publication_evidence":"User approved the full three-file preview"});
+        let mut wrong = request.clone();
+        wrong["metadata"]["summary"] = json!("Changed at same revision");
+        let output = invoke(&root, "task", "apply", wrong, 5);
+        assert_eq!(output["reason_code"], "discussion_approval_mismatch");
+        assert!(!root.join("outputs/work/tasks").exists());
+        let published = invoke(&root, "task", "apply", request.clone(), 0);
+        assert_eq!(published["data"]["data"]["published"], true);
+        let before = preview["targets"]
+            .as_object()
+            .unwrap()
+            .iter()
+            .map(|(path, target)| {
+                let raw = fs::read(root.join(path)).unwrap();
+                assert_eq!(raw, target.as_str().unwrap().as_bytes());
+                (path.to_owned(), raw)
+            })
+            .collect::<Vec<_>>();
+        let mut recovery = request;
+        recovery["kind"] = json!("recover-publication");
+        let recovered = invoke(&root, "task", "recover", recovery, 0);
+        assert_eq!(recovered["data"]["data"]["changed"], false);
+        for (path, raw) in before {
+            assert_eq!(fs::read(root.join(path)).unwrap(), raw);
+        }
+        let execution: Value = serde_json::from_slice(
+            &fs::read(root.join("outputs/work/executions/example/index.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(execution["overall_status"], "pending");
+        assert!(execution["lock"].is_null());
+        assert_eq!(fs::read(source).unwrap(), source_before);
+        let collection: Value = serde_json::from_slice(
+            &fs::read(root.join("outputs/work/tasks/example/index.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(collection["discussion"]["revision"], 1);
+        assert_eq!(
+            collection["discussion"]["content_sha256"],
+            session.commit.content_sha256
+        );
+        let public = |tail: Vec<String>| {
+            let mut args = vec![
+                "--project-root".into(),
+                root.to_string_lossy().into_owned(),
+                "--verbose".into(),
+            ];
+            args.extend(tail);
+            let output = run(&args);
+            assert_eq!(
+                output.status.code(),
+                Some(0),
+                "{}",
+                String::from_utf8_lossy(&output.stdout)
+            );
+            assert!(output.stderr.is_empty());
+            serde_json::from_slice::<Value>(&output.stdout).unwrap()["data"].clone()
+        };
+        let config = root.to_string_lossy().into_owned();
+        let task_path = "outputs/work/tasks/example/index.json";
+        let validation = public(vec![
+            "task".into(),
+            "validate".into(),
+            "--path".into(),
+            task_path.into(),
+            "--user-config-root".into(),
+            config.clone(),
+        ]);
+        assert_eq!(validation["task_count"], 1);
+        let preflight = public(vec![
+            "execute".into(),
+            "preflight".into(),
+            "--execution-dir".into(),
+            "outputs/work/executions/example".into(),
+            "--task-path".into(),
+            task_path.into(),
+            "--task-id".into(),
+            "TASK-001".into(),
+            "--user-config-root".into(),
+            config.clone(),
+        ]);
+        assert_eq!(preflight["schema"], "work-execute-preflight");
+        assert_eq!(preflight["task_status"], "pending");
+        let semantic = root.join("confirmed-revision.json");
+        fs::write(&semantic, serde_json::to_vec(&json!({"schema":"work-spec-prepare-request","requirement_id":"example","reason":"User confirmed this formal goal revision","edits":[{"target":{"artifact":"task_item","task_id":"TASK-001"},"field":"goal","after":"Reviewed the complete observable result."}]})).unwrap()).unwrap();
+        let prepared = public(vec![
+            "specification".into(),
+            "prepare".into(),
+            "--input-file".into(),
+            semantic.to_string_lossy().into_owned(),
+            "--user-config-root".into(),
+            config.clone(),
+        ]);
+        assert_eq!(
+            prepared["request"]["task_index"]["discussion"],
+            collection["discussion"]
+        );
+        let request = root.join("prepared-revision.json");
+        fs::write(&request, serde_json::to_vec(&prepared["request"]).unwrap()).unwrap();
+        let preview = public(vec![
+            "specification".into(),
+            "preview".into(),
+            "--input-file".into(),
+            request.to_string_lossy().into_owned(),
+            "--user-config-root".into(),
+            config.clone(),
+        ]);
+        let applied = public(vec![
+            "specification".into(),
+            "apply".into(),
+            "--input-file".into(),
+            request.to_string_lossy().into_owned(),
+            "--user-config-root".into(),
+            config.clone(),
+            "--approved-sha256".into(),
+            preview["approved_sha256"].as_str().unwrap().into(),
+        ]);
+        assert_eq!(applied["status"], "updated");
+        let revised: Value =
+            serde_json::from_slice(&fs::read(root.join(task_path)).unwrap()).unwrap();
+        assert_eq!(revised["discussion"], collection["discussion"]);
+        let preflight = public(vec![
+            "execute".into(),
+            "preflight".into(),
+            "--execution-dir".into(),
+            "outputs/work/executions/example".into(),
+            "--task-path".into(),
+            task_path.into(),
+            "--task-id".into(),
+            "TASK-001".into(),
+            "--user-config-root".into(),
+            config,
+        ]);
+        assert_eq!(preflight["schema"], "work-execute-preflight");
+        assert_eq!(preflight["task_status"], "pending");
+        assert_eq!(
+            current(&root)["content_sha256"],
+            session.commit.content_sha256
+        );
+    }
+
+    #[test]
+    fn writer_lock_failure_blocks_question_until_same_operation_recovers() {
+        let (root, session) = setup("lock");
+        invoke(
+            &root,
+            "discussion",
+            "init",
+            json!({"kind":"init","session":session}),
+            0,
+        );
+        let view = current(&root);
+        let operation = local(
+            &view,
+            "continuation-lock",
+            json!({"action":"update_continuation","current_task_id":null}),
+        );
+        let directory = root.join("outputs/work/discussions/example");
+        let guard = LocalWriterLock
+            .acquire(&directory.join(".work-state-writer.lock"))
+            .unwrap();
+        let rejected = invoke(
+            &root,
+            "discussion",
+            "update",
+            json!({"kind":"update","operation":operation}),
+            7,
+        );
+        assert_eq!(rejected["data"]["saved"], false);
+        assert_eq!(current(&root)["revision"], 1);
+        assert!(!directory.join("history/2").exists());
+        drop(guard);
+        let recovered = invoke(
+            &root,
+            "discussion",
+            "recover",
+            json!({"kind":"recover","session":null,"operation":operation}),
+            0,
+        );
+        assert_eq!(recovered["data"]["data"]["view"]["revision"], 2);
+    }
+
+    #[test]
+    fn large_committed_session_shares_one_decision_across_tasks_and_returns_minimal_views() {
+        let (root, mut session) = setup("large");
+        session.decisions=(1..=300).map(|number| serde_json::from_value(json!({"id":format!("D{number:03}"),"question":format!("Question {number}?"),"question_version":1,"options":[{"id":"first","label":"First","explanation":"Reason"}],"status":if number==8 {"pending"} else {"confirmed"},"tentative_option_id":null,"resolution":if number==8 {Value::Null} else {json!({"option_id":"first","rationale":"Historical detail ".repeat(200),"confirmation_evidence":"Confirmed"})},"status_reason":"Reason","status_evidence":"Evidence","added_reason":"Explicit scope","task_ids":if number==8 {json!(["TASK-001","TASK-002"])} else {json!([])},"dependencies":if number==8 {json!(["D001"])} else {json!([])},"source_references":["source.txt"]})).unwrap()).collect();
+        session.next_decision_number = 301;
+        let mut second = session.tasks[0].clone();
+        second.id = "TASK-002".into();
+        second.title = "Second task".into();
+        second.review = Nullable::Null;
+        session.tasks[0].review = Nullable::Null;
+        session.tasks[0].decision_ids = vec!["D008".into()];
+        second.decision_ids = vec!["D008".into()];
+        session.tasks.push(second);
+        session.next_task_number = 3;
+        session.continuation.current_task_id = Nullable::Value("TASK-002".into());
+        session.commit.content_sha256 =
+            work_infrastructure::fixture_support::discussion_sha256(&session);
+        invoke(
+            &root,
+            "discussion",
+            "init",
+            json!({"kind":"init","session":session}),
+            0,
+        );
+        let view = current(&root);
+        assert_eq!(view["task_count"], 2);
+        assert_eq!(view["current_task_position"], 2);
+        assert_eq!(view["progress"]["confirmed"], 299);
+        assert_eq!(view["progress"]["known_total"], 300);
+        assert_eq!(view["progress"]["remaining"], 1);
+        assert_eq!(view["decisions"].as_array().unwrap().len(), 2);
+        assert_eq!(view["pending_decision_ids"], json!(["D008"]));
+        let d008 = view["decisions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|d| d["id"] == "D008")
+            .unwrap();
+        assert_eq!(d008["task_ids"], json!(["TASK-001", "TASK-002"]));
+        assert!(serde_json::to_vec(&view).unwrap().len() < 5000);
+        assert!(
+            !serde_json::to_string(&view)
+                .unwrap()
+                .contains("Historical detail")
+        );
+        let history = invoke(
+            &root,
+            "discussion",
+            "history",
+            json!({"kind":"history","revision":1}),
+            0,
+        )["data"]["data"]
+            .clone();
+        assert_eq!(history["decisions"].as_array().unwrap().len(), 300);
+        assert!(
+            history["decisions"][0]["resolution"]["rationale"]
+                .as_str()
+                .unwrap()
+                .contains("Historical detail")
+        );
+        assert!(!root.join("outputs/work/tasks/example/index.json").exists());
+    }
+
+    #[test]
+    fn bounded_authorization_and_source_drift_reject_without_changing_current_or_publishing() {
+        let (root, mut session) = setup("authorization");
+        session.authorization.allowed_actions = vec![DiscussionAction::UpdateContinuation];
+        session.commit.content_sha256 =
+            work_infrastructure::fixture_support::discussion_sha256(&session);
+        invoke(
+            &root,
+            "discussion",
+            "init",
+            json!({"kind":"init","session":session}),
+            0,
+        );
+        let before = fs::read(root.join("outputs/work/discussions/example/session.json")).unwrap();
+        let view = current(&root);
+        let op = local(
+            &view,
+            "forbidden-question",
+            json!({"action":"prepare_question","question":{"decision_id":"D001","question_version":1,"text":"Unapproved?","display_options":{"1":"first"}}}),
+        );
+        let denied = invoke(
+            &root,
+            "discussion",
+            "question",
+            json!({"kind":"question","operation":op}),
+            4,
+        );
+        assert_eq!(denied["reason_code"], "discussion_save_not_authorized");
+        assert_eq!(denied["data"]["saved"], false);
+        assert_eq!(denied["data"]["last_verified_revision"], 1);
+        assert_eq!(denied["data"]["operation_id"], "forbidden-question");
+        assert_eq!(
+            fs::read(root.join("outputs/work/discussions/example/session.json")).unwrap(),
+            before
+        );
+        assert!(
+            !root
+                .join("outputs/work/discussions/example/history/2")
+                .exists()
+        );
+        let metadata = json!({"spec_id":"TASK-SPEC-001","title":"Full review","summary":"Full scope","execution_defaults":{"working_directory":".","os":"macos","shell":"zsh"}});
+        fs::write(
+            root.join("outputs/work/sources/example/SRC-001/source.txt"),
+            b"changed original bytes",
+        )
+        .unwrap();
+        let drift = invoke(
+            &root,
+            "task",
+            "preview",
+            json!({"kind":"preview","metadata":metadata}),
+            5,
+        );
+        assert_eq!(drift["status"], "rejected");
+        assert_eq!(
+            fs::read(root.join("outputs/work/discussions/example/session.json")).unwrap(),
+            before
+        );
+        assert!(!root.join("outputs/work/tasks/example/index.json").exists());
+        assert!(
+            !root
+                .join("outputs/work/executions/example/index.json")
+                .exists()
+        );
     }
 }

@@ -88,6 +88,27 @@ pub fn structured(value: &Value) -> Result<String, serde_json::Error> {
     canonical_json_sha256(value)
 }
 
+pub fn discussion_session(session: &work_model::discussion::DiscussionSession) -> String {
+    let mut value = serde_json::to_value(session).expect("Session serializes");
+    value["commit"]
+        .as_object_mut()
+        .expect("commit object")
+        .remove("content_sha256");
+    structured(&value).expect("JSON serializes")
+}
+
+pub fn discussion_operation(value: &Value) -> String {
+    structured(value).expect("JSON serializes")
+}
+
+pub fn discussion_approval(session_sha256: &str, approval_bytes: &[u8]) -> String {
+    let mut bytes = b"WORK-DISCUSSION-PUBLICATION-V1\n".to_vec();
+    bytes.extend_from_slice(session_sha256.as_bytes());
+    bytes.push(b'\n');
+    bytes.extend_from_slice(approval_bytes);
+    raw(&bytes)
+}
+
 pub fn verify_structured(value: &Value, expected: &str) -> Result<bool, serde_json::Error> {
     Ok(structured(value)? == expected)
 }
@@ -107,13 +128,6 @@ pub fn hierarchy_selection(
 
 pub fn task_collection(index_sha256: &str, references: &[TaskItemReference]) -> String {
     collection_fingerprint_sha256(index_sha256, references)
-}
-
-pub fn task_draft_approval(index_raw: &[u8], approval_bytes: &[u8]) -> String {
-    let mut review = b"WORK-TASK-DRAFT-APPROVAL-V1\n".to_vec();
-    review.extend_from_slice(index_raw);
-    review.extend_from_slice(approval_bytes);
-    raw(&review)
 }
 
 pub fn task_provenance(source: &work_model::task::source::TaskProvenance) -> String {
@@ -177,19 +191,6 @@ mod tests {
         assert_ne!(
             task_collection(&index, &[first.clone(), second.clone()]),
             task_collection(&index, &[second, first])
-        );
-    }
-
-    #[test]
-    fn task_draft_approval_preserves_review_byte_framing() {
-        let expected = b"WORK-TASK-DRAFT-APPROVAL-V1\nindex\ncollection\n";
-        assert_eq!(
-            task_draft_approval(b"index\n", b"collection\n"),
-            sha256_hex(expected)
-        );
-        assert_ne!(
-            task_draft_approval(b"index\n", b"collection\n"),
-            task_draft_approval(b"collection\n", b"index\n")
         );
     }
 

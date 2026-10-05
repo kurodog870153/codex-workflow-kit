@@ -1,4 +1,4 @@
-# Independent discussion progress
+# Shared DiscussionSession
 
-1. For `$work task -- resume <requirement-id>`, restore the saved Task discussion and its fixed `context.planning_source` before the structured planning entry point. Validate its identity and fixed Source before relying on source-dependent decisions; only Task continues discussion.
-2. For a user-requested checkpoint, return complete content, including the unchanged planning Source binding and continuation point, through the parent to its private progress saver. Do not initialize or modify a structured index just to save discussion. Progress restoration grants no formal approval or execution authority.
+1. All TASKs of one requirement share its committed Session. `$work task -- resume <requirement-id>` and the requirement entry restore the same state through `discussion read`; neither creates an independent checkpoint authority.
+2. Preserve unresolved choices and reasons, stable D/TASK links, planning reviews and the exact continuation mapping. Show only pending/current and necessary dependencies; read complete committed history on demand. Saving is covered by bounded authorization and does not grant formal approval or execution.

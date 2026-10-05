@@ -3,9 +3,9 @@
   "requirement_id": "example",
   "title": "Execution",
   "task_spec_id": "TASK-SPEC-001",
-  "task_collection_sha256": "1cc8037b3004cd6407e6780182614f93388d2948837846dd4c70872992d04798",
-  "task_index_sha256": "002c2cc79c1a6d2a7473c5b562a510d055cd64141b9383e59cc688319d64d3e5",
-  "task_instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+  "task_collection_sha256": "bb0f53273c501c9ec461812c86ff53aaaec1f98cbcfb2bb703d217f59056e7a3",
+  "task_index_sha256": "c763bb6a4df337fb3f0a434bf3ece2ced78856a1b987152b0098ee80d76be2b4",
+  "task_instructions_sha256": "bbb1285eeb68a50a9c91c7ce8ebadce33aba447624a33ab31f2708f751fee875",
   "hierarchy_selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569",
   "skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
   "overall_status": "pending",
@@ -21,8 +21,8 @@
       "id": "TASK-001",
       "status": "pending",
       "skill_id": null,
-      "task_item_sha256": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77",
-      "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+      "task_item_sha256": "f1071ad659955de4e360da6b0e53b6f99870d9bede067bb26e0341749c594abb",
+      "instructions_sha256": "bbb1285eeb68a50a9c91c7ce8ebadce33aba447624a33ab31f2708f751fee875",
       "acceptance_results": [
         {
           "id": "ACCEPTANCE-001",

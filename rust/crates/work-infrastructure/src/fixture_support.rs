@@ -159,7 +159,7 @@ pub fn capture_planning_context(
     }
     .capture(
         &id,
-        &work_model::source_snapshot::SnapshotSource::UserText {},
+        &work_model::source::snapshot::SnapshotSource::UserText {},
         &"source.txt"
             .to_owned()
             .try_into()
@@ -194,7 +194,7 @@ pub fn copy_fixture_sources(
             }
             let manifest_path = snapshot.path().join("manifest.json");
             let raw = std::fs::read(&manifest_path)?;
-            let manifest: work_model::source_snapshot::SourceSnapshot =
+            let manifest: work_model::source::snapshot::SourceSnapshot =
                 serde_json::from_slice(&raw).map_err(std::io::Error::other)?;
             for name in [
                 "manifest.json",
@@ -314,4 +314,49 @@ pub fn derive_fixture_transaction(input: TransactionInput) -> Result<(Vec<u8>, S
     let raw = work_operations::specification::transaction::render_transaction(&derived.journal)
         .map_err(|issue| issue.reason_code.to_owned())?;
     Ok((raw, derived.approval_sha256))
+}
+
+/// Bind an isolated current Session fixture through the same instruction and fingerprint derivations as production.
+/// Immutable Source bytes are read/copied separately; this helper never writes files.
+pub fn prepare_discussion_fixture(
+    fixture: &std::path::Path,
+    project_root: &std::path::Path,
+    skill_root: &std::path::Path,
+) -> Result<work_model::discussion::DiscussionSession, String> {
+    use work_model::common::Nullable;
+    let mut session: work_model::discussion::DiscussionSession = serde_json::from_slice(
+        &std::fs::read(fixture.join("session.json")).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+    session.authorization.project_root = project_root
+        .canonicalize()
+        .map_err(|error| error.to_string())?
+        .to_string_lossy()
+        .into_owned();
+    let repository = crate::hierarchy_catalog::LocalHierarchyCatalog {
+        skill_root: skill_root.to_path_buf(),
+    };
+    if let Nullable::Value(source) = &session.context.confirmed_source {
+        let hierarchy =
+            serde_json::to_value(&source.hierarchy_selection).expect("Hierarchy serializes");
+        for task in &mut session.tasks {
+            if let Nullable::Value(selection) = &task.instruction_selection {
+                let current = work_feature::instruction::select_task(
+                    &repository,
+                    &hierarchy,
+                    &selection.selected_paths,
+                    &selection.references,
+                )
+                .map_err(|error| error.reason_code)?;
+                task.instructions_sha256 = Nullable::Value(current.instructions_sha256);
+            }
+        }
+    }
+    session.commit.content_sha256 = discussion_sha256(&session);
+    work_operations::discussion::verify_integrity(&session).map_err(|issue| issue.0.to_owned())?;
+    Ok(session)
+}
+
+pub fn discussion_sha256(session: &work_model::discussion::DiscussionSession) -> String {
+    work_operations::derivation::fingerprint::discussion_session(session)
 }

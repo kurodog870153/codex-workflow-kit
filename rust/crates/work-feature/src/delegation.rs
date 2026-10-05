@@ -9,7 +9,6 @@ use work_operations::delegation::{build_envelope, validate_envelope, validation_
 use work_operations::derivation::fingerprint;
 use work_operations::execution::index::validate_execution_index;
 use work_operations::identifiers::RequirementId;
-use work_operations::progress::validate_progress;
 use work_operations::protocol::{TASK_ID_PREFIX, valid_sha256};
 
 use crate::error::{ExitCode, WorkError};
@@ -32,6 +31,7 @@ fn boundary(message: &'static str) -> WorkError {
 
 /// Current validated inputs for Task-only delegation, supplied by project adapters.
 pub trait TaskDelegationRepository {
+    fn discussion_view(&self, requirement_id: &str) -> Result<Value, WorkError>;
     fn planning_context(&self, source: &Value) -> Result<(Value, Value), WorkError>;
     fn task_collection(&self, task_path: &str) -> Result<Value, WorkError>;
     fn source_bytes(&self, collection: &Value) -> Result<Value, WorkError>;
@@ -111,6 +111,7 @@ fn validate_task_instruction(context: &Value, selected: &Value) -> Result<(), Wo
 }
 
 pub fn validate_task_coordinator(
+    repository: &impl TaskDelegationRepository,
     envelope: &Value,
     sender: &str,
     project_root: &str,
@@ -126,36 +127,26 @@ pub fn validate_task_coordinator(
     .map_err(|issue| boundary(issue.message))?;
     if resume {
         let object = context.as_object().expect("validated context");
-        if object.len() != 1 || !object.contains_key("saved_progress") {
+        if object.len() != 1 || !object.contains_key("session_view") {
             return Err(boundary(
-                "resume_context must contain exactly saved_progress.",
+                "Resume context must contain exactly the committed Session view.",
             ));
         }
-        let progress = &context["saved_progress"];
-        validate_progress(progress).map_err(|issue| {
-            WorkError::new(
-                ExitCode::Contract,
-                issue.reason_code,
-                issue.message,
-                issue.details,
-            )
-        })?;
         let words: Vec<_> = text.split_whitespace().collect();
         if words.len() != 2
             || words[0] != "resume"
             || words[1].parse::<RequirementId>().is_err()
-            || progress["requirement_id"] != words[1]
-            || progress["mode"] != "task"
+            || context["session_view"]["requirement_id"] != words[1]
         {
             return Err(boundary(
-                "Resume request, mode and saved discussion identity disagree.",
+                "Resume request and committed Session identity disagree.",
             ));
         }
-        work_operations::task::source::validate_planning_source(
-            &progress["context"]["planning_source"],
-            words[1],
-        )
-        .map_err(|_| boundary("Task resume requires its fixed Source."))?;
+        if repository.discussion_view(words[1])? != context["session_view"] {
+            return Err(boundary(
+                "The Session changed before delegation validation.",
+            ));
+        }
         return Ok(validation_result("task-coordinator", &mode, true));
     }
     let required = [
@@ -277,6 +268,36 @@ pub fn build_task_coordinator(
     repository: &(impl DelegationSourceRepository + TaskDelegationRepository),
     request: &Value,
 ) -> Result<Value, WorkError> {
+    if let Some(text) = request["request"]
+        .as_str()
+        .filter(|text| text.split_whitespace().next() == Some("resume"))
+    {
+        let words: Vec<_> = text.split_whitespace().collect();
+        if request["schema"] != "work-delegation-build-request"
+            || request["role"] != "task-coordinator"
+            || words.len() != 2
+            || words[1].parse::<RequirementId>().is_err()
+            || request.as_object().is_none_or(|value| value.len() != 3)
+        {
+            return Err(boundary(
+                "Resume construction requires only schema, role and resume requirement.",
+            ));
+        }
+        let view = repository.discussion_view(words[1])?;
+        let project = repository.canonical_project_root()?;
+        let skill = repository.canonical_skill_root()?;
+        let envelope = build_envelope(
+            "task-coordinator",
+            "task",
+            text,
+            &project,
+            &skill,
+            &json!({"session_view":view}),
+        )
+        .map_err(|issue| boundary(issue.message))?;
+        validate_task_coordinator(repository, &envelope, "parent", &project, &skill)?;
+        return Ok(envelope);
+    }
     let text = task_build_request(request, "task-coordinator", "planning_source", false)?;
     let (source, instructions) = repository.planning_context(&request["planning_source"])?;
     let context = json!({"task_source":source,"work_instruction_selection":instructions,"repository_evidence":request.get("repository_evidence").cloned().unwrap_or(json!([])),"saved_discussion":request.get("saved_discussion").cloned().unwrap_or(json!([]))});
@@ -284,110 +305,13 @@ pub fn build_task_coordinator(
     let skill = repository.canonical_skill_root()?;
     let envelope = build_envelope("task-coordinator", "task", text, &project, &skill, &context)
         .map_err(|issue| boundary(issue.message))?;
-    validate_task_coordinator(&envelope, "parent", &project, &skill)?;
+    validate_task_coordinator(repository, &envelope, "parent", &project, &skill)?;
     if repository.planning_context(&request["planning_source"])? != (source, instructions) {
         return Err(boundary(
             "The Task source changed during delegation construction.",
         ));
     }
     Ok(envelope)
-}
-
-pub fn validate_progress_saver(
-    envelope: &Value,
-    sender: &str,
-    project_root: &str,
-    skill_root: &str,
-) -> Result<Value, WorkError> {
-    let (_, mode, context, resume) =
-        validate_envelope(envelope, "progress-saver", sender, project_root, skill_root)
-            .map_err(|issue| boundary(issue.message))?;
-    if resume {
-        return Err(boundary("Only Task may restore discussion."));
-    }
-    let required = [
-        "requirement_id",
-        "task_source",
-        "content",
-        "expected_revision",
-        "continuation_point",
-    ];
-    let object = context.as_object().expect("validated context");
-    if required.iter().any(|key| !object.contains_key(*key))
-        || object
-            .keys()
-            .any(|key| !required.contains(&key.as_str()) && key != "save_approval")
-    {
-        return Err(boundary(
-            "maintenance_context must contain exactly the required and optional fields.",
-        ));
-    }
-    let revision = context["expected_revision"]
-        .as_u64()
-        .ok_or_else(|| boundary("Expected saved revision must be a nonnegative integer."))?;
-    let content = context["content"]
-        .as_object()
-        .ok_or_else(|| boundary("content must be an object."))?;
-    let content_fields = [
-        "title",
-        "request",
-        "current_task_id",
-        "context",
-        "source_status",
-        "notes",
-        "confirmed_decisions",
-        "tentative",
-        "open_questions",
-        "next_discussion_point",
-    ];
-    if content.len() != content_fields.len()
-        || content_fields
-            .iter()
-            .any(|field| !content.contains_key(*field))
-    {
-        return Err(boundary(
-            "content must contain exactly the required progress fields.",
-        ));
-    }
-    validate_task_source(&context["task_source"])?;
-    let source = &context["task_source"];
-    let planning = json!({"snapshot":source["source"]["manifest"],
-        "artifacts":source["artifacts"],"hierarchy_selection":source["hierarchy_selection"],
-        "skill_selection":source["skill_selection"],"acceptance_criteria":source["acceptance_criteria"]});
-    if source["requirement_id"] != context["requirement_id"]
-        || source["source"]["kind"] != "snapshot"
-        || context["content"]["context"]["planning_source"] != planning
-    {
-        return Err(boundary("Saved discussion must retain its fixed Source."));
-    }
-    let mut candidate = Value::Object(content.clone());
-    candidate["schema"] = json!("work-discussion-progress");
-    candidate["requirement_id"] = context["requirement_id"].clone();
-    candidate["mode"] = json!(mode);
-    candidate["revision"] = json!(revision + 1);
-    candidate["status"] = json!("discussion_only");
-    validate_progress(&candidate).map_err(|issue| {
-        WorkError::new(
-            ExitCode::Contract,
-            issue.reason_code,
-            issue.message,
-            issue.details,
-        )
-    })?;
-    if context["continuation_point"]
-        .as_str()
-        .is_none_or(|text| text.trim().is_empty())
-    {
-        return Err(boundary("continuation_point must be a nonempty string."));
-    }
-    if context.get("save_approval").is_some()
-        && !context["save_approval"].as_str().is_some_and(valid_sha256)
-    {
-        return Err(boundary(
-            "save_approval must be a lowercase SHA-256 digest.",
-        ));
-    }
-    Ok(validation_result("progress-saver", &mode, false))
 }
 
 pub fn validate_execute_role(
@@ -894,110 +818,13 @@ pub fn build_execute_role(
     Ok(envelope)
 }
 
-pub fn build_progress_saver(
-    source_repository: &(impl DelegationSourceRepository + TaskDelegationRepository),
-    request: &Value,
-) -> Result<Value, WorkError> {
-    let object = request
-        .as_object()
-        .ok_or_else(|| boundary("The build request must be an object."))?;
-    let required = [
-        "schema",
-        "role",
-        "mode",
-        "request",
-        "source_progress_path",
-        "content",
-        "continuation_point",
-    ];
-    if required.iter().any(|key| !object.contains_key(*key))
-        || object
-            .keys()
-            .any(|key| !required.contains(&key.as_str()) && key != "save_approval")
-    {
-        return Err(boundary(
-            "The selected role requires only its semantic source and decision fields.",
-        ));
-    }
-    if request["schema"] != "work-delegation-build-request" || request["role"] != "progress-saver" {
-        return Err(boundary("Unknown delegation role."));
-    }
-    let mode = request["mode"]
-        .as_str()
-        .filter(|mode| *mode == "task")
-        .ok_or_else(|| boundary("Progress saver requires Task mode."))?;
-    let text = request["request"]
-        .as_str()
-        .filter(|text| !text.trim().is_empty())
-        .ok_or_else(|| boundary("request must be a nonempty string."))?;
-    let source = request["source_progress_path"]
-        .as_str()
-        .ok_or_else(|| boundary("A saved discussion path is required."))?;
-    let (_, absolute) = source_repository.resolve_project_path(source)?;
-    let raw = source_repository.read_raw(&absolute)?;
-    let progress =
-        parse_json_contract(&raw).map_err(|_| boundary("The saved discussion is invalid."))?;
-    validate_progress(&progress).map_err(|issue| {
-        WorkError::new(
-            ExitCode::Contract,
-            issue.reason_code,
-            issue.message,
-            issue.details,
-        )
-    })?;
-    if progress["mode"] != mode {
-        return Err(boundary(
-            "Saved discussion mode differs from the delegated mode.",
-        ));
-    }
-    let planning = &progress["context"]["planning_source"];
-    let (task_source, instructions) = source_repository.planning_context(planning)?;
-    if task_source["requirement_id"] != progress["requirement_id"]
-        || request["content"]["context"]["planning_source"] != *planning
-    {
-        return Err(boundary("Saved discussion must retain its fixed Source."));
-    }
-    let mut context = json!({"task_source":task_source,"requirement_id":progress["requirement_id"],
-        "content":request["content"],"expected_revision":progress["revision"],
-        "continuation_point":request["continuation_point"]});
-    if let Some(approval) = request.get("save_approval") {
-        context["save_approval"] = approval.clone();
-    }
-    let project_root = source_repository.canonical_project_root()?;
-    let skill_root = source_repository.canonical_skill_root()?;
-    let envelope = build_envelope(
-        "progress-saver",
-        mode,
-        text,
-        &project_root,
-        &skill_root,
-        &context,
-    )
-    .map_err(|issue| boundary(issue.message))?;
-    validate_progress_saver(&envelope, "parent", &project_root, &skill_root)?;
-    if source_repository.planning_context(planning)? != (task_source, instructions) {
-        return Err(boundary(
-            "The fixed Source changed during progress delegation.",
-        ));
-    }
-    if source_repository.read_raw(&absolute)? != raw {
-        return Err(WorkError::new(
-            ExitCode::ArtifactIntegrity,
-            "delegation_source_changed",
-            "The saved discussion changed during delegation construction.",
-            json!({"path":source}),
-        ));
-    }
-    Ok(envelope)
-}
-
 #[cfg(test)]
 mod tests {
     use std::path::{Path, PathBuf};
 
     use serde_json::json;
 
-    use super::{DelegationSourceRepository, build_progress_saver};
+    use super::{DelegationSourceRepository, build_task_coordinator};
     use crate::error::{ExitCode, WorkError};
 
     struct UnavailableSource;
@@ -1026,6 +853,14 @@ mod tests {
     }
 
     impl super::TaskDelegationRepository for UnavailableSource {
+        fn discussion_view(&self, _: &str) -> Result<serde_json::Value, WorkError> {
+            Err(WorkError::new(
+                ExitCode::IoFailure,
+                "source_unavailable",
+                "The Session is unavailable.",
+                json!({}),
+            ))
+        }
         fn planning_context(
             &self,
             _: &serde_json::Value,
@@ -1041,18 +876,10 @@ mod tests {
     }
 
     #[test]
-    fn progress_builder_propagates_source_port_failure_after_request_validation() {
-        let request = json!({
-            "schema":"work-delegation-build-request",
-            "role":"progress-saver",
-            "mode":"task",
-            "request":"Save progress.",
-            "source_progress_path":"outputs/work/progress/example/task/progress.json",
-            "content":{},
-            "continuation_point":"Continue",
-        });
+    fn resume_builder_propagates_committed_session_port_failure() {
+        let request = json!({"schema":"work-delegation-build-request","role":"task-coordinator","request":"resume example"});
         assert_eq!(
-            build_progress_saver(&UnavailableSource, &request)
+            build_task_coordinator(&UnavailableSource, &request)
                 .unwrap_err()
                 .reason_code,
             "source_unavailable"

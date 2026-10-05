@@ -16,15 +16,15 @@
   "sources": [
     {
       "path": "outputs/work/executions/example/index.json",
-      "raw_sha256": "187e03c0e7e3c040324f954443046cc1f1d4930e7e072261a1b65ba94d26973a"
+      "raw_sha256": "094a8cc45234a6c493a45a919097147dfaa1abfc1df912154fdac39bc0505597"
     },
     {
       "path": "outputs/work/tasks/example/index.json",
-      "raw_sha256": "002c2cc79c1a6d2a7473c5b562a510d055cd64141b9383e59cc688319d64d3e5"
+      "raw_sha256": "c763bb6a4df337fb3f0a434bf3ece2ced78856a1b987152b0098ee80d76be2b4"
     },
     {
       "path": "outputs/work/tasks/example/tasks/TASK-001.json",
-      "raw_sha256": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77"
+      "raw_sha256": "f1071ad659955de4e360da6b0e53b6f99870d9bede067bb26e0341749c594abb"
     }
   ]
 }

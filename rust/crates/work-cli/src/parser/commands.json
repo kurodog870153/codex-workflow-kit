@@ -2,7 +2,7 @@
   "schema": "work-command-tree",
   "root": {
     "name": "work",
-    "help": "usage: work [-h] --project-root PROJECT_ROOT [--verbose]\n               {contract,paths,hierarchy,instructions,fingerprint,skills,handoff,attempt,correction,progress,task,specification,workflow,workspace,execute,invocation,migration,delegation,source} ...\n\npositional arguments:\n  {contract,paths,hierarchy,instructions,fingerprint,skills,handoff,attempt,correction,progress,task,specification,workflow,workspace,execute,invocation,migration,delegation,source}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --project-root PROJECT_ROOT\n  --verbose             Return the complete canonical success payload instead\n                        of the brief projection.\n",
+    "help": "usage: work [-h] --project-root PROJECT_ROOT [--verbose]\n               {contract,paths,hierarchy,instructions,fingerprint,skills,handoff,attempt,correction,discussion,task,specification,workflow,workspace,execute,invocation,migration,delegation,source} ...\n\npositional arguments:\n  {contract,paths,hierarchy,instructions,fingerprint,skills,handoff,attempt,correction,discussion,task,specification,workflow,workspace,execute,invocation,migration,delegation,source}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --project-root PROJECT_ROOT\n  --verbose             Return the complete canonical success payload instead\n                        of the brief projection.\n",
     "arguments": [
       {
         "name": "project_root",
@@ -1090,48 +1090,58 @@
         ]
       },
       {
-        "name": "progress",
-        "help": "usage: work progress [-h] {read,prepare,validate,save} ...\n\npositional arguments:\n  {read,prepare,validate,save}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n",
+        "name": "discussion",
+        "help": "usage: work discussion [-h] {init,read,status,update,question,answer,history,recover} ...\n",
         "arguments": [],
         "exclusive_groups": [],
         "children": [
           {
+            "name": "init",
+            "help": "usage: work discussion init [-h] --input-file INPUT_FILE --user-config-root USER_CONFIG_ROOT [--skill-root SKILL_ROOT]\n\nProcess work-discussion-request; requirement, revisions, authorization and approvals are bound in the request.\n",
+            "arguments": [
+              {
+                "name": "input_file",
+                "flags": [
+                  "--input-file"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "user_config_root",
+                "flags": [
+                  "--user-config-root"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "skill_root",
+                "flags": [
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
+            ],
+            "exclusive_groups": [],
+            "children": []
+          },
+          {
             "name": "read",
-            "help": "usage: work progress read [-h] --requirement-id REQUIREMENT_ID\n                             --mode {task}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n  --mode {task}\n",
-            "arguments": [
-              {
-                "name": "requirement_id",
-                "flags": [
-                  "--requirement-id"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "mode",
-                "flags": [
-                  "--mode"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": [
-                  "task"
-                ],
-                "help": null
-              }
-            ],
-            "exclusive_groups": [],
-            "children": []
-          },
-          {
-            "name": "prepare",
-            "help": "usage: work progress prepare [-h] --input-file INPUT_FILE\n                                --expected-revision EXPECTED_REVISION\n                                --requirement-id REQUIREMENT_ID\n                                --mode {task}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --expected-revision EXPECTED_REVISION\n  --requirement-id REQUIREMENT_ID\n  --mode {task}\n",
+            "help": "usage: work discussion read [-h] --input-file INPUT_FILE --user-config-root USER_CONFIG_ROOT [--skill-root SKILL_ROOT]\n\nProcess work-discussion-request; requirement, revisions, authorization and approvals are bound in the request.\n",
             "arguments": [
               {
                 "name": "input_file",
@@ -1146,9 +1156,9 @@
                 "help": null
               },
               {
-                "name": "expected_revision",
+                "name": "user_config_root",
                 "flags": [
-                  "--expected-revision"
+                  "--user-config-root"
                 ],
                 "required": true,
                 "nargs": null,
@@ -1158,29 +1168,15 @@
                 "help": null
               },
               {
-                "name": "requirement_id",
+                "name": "skill_root",
                 "flags": [
-                  "--requirement-id"
+                  "--skill-root"
                 ],
-                "required": true,
+                "required": false,
                 "nargs": null,
-                "append": false,
+                "append": true,
                 "boolean": false,
                 "choices": null,
-                "help": null
-              },
-              {
-                "name": "mode",
-                "flags": [
-                  "--mode"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": [
-                  "task"
-                ],
                 "help": null
               }
             ],
@@ -1188,8 +1184,8 @@
             "children": []
           },
           {
-            "name": "validate",
-            "help": "usage: work progress validate [-h] --input-file INPUT_FILE\n                                 --expected-revision EXPECTED_REVISION\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --expected-revision EXPECTED_REVISION\n",
+            "name": "status",
+            "help": "usage: work discussion status [-h] --input-file INPUT_FILE --user-config-root USER_CONFIG_ROOT [--skill-root SKILL_ROOT]\n\nProcess work-discussion-request; requirement, revisions, authorization and approvals are bound in the request.\n",
             "arguments": [
               {
                 "name": "input_file",
@@ -1204,13 +1200,25 @@
                 "help": null
               },
               {
-                "name": "expected_revision",
+                "name": "user_config_root",
                 "flags": [
-                  "--expected-revision"
+                  "--user-config-root"
                 ],
                 "required": true,
                 "nargs": null,
                 "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "skill_root",
+                "flags": [
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
                 "boolean": false,
                 "choices": null,
                 "help": null
@@ -1220,8 +1228,8 @@
             "children": []
           },
           {
-            "name": "save",
-            "help": "usage: work progress save [-h] --input-file INPUT_FILE\n                             --expected-revision EXPECTED_REVISION\n                             --approved-sha256 APPROVED_SHA256\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --expected-revision EXPECTED_REVISION\n  --approved-sha256 APPROVED_SHA256\n",
+            "name": "update",
+            "help": "usage: work discussion update [-h] --input-file INPUT_FILE --user-config-root USER_CONFIG_ROOT [--skill-root SKILL_ROOT]\n\nProcess work-discussion-request; requirement, revisions, authorization and approvals are bound in the request.\n",
             "arguments": [
               {
                 "name": "input_file",
@@ -1236,9 +1244,9 @@
                 "help": null
               },
               {
-                "name": "expected_revision",
+                "name": "user_config_root",
                 "flags": [
-                  "--expected-revision"
+                  "--user-config-root"
                 ],
                 "required": true,
                 "nargs": null,
@@ -1248,13 +1256,189 @@
                 "help": null
               },
               {
-                "name": "approved_sha256",
+                "name": "skill_root",
                 "flags": [
-                  "--approved-sha256"
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
+            ],
+            "exclusive_groups": [],
+            "children": []
+          },
+          {
+            "name": "question",
+            "help": "usage: work discussion question [-h] --input-file INPUT_FILE --user-config-root USER_CONFIG_ROOT [--skill-root SKILL_ROOT]\n\nProcess work-discussion-request; requirement, revisions, authorization and approvals are bound in the request.\n",
+            "arguments": [
+              {
+                "name": "input_file",
+                "flags": [
+                  "--input-file"
                 ],
                 "required": true,
                 "nargs": null,
                 "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "user_config_root",
+                "flags": [
+                  "--user-config-root"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "skill_root",
+                "flags": [
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
+            ],
+            "exclusive_groups": [],
+            "children": []
+          },
+          {
+            "name": "answer",
+            "help": "usage: work discussion answer [-h] --input-file INPUT_FILE --user-config-root USER_CONFIG_ROOT [--skill-root SKILL_ROOT]\n\nProcess work-discussion-request; requirement, revisions, authorization and approvals are bound in the request.\n",
+            "arguments": [
+              {
+                "name": "input_file",
+                "flags": [
+                  "--input-file"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "user_config_root",
+                "flags": [
+                  "--user-config-root"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "skill_root",
+                "flags": [
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
+            ],
+            "exclusive_groups": [],
+            "children": []
+          },
+          {
+            "name": "history",
+            "help": "usage: work discussion history [-h] --input-file INPUT_FILE --user-config-root USER_CONFIG_ROOT [--skill-root SKILL_ROOT]\n\nProcess work-discussion-request; requirement, revisions, authorization and approvals are bound in the request.\n",
+            "arguments": [
+              {
+                "name": "input_file",
+                "flags": [
+                  "--input-file"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "user_config_root",
+                "flags": [
+                  "--user-config-root"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "skill_root",
+                "flags": [
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
+            ],
+            "exclusive_groups": [],
+            "children": []
+          },
+          {
+            "name": "recover",
+            "help": "usage: work discussion recover [-h] --input-file INPUT_FILE --user-config-root USER_CONFIG_ROOT [--skill-root SKILL_ROOT]\n\nProcess work-discussion-request; requirement, revisions, authorization and approvals are bound in the request.\n",
+            "arguments": [
+              {
+                "name": "input_file",
+                "flags": [
+                  "--input-file"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "user_config_root",
+                "flags": [
+                  "--user-config-root"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "skill_root",
+                "flags": [
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
                 "boolean": false,
                 "choices": null,
                 "help": null
@@ -1267,13 +1451,13 @@
       },
       {
         "name": "task",
-        "help": "usage: work task [-h] {prepare,status,save,preview,apply,recover,validate} ...\n",
+        "help": "usage: work task [-h] {preview,apply,recover,validate} ...\n",
         "arguments": [],
         "exclusive_groups": [],
         "children": [
           {
             "name": "preview",
-            "help": "usage: work task preview [-h] --input-file INPUT_FILE\n                                   --requirement-id REQUIREMENT_ID\n                                   [--expected-revision EXPECTED_REVISION]\n                                   --user-config-root USER_CONFIG_ROOT\n                                   [--skill-root SKILL_ROOT]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --requirement-id REQUIREMENT_ID\n  [--expected-revision EXPECTED_REVISION]\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n",
+            "help": "usage: work task preview [-h] --input-file INPUT_FILE --user-config-root USER_CONFIG_ROOT [--skill-root SKILL_ROOT]\n\nProcess work-discussion-request; requirement, revisions, authorization and approvals are bound in the request.\n",
             "arguments": [
               {
                 "name": "input_file",
@@ -1281,30 +1465,6 @@
                   "--input-file"
                 ],
                 "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "requirement_id",
-                "flags": [
-                  "--requirement-id"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "expected_revision",
-                "flags": [
-                  "--expected-revision"
-                ],
-                "required": false,
                 "nargs": null,
                 "append": false,
                 "boolean": false,
@@ -1341,7 +1501,7 @@
           },
           {
             "name": "apply",
-            "help": "usage: work task apply [-h] --input-file INPUT_FILE\n                                 --requirement-id REQUIREMENT_ID\n                                 [--expected-revision EXPECTED_REVISION]\n                                 --user-config-root USER_CONFIG_ROOT\n                                 [--skill-root SKILL_ROOT]\n                                 --approved-sha256 APPROVED_SHA256\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --requirement-id REQUIREMENT_ID\n  [--expected-revision EXPECTED_REVISION]\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --approved-sha256 APPROVED_SHA256\n",
+            "help": "usage: work task apply [-h] --input-file INPUT_FILE --user-config-root USER_CONFIG_ROOT [--skill-root SKILL_ROOT]\n\nProcess work-discussion-request; requirement, revisions, authorization and approvals are bound in the request.\n",
             "arguments": [
               {
                 "name": "input_file",
@@ -1349,246 +1509,6 @@
                   "--input-file"
                 ],
                 "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "requirement_id",
-                "flags": [
-                  "--requirement-id"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "expected_revision",
-                "flags": [
-                  "--expected-revision"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "user_config_root",
-                "flags": [
-                  "--user-config-root"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "skill_root",
-                "flags": [
-                  "--skill-root"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": true,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "approved_sha256",
-                "flags": [
-                  "--approved-sha256"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [],
-            "children": []
-          },
-          {
-            "name": "recover",
-            "help": "usage: work task recover [-h] --input-file INPUT_FILE\n                                 --requirement-id REQUIREMENT_ID\n                                 [--expected-revision EXPECTED_REVISION]\n                                 --user-config-root USER_CONFIG_ROOT\n                                 [--skill-root SKILL_ROOT]\n                                 --approved-sha256 APPROVED_SHA256\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --requirement-id REQUIREMENT_ID\n  [--expected-revision EXPECTED_REVISION]\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --approved-sha256 APPROVED_SHA256\n",
-            "arguments": [
-              {
-                "name": "input_file",
-                "flags": [
-                  "--input-file"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "requirement_id",
-                "flags": [
-                  "--requirement-id"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "expected_revision",
-                "flags": [
-                  "--expected-revision"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "user_config_root",
-                "flags": [
-                  "--user-config-root"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "skill_root",
-                "flags": [
-                  "--skill-root"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": true,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "approved_sha256",
-                "flags": [
-                  "--approved-sha256"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [],
-            "children": []
-          },
-          {
-            "name": "prepare",
-            "help": "usage: work task prepare [-h] --input-file INPUT_FILE\n                                     --requirement-id REQUIREMENT_ID\n                                     --user-config-root USER_CONFIG_ROOT\n                                     [--skill-root SKILL_ROOT]\n                                     [--expected-revision EXPECTED_REVISION]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --requirement-id REQUIREMENT_ID\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --expected-revision EXPECTED_REVISION\n",
-            "arguments": [
-              {
-                "name": "input_file",
-                "flags": [
-                  "--input-file"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "requirement_id",
-                "flags": [
-                  "--requirement-id"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "user_config_root",
-                "flags": [
-                  "--user-config-root"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "skill_root",
-                "flags": [
-                  "--skill-root"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": true,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "expected_revision",
-                "flags": [
-                  "--expected-revision"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              }
-            ],
-            "exclusive_groups": [],
-            "children": []
-          },
-          {
-            "name": "status",
-            "help": "usage: work task status --requirement-id REQUIREMENT_ID --user-config-root USER_CONFIG_ROOT [--task-id TASK_ID] [--skill-root SKILL_ROOT]\n",
-            "arguments": [
-              {
-                "name": "requirement_id",
-                "flags": [
-                  "--requirement-id"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "task_id",
-                "flags": [
-                  "--task-id"
-                ],
-                "required": false,
                 "nargs": null,
                 "append": false,
                 "boolean": false,
@@ -1624,39 +1544,15 @@
             "children": []
           },
           {
-            "name": "save",
-            "help": "usage: work task save [-h] --requirement-id REQUIREMENT_ID\n                                       [--task-id TASK_ID]\n                                       [--expected-revision EXPECTED_REVISION]\n                                       --user-config-root USER_CONFIG_ROOT\n                                       [--skill-root SKILL_ROOT]\n                                       [--general-only |\n                                       --instruction-path INSTRUCTION_PATH]\n                                       [--reference REFERENCE]\n                                       --input-file INPUT_FILE\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n  --task-id TASK_ID\n  [--expected-revision EXPECTED_REVISION]\n  --user-config-root USER_CONFIG_ROOT\n  --skill-root SKILL_ROOT\n  --general-only\n  --instruction-path INSTRUCTION_PATH\n  --reference REFERENCE\n  --input-file INPUT_FILE\n",
+            "name": "recover",
+            "help": "usage: work task recover [-h] --input-file INPUT_FILE --user-config-root USER_CONFIG_ROOT [--skill-root SKILL_ROOT]\n\nProcess work-discussion-request; requirement, revisions, authorization and approvals are bound in the request.\n",
             "arguments": [
               {
-                "name": "requirement_id",
+                "name": "input_file",
                 "flags": [
-                  "--requirement-id"
+                  "--input-file"
                 ],
                 "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "task_id",
-                "flags": [
-                  "--task-id"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "expected_revision",
-                "flags": [
-                  "--expected-revision"
-                ],
-                "required": false,
                 "nargs": null,
                 "append": false,
                 "boolean": false,
@@ -1686,65 +1582,9 @@
                 "boolean": false,
                 "choices": null,
                 "help": null
-              },
-              {
-                "name": "general_only",
-                "flags": [
-                  "--general-only"
-                ],
-                "required": false,
-                "nargs": 0,
-                "append": false,
-                "boolean": true,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "instruction_path",
-                "flags": [
-                  "--instruction-path"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": true,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "reference",
-                "flags": [
-                  "--reference"
-                ],
-                "required": false,
-                "nargs": null,
-                "append": true,
-                "boolean": false,
-                "choices": null,
-                "help": null
-              },
-              {
-                "name": "input_file",
-                "flags": [
-                  "--input-file"
-                ],
-                "required": true,
-                "nargs": null,
-                "append": false,
-                "boolean": false,
-                "choices": null,
-                "help": null
               }
             ],
-            "exclusive_groups": [
-              {
-                "required": false,
-                "members": [
-                  "general_only",
-                  "instruction_path"
-                ]
-              }
-            ],
+            "exclusive_groups": [],
             "children": []
           },
           {
@@ -4333,7 +4173,7 @@
         "children": [
           {
             "name": "validate",
-            "help": "usage: work delegation validate [-h] --input-file INPUT_FILE\n                                   --role {task-coordinator,execute,task-skill,artifact-editor,progress-saver}\n                                   --sender {parent,task-coordinator}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --role {task-coordinator,execute,task-skill,artifact-editor,progress-saver}\n  --sender {parent,task-coordinator}\n",
+            "help": "usage: work delegation validate [-h] --input-file INPUT_FILE\n                                   --role {task-coordinator,execute,task-skill,artifact-editor}\n                                   --sender {parent,task-coordinator}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --input-file INPUT_FILE\n  --role {task-coordinator,execute,task-skill,artifact-editor}\n  --sender {parent,task-coordinator}\n",
             "arguments": [
               {
                 "name": "input_file",
@@ -4360,8 +4200,7 @@
                   "task-coordinator",
                   "execute",
                   "task-skill",
-                  "artifact-editor",
-                  "progress-saver"
+                  "artifact-editor"
                 ],
                 "help": null
               },

@@ -82,13 +82,13 @@ mod tests {
 
     #[test]
     fn frozen_catalog_keeps_public_descriptions_and_scaffolds() {
-        assert_eq!(list()["contracts"].as_array().unwrap().len(), 108);
+        assert_eq!(list()["contracts"].as_array().unwrap().len(), 96);
         assert_eq!(
-            describe("work-task-semantic-request").unwrap()["kind"],
+            describe("work-discussion-request").unwrap()["kind"],
             "semantic_request"
         );
         assert_eq!(
-            scaffold("work-task-semantic-request").unwrap()["schema"],
+            scaffold("work-discussion-request").unwrap()["schema"],
             "work-contract-scaffold"
         );
         assert_eq!(
@@ -236,8 +236,8 @@ mod tests {
                 assert_eq!(scaffold["example"], description["example"]);
             }
         }
-        let task = scaffold("work-task-semantic-request").unwrap();
-        assert!(task["example"]["upsert"][0].get("id").is_none());
+        let task = scaffold("work-discussion-request").unwrap();
+        assert_eq!(task["example"]["command"]["kind"], "read");
         let generated = "work-spec-update-request";
         let description = describe(generated).unwrap();
         assert_eq!(description["kind"], "generated_request");
@@ -344,15 +344,12 @@ mod tests {
                     "planning_source",
                     "task_path",
                     "task_id",
-                    "source_progress_path",
-                    "content",
                     "confirmed_request",
                     "decisions",
                     "affected_task_ids",
                     "repository_evidence",
                     "saved_discussion",
                     "continuation_point",
-                    "save_approval",
                 ],
             ),
             (

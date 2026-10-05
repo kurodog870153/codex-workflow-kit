@@ -56,7 +56,7 @@
     },
     "routing_status": "VALID",
     "schema": "work-instruction-selection-manifest",
-    "selection_sha256": "a0bfb796077daf853e974e53c28550903d52f7173911660170920234c57fcdea",
+    "selection_sha256": "3bb4fbeac9c5ba48790c44a3e01129fe17da5cfdefd8650d3dfb5aff9d93569d",
     "sources": [
       {
         "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
@@ -69,7 +69,7 @@
         "path": "references/instruction-loading/transaction-workspace.md"
       },
       {
-        "canonical_sha256": "d6730b694eae203f4fa0d22ab4c28bf3cad0fa3ede39dccf6bc237383cdb89d6",
+        "canonical_sha256": "f70b591b9f1c3ec2bbd3d241a5693c93fb7ad0d0bbbffe75ba779fe29d999a82",
         "logical_name": "work.shared.artifact-revision",
         "path": "references/instruction-loading/artifact-revision.md"
       },
@@ -99,7 +99,7 @@
         "path": "references/workflows/specification/prepare-and-review.md"
       },
       {
-        "canonical_sha256": "099373ff47bdd789c322862150d9eabdef90f99393479d4166f56e82ae02c4a9",
+        "canonical_sha256": "d9120748298107979e2c40e73e8ede36e27cf689eddd9ebf1c01a35352f2d87c",
         "logical_name": "work.workflow.specification.publish-and-recover",
         "path": "references/workflows/specification/publish-and-recover.md"
       },
@@ -110,7 +110,7 @@
       }
     ]
   },
-  "selection_sha256": "a0bfb796077daf853e974e53c28550903d52f7173911660170920234c57fcdea",
+  "selection_sha256": "3bb4fbeac9c5ba48790c44a3e01129fe17da5cfdefd8650d3dfb5aff9d93569d",
   "semantic_input_contract": "work-spec-reconciliation-prepare-request",
   "source_order": [
     "work.instruction-loading",

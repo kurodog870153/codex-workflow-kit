@@ -18,7 +18,7 @@ jobs:
       - name: Verify checkout preserves repository line endings
         working-directory: .
         run: |
-          for path in README.md skills/work/SKILL.md rust/crates/work-infrastructure/fixtures/task-draft-sources/valid/outputs/work/sources/example/SRC-001/source.txt; do
+          for path in README.md skills/work/SKILL.md rust/crates/work-infrastructure/fixtures/discussion-assembly/outputs/work/sources/example/SRC-001/source.txt; do
             entry="$(git ls-files --eol -- "$path")"
             [[ "$entry" =~ ^i/lf[[:space:]]+w/lf[[:space:]] ]] || { echo "Checkout changed line endings: $entry"; exit 1; }
           done

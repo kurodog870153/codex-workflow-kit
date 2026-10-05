@@ -74,31 +74,6 @@ impl LocalDelegationStorage {
         work_feature::delegation::build_artifact_editor(self, request)
     }
 
-    pub fn validate_progress_saver(
-        &self,
-        envelope: &Value,
-        sender: &str,
-    ) -> Result<Value, WorkError> {
-        let project_root = self
-            .project_root
-            .canonicalize()
-            .map_err(|_| boundary("The project root cannot be resolved."))?;
-        let skill_root = self
-            .skill_root
-            .canonicalize()
-            .map_err(|_| boundary("The Work skill root cannot be resolved."))?;
-        work_feature::delegation::validate_progress_saver(
-            envelope,
-            sender,
-            &project_root.to_string_lossy(),
-            &skill_root.to_string_lossy(),
-        )
-    }
-
-    pub fn build_progress_saver(&self, request: &Value) -> Result<Value, WorkError> {
-        work_feature::delegation::build_progress_saver(self, request)
-    }
-
     pub fn validate_execute_role(
         &self,
         envelope: &Value,
@@ -133,6 +108,7 @@ impl LocalDelegationStorage {
     ) -> Result<Value, WorkError> {
         if role == "task-coordinator" {
             return work_feature::delegation::validate_task_coordinator(
+                self,
                 envelope,
                 sender,
                 &self.canonical_project_root()?,
@@ -151,6 +127,19 @@ impl LocalDelegationStorage {
 }
 
 impl work_feature::delegation::TaskDelegationRepository for LocalDelegationStorage {
+    fn discussion_view(&self, requirement: &str) -> Result<Value, WorkError> {
+        use work_feature::discussion::repository::DiscussionRepository;
+        let session = crate::discussion::storage::LocalDiscussionStorage {
+            project_root: self.project_root.clone(),
+            files: LocalFiles,
+        }
+        .read_current(requirement)?
+        .ok_or_else(|| boundary("A committed Session is required for resume."))?;
+        let view = work_operations::discussion::view(&session)
+            .map_err(|_| boundary("The committed Session view is invalid."))?;
+        Ok(serde_json::to_value(view).expect("Session view serializes"))
+    }
+
     fn planning_context(&self, value: &Value) -> Result<(Value, Value), WorkError> {
         let requirement = value["snapshot"]["requirement_id"]
             .as_str()
@@ -232,7 +221,7 @@ impl work_feature::delegation::TaskDelegationRepository for LocalDelegationStora
         if collection["source"]["kind"] == "migration" {
             return Ok(Value::Null);
         }
-        let manifest: work_model::source_snapshot::SourceSnapshot =
+        let manifest: work_model::source::snapshot::SourceSnapshot =
             serde_json::from_value(collection["source"]["manifest"].clone())
                 .map_err(|_| boundary("A Source Snapshot is required."))?;
         let paths = crate::artifact_paths::LocalArtifactPaths {
@@ -284,7 +273,7 @@ impl DelegationSourceRepository for LocalDelegationStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use work_operations::delegation::{build_envelope, validation_result};
+    use work_operations::delegation::validation_result;
 
     fn role_fixture(role: &str, storage: &LocalDelegationStorage) -> Value {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
@@ -397,77 +386,11 @@ mod tests {
     }
 
     #[test]
-    fn progress_saver_context_matches_current_contract_reference() {
+    fn session_resume_is_built_from_committed_current_and_rejects_context_drift() {
+        use work_feature::discussion::repository::DiscussionRepository;
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let storage = LocalDelegationStorage {
-            project_root: repo.join("crates/work-infrastructure/fixtures/delegation-role"),
-            skill_root: repo.join("../skills/work"),
-            skill_configs: vec![],
-        };
-        let progress: Value = serde_json::from_slice(
-            &std::fs::read(
-                storage
-                    .project_root
-                    .join("outputs/work/progress/example/task/progress.json"),
-            )
-            .unwrap(),
-        )
-        .unwrap();
-        let mut content = progress.as_object().unwrap().clone();
-        for field in ["schema", "requirement_id", "mode", "revision", "status"] {
-            content.remove(field);
-        }
-        let envelope = storage
-            .build_progress_saver(&json!({
-                "schema":"work-delegation-build-request","role":"progress-saver",
-                "mode":"task","request":"Save discussion progress.",
-                "source_progress_path":"outputs/work/progress/example/task/progress.json",
-                "content":content,"continuation_point":"Continue discussion",
-            }))
-            .unwrap();
-        assert_eq!(envelope, role_fixture("progress-saver", &storage));
-        assert_eq!(
-            storage
-                .validate_progress_saver(&envelope, "parent")
-                .unwrap(),
-            validation_result("progress-saver", "task", false)
-        );
-        for change in [
-            "mode",
-            "origin_mode",
-            "source_bytes",
-            "planning_source",
-            "missing_source",
-        ] {
-            let mut wrong = envelope.clone();
-            match change {
-                "mode" => wrong["mode"] = json!("plan"),
-                "origin_mode" => wrong["origin_mode"] = json!("plan"),
-                "source_bytes" => wrong["context"]["task_source"]["source_bytes"][0] = json!(0),
-                "planning_source" => {
-                    wrong["context"]["content"]["context"]["planning_source"]["snapshot"]["source_sha256"] =
-                        json!("0".repeat(64))
-                }
-                _ => {
-                    wrong["context"]
-                        .as_object_mut()
-                        .unwrap()
-                        .remove("task_source");
-                }
-            }
-            assert!(
-                storage.validate_progress_saver(&wrong, "parent").is_err(),
-                "{change}"
-            );
-        }
-        let source_raw = std::fs::read(
-            storage
-                .project_root
-                .join("outputs/work/sources/example/SRC-001/source.txt"),
-        )
-        .unwrap();
         let root = std::env::temp_dir().join(format!(
-            "work-delegation-progress-{}-{}",
+            "work-delegation-session-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -475,55 +398,65 @@ mod tests {
                 .as_nanos()
         ));
         std::fs::create_dir(&root).unwrap();
-        let progress_storage = crate::progress_storage::LocalProgressStorage { project_root: root };
-        let preview =
-            work_feature::progress::preview_progress(&progress_storage, &progress, 0).unwrap();
-        work_feature::progress::save_progress(
-            &progress_storage,
-            &progress,
-            0,
-            preview["approved_sha256"].as_str().unwrap(),
-        )
-        .unwrap();
-        let saved =
-            work_feature::progress::read_progress(&progress_storage, "example", "task").unwrap();
-        assert_eq!(
-            saved["progress"]["context"]["planning_source"],
-            progress["context"]["planning_source"]
-        );
-        assert_eq!(
-            std::fs::read(
-                storage
-                    .project_root
-                    .join("outputs/work/sources/example/SRC-001/source.txt")
+        let mut session: work_model::discussion::DiscussionSession = serde_json::from_slice(
+            &std::fs::read(
+                repo.join("crates/work-infrastructure/fixtures/discussion-assembly/session.json"),
             )
             .unwrap(),
-            source_raw
+        )
+        .unwrap();
+        session.authorization.project_root =
+            root.canonicalize().unwrap().to_string_lossy().into_owned();
+        session.commit.content_sha256 =
+            work_operations::derivation::fingerprint::discussion_session(&session);
+        let repository = crate::discussion::storage::LocalDiscussionStorage {
+            project_root: root.clone(),
+            files: LocalFiles,
+        };
+        repository.initialize(&session, false).unwrap();
+        let storage = LocalDelegationStorage {
+            project_root: root.clone(),
+            skill_root: repo.join("../skills/work"),
+            skill_configs: vec![],
+        };
+        let request = json!({"schema":"work-delegation-build-request","role":"task-coordinator","request":"resume example"});
+        let envelope = storage.build_task_coordinator(&request).unwrap();
+        let before =
+            std::fs::read(root.join("outputs/work/discussions/example/session.json")).unwrap();
+        assert_eq!(envelope["context"]["session_view"]["revision"], 1);
+        assert_eq!(
+            storage
+                .validate_task_coordinator(&envelope, "task-coordinator", "parent")
+                .unwrap(),
+            validation_result("task-coordinator", "task", true)
         );
+        for (field, value) in [
+            ("revision", json!(2)),
+            ("content_sha256", json!("0".repeat(64))),
+            ("requirement_id", json!("other")),
+            ("goal", json!("Changed")),
+        ] {
+            let mut changed = envelope.clone();
+            changed["context"]["session_view"][field] = value;
+            assert!(
+                storage
+                    .validate_task_coordinator(&changed, "task-coordinator", "parent")
+                    .is_err(),
+                "{field}"
+            );
+        }
+        let mut old = envelope.clone();
+        old["context"] = json!({"saved_progress":{"schema":"work-discussion-progress"}});
         assert!(
-            !progress_storage
-                .project_root
-                .join("outputs/work/plans")
-                .exists()
-        );
-        let mut wrong = envelope.clone();
-        wrong["context"]["expected_revision"] = json!(true);
-        assert_eq!(
             storage
-                .validate_progress_saver(&wrong, "parent")
-                .unwrap_err()
-                .reason_code,
-            "delegation_boundary_mismatch"
+                .validate_task_coordinator(&old, "task-coordinator", "parent")
+                .is_err()
         );
-        let mut foreign = envelope.clone();
-        foreign["context"]["content"]["mode"] = json!("execute");
         assert_eq!(
-            storage
-                .validate_progress_saver(&foreign, "parent")
-                .unwrap_err()
-                .reason_code,
-            "delegation_boundary_mismatch"
+            std::fs::read(root.join("outputs/work/discussions/example/session.json")).unwrap(),
+            before
         );
+        assert!(!root.join("outputs/work/tasks").exists());
     }
 
     #[test]
@@ -642,96 +575,37 @@ mod tests {
     }
 
     #[test]
-    fn task_resume_validates_identity_and_rejects_plan_progress() {
+    fn resume_rejects_retired_progress_without_reading_or_converting_it() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let storage = LocalDelegationStorage {
             project_root: repo.join("crates/work-infrastructure/fixtures/delegation-role"),
             skill_root: repo.join("../skills/work"),
             skill_configs: vec![],
         };
-        let raw = std::fs::read(
-            storage
+        let path = storage
+            .project_root
+            .join("outputs/work/progress/example/task/progress.json");
+        let before = std::fs::read(&path).unwrap();
+        let request = json!({"schema":"work-delegation-build-request","role":"task-coordinator","request":"resume example"});
+        assert!(storage.build_task_coordinator(&request).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        assert!(
+            !storage
                 .project_root
-                .join("outputs/work/progress/example/task/progress.json"),
-        )
-        .unwrap();
-        let task_progress: Value = serde_json::from_slice(&raw).unwrap();
-        for (role, mode) in [("plan", "plan"), ("task-coordinator", "task")] {
-            let mut progress = task_progress.clone();
-            progress["mode"] = json!(mode);
-            if role == "plan" {
-                progress["current_task_id"] = Value::Null;
-            }
-            if role == "plan" {
-                assert!(
-                    build_envelope(
-                        role,
-                        mode,
-                        "resume example",
-                        &storage.canonical_project_root().unwrap(),
-                        &storage.canonical_skill_root().unwrap(),
-                        &json!({"saved_progress":progress})
-                    )
-                    .is_err()
-                );
-                continue;
-            }
-            let envelope = build_envelope(
-                role,
-                mode,
-                "resume example",
-                &storage
-                    .project_root
-                    .canonicalize()
-                    .unwrap()
-                    .to_string_lossy(),
-                &storage.skill_root.canonicalize().unwrap().to_string_lossy(),
-                &json!({"saved_progress":progress}),
+                .join("outputs/work/discussions")
+                .exists()
+        );
+        assert!(
+            work_operations::delegation::build_envelope(
+                "progress-saver",
+                "task",
+                "Save",
+                "/project",
+                "/work",
+                &json!({"content":{}})
             )
-            .unwrap();
-            if mode == "plan" {
-                assert_eq!(
-                    storage
-                        .validate_task_coordinator(&envelope, role, "parent")
-                        .unwrap_err()
-                        .reason_code,
-                    "invalid_progress_mode"
-                );
-                continue;
-            }
-            assert_eq!(
-                storage
-                    .validate_task_coordinator(&envelope, role, "parent")
-                    .unwrap(),
-                validation_result(role, mode, true)
-            );
-            let mut missing_source = envelope.clone();
-            missing_source["context"]["saved_progress"]["context"]
-                .as_object_mut()
-                .unwrap()
-                .remove("planning_source");
-            assert!(
-                storage
-                    .validate_task_coordinator(&missing_source, role, "parent")
-                    .is_err()
-            );
-            let mut old_origin = envelope.clone();
-            old_origin["origin_mode"] = json!("plan");
-            assert!(
-                storage
-                    .validate_task_coordinator(&old_origin, role, "parent")
-                    .is_err()
-            );
-            let mut wrong = envelope.clone();
-            wrong["request"] = json!("resume other");
-            assert_eq!(
-                storage
-                    .validate_task_coordinator(&wrong, role, "parent")
-                    .unwrap_err()
-                    .reason_code,
-                "delegation_boundary_mismatch"
-            );
-        }
+            .is_err()
+        );
     }
 
     #[test]
@@ -768,12 +642,6 @@ mod tests {
                 "confirmed_request",
                 "maintenance_context must contain exactly the required and optional fields.",
             ),
-            (
-                "progress-saver",
-                "crates/work-infrastructure/fixtures/delegation-role",
-                "content",
-                "maintenance_context must contain exactly the required and optional fields.",
-            ),
         ] {
             let storage = LocalDelegationStorage {
                 project_root: repo.join(relative),
@@ -800,7 +668,6 @@ mod tests {
                 "execute" => storage.validate_execute_role(&envelope, "parent"),
                 "task-skill" => storage.validate_task_skill(&envelope, "task-coordinator"),
                 "artifact-editor" => storage.validate_artifact_editor(&envelope, "parent"),
-                "progress-saver" => storage.validate_progress_saver(&envelope, "parent"),
                 _ => unreachable!(),
             };
             let error = outcome.unwrap_err();
@@ -834,10 +701,6 @@ mod tests {
                 "artifact-editor",
                 "crates/work-infrastructure/fixtures/task-diagnostics",
             ),
-            (
-                "progress-saver",
-                "crates/work-infrastructure/fixtures/delegation-role",
-            ),
         ] {
             let storage = LocalDelegationStorage {
                 project_root: repo.join(relative),
@@ -861,7 +724,6 @@ mod tests {
                 "execute" => storage.validate_execute_role(&envelope, "parent"),
                 "task-skill" => storage.validate_task_skill(&envelope, "task-coordinator"),
                 "artifact-editor" => storage.validate_artifact_editor(&envelope, "parent"),
-                "progress-saver" => storage.validate_progress_saver(&envelope, "parent"),
                 _ => unreachable!(),
             }
             .unwrap();
@@ -881,7 +743,7 @@ mod tests {
     }
 
     #[test]
-    fn saved_progress_cannot_hide_execute_or_mix_current_context() {
+    fn session_view_cannot_hide_execute_or_mix_current_context() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         for (role, relative) in [
             (
@@ -891,10 +753,6 @@ mod tests {
             (
                 "execute",
                 "crates/work-infrastructure/fixtures/task-diagnostics",
-            ),
-            (
-                "progress-saver",
-                "crates/work-infrastructure/fixtures/delegation-role",
             ),
         ] {
             let storage = LocalDelegationStorage {
@@ -911,11 +769,10 @@ mod tests {
                 continue;
             }
             let mut envelope = role_fixture(role, &storage);
-            envelope["context"]["saved_progress"] = json!({"schema":"work-discussion-progress"});
+            envelope["context"]["session_view"] = json!({"revision":1});
             let result = match role {
                 "plan" => storage.validate_task_coordinator(&envelope, role, "parent"),
                 "execute" => storage.validate_execute_role(&envelope, "parent"),
-                "progress-saver" => storage.validate_progress_saver(&envelope, "parent"),
                 _ => unreachable!(),
             };
             assert_eq!(

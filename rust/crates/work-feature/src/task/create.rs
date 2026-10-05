@@ -111,6 +111,7 @@ pub fn parse_create_input(raw: &[u8]) -> Result<Value, WorkError> {
         "acceptance_criteria",
         "instruction_selection",
         "execution_defaults",
+        "discussion",
         "decisions",
         "tasks",
         "changes",

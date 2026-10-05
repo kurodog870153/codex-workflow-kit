@@ -78,10 +78,7 @@ fn checked_directory(path: &Path, allowed: &[&str], recovery: bool) -> Result<()
             )
         })?;
         let name = entry.file_name().to_string_lossy().to_string();
-        if !allowed.contains(&name.as_str())
-            || entry.path().is_symlink()
-            || (name == "drafts" && !entry.path().is_dir())
-        {
+        if !allowed.contains(&name.as_str()) || entry.path().is_symlink() {
             unexpected.push(name);
         }
     }
@@ -100,7 +97,7 @@ fn checked_directory(path: &Path, allowed: &[&str], recovery: bool) -> Result<()
     Ok(())
 }
 
-fn targets(
+pub(crate) fn targets(
     root: &Path,
     index_relative: &str,
     execution_relative: &str,
@@ -113,7 +110,7 @@ fn targets(
     let items_dir = collection.join("tasks");
     let execution_index = execution_path.join("index.json");
     if !recovery {
-        checked_directory(collection, &["drafts"], false)?;
+        checked_directory(collection, &[], false)?;
         if index_path.exists() || items_dir.exists() || execution_path.exists() {
             return Err(failure(
                 "task_create_target_exists",
@@ -131,9 +128,13 @@ fn targets(
                 json!({}),
             ));
         }
-        checked_directory(collection, &["drafts", "index.json", "tasks"], true)?;
+        checked_directory(collection, &["index.json", "tasks"], true)?;
         if execution_path.exists() {
-            checked_directory(&execution_path, &["index.json"], true)?;
+            checked_directory(
+                &execution_path,
+                &["index.json", ".work-state-writer.lock"],
+                true,
+            )?;
         }
     }
     if items_dir.exists() {
@@ -290,96 +291,4 @@ pub fn create_task_artifacts(
             recovery: request.recovery,
         },
     )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::collections::BTreeMap;
-    use work_feature::task::assembly::{AssemblyInput, assemble_task_drafts};
-    use work_operations::derivation::fingerprint::raw as sha256_hex;
-
-    #[test]
-    fn draft_assembly_binds_complete_reviewed_target_set() {
-        let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/task-assembly");
-        let root = std::env::temp_dir().join(format!(
-            "work-task-assembly-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        fs::create_dir_all(&root).unwrap();
-        let index: Value =
-            serde_json::from_slice(&fs::read(fixture.join("index.json")).unwrap()).unwrap();
-        let draft: Value =
-            serde_json::from_slice(&fs::read(fixture.join("draft.json")).unwrap()).unwrap();
-        let metadata: Value =
-            serde_json::from_slice(&fs::read(fixture.join("metadata.json")).unwrap()).unwrap();
-        let expected: Value =
-            serde_json::from_slice(&fs::read(fixture.join("expected.json")).unwrap()).unwrap();
-        let hierarchy = LocalHierarchyCatalog {
-            skill_root: repo.join("../skills/work"),
-        };
-        let skills = LocalSkillCatalog { roots: vec![] };
-        crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
-        let paths = LocalArtifactPaths { project_root: root };
-        let drafts = BTreeMap::from([("TASK-001".into(), draft)]);
-        let actual = assemble_task_drafts(
-            &hierarchy,
-            &skills,
-            &paths,
-            &[],
-            AssemblyInput {
-                index: &index,
-                drafts: &drafts,
-                metadata: &metadata,
-                expected_revision: 2,
-            },
-        )
-        .unwrap();
-        assert_eq!(
-            sha256_hex(&work_operations::canonical::canonical_json(&index).unwrap()),
-            "7fbd7294fca31e21b226ea8ec25e2fa70ba3c92f5513a765a742c0f5d98160a3"
-        );
-        let prepared = work_operations::task::create::prepare_collection(
-            &actual["contract"],
-            "outputs/work/tasks/example/index.json",
-            "outputs/work/sources/example",
-        )
-        .unwrap();
-        assert_eq!(actual["contract"], expected["contract"]);
-        assert_eq!(actual["task_index_sha256"], expected["task_index_sha256"]);
-        assert_eq!(actual["task_item_sha256"], expected["task_item_sha256"]);
-        assert_eq!(
-            sha256_hex(&prepared.index_raw),
-            expected["task_index_sha256"]
-        );
-        assert_eq!(
-            sha256_hex(&prepared.approval_bytes),
-            "448099a9224417d764c925175999a3000b6cc0c42bcd8f9a86f0e650683d63f4"
-        );
-        assert_eq!(
-            actual["approval_sha256"],
-            "e800b27e0f65d8b85f9cff66e1b76b76068cf4465adc174d8f2244354135b52f"
-        );
-        let execution_raw =
-            work_operations::execution::index::render_execution_index(&actual["execution_index"])
-                .unwrap();
-        let approved_targets = work_operations::task::create::approval_with_execution(
-            &prepared.approval_bytes,
-            "outputs/work/executions/example/index.json",
-            &execution_raw,
-        );
-        assert_eq!(
-            actual["approval_sha256"],
-            work_operations::derivation::fingerprint::task_draft_approval(
-                &work_operations::canonical::canonical_json(&index).unwrap(),
-                &approved_targets
-            )
-        );
-        assert_eq!(actual, expected);
-    }
 }

@@ -21,7 +21,7 @@ metadata:
 
 ## 2. Index
 
-1. [強制] execution index 固定位於 execution 目錄的 `index.json`，不同於 formal TASK index 與 draft index；`.work-*.tmp` 交易暫存檔同樣維持於 execution 根目錄。Index 保存主驗收 `acceptance_results`、TASK rows 的驗收進度與每筆 evidence 的 TASK／Attempt／VAL／retry record ID、Task item 與 instruction fingerprints，以及 TASK spec、collection／formal-index fingerprints、各 TASK item fingerprint、Task-owned `hierarchy_selection_sha256` 與 `skill_selection_sha256`、文件層 Task instructions SHA、選用 audit／lock、整體狀態及 TASK rows；不保存技能全文。
+1. [強制] execution index 固定位於 execution 目錄的 `index.json`，不同於 formal TASK index 與 DiscussionSession；`.work-*.tmp` 交易暫存檔同樣維持於 execution 根目錄。Index 保存主驗收 `acceptance_results`、TASK rows 的驗收進度與每筆 evidence 的 TASK／Attempt／VAL／retry record ID、Task item 與 instruction fingerprints，以及 TASK spec、collection／formal-index fingerprints、各 TASK item fingerprint、Task-owned `hierarchy_selection_sha256` 與 `skill_selection_sha256`、文件層 Task instructions SHA、選用 audit／lock、整體狀態及 TASK rows；不保存技能全文。
 2. [強制] TASK row 固定包含 TASK ID、狀態、`skill_id` 與該 TASK 的 instructions SHA；最新 Attempt、Correction 或狀態原因只在存在時加入。
 3. [強制] TASK 狀態只使用「待執行」、「進行中」、「待重新執行」、「受阻」、「已完成」及「已取消」；全部取消時整體為已取消，否則忽略已取消 TASK 後精確判定待執行、已完成、受阻或進行中。
 4. [強制] 初始 Attempt execution lock 使用 `kind: execution`、`task_id`、`attempt_id`、`execute_instructions_sha256`；開始執行 CMD／OP／VAL 前才由後續紀錄交易加入 `record_id`。規格鎖與執行鎖互斥，任一執行鎖存在時不得建立其他 Attempt、Correction 或規格鎖。恢復與結案必須使用鎖所存原始 Execute 雜湊解讀該操作。

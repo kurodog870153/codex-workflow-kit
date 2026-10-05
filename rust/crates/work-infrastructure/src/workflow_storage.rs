@@ -18,6 +18,7 @@ use work_operations::execution::attempt::validate_attempt_bytes;
 use work_operations::execution::index::validate_execution_index;
 use work_operations::identifiers::RequirementId;
 
+use crate::discussion::storage::LocalDiscussionStorage;
 use crate::files::{LocalFiles, resolve_project_path};
 use crate::hierarchy_catalog::LocalHierarchyCatalog;
 #[cfg(test)]
@@ -25,8 +26,8 @@ use crate::routing_sources::RoutingSourceSession;
 use crate::skill_catalog::{LocalSkillCatalog, SkillRootConfig};
 use crate::source_snapshot_storage::LocalSourceSnapshotStorage;
 use crate::specification::storage::storage_path;
-use crate::task::draft_storage::LocalTaskDraftStorage;
 use crate::task::storage::LocalTaskStorage;
+use work_feature::discussion::repository::DiscussionRepository;
 use work_feature::ports::SourceSnapshotReader;
 use work_feature::specification::reconciliation_input::validate_ledger_entries;
 
@@ -151,27 +152,31 @@ pub fn load_workflow_snapshot(
             "The selected TASK does not match the requested requirement.",
         ));
     }
-    let draft = if task.is_none() {
-        Some(
-            LocalTaskDraftStorage {
-                project_root: request.project_root.to_path_buf(),
-            }
-            .status(request.requirement_id, None)?,
-        )
+    let session = if task.is_none() {
+        LocalDiscussionStorage {
+            project_root: request.project_root.to_path_buf(),
+            files: LocalFiles,
+        }
+        .read_current(request.requirement_id)?
     } else {
         None
     };
+    let discussion = session
+        .as_ref()
+        .map(work_operations::discussion::workflow::resume)
+        .transpose()
+        .map_err(|issue| fail(issue.0, "The committed Session is invalid."))?;
     let source = if let Some(task) = &task {
         Some(task["collection_contract"]["source"].clone())
-    } else if draft
-        .as_ref()
-        .is_some_and(|value| value["status"] != "not_initialized")
+    } else if let Some(saved) =
+        session
+            .as_ref()
+            .and_then(|value| match &value.context.confirmed_source {
+                work_model::common::Nullable::Value(source) => Some(source),
+                work_model::common::Nullable::Null => None,
+            })
     {
-        let saved_index = LocalTaskDraftStorage {
-            project_root: request.project_root.to_path_buf(),
-        }
-        .read_planning_index(request.requirement_id)?;
-        let saved = &saved_index["source"];
+        let saved = serde_json::to_value(saved).expect("Confirmed Source serializes");
         work_feature::task::source::validate_context(
             &LocalSourceSnapshotStorage {
                 project_root: request.project_root.to_path_buf(),
@@ -183,10 +188,10 @@ pub fn load_workflow_snapshot(
             },
             &skill_roots,
             request.requirement_id,
-            saved,
+            &saved,
         )?;
         artifacts = saved["artifacts"].clone();
-        Some(saved.clone())
+        Some(saved)
     } else {
         let relative = artifacts["source"].as_str().ok_or_else(|| {
             fail(
@@ -246,7 +251,7 @@ pub fn load_workflow_snapshot(
     Ok(WorkflowSnapshot {
         artifacts,
         source,
-        draft,
+        discussion,
         task,
         index,
         latest_attempts,
@@ -259,7 +264,7 @@ fn workflow_state(request: &WorkflowStateRequest<'_>) -> Result<Value, WorkError
     let WorkflowSnapshot {
         artifacts,
         source,
-        draft,
+        discussion,
         task,
         index,
         latest_attempts,
@@ -270,7 +275,7 @@ fn workflow_state(request: &WorkflowStateRequest<'_>) -> Result<Value, WorkError
         request.requirement_id,
         &artifacts,
         source.as_ref(),
-        draft.as_ref(),
+        discussion.as_ref(),
         task.as_ref(),
         index.is_some(),
     )? {
@@ -436,8 +441,8 @@ mod tests {
         let fixture = repo.join("crates/work-infrastructure/fixtures/task-diagnostics");
         crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         let source_only = workflow_state(&request).unwrap();
-        assert_eq!(source_only["status"], "task_not_initialized");
-        assert_eq!(source_only["next_action"], "confirm_task_list");
+        assert_eq!(source_only["status"], "task_discussion_required");
+        assert_eq!(source_only["next_action"], "initialize_discussion");
         assert_eq!(
             source_only["details"]["source"]["snapshots"][0]["source_id"],
             "SRC-001"

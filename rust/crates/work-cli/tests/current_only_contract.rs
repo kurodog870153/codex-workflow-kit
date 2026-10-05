@@ -14,6 +14,9 @@ const OLD_FIELDS: &[&str] = &[
     "task_sha256",
     "rule_selection",
     "source_plan_path",
+    "draft_ref",
+    "saved_progress",
+    "source_progress_path",
 ];
 const MARKERS: &[&str] = &[
     "WORK_DELEGATION",
@@ -21,6 +24,70 @@ const MARKERS: &[&str] = &[
     "WORK_ARTIFACT_EDIT",
     "WORK_PROGRESS_SAVE",
 ];
+const RETIRED_SCHEMAS: &[&str] = &[
+    "work-discussion-progress",
+    "work-progress-prepare",
+    "work-progress-preview",
+    "work-progress-read",
+    "work-progress-save-request",
+    "work-progress-save",
+    "work-task-draft-prepare",
+    "work-task-draft-recovery",
+    "work-task-draft-save",
+    "work-task-draft-source-check",
+    "work-task-draft-validation",
+    "work-task-draft",
+    "work-task-planning-index-validation",
+    "work-task-planning-index",
+    "work-task-semantic-request",
+];
+const RETIRED_EVIDENCE: &[(&str, &str)] = &[
+    (
+        "rust/crates/work-infrastructure/fixtures/delegation-role/progress-saver-expected.json",
+        "7227c8da01d21946ee677b7c07d034f569d2855724add9e878ee60cbe0827166",
+    ),
+    (
+        "rust/crates/work-infrastructure/fixtures/task-assembly/draft.json",
+        "83e1c9a4c677b18014e9dd3788f2c5c1b53fa5d69f9cbdff0399e72bb8a19f58",
+    ),
+    (
+        "rust/crates/work-infrastructure/fixtures/task-assembly/index.json",
+        "7fbd7294fca31e21b226ea8ec25e2fa70ba3c92f5513a765a742c0f5d98160a3",
+    ),
+    (
+        "rust/crates/work-infrastructure/fixtures/task-draft-sources/valid/expected.json",
+        "7ea4e4acfb5dea3b25b5dd7f145ba2c9840fd6d637d5db0b7c1a9e043934b3f4",
+    ),
+    (
+        "rust/crates/work-infrastructure/fixtures/task-draft-sources/source-drift/outputs/work/tasks/example/drafts/index.json",
+        "a1d599387c37e1ff72d61186b56ad28edaea689a5d10e5da27f09859ecde4242",
+    ),
+    (
+        "rust/crates/work-infrastructure/fixtures/task-draft-sources/source-drift/outputs/work/tasks/example/drafts/history/1/index.json",
+        "a1d599387c37e1ff72d61186b56ad28edaea689a5d10e5da27f09859ecde4242",
+    ),
+    (
+        "rust/crates/work-infrastructure/fixtures/task-draft-sources/missing-selection/outputs/work/tasks/example/drafts/index.json",
+        "8a9139b81004b37e1b38a1894b3bdb34564f5e0f21f3b3106d2131320dbdbedb",
+    ),
+    (
+        "rust/crates/work-infrastructure/fixtures/task-draft-sources/missing-selection/outputs/work/tasks/example/drafts/history/1/index.json",
+        "8a9139b81004b37e1b38a1894b3bdb34564f5e0f21f3b3106d2131320dbdbedb",
+    ),
+    (
+        "rust/crates/work-infrastructure/fixtures/task-draft-sources/valid/outputs/work/tasks/example/drafts/index.json",
+        "d4e4f775a41e316f1955bf337b2d29cb963e07d7268755672039169e4d921764",
+    ),
+    (
+        "rust/crates/work-infrastructure/fixtures/task-draft-sources/valid/outputs/work/tasks/example/drafts/history/1/index.json",
+        "d4e4f775a41e316f1955bf337b2d29cb963e07d7268755672039169e4d921764",
+    ),
+    (
+        "rust/crates/work-infrastructure/fixtures/delegation-role/outputs/work/progress/example/task/progress.json",
+        "3dc23b07b4e169fabee7bb0fff9af7efea22964ee86e0bac204bb3e1f5bd2497",
+    ),
+];
+
 const IMMUTABLE: &[(&str, &str)] = &[
     // Exact historical/source evidence files and their full SHA-256 are inserted at preparation.
     (
@@ -146,7 +213,7 @@ fn root() -> PathBuf {
 }
 
 fn current_schema(value: &str) -> bool {
-    !value.starts_with("work-") || !value.contains('/')
+    (!value.starts_with("work-") || !value.contains('/')) && !RETIRED_SCHEMAS.contains(&value)
 }
 
 fn inspect_value(value: &Value, file: &str, pointer: &str) -> Result<(), String> {
@@ -326,6 +393,21 @@ fn current_fixtures_and_embedded_stdout_are_checked_with_exact_evidence_exceptio
             .to_str()
             .unwrap()
             .replace('\\', "/");
+        if let Some((_, digest)) = RETIRED_EVIDENCE.iter().find(|(file, _)| *file == relative) {
+            let raw = fs::read(&path).unwrap();
+            assert_eq!(
+                work_infrastructure::fixture_support::raw_sha256(&raw),
+                *digest,
+                "{relative}: exact rejected legacy evidence"
+            );
+            let value: Value = serde_json::from_slice(&raw).unwrap();
+            assert!(
+                inspect_value(&value, &relative, "$").is_err() || value["role"] == "progress-saver",
+                "legacy fixture must be rejected: {relative}"
+            );
+            checked += 1;
+            continue;
+        }
         if immutable.contains_key(relative.as_str()) {
             continue;
         }
@@ -515,4 +597,40 @@ fn reconciliation_fixtures_keep_only_reviewed_journals() {
         })
         .collect();
     assert_eq!(actual, expected, "unreviewed fixture journal accumulation");
+}
+
+#[test]
+fn retired_discussion_lifecycles_have_no_public_schema_or_private_role() {
+    for id in RETIRED_SCHEMAS {
+        assert!(
+            serde_json::from_value::<PublicSchema>(json!(id)).is_err(),
+            "{id}"
+        );
+        assert!(
+            !PublicSchema::ALL
+                .iter()
+                .any(|schema| schema.as_str() == *id)
+        );
+        let registry = serde_json::to_value(work_model::contract_data::registry()).unwrap();
+        assert!(registry["items"].get(*id).is_none(), "{id}");
+    }
+    let storage = work_infrastructure::delegation_storage::LocalDelegationStorage {
+        project_root: root(),
+        skill_root: root().join("skills/work"),
+        skill_configs: vec![],
+    };
+    let rejected = work_flow::delegation::build(&storage, &json!({"schema":"work-delegation-build-request","role":"progress-saver","request":"Retired role"})).unwrap_err();
+    assert_eq!(rejected.reason_code, "delegation_boundary_mismatch");
+}
+
+#[test]
+fn active_session_fixture_has_exact_integrity_without_repairing_it() {
+    let path =
+        root().join("rust/crates/work-infrastructure/fixtures/discussion-assembly/session.json");
+    let value: work_model::discussion::DiscussionSession =
+        serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(
+        value.commit.content_sha256,
+        work_infrastructure::fixture_support::discussion_sha256(&value)
+    );
 }

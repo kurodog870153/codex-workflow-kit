@@ -19,15 +19,15 @@
   "sources": [
     {
       "path": "outputs/work/executions/example/index.json",
-      "raw_sha256": "4b69ad0fcab0a9d8b52107cbf5cd39d8d23cc84a64bb346bdd5eb8f3970a187e"
+      "raw_sha256": "7d7ec4e5fce66e63e246236c4a80b385e830dd6e80f1881ca5222ecfd27c7c36"
     },
     {
       "path": "outputs/work/tasks/example/index.json",
-      "raw_sha256": "acb61621263e85161a3a46e82602db1e6563273611bad4f52c8ea15709d9d211"
+      "raw_sha256": "cce6f67be0fcb21441a8029fc9ccd88e212b79be4987a0c7317c086b2b5ff37b"
     },
     {
       "path": "outputs/work/tasks/example/tasks/TASK-001.json",
-      "raw_sha256": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77"
+      "raw_sha256": "f1071ad659955de4e360da6b0e53b6f99870d9bede067bb26e0341749c594abb"
     }
   ],
   "task_position": 1
