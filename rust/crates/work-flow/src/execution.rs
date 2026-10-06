@@ -16,7 +16,8 @@ use work_feature::skill::SkillSnapshotRepository;
 use work_feature::task::TaskCollectionRepository;
 
 pub use work_feature::execution::{
-    CommandProjectRequest, CommandProjectSources, ExecutionProjectTarget,
+    CommandProjectRequest, CommandProjectSources, ExecutionProjectTarget, ExecutionWriterContext,
+    RuntimeExecutionReadiness, ScopedExecutionPublication, load_execution_writer_context,
 };
 use work_feature::execution::{
     DeviationProjectRequest, begin_record_from_project, close_attempt_from_project,

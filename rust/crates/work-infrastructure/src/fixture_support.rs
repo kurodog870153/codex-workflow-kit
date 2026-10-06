@@ -177,9 +177,18 @@ pub fn copy_fixture_sources(
     fixture: &std::path::Path,
     root: &std::path::Path,
 ) -> Result<(), std::io::Error> {
+    if !fixture.is_dir() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("missing fixture project: {}", fixture.display()),
+        ));
+    }
     let sources = fixture.join("outputs/work/sources");
-    if !sources.exists() {
-        return Ok(());
+    if !sources.is_dir() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("missing fixture Source directory: {}", sources.display()),
+        ));
     }
     let mut files = Vec::new();
     for requirement in std::fs::read_dir(&sources)? {
@@ -246,20 +255,20 @@ pub fn restore_historical_execute_instructions(root: &std::path::Path) -> std::i
     for (relative, raw) in [
         (
             "instructions.md",
-            include_bytes!("../fixtures/handoff-closed/instruction-baseline/instructions.md")
+            include_bytes!("../fixtures/historical/instructions/execute/handoff-baseline/instructions.md")
                 .as_slice(),
         ),
         (
             "references/execution-records.md",
             include_bytes!(
-                "../fixtures/handoff-closed/instruction-baseline/references/execution-records.md"
+                "../fixtures/historical/instructions/execute/handoff-baseline/references/execution-records.md"
             )
             .as_slice(),
         ),
         (
             "references/execution-recovery.md",
             include_bytes!(
-                "../fixtures/handoff-closed/instruction-baseline/references/execution-recovery.md"
+                "../fixtures/historical/instructions/execute/handoff-baseline/references/execution-recovery.md"
             )
             .as_slice(),
         ),
@@ -303,10 +312,48 @@ pub fn historical_execute_skill_root(
     Ok(root)
 }
 
+pub use work_operations::derivation::publication::{
+    JournalKind, journal_path as fixture_journal_path,
+};
 /// Prepare current transaction bytes for isolated recovery tests, with no writes.
 pub use work_operations::derivation::transaction::{
     PublicationOrder, TransactionInput, TransactionKind,
 };
+
+/// Derive complete isolated recovery evidence without writing or granting publication authority.
+pub fn derive_fixture_journal_staging(
+    root: &std::path::Path,
+    requirement: &str,
+    execution: &str,
+    relative: &str,
+    journal: &Value,
+) -> Result<Option<work_operations::derivation::transaction::PreparedJournalStaging>, String> {
+    let mut original = journal.clone();
+    original["state"] = serde_json::json!("prepared");
+    original["published_count"] = serde_json::json!(0);
+    let kind = work_operations::specification::transaction::verified_retained_journal_kind(
+        execution, relative, &original,
+    )
+    .map_err(|issue| issue.reason_code.to_owned())?;
+    let canonical = root.canonicalize().map_err(|_| "fixture_root".to_owned())?;
+    let requirement = requirement
+        .parse()
+        .map_err(|_| "fixture_requirement".to_owned())?;
+    let result = work_operations::derivation::transaction::build_journal_staging(
+        work_operations::derivation::transaction::JournalStagingInput {
+            canonical_root: canonical
+                .to_str()
+                .ok_or_else(|| "fixture_root".to_owned())?,
+            requirement: &requirement,
+            execution_dir: execution,
+            journal_path: relative,
+            kind,
+            journal: &original,
+        },
+    )
+    .map_err(|issue| issue.reason_code.to_owned())?;
+    Ok(Some(result))
+}
 
 pub fn derive_fixture_transaction(input: TransactionInput) -> Result<(Vec<u8>, String), String> {
     let derived = work_operations::derivation::transaction::TransactionDeriver::derive(input)

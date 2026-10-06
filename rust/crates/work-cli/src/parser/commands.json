@@ -2329,7 +2329,7 @@
         "children": [
           {
             "name": "create",
-            "help": "usage: work workspace create [-h] [--requirement-id REQUIREMENT_ID]\n                                --workflow-id WORKFLOW_ID\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n  --workflow-id WORKFLOW_ID\n",
+            "help": "usage: work workspace create [-h] [--requirement-id REQUIREMENT_ID]\n                                --workflow-id WORKFLOW_ID\n\nAllocate outputs/work/transactions with inputs, requests, responses and envelopes.\nUse returned data.paths and preserve every allocated workspace.\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --requirement-id REQUIREMENT_ID\n  --workflow-id WORKFLOW_ID\n",
             "arguments": [
               {
                 "name": "requirement_id",

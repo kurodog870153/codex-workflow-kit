@@ -9,8 +9,6 @@ use serde_json::{Value, json};
 use work_feature::error::{ExitCode, WorkError};
 use work_feature::workspace::WorkspaceAllocator;
 
-use crate::files::resolve_project_path;
-
 pub fn local_timestamp() -> String {
     Local::now().format("%Y-%m-%dT%H:%M%:z").to_string()
 }
@@ -59,7 +57,20 @@ impl WorkspaceAllocator for LocalWorkspaceAllocator<'_> {
 
     fn allocate(&self, relative: &str) -> Result<String, WorkError> {
         let project_root = self.project_root;
-        let (relative, absolute) = resolve_project_path(project_root, relative)?;
+        let (relative, absolute) = {
+            if !relative.starts_with("outputs/work/transactions/") {
+                return Err(WorkError::new(
+                    ExitCode::Contract,
+                    "transaction_workspace_scope",
+                    "The workspace requires the canonical transport namespace.",
+                    json!({"path":relative}),
+                ));
+            }
+            (
+                relative.to_owned(),
+                crate::files::resolve_runtime_path(project_root, relative)?,
+            )
+        };
         if absolute.symlink_metadata().is_ok() {
             return Err(WorkError::new(
                 ExitCode::WorkflowState,
@@ -97,6 +108,26 @@ impl WorkspaceAllocator for LocalWorkspaceAllocator<'_> {
                 json!({"path": relative}),
             )
         })?;
+        {
+            for directory in ["inputs", "requests", "responses", "envelopes"] {
+                let path = crate::files::resolve_runtime_path(
+                    project_root,
+                    &format!("{relative}/{directory}"),
+                )?;
+                fs::create_dir(&path).map_err(|_| {
+                    WorkError::new(
+                        ExitCode::IoFailure,
+                        "transaction_workspace_create_failed",
+                        "The transport workspace is incomplete; preserve its allocation evidence.",
+                        json!({"path":relative,"directory":directory}),
+                    )
+                })?;
+                crate::files::resolve_runtime_path(
+                    project_root,
+                    &format!("{relative}/{directory}"),
+                )?;
+            }
+        }
         Ok(relative)
     }
 }
@@ -104,6 +135,99 @@ impl WorkspaceAllocator for LocalWorkspaceAllocator<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn grouped_workspace_allocates_all_directories_and_preserves_old_inputs_and_steps() {
+        use work_feature::ports::ArtifactStore;
+        use work_operations::derivation::publication::{self, WorkspaceEntry};
+        let root = std::env::temp_dir().join(format!(
+            "work-grouped-workspace-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let old = root.join(".work/transactions/pending/invocation/retained/input.pdf");
+        fs::create_dir_all(old.parent().unwrap()).unwrap();
+        let binary = b"%PDF original\0\xff\n";
+        fs::write(&old, binary).unwrap();
+        let pending = create_transaction_workspace(&root, None, "invocation").unwrap();
+        assert!(
+            pending["path"]
+                .as_str()
+                .unwrap()
+                .starts_with("outputs/work/transactions/pending/invocation/")
+        );
+        for directory in ["inputs", "requests", "responses", "envelopes"] {
+            assert_eq!(
+                pending["paths"][directory],
+                format!("{}/{directory}", pending["path"].as_str().unwrap())
+            );
+            assert!(
+                root.join(pending["paths"][directory].as_str().unwrap())
+                    .is_dir()
+            );
+        }
+        let workspace = pending["path"].as_str().unwrap();
+        let input = publication::workspace_input_path(workspace, "原始 輸入.pdf").unwrap();
+        crate::files::LocalFiles
+            .create_new(&root.join(&input), binary)
+            .unwrap();
+        assert!(
+            crate::files::LocalFiles
+                .create_new(&root.join(&input), b"replacement")
+                .is_err()
+        );
+        for kind in [
+            WorkspaceEntry::Request,
+            WorkspaceEntry::Response,
+            WorkspaceEntry::Envelope,
+        ] {
+            let first = publication::workspace_entry_path(workspace, kind, 1, "capture").unwrap();
+            let second = publication::workspace_entry_path(workspace, kind, 2, "capture").unwrap();
+            crate::files::LocalFiles
+                .create_new(&root.join(&first), b"first exact bytes")
+                .unwrap();
+            crate::files::LocalFiles
+                .create_new(&root.join(&second), b"second exact bytes")
+                .unwrap();
+            assert!(
+                crate::files::LocalFiles
+                    .create_new(&root.join(&first), b"replacement")
+                    .is_err()
+            );
+            assert_eq!(fs::read(root.join(first)).unwrap(), b"first exact bytes");
+        }
+        assert_eq!(
+            LocalWorkspaceAllocator {
+                project_root: &root
+            }
+            .allocate(workspace)
+            .unwrap_err()
+            .reason_code,
+            "transaction_workspace_exists"
+        );
+        let confirmed = create_transaction_workspace(&root, Some("example"), "invocation").unwrap();
+        assert!(
+            confirmed["path"]
+                .as_str()
+                .unwrap()
+                .starts_with("outputs/work/transactions/example/invocation/")
+        );
+        assert_ne!(pending["path"], confirmed["path"]);
+        assert_eq!(fs::read(root.join(input)).unwrap(), binary);
+        assert_eq!(fs::read(&old).unwrap(), binary);
+        #[cfg(unix)]
+        {
+            let linked = root.join("linked project");
+            fs::create_dir_all(&linked).unwrap();
+            std::os::unix::fs::symlink(root.join("outputs"), linked.join("outputs")).unwrap();
+            assert!(create_transaction_workspace(&linked, None, "invocation").is_err());
+            assert_eq!(fs::read(&old).unwrap(), binary);
+        }
+    }
 
     #[test]
     fn generated_timestamp_formats_match_current_contract_contract() {
@@ -151,10 +275,9 @@ mod tests {
         );
         let pending = create_transaction_workspace(&root, None, "invocation").unwrap();
         let pending_id = pending["transaction_id"].as_str().unwrap();
-        assert_eq!(
-            pending["path"],
-            format!(".work/transactions/pending/invocation/{pending_id}")
-        );
+        assert_eq!(pending["path"], {
+            format!("outputs/work/transactions/pending/invocation/{pending_id}")
+        });
         assert!(root.join(pending["path"].as_str().unwrap()).is_dir());
         for (owner, workflow, reason) in [
             (

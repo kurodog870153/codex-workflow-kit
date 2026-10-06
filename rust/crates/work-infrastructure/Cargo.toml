@@ -11,6 +11,8 @@ work-operations = { path = "../work-operations" }
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml_ng.workspace = true
-fs4.workspace = true
 chrono.workspace = true
 getrandom.workspace = true
+
+[dev-dependencies]
+fs4.workspace = true

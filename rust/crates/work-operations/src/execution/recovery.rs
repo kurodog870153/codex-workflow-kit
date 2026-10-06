@@ -23,6 +23,465 @@ fn issue(reason_code: &'static str, message: &'static str) -> ExecutionIssue {
     }
 }
 
+pub struct ExecutionStagingInput<'a> {
+    pub canonical_root: &'a str,
+    pub requirement: &'a crate::identifiers::RequirementId,
+    pub execution_dir: &'a str,
+    pub operation: crate::derivation::publication::RuntimeOperation,
+    pub approval_sha256: &'a str,
+    pub business_identity: Value,
+    pub targets: Vec<work_model::runtime::RuntimeTarget>,
+    pub payloads: &'a std::collections::BTreeMap<String, Vec<u8>>,
+}
+
+fn execution_operation(operation: &str) -> bool {
+    matches!(
+        operation,
+        "attempt-start"
+            | "record-begin"
+            | "command-correction"
+            | "record-finish"
+            | "deviation-record"
+            | "attempt-close"
+            | "correction"
+    )
+}
+
+fn execution_prepared_fingerprint(
+    business: &Value,
+    targets: &[work_model::runtime::RuntimeTarget],
+    inventory: &[work_model::runtime::RuntimeFile],
+) -> Result<String, ExecutionIssue> {
+    crate::derivation::fingerprint::structured(&json!({"domain":"WORK-EXECUTION-PREPARED-V1",
+        "business_identity":business,"targets":targets,"inventory":inventory}))
+    .map_err(|_| {
+        issue(
+            "execution_staging_identity",
+            "Prepared evidence cannot be fingerprinted.",
+        )
+    })
+}
+
+fn decode_execution_staging_payloads(
+    manifest: &work_model::runtime::RuntimeManifest,
+) -> Result<std::collections::BTreeMap<String, Vec<u8>>, ExecutionIssue> {
+    serde_json::from_value(manifest.business_identity["runtime_payloads"].clone()).map_err(|_| {
+        issue(
+            "execution_staging_inventory",
+            "Complete frozen prepared bytes are required.",
+        )
+    })
+}
+
+pub fn execution_staging_payloads(
+    manifest: &work_model::runtime::RuntimeManifest,
+) -> Result<std::collections::BTreeMap<String, Vec<u8>>, ExecutionIssue> {
+    validate_execution_staging_manifest(manifest)?;
+    decode_execution_staging_payloads(manifest)
+}
+
+pub fn build_execution_staging_manifest(
+    input: ExecutionStagingInput<'_>,
+) -> Result<work_model::runtime::RuntimeManifest, ExecutionIssue> {
+    use crate::derivation::{fingerprint, identity, publication};
+    use work_model::runtime::{RuntimeFile, RuntimeManifest, RuntimePhase};
+    if !execution_operation(input.operation.as_str())
+        || !input.business_identity.is_object()
+        || input
+            .business_identity
+            .get("runtime_evidence_sha256")
+            .is_some()
+        || input.business_identity.get("runtime_payloads").is_some()
+    {
+        return Err(issue(
+            "execution_staging_identity",
+            "A complete Execute business identity is required.",
+        ));
+    }
+    let expected = publication::runtime_inventory(input.operation, input.targets.len())
+        .into_iter()
+        .filter(|file| file != "transaction.json")
+        .collect::<std::collections::BTreeSet<_>>();
+    if input
+        .payloads
+        .keys()
+        .cloned()
+        .collect::<std::collections::BTreeSet<_>>()
+        != expected
+    {
+        return Err(issue(
+            "execution_staging_inventory",
+            "Execute preparation requires its complete operation inventory.",
+        ));
+    }
+    let inventory: Vec<_> = input
+        .payloads
+        .iter()
+        .map(|(path, raw)| RuntimeFile {
+            path: path.clone(),
+            sha256: fingerprint::raw(raw),
+            size_bytes: raw.len() as u64,
+        })
+        .collect();
+    let mut business = input.business_identity;
+    business["runtime_payloads"] = json!(input.payloads);
+    business["runtime_evidence_sha256"] = json!(execution_prepared_fingerprint(
+        &business,
+        &input.targets,
+        &inventory
+    )?);
+    let target_paths = input
+        .targets
+        .iter()
+        .map(|target| target.path.clone())
+        .collect::<Vec<_>>();
+    let transaction_identity = identity::runtime_transaction_identity(
+        input.canonical_root,
+        input.requirement,
+        input.operation.as_str(),
+        input.approval_sha256,
+        &business,
+        &target_paths,
+    )
+    .map_err(|_| {
+        issue(
+            "execution_staging_identity",
+            "The complete runtime identity is invalid.",
+        )
+    })?;
+    let manifest = RuntimeManifest {
+        schema: "work-runtime-transaction".into(),
+        canonical_root: input.canonical_root.into(),
+        requirement_id: input.requirement.as_str().into(),
+        execution_dir: input.execution_dir.into(),
+        operation: input.operation.as_str().into(),
+        transaction_identity,
+        approval_sha256: input.approval_sha256.into(),
+        business_identity: business,
+        targets: input.targets,
+        inventory,
+        published_count: 0,
+        phase: RuntimePhase::Prepared,
+    };
+    validate_execution_staging_manifest(&manifest)?;
+    Ok(manifest)
+}
+
+pub fn validate_execution_staging_manifest(
+    manifest: &work_model::runtime::RuntimeManifest,
+) -> Result<(), ExecutionIssue> {
+    use crate::derivation::{fingerprint, identity, publication};
+    manifest.validate_shape().map_err(|_| {
+        issue(
+            "execution_staging_manifest",
+            "The execution transaction manifest is invalid.",
+        )
+    })?;
+    if !execution_operation(&manifest.operation) {
+        return Err(issue(
+            "execution_staging_operation",
+            "An Execute transaction operation is required.",
+        ));
+    }
+    let business = &manifest.business_identity;
+    let task = business["task_id"].as_str().unwrap_or("");
+    let attempt = business["attempt_id"].as_str().unwrap_or("");
+    if !valid_id(task, "TASK-")
+        || !valid_id(attempt, "ATTEMPT-")
+        || manifest.targets.iter().any(|target| {
+            !target
+                .path
+                .starts_with(&format!("{}/", manifest.execution_dir))
+        })
+    {
+        return Err(issue(
+            "execution_staging_business_identity",
+            "Execute targets and business identities must remain in the verified execution.",
+        ));
+    }
+    for target in &manifest.targets {
+        for bytes in target.before.iter().chain(target.after.iter()) {
+            if !fingerprint::verify_raw(&bytes.bytes, &bytes.sha256) {
+                return Err(issue(
+                    "execution_staging_target_hash",
+                    "Target snapshot bytes changed.",
+                ));
+            }
+        }
+    }
+    let mut unsigned = business.clone();
+    unsigned
+        .as_object_mut()
+        .unwrap()
+        .remove("runtime_evidence_sha256");
+    if business["runtime_evidence_sha256"]
+        != execution_prepared_fingerprint(&unsigned, &manifest.targets, &manifest.inventory)?
+    {
+        return Err(issue(
+            "execution_staging_evidence_changed",
+            "Full prepared evidence changed after approval.",
+        ));
+    }
+    let requirement = manifest.requirement_id.parse().map_err(|_| {
+        issue(
+            "execution_staging_identity",
+            "The requirement identity is invalid.",
+        )
+    })?;
+    let targets = manifest
+        .targets
+        .iter()
+        .map(|target| target.path.clone())
+        .collect::<Vec<_>>();
+    let expected = identity::runtime_transaction_identity(
+        &manifest.canonical_root,
+        &requirement,
+        &manifest.operation,
+        &manifest.approval_sha256,
+        business,
+        &targets,
+    )
+    .map_err(|_| {
+        issue(
+            "execution_staging_identity",
+            "The runtime identity is invalid.",
+        )
+    })?;
+    if expected != manifest.transaction_identity {
+        return Err(issue(
+            "execution_staging_identity",
+            "The runtime identity changed after preparation.",
+        ));
+    }
+    let operation = match manifest.operation.as_str() {
+        "attempt-start" => publication::RuntimeOperation::AttemptStart,
+        "record-begin" => publication::RuntimeOperation::RecordBegin,
+        "command-correction" => publication::RuntimeOperation::CommandCorrection,
+        "record-finish" => publication::RuntimeOperation::RecordFinish,
+        "deviation-record" => publication::RuntimeOperation::DeviationRecord,
+        "attempt-close" => publication::RuntimeOperation::AttemptClose,
+        "correction" => publication::RuntimeOperation::Correction,
+        _ => unreachable!("checked operation"),
+    };
+    let mut expected = publication::runtime_inventory(operation, manifest.targets.len());
+    expected.retain(|file| file != "transaction.json");
+    expected.sort();
+    if manifest
+        .inventory
+        .iter()
+        .map(|file| file.path.clone())
+        .collect::<Vec<_>>()
+        != expected
+    {
+        return Err(issue(
+            "execution_staging_inventory",
+            "The manifest requires the complete sorted operation inventory.",
+        ));
+    }
+    let payloads = decode_execution_staging_payloads(manifest)?;
+    if payloads.len() != manifest.inventory.len()
+        || manifest.inventory.iter().any(|file| {
+            payloads.get(&file.path).is_none_or(|raw| {
+                raw.len() as u64 != file.size_bytes || !fingerprint::verify_raw(raw, &file.sha256)
+            })
+        })
+    {
+        return Err(issue(
+            "execution_staging_inventory",
+            "Frozen prepared bytes must match every inventory SHA and size.",
+        ));
+    }
+    Ok(())
+}
+
+pub fn execution_control_candidates(
+    manifest: &work_model::runtime::RuntimeManifest,
+    raw: &[u8],
+) -> Result<Vec<work_model::runtime::RuntimeManifest>, ExecutionIssue> {
+    use work_model::runtime::RuntimePhase as P;
+    validate_execution_staging_manifest(manifest)?;
+    let rank = |phase| match phase {
+        P::Prepared => 0,
+        P::Publishing => 1,
+        P::PublishedVerified => 2,
+        P::Cleaning => 3,
+    };
+    let mut candidates = Vec::new();
+    for phase in [
+        P::Prepared,
+        P::Publishing,
+        P::PublishedVerified,
+        P::Cleaning,
+    ] {
+        if rank(phase) < rank(manifest.phase) {
+            continue;
+        }
+        for count in manifest.published_count..=manifest.targets.len() {
+            if phase == P::Prepared && count != 0
+                || matches!(phase, P::PublishedVerified | P::Cleaning)
+                    && count != manifest.targets.len()
+            {
+                continue;
+            }
+            let mut next = manifest.clone();
+            next.phase = phase;
+            next.published_count = count;
+            let encoded = serde_json::to_vec(&next).map_err(|_| {
+                issue(
+                    "execution_staging_inventory",
+                    "Control evidence cannot be encoded.",
+                )
+            })?;
+            if encoded.starts_with(raw) {
+                candidates.push(next);
+            }
+        }
+    }
+    if candidates.is_empty() {
+        return Err(issue(
+            "execution_staging_inventory",
+            "Control temporary evidence changed identity or regressed.",
+        ));
+    }
+    Ok(candidates)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutionStagingBinding {
+    pub transaction_dir: String,
+    pub transaction_files: Vec<String>,
+    pub evidence: std::collections::BTreeMap<
+        String,
+        work_model::execution::recovery::ExecutionRecoveryEvidence,
+    >,
+    pub missing_files: Vec<String>,
+    pub partial_files: Vec<String>,
+}
+
+pub fn execution_staging_evidence_sha256(
+    binding: &ExecutionStagingBinding,
+) -> Result<String, ExecutionIssue> {
+    crate::derivation::fingerprint::structured(
+        &json!({"domain":"WORK-EXECUTION-RECOVERY-EVIDENCE-V1",
+        "transaction_dir":binding.transaction_dir,"transaction_files":binding.transaction_files,
+        "evidence":binding.evidence,"missing_files":binding.missing_files,"partial_files":binding.partial_files}),
+    )
+    .map_err(|_| {
+        issue(
+            "execution_staging_evidence_changed",
+            "Recovery evidence cannot be fingerprinted.",
+        )
+    })
+}
+
+pub fn execution_staging_binding(
+    manifest: &work_model::runtime::RuntimeManifest,
+    canonical_root: &str,
+    requirement: &crate::identifiers::RequirementId,
+    execution_dir: &str,
+    task_id: &str,
+    observed: &std::collections::BTreeMap<String, Vec<u8>>,
+) -> Result<ExecutionStagingBinding, ExecutionIssue> {
+    use crate::derivation::{fingerprint, publication};
+    validate_execution_staging_manifest(manifest)?;
+    if manifest.canonical_root != canonical_root
+        || manifest.requirement_id != requirement.as_str()
+        || manifest.execution_dir != execution_dir
+        || manifest.business_identity["task_id"] != task_id
+    {
+        return Err(issue(
+            "execution_staging_context",
+            "The transaction belongs to a different verified context.",
+        ));
+    }
+    let operation = match manifest.operation.as_str() {
+        "attempt-start" => publication::RuntimeOperation::AttemptStart,
+        "record-begin" => publication::RuntimeOperation::RecordBegin,
+        "command-correction" => publication::RuntimeOperation::CommandCorrection,
+        "record-finish" => publication::RuntimeOperation::RecordFinish,
+        "deviation-record" => publication::RuntimeOperation::DeviationRecord,
+        "attempt-close" => publication::RuntimeOperation::AttemptClose,
+        "correction" => publication::RuntimeOperation::Correction,
+        _ => unreachable!("checked operation"),
+    };
+    let directory =
+        publication::runtime_staging_path(requirement, operation, &manifest.transaction_identity)
+            .map_err(|_| {
+            issue(
+                "execution_staging_identity",
+                "The transaction path is invalid.",
+            )
+        })?;
+    let expected = manifest
+        .inventory
+        .iter()
+        .map(|file| (file.path.as_str(), file))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let canonical = serde_json::to_vec(manifest).map_err(|_| {
+        issue(
+            "execution_staging_manifest",
+            "The manifest cannot be encoded.",
+        )
+    })?;
+    if observed.get("transaction.json") != Some(&canonical) {
+        return Err(issue(
+            "execution_staging_manifest",
+            "Complete canonical transaction evidence is required.",
+        ));
+    }
+    let mut evidence = std::collections::BTreeMap::new();
+    let payloads = decode_execution_staging_payloads(manifest)?;
+    let mut partial_files = Vec::new();
+    for (name, raw) in observed {
+        if name == "transaction.json.tmp" {
+            let candidates = execution_control_candidates(manifest, raw)?;
+            let complete = candidates
+                .iter()
+                .any(|next| serde_json::to_vec(next).is_ok_and(|bytes| bytes == *raw));
+            if !complete {
+                partial_files.push(name.clone());
+            }
+        } else if name != "transaction.json" {
+            let file = expected.get(name.as_str()).ok_or_else(|| {
+                issue(
+                    "execution_staging_inventory",
+                    "Unknown transaction files must not be omitted.",
+                )
+            })?;
+            if raw.len() as u64 != file.size_bytes || !fingerprint::verify_raw(raw, &file.sha256) {
+                if !payloads
+                    .get(name)
+                    .is_some_and(|expected| expected.starts_with(raw))
+                {
+                    return Err(issue(
+                        "execution_staging_evidence_changed",
+                        "Observed prepared bytes conflict with the complete frozen proof.",
+                    ));
+                }
+                partial_files.push(name.clone());
+            }
+        }
+        evidence.insert(
+            name.clone(),
+            work_model::execution::recovery::ExecutionRecoveryEvidence {
+                raw_sha256: fingerprint::raw(raw),
+                size_bytes: raw.len() as u64,
+            },
+        );
+    }
+    Ok(ExecutionStagingBinding {
+        transaction_dir: directory,
+        transaction_files: observed.keys().cloned().collect(),
+        evidence,
+        partial_files,
+        missing_files: expected
+            .keys()
+            .filter(|file| !observed.contains_key(**file))
+            .map(|file| (*file).to_owned())
+            .collect(),
+    })
+}
+
 fn valid_id(value: &str, prefix: &str) -> bool {
     value
         .strip_prefix(prefix)
@@ -1047,6 +1506,305 @@ mod tests {
             .unwrap_err()
             .reason_code,
             "recovery_prepare_record_identity"
+        );
+    }
+}
+
+#[cfg(test)]
+mod runtime_staging_tests {
+    use super::*;
+    use crate::derivation::{fingerprint, publication::RuntimeOperation};
+    use std::collections::BTreeMap;
+    use work_model::runtime::*;
+
+    fn prepared(operation: RuntimeOperation) -> (RuntimeManifest, BTreeMap<String, Vec<u8>>) {
+        let raw = b"canonical prepared bytes".to_vec();
+        let evidence = RuntimeBytes {
+            sha256: fingerprint::raw(&raw),
+            bytes: raw.clone(),
+        };
+        let payloads = crate::derivation::publication::runtime_inventory(operation, 1)
+            .into_iter()
+            .filter(|file| file != "transaction.json")
+            .map(|file| (file, raw.clone()))
+            .collect();
+        let manifest=build_execution_staging_manifest(ExecutionStagingInput {
+            canonical_root:"/專案 空白",requirement:&"example".parse().unwrap(),execution_dir:"custom execution",
+            operation,approval_sha256:&"a".repeat(64),
+            business_identity:json!({"task_id":"TASK-001","attempt_id":"ATTEMPT-001","record_id":"VAL-001"}),
+            targets:vec![RuntimeTarget {path:"custom execution/index.json".into(),before:Some(evidence.clone()),after:Some(evidence)}],
+            payloads:&payloads,
+        }).unwrap();
+        let mut observed = payloads;
+        observed.insert(
+            "transaction.json".into(),
+            serde_json::to_vec(&manifest).unwrap(),
+        );
+        (manifest, observed)
+    }
+
+    #[test]
+    fn all_seven_inventory_bindings_include_manifest_and_full_context_evidence() {
+        use RuntimeOperation::*;
+        for operation in [
+            AttemptStart,
+            RecordBegin,
+            CommandCorrection,
+            RecordFinish,
+            DeviationRecord,
+            AttemptClose,
+            Correction,
+        ] {
+            let (manifest, observed) = prepared(operation);
+            let bound = execution_staging_binding(
+                &manifest,
+                "/專案 空白",
+                &"example".parse().unwrap(),
+                "custom execution",
+                "TASK-001",
+                &observed,
+            )
+            .unwrap();
+            assert_eq!(
+                bound.transaction_dir,
+                format!(
+                    "outputs/work/runtime/staging/example/{}/{}",
+                    operation.as_str(),
+                    manifest.transaction_identity
+                )
+            );
+            assert_eq!(
+                bound.transaction_files,
+                observed.keys().cloned().collect::<Vec<_>>()
+            );
+            assert!(bound.missing_files.is_empty());
+            assert_eq!(bound.evidence.len(), observed.len());
+            for (name, raw) in &observed {
+                assert_eq!(bound.evidence[name].raw_sha256, fingerprint::raw(raw));
+            }
+            for (root, req, exec, task) in [
+                ("/other", "example", "custom execution", "TASK-001"),
+                ("/專案 空白", "other", "custom execution", "TASK-001"),
+                ("/專案 空白", "example", "other execution", "TASK-001"),
+                ("/專案 空白", "example", "custom execution", "TASK-002"),
+            ] {
+                assert!(
+                    execution_staging_binding(
+                        &manifest,
+                        root,
+                        &req.parse().unwrap(),
+                        exec,
+                        task,
+                        &observed
+                    )
+                    .is_err()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn target_or_inventory_rewrites_cannot_reuse_old_transaction_identity() {
+        let (manifest, observed) = prepared(RuntimeOperation::RecordFinish);
+        let mut target = manifest.clone();
+        target.targets[0].after.as_mut().unwrap().bytes.push(0);
+        assert_eq!(
+            validate_execution_staging_manifest(&target)
+                .unwrap_err()
+                .reason_code,
+            "execution_staging_target_hash"
+        );
+        let bytes = target.targets[0].after.as_mut().unwrap();
+        bytes.sha256 = fingerprint::raw(&bytes.bytes);
+        assert_eq!(
+            validate_execution_staging_manifest(&target)
+                .unwrap_err()
+                .reason_code,
+            "execution_staging_evidence_changed"
+        );
+        let mut inventory = manifest.clone();
+        inventory.inventory[0].sha256 = "b".repeat(64);
+        assert_eq!(
+            validate_execution_staging_manifest(&inventory)
+                .unwrap_err()
+                .reason_code,
+            "execution_staging_evidence_changed"
+        );
+        let mut forged = manifest.clone();
+        let mut business = forged.business_identity.clone();
+        business
+            .as_object_mut()
+            .unwrap()
+            .remove("runtime_evidence_sha256");
+        forged.targets = target.targets;
+        forged.business_identity["runtime_evidence_sha256"] = json!(
+            execution_prepared_fingerprint(&business, &forged.targets, &forged.inventory).unwrap()
+        );
+        assert_eq!(
+            validate_execution_staging_manifest(&forged)
+                .unwrap_err()
+                .reason_code,
+            "execution_staging_identity"
+        );
+        let mut changed = observed.clone();
+        changed.get_mut("attempt.json.tmp").unwrap().push(0);
+        assert_eq!(
+            execution_staging_binding(
+                &manifest,
+                "/專案 空白",
+                &"example".parse().unwrap(),
+                "custom execution",
+                "TASK-001",
+                &changed
+            )
+            .unwrap_err()
+            .reason_code,
+            "execution_staging_evidence_changed"
+        );
+        let mut added = observed.clone();
+        added.insert("foreign.tmp".into(), vec![]);
+        assert_eq!(
+            execution_staging_binding(
+                &manifest,
+                "/專案 空白",
+                &"example".parse().unwrap(),
+                "custom execution",
+                "TASK-001",
+                &added
+            )
+            .unwrap_err()
+            .reason_code,
+            "execution_staging_inventory"
+        );
+        let mut missing = observed;
+        missing.remove("attempt.json.tmp");
+        let bound = execution_staging_binding(
+            &manifest,
+            "/專案 空白",
+            &"example".parse().unwrap(),
+            "custom execution",
+            "TASK-001",
+            &missing,
+        )
+        .unwrap();
+        assert_eq!(bound.missing_files, vec!["attempt.json.tmp"]);
+        missing.remove("transaction.json");
+        assert!(
+            execution_staging_binding(
+                &manifest,
+                "/專案 空白",
+                &"example".parse().unwrap(),
+                "custom execution",
+                "TASK-001",
+                &missing
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn frozen_payloads_make_prefix_recovery_explicit_and_change_reviewed_evidence_digest() {
+        let (manifest, mut observed) = prepared(RuntimeOperation::RecordFinish);
+        let full = execution_staging_payloads(&manifest).unwrap();
+        assert_eq!(full["attempt.json.tmp"], observed["attempt.json.tmp"]);
+        let bind = |files: &BTreeMap<String, Vec<u8>>| {
+            execution_staging_binding(
+                &manifest,
+                "/專案 空白",
+                &"example".parse().unwrap(),
+                "custom execution",
+                "TASK-001",
+                files,
+            )
+            .unwrap()
+        };
+        let reviewed = bind(&observed);
+        let digest = execution_staging_evidence_sha256(&reviewed).unwrap();
+        observed.get_mut("attempt.json.tmp").unwrap().truncate(4);
+        let partial = bind(&observed);
+        assert_eq!(partial.partial_files, vec!["attempt.json.tmp"]);
+        assert_ne!(execution_staging_evidence_sha256(&partial).unwrap(), digest);
+        observed.remove("index.json.tmp");
+        let missing = bind(&observed);
+        assert_eq!(missing.missing_files, vec!["index.json.tmp"]);
+        assert_ne!(
+            execution_staging_evidence_sha256(&missing).unwrap(),
+            execution_staging_evidence_sha256(&partial).unwrap()
+        );
+        observed.insert("attempt.json.tmp".into(), b"foreign".to_vec());
+        assert_eq!(
+            execution_staging_binding(
+                &manifest,
+                "/專案 空白",
+                &"example".parse().unwrap(),
+                "custom execution",
+                "TASK-001",
+                &observed
+            )
+            .unwrap_err()
+            .reason_code,
+            "execution_staging_evidence_changed"
+        );
+    }
+
+    #[test]
+    fn control_progress_binds_identity_and_rejects_foreign_or_regressing_state() {
+        let (manifest, mut observed) = prepared(RuntimeOperation::RecordBegin);
+        let mut next = manifest.clone();
+        next.phase = RuntimePhase::Publishing;
+        observed.insert(
+            "transaction.json.tmp".into(),
+            serde_json::to_vec(&next).unwrap(),
+        );
+        assert!(
+            execution_staging_binding(
+                &manifest,
+                "/專案 空白",
+                &"example".parse().unwrap(),
+                "custom execution",
+                "TASK-001",
+                &observed
+            )
+            .is_ok()
+        );
+        next.approval_sha256 = "b".repeat(64);
+        observed.insert(
+            "transaction.json.tmp".into(),
+            serde_json::to_vec(&next).unwrap(),
+        );
+        assert!(
+            execution_staging_binding(
+                &manifest,
+                "/專案 空白",
+                &"example".parse().unwrap(),
+                "custom execution",
+                "TASK-001",
+                &observed
+            )
+            .is_err()
+        );
+        let mut current = manifest.clone();
+        current.phase = RuntimePhase::Publishing;
+        observed.insert(
+            "transaction.json".into(),
+            serde_json::to_vec(&current).unwrap(),
+        );
+        observed.insert(
+            "transaction.json.tmp".into(),
+            serde_json::to_vec(&manifest).unwrap(),
+        );
+        assert_eq!(
+            execution_staging_binding(
+                &current,
+                "/專案 空白",
+                &"example".parse().unwrap(),
+                "custom execution",
+                "TASK-001",
+                &observed
+            )
+            .unwrap_err()
+            .reason_code,
+            "execution_staging_inventory"
         );
     }
 }

@@ -1,0 +1,30 @@
+{
+  "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
+  "attempt_sha256": "d0034312a3ef3f6ad0d6839aca77e4bf3f8db090f27099f2125a6fc14f3f9f1f",
+  "deviation_classifications": {
+    "DEVIATION-001": "retain_only"
+  },
+  "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
+  "ledger_sha256": "0ef6261eb3d754f68fa3629fa10bed149567e244c0141ee3a2e93d6b119c770c",
+  "publication": {
+    "completion_marker": "outputs/work/executions/example/journals/specification-migration/5D4AE9CDC470/committed.sha256",
+    "documents": [
+      "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json"
+    ],
+    "fingerprint": "5d4ae9cdc470de33ccc07e9ca0a1f3aaaa036445fa43dd4055fda63123fe3668",
+    "journal": "outputs/work/executions/example/journals/specification-migration/5D4AE9CDC470/journal.json",
+    "publication_status": "published",
+    "relationship_results": [],
+    "schema": "work-spec-migration-publication",
+    "status": "updated",
+    "transaction_approval_sha256": "8b34b397e8fb9d3465c74561082d96ec3a5bcd8f0437709a66688d263d6985b3",
+    "validator_results": []
+  },
+  "reconciliation_fingerprint": "5d4ae9cdc470de33ccc07e9ca0a1f3aaaa036445fa43dd4055fda63123fe3668",
+  "retained_deviation_ids": [
+    "DEVIATION-001"
+  ],
+  "schema": "work-spec-reconciliation-publication",
+  "selected_deviation_ids": [],
+  "status": "updated"
+}

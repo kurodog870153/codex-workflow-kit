@@ -277,10 +277,15 @@ mod tests {
 
     fn role_fixture(role: &str, storage: &LocalDelegationStorage) -> Value {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let raw = std::fs::read(
-            repo.join("crates/work-infrastructure/fixtures/delegation-role")
-                .join(format!("{role}-expected.json")),
-        )
+        let raw = std::fs::read(repo.join("crates/work-infrastructure/fixtures").join(
+            match role {
+                "plan" => "historical/delegation/plan/expected/result.json".to_owned(),
+                "progress-saver" => {
+                    "historical/delegation/progress-saver/expected/result.json".to_owned()
+                }
+                _ => format!("cases/delegation/role/{role}/expected/result.json"),
+            },
+        ))
         .unwrap();
         let mut expected: Value = serde_json::from_slice(&raw).unwrap();
         expected["project_root"] = json!(storage.project_root.canonicalize().unwrap());
@@ -292,7 +297,8 @@ mod tests {
     fn task_coordinator_context_rejects_retired_plan_role() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let storage = LocalDelegationStorage {
-            project_root: repo.join("crates/work-infrastructure/fixtures/task-diagnostics"),
+            project_root: repo
+                .join("crates/work-infrastructure/fixtures/shared/task-diagnostics-project"),
             skill_root: repo.join("../skills/work"),
             skill_configs: vec![],
         };
@@ -335,7 +341,8 @@ mod tests {
     fn execute_context_uses_formal_task_and_execution_identity() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let storage = LocalDelegationStorage {
-            project_root: repo.join("crates/work-infrastructure/fixtures/task-diagnostics"),
+            project_root: repo
+                .join("crates/work-infrastructure/fixtures/shared/task-diagnostics-project"),
             skill_root: repo.join("../skills/work"),
             skill_configs: vec![],
         };
@@ -400,7 +407,7 @@ mod tests {
         std::fs::create_dir(&root).unwrap();
         let mut session: work_model::discussion::DiscussionSession = serde_json::from_slice(
             &std::fs::read(
-                repo.join("crates/work-infrastructure/fixtures/discussion-assembly/session.json"),
+                repo.join("crates/work-infrastructure/fixtures/cases/discussion/assembly/valid/input/session.json"),
             )
             .unwrap(),
         )
@@ -463,8 +470,9 @@ mod tests {
     fn artifact_editor_rejects_legacy_plan_and_plan_origin() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let storage = LocalDelegationStorage {
-            project_root: repo
-                .join("crates/work-infrastructure/fixtures/delegation-role/legacy-plan"),
+            project_root: repo.join(
+                "crates/work-infrastructure/fixtures/cases/delegation/role/legacy-plan/project",
+            ),
             skill_root: repo.join("../skills/work"),
             skill_configs: vec![],
         };
@@ -493,7 +501,8 @@ mod tests {
     fn artifact_editor_accepts_formal_task_collection_path() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let storage = LocalDelegationStorage {
-            project_root: repo.join("crates/work-infrastructure/fixtures/task-diagnostics"),
+            project_root: repo
+                .join("crates/work-infrastructure/fixtures/shared/task-diagnostics-project"),
             skill_root: repo.join("../skills/work"),
             skill_configs: vec![],
         };
@@ -540,13 +549,13 @@ mod tests {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let storage = LocalDelegationStorage {
             project_root: repo
-                .join("crates/work-infrastructure/fixtures/delegation-role/task-skill"),
+                .join("crates/work-infrastructure/fixtures/cases/delegation/role/task-skill/project"),
             skill_root: repo.join("../skills/work"),
             skill_configs: vec![SkillRootConfig {
                 scope: "repo".into(),
                 locator: "delegation-fixture".into(),
                 path: repo
-                    .join("crates/work-infrastructure/fixtures/delegation-role/task-skill/skills"),
+                    .join("crates/work-infrastructure/fixtures/cases/delegation/role/task-skill/project/skills"),
             }],
         };
         let envelope = storage
@@ -578,7 +587,9 @@ mod tests {
     fn resume_rejects_retired_progress_without_reading_or_converting_it() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let storage = LocalDelegationStorage {
-            project_root: repo.join("crates/work-infrastructure/fixtures/delegation-role"),
+            project_root: repo.join(
+                "crates/work-infrastructure/fixtures/historical/delegation/progress-saver/project",
+            ),
             skill_root: repo.join("../skills/work"),
             skill_configs: vec![],
         };
@@ -614,31 +625,31 @@ mod tests {
         for (role, relative, required, message) in [
             (
                 "plan",
-                "crates/work-infrastructure/fixtures/task-diagnostics",
+                "crates/work-infrastructure/fixtures/shared/task-diagnostics-project",
                 "hierarchy_selection",
                 "workflow_context must contain exactly the required and optional fields.",
             ),
             (
                 "task-coordinator",
-                "crates/work-infrastructure/fixtures/task-diagnostics",
+                "crates/work-infrastructure/fixtures/shared/task-diagnostics-project",
                 "task_source",
                 "workflow_context must contain exactly the required and optional fields.",
             ),
             (
                 "execute",
-                "crates/work-infrastructure/fixtures/task-diagnostics",
+                "crates/work-infrastructure/fixtures/shared/task-diagnostics-project",
                 "target_task",
                 "workflow_context must contain exactly the required and optional fields.",
             ),
             (
                 "task-skill",
-                "crates/work-infrastructure/fixtures/delegation-role/task-skill",
+                "crates/work-infrastructure/fixtures/cases/delegation/role/task-skill/project",
                 "task_boundary",
                 "task_skill_context must contain exactly the required and optional fields.",
             ),
             (
                 "artifact-editor",
-                "crates/work-infrastructure/fixtures/task-diagnostics",
+                "crates/work-infrastructure/fixtures/shared/task-diagnostics-project",
                 "confirmed_request",
                 "maintenance_context must contain exactly the required and optional fields.",
             ),
@@ -683,23 +694,23 @@ mod tests {
         for (role, relative) in [
             (
                 "plan",
-                "crates/work-infrastructure/fixtures/task-diagnostics",
+                "crates/work-infrastructure/fixtures/shared/task-diagnostics-project",
             ),
             (
                 "task-coordinator",
-                "crates/work-infrastructure/fixtures/task-diagnostics",
+                "crates/work-infrastructure/fixtures/shared/task-diagnostics-project",
             ),
             (
                 "execute",
-                "crates/work-infrastructure/fixtures/task-diagnostics",
+                "crates/work-infrastructure/fixtures/shared/task-diagnostics-project",
             ),
             (
                 "task-skill",
-                "crates/work-infrastructure/fixtures/delegation-role/task-skill",
+                "crates/work-infrastructure/fixtures/cases/delegation/role/task-skill/project",
             ),
             (
                 "artifact-editor",
-                "crates/work-infrastructure/fixtures/task-diagnostics",
+                "crates/work-infrastructure/fixtures/shared/task-diagnostics-project",
             ),
         ] {
             let storage = LocalDelegationStorage {
@@ -748,11 +759,11 @@ mod tests {
         for (role, relative) in [
             (
                 "plan",
-                "crates/work-infrastructure/fixtures/task-diagnostics",
+                "crates/work-infrastructure/fixtures/shared/task-diagnostics-project",
             ),
             (
                 "execute",
-                "crates/work-infrastructure/fixtures/task-diagnostics",
+                "crates/work-infrastructure/fixtures/shared/task-diagnostics-project",
             ),
         ] {
             let storage = LocalDelegationStorage {

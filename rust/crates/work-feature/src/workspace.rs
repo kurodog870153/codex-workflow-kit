@@ -26,7 +26,7 @@ pub fn create(
     requirement_id: Option<&str>,
     workflow_id: &str,
 ) -> Result<Value, WorkError> {
-    let owner = if let Some(raw) = requirement_id {
+    if let Some(raw) = requirement_id {
         if raw == "pending" {
             return Err(WorkError::new(
                 ExitCode::Contract,
@@ -36,32 +36,28 @@ pub fn create(
             ));
         }
         raw.parse::<RequirementId>()
-            .map_err(|issue| invalid_identifier(issue.reason_code()))?
-            .as_str()
-            .to_owned()
-    } else {
-        "pending".to_owned()
-    };
+            .map_err(|issue| invalid_identifier(issue.reason_code()))?;
+    }
     let workflow = workflow_id
         .parse::<WorkflowId>()
         .map_err(|issue| invalid_identifier(issue.reason_code()))?;
     let suffix = allocator.random_suffix()?;
     let transaction_id = workspace_transaction_id(&allocator.utc_stamp(), &suffix)
         .map_err(|issue| invalid_identifier(issue.reason_code()))?;
-    let transaction_id = transaction_id.as_str();
-    let relative = if requirement_id.is_none() && workflow.as_str() == "invocation" {
-        format!(".work/transactions/pending/invocation/{transaction_id}")
-    } else {
-        format!(
-            "outputs/work/transactions/{owner}/{}/{transaction_id}",
-            workflow.as_str()
-        )
-    };
+    let requirement = requirement_id
+        .map(str::parse::<RequirementId>)
+        .transpose()
+        .map_err(|issue| invalid_identifier(issue.reason_code()))?;
+    let relative = work_operations::derivation::publication::transaction_workspace_path(
+        requirement.as_ref(),
+        &workflow,
+        &transaction_id,
+    );
     let relative = allocator.allocate(&relative)?;
-    Ok(
-        json!({"schema":"work-transaction-workspace","requirement_id":requirement_id,
-        "workflow_id":workflow_id,"transaction_id":transaction_id,"path":relative}),
-    )
+    let mut result = json!({"schema":"work-transaction-workspace","requirement_id":requirement_id,
+        "workflow_id":workflow_id,"transaction_id":transaction_id.as_str(),"path":relative});
+    result["paths"] = json!({"inputs":format!("{relative}/inputs"),"requests":format!("{relative}/requests"),"responses":format!("{relative}/responses"),"envelopes":format!("{relative}/envelopes")});
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -83,10 +79,9 @@ mod tests {
         }
         fn allocate(&self, relative: &str) -> Result<String, WorkError> {
             self.0.borrow_mut().push("allocate");
-            assert_eq!(
-                relative,
-                ".work/transactions/pending/invocation/20260927T000000Z-01234567"
-            );
+            assert_eq!(relative, {
+                "outputs/work/transactions/pending/invocation/20260927T000000Z-01234567"
+            });
             Ok(relative.to_owned())
         }
     }
@@ -102,10 +97,9 @@ mod tests {
         );
         assert!(allocator.0.borrow().is_empty());
         let result = create(&allocator, None, "invocation").unwrap();
-        assert_eq!(
-            result["path"],
-            ".work/transactions/pending/invocation/20260927T000000Z-01234567"
-        );
+        assert_eq!(result["path"], {
+            "outputs/work/transactions/pending/invocation/20260927T000000Z-01234567"
+        });
         assert_eq!(*allocator.0.borrow(), ["random", "clock", "allocate"]);
     }
 }

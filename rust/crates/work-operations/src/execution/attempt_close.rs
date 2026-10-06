@@ -7,6 +7,152 @@ use crate::execution::index::{render_execution_index, validate_execution_index};
 use crate::execution::requests::validate_attempt_close_request;
 use crate::execution::{ExecutionIssue, close_index, closed_task_status};
 
+pub struct AttemptCloseStagingInput<'a> {
+    pub canonical_root: &'a str,
+    pub requirement: &'a crate::identifiers::RequirementId,
+    pub execution_dir: &'a str,
+    pub task_id: &'a str,
+    pub attempt_id: &'a str,
+    pub task: &'a Value,
+    pub index_before: &'a [u8],
+    pub index_after: &'a [u8],
+    pub attempt_before: &'a [u8],
+    pub attempt_after: &'a [u8],
+}
+
+pub fn build_attempt_close_staging(
+    input: AttemptCloseStagingInput<'_>,
+) -> Result<work_model::runtime::RuntimeManifest, ExecutionIssue> {
+    use crate::canonical::parse_json_contract;
+    use crate::derivation::fingerprint;
+    use work_model::runtime::{RuntimeBytes, RuntimeTarget};
+    let issue = |reason_code, message| ExecutionIssue {
+        reason_code,
+        message,
+        details: json!({}),
+    };
+    let parse = |raw| {
+        parse_json_contract(raw).map_err(|_| {
+            issue(
+                "attempt_close_staging_contract",
+                "Canonical artifacts are required.",
+            )
+        })
+    };
+    let index = parse(input.index_before)?;
+    let before = parse(input.attempt_before)?;
+    let after = parse(input.attempt_after)?;
+    validate_execution_index(&index, input.index_before)?;
+    crate::execution::attempt::validate_attempt_bytes(&before, input.attempt_before)?;
+    crate::execution::attempt::validate_attempt_bytes(&after, input.attempt_after)?;
+    let lock = &index["lock"];
+    if index["requirement_id"] != input.requirement.as_str()
+        || before["task_id"] != input.task_id
+        || before["attempt_id"] != input.attempt_id
+        || before["status"] != "in_progress"
+        || lock["kind"] != "execution"
+        || lock["task_id"] != input.task_id
+        || lock["attempt_id"] != input.attempt_id
+        || lock["execute_instructions_sha256"] != before["execute_instructions_sha256"]
+    {
+        return Err(issue(
+            "attempt_close_staging_identity",
+            "The active Attempt identities disagree.",
+        ));
+    }
+    let mut request = json!({"schema":"work-attempt-close-request","status":after["status"]});
+    if after["status"] != "completed" {
+        request["final_type"] = after["final_type"].clone();
+        request["reason"] = after["reason"].clone();
+        request["authorization_evidence"] = after["closing_authorization_evidence"].clone();
+    }
+    if lock.get("record_id").is_some() || lock.get("command_correction").is_some() {
+        let blocking = before["execution_deviations"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|row| {
+                row["decision"]["outcome"] == "approved"
+                    && row["reconciliation_status"] == "pending"
+                    && row["proposal"]["anchor_record_id"] == lock["record_id"]
+                    && crate::execution::deviation_reconciliation_target(&row["proposal"])
+                        == "task_and_execution"
+            });
+        if lock.get("command_correction").is_some()
+            || !blocking
+            || request["status"] != "stopped"
+            || request["final_type"] != "specification_defect"
+        {
+            return Err(issue(
+                "attempt_close_record_reserved",
+                "The reserved record cannot close without its blocking specification deviation.",
+            ));
+        }
+    }
+    if request["status"] == "completed" {
+        crate::execution::validate_completed_coverage(input.task, &before)?;
+    }
+    let (expected_attempt, expected_index) = build_close_candidates(
+        input.task,
+        &index,
+        &before,
+        &request,
+        after["ended_at"].as_str().unwrap_or(""),
+    )?;
+    if render_attempt(&expected_attempt)? != input.attempt_after
+        || render_execution_index(&expected_index).map_err(|_| {
+            issue(
+                "attempt_close_staging_contract",
+                "The index cannot be rendered.",
+            )
+        })? != input.index_after
+    {
+        return Err(issue(
+            "attempt_close_staging_transition",
+            "The prepared artifacts are not the unique close transition.",
+        ));
+    }
+    let bytes = |raw: &[u8]| RuntimeBytes {
+        bytes: raw.to_vec(),
+        sha256: fingerprint::raw(raw),
+    };
+    let payloads = std::collections::BTreeMap::from([
+        ("attempt.json.tmp".into(), input.attempt_after.to_vec()),
+        ("index.json.tmp".into(), input.index_after.to_vec()),
+    ]);
+    crate::execution::recovery::build_execution_staging_manifest(
+        crate::execution::recovery::ExecutionStagingInput {
+            canonical_root: input.canonical_root,
+            requirement: input.requirement,
+            execution_dir: input.execution_dir,
+            operation: crate::derivation::publication::RuntimeOperation::AttemptClose,
+            approval_sha256: &fingerprint::structured(&request).map_err(|_| {
+                issue(
+                    "attempt_close_staging_contract",
+                    "The request cannot be fingerprinted.",
+                )
+            })?,
+            business_identity: json!({"task_id":input.task_id,"attempt_id":input.attempt_id,"attempt_close_request":request}),
+            targets: vec![
+                RuntimeTarget {
+                    path: format!(
+                        "{}/{}/{}/attempt.json",
+                        input.execution_dir, input.task_id, input.attempt_id
+                    ),
+                    before: Some(bytes(input.attempt_before)),
+                    after: Some(bytes(input.attempt_after)),
+                },
+                RuntimeTarget {
+                    path: format!("{}/index.json", input.execution_dir),
+                    before: Some(bytes(input.index_before)),
+                    after: Some(bytes(input.index_after)),
+                },
+            ],
+            payloads: &payloads,
+        },
+    )
+}
+
 pub fn build_close_candidates(
     task: &Value,
     index: &Value,

@@ -6,7 +6,7 @@ use std::path::Path;
 
 use serde_json::{Value, json};
 use work_feature::error::{ExitCode, WorkError};
-use work_feature::ports::{ArtifactStore, WriterLock};
+use work_feature::ports::ArtifactStore;
 use work_feature::specification::reconciliation_input::unique_execution_source;
 use work_feature::specification::reconciliation_project::{
     ReconciliationArtifactRepository, preview_from_repository,
@@ -23,14 +23,130 @@ use work_operations::specification::reconciliation_ledger::render_ledger;
 use crate::files::LocalFiles;
 use crate::skill_catalog::SkillRootConfig;
 use crate::specification::migration::{prepare_revision_request, preview_migration};
-use crate::specification::migration_publication::publish_migration_with_guard;
-use crate::specification::storage::{
-    publish_journal, require_no_spec_update, storage_path, write_journal,
-};
+use crate::specification::migration_publication::publish_migration_scoped;
+#[cfg(test)]
+use crate::specification::storage::write_journal;
+use crate::specification::storage::{require_no_spec_update, storage_path};
 use crate::writer_lock::LocalWriterLock;
 
 fn fail(reason: &str, message: &str) -> WorkError {
     WorkError::new(ExitCode::ArtifactIntegrity, reason, message, json!({}))
+}
+
+#[derive(Clone, Copy)]
+pub enum RuntimeReconciliationAction {
+    PublishLedger,
+    RecoverLedger,
+    PublishMigration,
+    RecoverMigration,
+}
+
+/// Candidate complete reconciliation family; the requirement is read from a verified index.
+pub fn reconcile_with_runtime(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[SkillRootConfig],
+    request: &Value,
+    approved_sha256: &str,
+    action: RuntimeReconciliationAction,
+) -> Result<Value, WorkError> {
+    work_feature::specification::reconciliation_input::validate_preview_fields(request)?;
+    let attempt = request["attempt_path"].as_str().ok_or_else(|| {
+        fail(
+            "reconciliation_attempt_identity",
+            "An Attempt path is required.",
+        )
+    })?;
+    let execution = attempt
+        .rsplit_once("/TASK-")
+        .ok_or_else(|| {
+            fail(
+                "reconciliation_attempt_identity",
+                "An execution directory is required.",
+            )
+        })?
+        .0;
+    let index_path = crate::files::resolve_runtime_path(root, &format!("{execution}/index.json"))?;
+    let raw = LocalFiles.read_raw(&index_path)?;
+    let index = work_operations::canonical::parse_json_contract(&raw).map_err(|_| {
+        fail(
+            "reconciliation_execution_identity",
+            "The execution index is invalid.",
+        )
+    })?;
+    work_operations::execution::index::validate_execution_index(&index, &raw).map_err(|issue| {
+        WorkError::new(
+            ExitCode::ArtifactIntegrity,
+            issue.reason_code,
+            issue.message,
+            issue.details,
+        )
+    })?;
+    let context = work_feature::ports::RequirementWriterContext {
+        canonical_project_root: root.canonicalize().map_err(|_| {
+            fail(
+                "reconciliation_project_root",
+                "The project root could not be resolved.",
+            )
+        })?,
+        requirement_id: index["requirement_id"]
+            .as_str()
+            .and_then(|id| id.parse().ok())
+            .ok_or_else(|| {
+                fail(
+                    "reconciliation_execution_identity",
+                    "The verified requirement is invalid.",
+                )
+            })?,
+    };
+    crate::writer_lock::require_no_legacy_locks(&context, Some(execution))?;
+    work_feature::ports::with_runtime_writer(
+        &LocalWriterLock,
+        &context,
+        work_model::runtime::LockClass::Execution,
+        |owner| {
+            if LocalFiles.read_raw(&index_path)? != raw {
+                return Err(fail(
+                    "reconciliation_execution_identity",
+                    "The verified execution index changed before locking.",
+                ));
+            }
+            match action {
+                RuntimeReconciliationAction::PublishLedger => publish_ledger_only_scoped(
+                    root,
+                    skill_root,
+                    configs,
+                    request,
+                    approved_sha256,
+                    Some(owner),
+                ),
+                RuntimeReconciliationAction::RecoverLedger => recover_ledger_only_scoped(
+                    root,
+                    skill_root,
+                    configs,
+                    request,
+                    approved_sha256,
+                    Some(owner),
+                ),
+                RuntimeReconciliationAction::PublishMigration => publish_with_migration_scoped(
+                    root,
+                    skill_root,
+                    configs,
+                    request,
+                    approved_sha256,
+                    Some(owner),
+                ),
+                RuntimeReconciliationAction::RecoverMigration => recover_with_migration_scoped(
+                    root,
+                    skill_root,
+                    configs,
+                    request,
+                    approved_sha256,
+                    Some(owner),
+                ),
+            }
+        },
+    )
 }
 
 fn execution_source(root: &Path, requirement: &str) -> Result<String, WorkError> {
@@ -162,6 +278,52 @@ pub fn publish_ledger_only(
     request: &Value,
     approved_sha256: &str,
 ) -> Result<Value, WorkError> {
+    {
+        reconcile_with_runtime(
+            root,
+            skill_root,
+            configs,
+            request,
+            approved_sha256,
+            RuntimeReconciliationAction::PublishLedger,
+        )
+    }
+}
+
+fn retained_reconciliation_context(
+    root: &Path,
+    owner: Option<&work_model::runtime::RuntimeOwner>,
+) -> Result<work_feature::ports::RequirementWriterContext, WorkError> {
+    let owner =
+        owner.ok_or_else(|| fail("journal_owner_identity", "The Native owner is required."))?;
+    let canonical = root
+        .canonicalize()
+        .map_err(|_| fail("journal_root_identity", "The project root is unavailable."))?;
+    if canonical.to_str() != Some(owner.canonical_root.as_str()) {
+        return Err(fail(
+            "journal_owner_identity",
+            "The Native owner root differs.",
+        ));
+    }
+    Ok(work_feature::ports::RequirementWriterContext {
+        canonical_project_root: canonical,
+        requirement_id: owner.requirement_id.parse().map_err(|_| {
+            fail(
+                "journal_requirement_identity",
+                "The Native requirement is invalid.",
+            )
+        })?,
+    })
+}
+
+fn publish_ledger_only_scoped(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[SkillRootConfig],
+    request: &Value,
+    approved_sha256: &str,
+    runtime_owner: Option<&work_model::runtime::RuntimeOwner>,
+) -> Result<Value, WorkError> {
     let preview = preview_from_project(root, skill_root, configs, request)?;
     require_approved_preview(&preview, request, approved_sha256, false)?;
     let ledger_path = preview["ledger_path"].as_str().unwrap();
@@ -176,17 +338,23 @@ pub fn publish_ledger_only(
         .as_str()
         .expect("validated Attempt path");
     let execution_dir = attempt_path
-        .split("/TASK-")
-        .next()
-        .expect("validated execution path");
+        .rsplit_once("/TASK-")
+        .expect("validated execution path")
+        .0;
     let index_path = format!("{execution_dir}/index.json");
-    let history = [attempt_path.to_owned(), index_path]
+    let mut history = [attempt_path.to_owned(), index_path]
         .into_iter()
         .map(|path| {
             let raw = LocalFiles.read_raw(&storage_path(root, &path)?)?;
             Ok((path, raw))
         })
         .collect::<Result<BTreeMap<_, _>, WorkError>>()?;
+    {
+        history.extend(crate::specification::storage::execution_history_bytes(
+            root,
+            execution_dir,
+        )?);
+    }
     let transaction = ledger_transaction_with_history(
         &preview,
         approved_sha256,
@@ -199,8 +367,6 @@ pub fn publish_ledger_only(
     let marker_path = transaction.marker_path.as_str();
     let approval = &transaction.approval;
     require_no_spec_update(root, execution_dir, Some(journal_path))?;
-    let writer = storage_path(root, &format!("{execution_dir}/.work-state-writer.lock"))?;
-    let _guard = LocalWriterLock.acquire(&writer)?;
     require_no_spec_update(root, execution_dir, Some(journal_path))?;
     let fresh = preview_from_project(root, skill_root, configs, request)?;
     require_approved_preview(&fresh, request, approved_sha256, false)?;
@@ -228,8 +394,21 @@ pub fn publish_ledger_only(
             ));
         }
     }
-    write_journal(root, journal_path, &transaction.journal)?;
-    let published = publish_journal(root, journal_path, marker_path)?;
+    let published = {
+        let context = retained_reconciliation_context(root, runtime_owner)?;
+        crate::specification::storage::publish_retained_journal_with_owner(
+            &crate::specification::storage::RetainedJournalRuntimeInput {
+                context: &context,
+                execution: execution_dir,
+                relative: journal_path,
+                prepared_journal: &transaction.journal,
+                recover: false,
+            },
+            runtime_owner.expect("validated Native owner"),
+            || Ok(()),
+            |_| Ok(()),
+        )?
+    };
     if !fingerprint::verify_ledger(&LocalFiles.read_raw(&target)?, &fingerprint::ledger(&after)) {
         return Err(fail(
             "reconciliation_ledger_post_write",
@@ -284,6 +463,26 @@ pub fn recover_ledger_only(
     request: &Value,
     approved_sha256: &str,
 ) -> Result<Value, WorkError> {
+    {
+        reconcile_with_runtime(
+            root,
+            _skill_root,
+            _configs,
+            request,
+            approved_sha256,
+            RuntimeReconciliationAction::RecoverLedger,
+        )
+    }
+}
+
+fn recover_ledger_only_scoped(
+    root: &Path,
+    _skill_root: &Path,
+    _configs: &[SkillRootConfig],
+    request: &Value,
+    approved_sha256: &str,
+    runtime_owner: Option<&work_model::runtime::RuntimeOwner>,
+) -> Result<Value, WorkError> {
     work_feature::specification::reconciliation_input::validate_preview_fields(request)?;
     if request["choice"] != "retain_only" {
         return Err(fail(
@@ -316,10 +515,24 @@ pub fn recover_ledger_only(
         ),
     );
     let marker = work_operations::derivation::publication::completion_marker_path(&journal_path);
-    let writer = storage_path(root, &format!("{execution}/.work-state-writer.lock"))?;
-    let _guard = LocalWriterLock.acquire(&writer)?;
-    require_no_spec_update(root, execution, Some(&journal_path))?;
-    let raw = LocalFiles.read_raw(&storage_path(root, &journal_path)?)?;
+    let retained_context = { Some(retained_reconciliation_context(root, runtime_owner)?) };
+    let raw = {
+        let context = retained_context.as_ref().expect("current retained context");
+
+        let original = crate::specification::storage::retained_journal_original_for_recovery(
+            context,
+            execution,
+            &journal_path,
+        )?;
+        work_operations::specification::transaction::render_transaction(&original).map_err(
+            |_| {
+                fail(
+                    "reconciliation_recovery_journal",
+                    "Invalid original journal proof.",
+                )
+            },
+        )?
+    };
     let journal = work_operations::canonical::parse_json_contract(&raw).map_err(|_| {
         fail(
             "reconciliation_recovery_journal",
@@ -382,7 +595,7 @@ pub fn recover_ledger_only(
     require_approved_preview(&preview, request, approved_sha256, false)?;
     let after = render_ledger(&preview["ledger"])
         .map_err(|message| fail("reconciliation_ledger", message))?;
-    let history = [attempt_path.to_owned(), format!("{execution}/index.json")]
+    let mut history = [attempt_path.to_owned(), format!("{execution}/index.json")]
         .into_iter()
         .map(|path| {
             Ok((
@@ -391,6 +604,23 @@ pub fn recover_ledger_only(
             ))
         })
         .collect::<Result<BTreeMap<_, _>, WorkError>>()?;
+    {
+        let mut prepared = journal.clone();
+        prepared["state"] = json!("prepared");
+        prepared["published_count"] = json!(0);
+        history.extend(
+            crate::specification::storage::retained_journal_history_with_owner(
+                &crate::specification::storage::RetainedJournalRuntimeInput {
+                    context: retained_context.as_ref().expect("retained context"),
+                    execution,
+                    relative: &journal_path,
+                    prepared_journal: &prepared,
+                    recover: true,
+                },
+                runtime_owner.expect("validated Native owner"),
+            )?,
+        );
+    }
     let candidate = ledger_transaction_with_history(
         &preview,
         approved_sha256,
@@ -407,7 +637,22 @@ pub fn recover_ledger_only(
             "Recovery requires the identical approved ledger, Attempt and Execution evidence.",
         ));
     }
-    let publication = publish_journal(root, &journal_path, &marker)?;
+    let publication = {
+        let context = retained_context.as_ref().expect("current retained context");
+
+        crate::specification::storage::publish_retained_journal_with_owner(
+            &crate::specification::storage::RetainedJournalRuntimeInput {
+                context,
+                execution,
+                relative: &journal_path,
+                prepared_journal: &candidate.journal,
+                recover: true,
+            },
+            runtime_owner.expect("validated Native owner"),
+            || Ok(()),
+            |_| Ok(()),
+        )?
+    };
     if LocalFiles.read_raw(&storage_path(root, &ledger_path)?)? != after {
         return Err(fail(
             "reconciliation_ledger_post_write",
@@ -428,6 +673,26 @@ pub fn publish_with_migration(
     request: &Value,
     approved_sha256: &str,
 ) -> Result<Value, WorkError> {
+    {
+        reconcile_with_runtime(
+            root,
+            skill_root,
+            configs,
+            request,
+            approved_sha256,
+            RuntimeReconciliationAction::PublishMigration,
+        )
+    }
+}
+
+fn publish_with_migration_scoped(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[SkillRootConfig],
+    request: &Value,
+    approved_sha256: &str,
+    runtime_owner: Option<&work_model::runtime::RuntimeOwner>,
+) -> Result<Value, WorkError> {
     let preview = preview_from_project(root, skill_root, configs, request)?;
     require_approved_preview(&preview, request, approved_sha256, true)?;
     let ledger_path = preview["ledger_path"].as_str().unwrap();
@@ -442,7 +707,7 @@ pub fn publish_with_migration(
                 "The migration fingerprint is missing.",
             )
         })?;
-    let publication = publish_migration_with_guard(
+    let publication = publish_migration_scoped(
         root,
         skill_root,
         configs,
@@ -454,6 +719,7 @@ pub fn publish_with_migration(
             let fresh = preview_from_project(root, skill_root, configs, request)?;
             require_approved_preview(&fresh, request, approved_sha256, true)
         },
+        runtime_owner,
     )?;
     if !fingerprint::verify_ledger(
         &LocalFiles.read_raw(&storage_path(root, ledger_path)?)?,
@@ -504,6 +770,26 @@ pub fn recover_with_migration(
     request: &Value,
     approved_sha256: &str,
 ) -> Result<Value, WorkError> {
+    {
+        reconcile_with_runtime(
+            root,
+            skill_root,
+            configs,
+            request,
+            approved_sha256,
+            RuntimeReconciliationAction::RecoverMigration,
+        )
+    }
+}
+
+fn recover_with_migration_scoped(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[SkillRootConfig],
+    request: &Value,
+    approved_sha256: &str,
+    runtime_owner: Option<&work_model::runtime::RuntimeOwner>,
+) -> Result<Value, WorkError> {
     work_feature::specification::reconciliation_input::validate_preview_fields(request)?;
     if request["migration"].is_null() || !work_operations::protocol::valid_sha256(approved_sha256) {
         return Err(fail(
@@ -535,27 +821,62 @@ pub fn recover_with_migration(
                 "An Attempt filename is required."
             ))?
     );
-    let mut matches = Vec::new();
-    for entry in fs::read_dir(storage_path(root, execution)?).map_err(|_| {
-        fail(
-            "reconciliation_recovery_journal",
-            "The recovery directory cannot be read.",
-        )
-    })? {
-        let entry = entry.map_err(|_| {
-            fail(
-                "reconciliation_recovery_journal",
-                "The recovery directory entry cannot be read.",
+    let retained_context = { Some(retained_reconciliation_context(root, runtime_owner)?) };
+    let mut journal_paths = std::collections::BTreeSet::new();
+    {
+        let context = retained_context.as_ref().expect("current retained context");
+
+        for relative in crate::specification::storage::retained_journal_paths(root, execution)? {
+            let address = work_operations::derivation::publication::parse_retained_journal_path(
+                execution, &relative,
             )
-        })?;
-        let name = entry.file_name().to_string_lossy().into_owned();
-        if !name.starts_with(".work-spec-migration-")
-            || !name.ends_with(".json")
-            || entry.path().is_symlink()
-        {
-            continue;
+            .map_err(|_| {
+                fail(
+                    "reconciliation_recovery_journal",
+                    "Invalid retained journal path.",
+                )
+            })?;
+            if address.operation == work_operations::derivation::publication::RuntimeOperation::SpecificationMigration {
+                journal_paths.insert(relative);
+            }
         }
-        let raw = LocalFiles.read_raw(&storage_path(root, &format!("{execution}/{name}"))?)?;
+        for item in (crate::execution::storage::LocalExecutionStorage {
+            project_root: context.canonical_project_root.clone(),
+        })
+        .retained_requirement_inventory(context, execution)?
+        {
+            if item.manifest.operation == "specification-migration" {
+                journal_paths.insert(
+                    item.manifest.business_identity["journal_path"]
+                        .as_str()
+                        .ok_or_else(|| {
+                            fail(
+                                "reconciliation_recovery_journal",
+                                "Missing full journal identity.",
+                            )
+                        })?
+                        .to_owned(),
+                );
+            }
+        }
+    }
+    let mut matches = Vec::new();
+    for relative in journal_paths {
+        let raw = {
+            let context = retained_context.as_ref().expect("current retained context");
+
+            let original = crate::specification::storage::retained_journal_original_for_recovery(
+                context, execution, &relative,
+            )?;
+            work_operations::specification::transaction::render_transaction(&original).map_err(
+                |_| {
+                    fail(
+                        "reconciliation_recovery_journal",
+                        "Invalid frozen original journal.",
+                    )
+                },
+            )?
+        };
         let Ok(journal) = work_operations::canonical::parse_json_contract(&raw) else {
             continue;
         };
@@ -592,7 +913,7 @@ pub fn recover_with_migration(
             &request["migration"],
             migration_approval,
         )?;
-        if paths.journal != format!("{execution}/{name}") {
+        if paths.journal != relative {
             return Err(fail(
                 "reconciliation_recovery_journal",
                 "The journal namespace differs from its approval.",
@@ -668,7 +989,7 @@ pub fn recover_with_migration(
                 "The migration approval is missing.",
             )
         })?;
-    let publication = publish_migration_with_guard(
+    let publication = publish_migration_scoped(
         root,
         skill_root,
         configs,
@@ -677,6 +998,7 @@ pub fn recover_with_migration(
         migration_approval,
         &BTreeMap::from([(ledger_path.clone(), ledger_raw.clone())]),
         || reviewed_preview().map(|_| ()),
+        runtime_owner,
     )?;
     if LocalFiles.read_raw(&storage_path(root, &ledger_path)?)? != ledger_raw {
         return Err(fail(
@@ -699,6 +1021,97 @@ mod tests {
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
     use work_feature::specification::reconciliation_input::validate_preview_fields;
+
+    fn fixture_publication(mut value: Value) -> Value {
+        {
+            let publication = &mut value["publication"];
+            let fingerprint = publication["fingerprint"].as_str().unwrap();
+            let old = publication["journal"].as_str().unwrap();
+            if old.contains("/journals/") {
+                return value;
+            }
+            let execution = old.split("/.work-spec-migration-").next().unwrap();
+            let journal = work_operations::derivation::publication::retained_journal_path(
+                execution,
+                work_operations::derivation::publication::JournalKind::SpecificationMigration(
+                    fingerprint,
+                ),
+            )
+            .unwrap();
+            publication["completion_marker"] = json!(
+                work_operations::derivation::publication::retained_journal_marker(&journal)
+                    .unwrap()
+            );
+            publication["journal"] = json!(journal);
+        }
+        value
+    }
+
+    fn fixture_journal_path(fixture: &Path, publication: &Value) -> String {
+        let journal = publication["publication"]["journal"].as_str().unwrap();
+        let execution = journal
+            .split("/journals/")
+            .next()
+            .unwrap()
+            .split("/.work-spec-migration-")
+            .next()
+            .unwrap();
+        let fingerprint = publication["publication"]["fingerprint"].as_str().unwrap();
+        let current = work_operations::derivation::publication::retained_journal_path(
+            execution,
+            work_operations::derivation::publication::JournalKind::SpecificationMigration(
+                fingerprint,
+            ),
+        )
+        .unwrap();
+        if fixture.join(&current).is_file() {
+            current
+        } else {
+            work_operations::derivation::legacy_layout::legacy_journal_path(
+                execution,
+                work_operations::derivation::publication::JournalKind::SpecificationMigration(
+                    fingerprint,
+                ),
+            )
+        }
+    }
+
+    fn seed_fixture_journal(root: &Path, relative: &str, journal: &Value) {
+        fs::create_dir_all(root.join(relative).parent().unwrap()).unwrap();
+        {
+            let execution = journal["metadata"]["artifacts"]["execution"]
+                .as_str()
+                .or_else(|| {
+                    journal["metadata"]["request"]["attempt_path"]
+                        .as_str()
+                        .and_then(|path| path.rsplit_once("/TASK-").map(|(execution, _)| execution))
+                })
+                .unwrap();
+            let kind = work_operations::specification::transaction::verified_retained_journal_kind(
+                execution, relative, journal,
+            )
+            .unwrap();
+            let prepared = work_operations::derivation::transaction::build_journal_staging(
+                work_operations::derivation::transaction::JournalStagingInput {
+                    canonical_root: root.canonicalize().unwrap().to_str().unwrap(),
+                    requirement: &"example".parse().unwrap(),
+                    execution_dir: execution,
+                    journal_path: relative,
+                    kind,
+                    journal,
+                },
+            )
+            .unwrap();
+            crate::transaction_storage::prepare_runtime_transaction(
+                &LocalFiles,
+                root,
+                &prepared.manifest,
+                &prepared.payloads,
+            )
+            .unwrap();
+        }
+        write_journal(root, relative, journal).unwrap();
+    }
 
     #[test]
     fn retain_only_preview_rejects_candidate_ids_or_migration() {
@@ -727,7 +1140,7 @@ mod tests {
     fn closed_attempt_preview_and_ledger_publication_match_current_contract() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture =
-            repo.join("crates/work-infrastructure/fixtures/specification-reconciliation/real-flow");
+            repo.join("crates/work-infrastructure/fixtures/cases/specification/reconciliation/real-flow/project");
         let root = std::env::temp_dir().join(format!(
             "work-reconcile-{}-{}",
             std::process::id(),
@@ -737,7 +1150,8 @@ mod tests {
                 .as_nanos()
         ));
         let request: Value =
-            serde_json::from_slice(&fs::read(fixture.join("request.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../input/request.json")).unwrap())
+                .unwrap();
         for relative in [
             request["attempt_path"].as_str().unwrap(),
             "outputs/work/executions/example/index.json",
@@ -746,7 +1160,7 @@ mod tests {
             fs::create_dir_all(destination.parent().unwrap()).unwrap();
             fs::copy(fixture.join(relative), destination).unwrap();
         }
-        let migration_fixture = fixture.join("with-migration");
+        let migration_fixture = fixture.join("../../with-migration/project");
         for relative in [
             "outputs/work/plans/example.json",
             "outputs/work/tasks/example/index.json",
@@ -804,10 +1218,12 @@ mod tests {
         fs::create_dir_all(correction_path.parent().unwrap()).unwrap();
         fs::write(&correction_path, &correction_raw).unwrap();
         let expected: Value =
-            serde_json::from_slice(&fs::read(fixture.join("expected.json")).unwrap()).unwrap();
-        let semantic: Value =
-            serde_json::from_slice(&fs::read(fixture.join("semantic-request.json")).unwrap())
+            serde_json::from_slice(&fs::read(fixture.join("../expected/result.json")).unwrap())
                 .unwrap();
+        let semantic: Value = serde_json::from_slice(
+            &fs::read(fixture.join("../input/semantic-request.json")).unwrap(),
+        )
+        .unwrap();
         let prepared = prepare_from_semantic(
             &root,
             &repo.join("../skills/work"),
@@ -816,9 +1232,10 @@ mod tests {
             "2026-09-26",
         )
         .unwrap();
-        let prepared_request: Value =
-            serde_json::from_slice(&fs::read(fixture.join("prepared-request.json")).unwrap())
-                .unwrap();
+        let prepared_request: Value = serde_json::from_slice(
+            &fs::read(fixture.join("../input/prepared-request.json")).unwrap(),
+        )
+        .unwrap();
         assert_eq!(prepared["request"], prepared_request);
         assert_eq!(prepared["preview"], expected);
         let preview =
@@ -875,16 +1292,59 @@ mod tests {
         assert_eq!(error.exit_code, ExitCode::Contract);
         assert_eq!(error.reason_code, "invalid_contract_value");
         assert_eq!(error.details["location"], "contract");
-        let published = publish_ledger_only(
+        {
+            use work_feature::ports::{RuntimeWriterGuard, RuntimeWriterLock};
+            let context = work_feature::ports::RequirementWriterContext {
+                canonical_project_root: root.canonicalize().unwrap(),
+                requirement_id: "example".parse().unwrap(),
+            };
+            let held = LocalWriterLock
+                .acquire_runtime(&context, work_model::runtime::LockClass::Execution)
+                .unwrap();
+            assert!(
+                reconcile_with_runtime(
+                    &root,
+                    &repo.join("../skills/work"),
+                    &[],
+                    &request,
+                    expected["fingerprint"].as_str().unwrap(),
+                    RuntimeReconciliationAction::PublishLedger
+                )
+                .is_err()
+            );
+            held.release().unwrap();
+            assert!(
+                reconcile_with_runtime(
+                    &root,
+                    &repo.join("../skills/work"),
+                    &[],
+                    &request,
+                    &"0".repeat(64),
+                    RuntimeReconciliationAction::PublishLedger
+                )
+                .is_err()
+            );
+            LocalWriterLock
+                .require_runtime_idle(&context, work_model::runtime::LockClass::Execution)
+                .unwrap();
+        }
+        let published = reconcile_with_runtime(
             &root,
             &repo.join("../skills/work"),
             &[],
             &request,
             expected["fingerprint"].as_str().unwrap(),
+            RuntimeReconciliationAction::PublishLedger,
         )
         .unwrap();
         let reference: Value =
-            serde_json::from_slice(&fs::read(fixture.join("publication.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../input/publication.json")).unwrap())
+                .unwrap();
+        let mut reference = fixture_publication(reference);
+        {
+            reference["publication"]["transaction_approval_sha256"] =
+                json!("72fea56f29f26632bce6277d2e861d4acf1d10c4559696b286c43b4946c78a9d");
+        }
         assert_eq!(published, reference);
         assert_eq!(
             published["retained_deviation_ids"],
@@ -901,9 +1361,33 @@ mod tests {
             published["ledger_path"].as_str().unwrap(),
             published["publication"]["journal"].as_str().unwrap(),
         ] {
+            let mut expected_raw = fs::read(fixture.join(if relative.contains("/journals/") {
+                fixture_journal_path(&fixture, &published)
+            } else {
+                relative.to_owned()
+            }))
+            .unwrap();
+            if relative.contains("/journals/") {
+                let mut expected_journal: Value = serde_json::from_slice(&expected_raw).unwrap();
+                expected_journal["metadata"]["history_sha256"]["outputs/work/executions/example/TASK-001/ATTEMPT-001/corrections/ATTEMPT-001-CORRECTION-001.json"] =
+                    json!("e1705792a90b826b143aea79eca972079b773d70cb27d99beebc1b66bac2387f");
+                expected_journal["approval_sha256"] =
+                    reference["publication"]["transaction_approval_sha256"].clone();
+                expected_journal["transaction_id"] = json!(
+                    work_operations::derivation::identity::derived_transaction_id(
+                        "RECONCILIATION",
+                        expected_journal["approval_sha256"].as_str().unwrap()
+                    )
+                    .unwrap()
+                );
+                expected_raw = work_operations::specification::transaction::render_transaction(
+                    &expected_journal,
+                )
+                .unwrap();
+            }
             assert_eq!(
                 fs::read(root.join(relative)).unwrap(),
-                fs::read(fixture.join(relative)).unwrap(),
+                expected_raw,
                 "artifact {relative}"
             );
         }
@@ -929,12 +1413,14 @@ mod tests {
     fn retain_only_prepare_requires_only_execution_sources() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture =
-            repo.join("crates/work-infrastructure/fixtures/specification-reconciliation/real-flow");
-        let semantic: Value =
-            serde_json::from_slice(&fs::read(fixture.join("semantic-request.json")).unwrap())
-                .unwrap();
+            repo.join("crates/work-infrastructure/fixtures/cases/specification/reconciliation/real-flow/project");
+        let semantic: Value = serde_json::from_slice(
+            &fs::read(fixture.join("../input/semantic-request.json")).unwrap(),
+        )
+        .unwrap();
         let expected: Value =
-            serde_json::from_slice(&fs::read(fixture.join("expected.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../expected/result.json")).unwrap())
+                .unwrap();
         let root = std::env::temp_dir().join(format!(
             "work-reconcile-execution-only-{}-{}",
             std::process::id(),
@@ -1063,11 +1549,13 @@ mod tests {
     fn incorporated_deviation_preview_matches_current_contract_migration() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture =
-            repo.join("crates/work-infrastructure/fixtures/specification-reconciliation/real-flow/with-migration");
+            repo.join("crates/work-infrastructure/fixtures/cases/specification/reconciliation/with-migration/project");
         let request: Value =
-            serde_json::from_slice(&fs::read(fixture.join("request.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../input/request.json")).unwrap())
+                .unwrap();
         let expected: Value =
-            serde_json::from_slice(&fs::read(fixture.join("expected.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../expected/result.json")).unwrap())
+                .unwrap();
         let root = std::env::temp_dir().join(format!(
             "work-reconcile-migration-{}-{}",
             std::process::id(),
@@ -1090,9 +1578,10 @@ mod tests {
         fs::write(root.join("src.txt"), b"source\n").unwrap();
         let actual =
             preview_from_project(&root, &repo.join("../skills/work"), &[], &request).unwrap();
-        let semantic: Value =
-            serde_json::from_slice(&fs::read(fixture.join("semantic-request.json")).unwrap())
-                .unwrap();
+        let semantic: Value = serde_json::from_slice(
+            &fs::read(fixture.join("../input/semantic-request.json")).unwrap(),
+        )
+        .unwrap();
         let prepared = prepare_from_semantic(
             &root,
             &repo.join("../skills/work"),
@@ -1148,24 +1637,32 @@ mod tests {
             "{}",
             first_difference(&actual, &expected, "").unwrap_or_default()
         );
-        let published = publish_with_migration(
+        let published = reconcile_with_runtime(
             &root,
             &repo.join("../skills/work"),
             &[],
             &request,
             expected["fingerprint"].as_str().unwrap(),
+            RuntimeReconciliationAction::PublishMigration,
         )
         .unwrap();
         assert_eq!(fs::read(root.join(attempt)).unwrap(), attempt_before);
         let reference: Value =
-            serde_json::from_slice(&fs::read(fixture.join("publication.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../input/publication.json")).unwrap())
+                .unwrap();
+        let reference = fixture_publication(reference);
         assert_eq!(published, reference);
         for relative in [
             published["ledger_path"].as_str().unwrap(),
             published["publication"]["journal"].as_str().unwrap(),
         ] {
             let actual = fs::read(root.join(relative)).unwrap();
-            let reference = fs::read(fixture.join(relative)).unwrap();
+            let reference = fs::read(fixture.join(if relative.contains("/journals/") {
+                fixture_journal_path(&fixture, &published)
+            } else {
+                relative.to_owned()
+            }))
+            .unwrap();
             let difference = String::from_utf8_lossy(&actual)
                 .lines()
                 .zip(String::from_utf8_lossy(&reference).lines())
@@ -1183,11 +1680,13 @@ mod tests {
     fn incorporated_deviation_recovers_after_ledger_write_before_journal_progress() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture =
-            repo.join("crates/work-infrastructure/fixtures/specification-reconciliation/real-flow/with-migration");
+            repo.join("crates/work-infrastructure/fixtures/cases/specification/reconciliation/with-migration/project");
         let request: Value =
-            serde_json::from_slice(&fs::read(fixture.join("request.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../input/request.json")).unwrap())
+                .unwrap();
         let expected: Value =
-            serde_json::from_slice(&fs::read(fixture.join("expected.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../expected/result.json")).unwrap())
+                .unwrap();
         let root = std::env::temp_dir().join(format!(
             "work-reconcile-recovery-{}-{}",
             std::process::id(),
@@ -1207,47 +1706,58 @@ mod tests {
         fs::create_dir_all(destination.parent().unwrap()).unwrap();
         fs::copy(fixture.join(attempt_path), destination).unwrap();
         let publication: Value =
-            serde_json::from_slice(&fs::read(fixture.join("publication.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../input/publication.json")).unwrap())
+                .unwrap();
+        let publication = fixture_publication(publication);
         let journal_path = publication["publication"]["journal"].as_str().unwrap();
-        let mut journal: Value =
-            serde_json::from_slice(&fs::read(fixture.join(journal_path)).unwrap()).unwrap();
+        let mut journal: Value = serde_json::from_slice(
+            &fs::read(fixture.join(fixture_journal_path(&fixture, &publication))).unwrap(),
+        )
+        .unwrap();
         journal["state"] = json!("prepared");
         journal["published_count"] = json!(0);
-        write_journal(&root, journal_path, &journal).unwrap();
+        seed_fixture_journal(&root, journal_path, &journal);
         let ledger_path = expected["ledger_path"].as_str().unwrap();
         let ledger_raw = render_ledger(&expected["ledger"]).unwrap();
         fs::write(root.join(ledger_path), &ledger_raw).unwrap();
-        let recovered = recover_with_migration(
+        let recovered = reconcile_with_runtime(
             &root,
             &repo.join("../skills/work"),
             &[],
             &request,
             expected["fingerprint"].as_str().unwrap(),
+            RuntimeReconciliationAction::RecoverMigration,
         )
         .unwrap();
         assert_eq!(recovered["status"], "recovered");
         assert_eq!(fs::read(root.join(ledger_path)).unwrap(), ledger_raw);
         assert_eq!(
             fs::read(root.join(journal_path)).unwrap(),
-            fs::read(fixture.join(journal_path)).unwrap()
+            fs::read(fixture.join(fixture_journal_path(&fixture, &publication))).unwrap()
         );
     }
     #[test]
     fn migration_recovery_preserves_one_approved_set_at_each_write_boundary() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-reconciliation/real-flow/with-migration");
+        let fixture = repo.join("crates/work-infrastructure/fixtures/cases/specification/reconciliation/with-migration/project");
         let request: Value =
-            serde_json::from_slice(&fs::read(fixture.join("request.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../input/request.json")).unwrap())
+                .unwrap();
         let preview: Value =
-            serde_json::from_slice(&fs::read(fixture.join("expected.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../expected/result.json")).unwrap())
+                .unwrap();
         let publication: Value =
-            serde_json::from_slice(&fs::read(fixture.join("publication.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../input/publication.json")).unwrap())
+                .unwrap();
+        let publication = fixture_publication(publication);
         let journal_path = publication["publication"]["journal"].as_str().unwrap();
         let marker = publication["publication"]["completion_marker"]
             .as_str()
             .unwrap();
-        let original: Value =
-            serde_json::from_slice(&fs::read(fixture.join(journal_path)).unwrap()).unwrap();
+        let original: Value = serde_json::from_slice(
+            &fs::read(fixture.join(fixture_journal_path(&fixture, &publication))).unwrap(),
+        )
+        .unwrap();
         let files = original["files"].as_array().unwrap();
         let attempt_path = request["attempt_path"].as_str().unwrap();
         let attempt_raw = fs::read(fixture.join(attempt_path)).unwrap();
@@ -1272,7 +1782,7 @@ mod tests {
             let mut journal = original.clone();
             journal["state"] = json!("prepared");
             journal["published_count"] = json!(0);
-            write_journal(&root, journal_path, &journal).unwrap();
+            seed_fixture_journal(&root, journal_path, &journal);
             for file in files.iter().take(count) {
                 let path = file["path"].as_str().unwrap();
                 let after =
@@ -1336,13 +1846,17 @@ mod tests {
     fn retain_only_recovers_before_or_after_ledger_write_and_rejects_attempt_drift() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture =
-            repo.join("crates/work-infrastructure/fixtures/specification-reconciliation/real-flow");
+            repo.join("crates/work-infrastructure/fixtures/cases/specification/reconciliation/real-flow/project");
         let request: Value =
-            serde_json::from_slice(&fs::read(fixture.join("request.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../input/request.json")).unwrap())
+                .unwrap();
         let preview: Value =
-            serde_json::from_slice(&fs::read(fixture.join("expected.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../expected/result.json")).unwrap())
+                .unwrap();
         let publication: Value =
-            serde_json::from_slice(&fs::read(fixture.join("publication.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../input/publication.json")).unwrap())
+                .unwrap();
+        let publication = fixture_publication(publication);
         let attempt_path = request["attempt_path"].as_str().unwrap();
         let index_path = "outputs/work/executions/example/index.json";
         let journal_path = publication["publication"]["journal"].as_str().unwrap();
@@ -1367,11 +1881,13 @@ mod tests {
                 fs::create_dir_all(root.join(path).parent().unwrap()).unwrap();
                 fs::write(root.join(path), raw).unwrap();
             }
-            let mut journal: Value =
-                serde_json::from_slice(&fs::read(fixture.join(journal_path)).unwrap()).unwrap();
+            let mut journal: Value = serde_json::from_slice(
+                &fs::read(fixture.join(fixture_journal_path(&fixture, &publication))).unwrap(),
+            )
+            .unwrap();
             journal["state"] = json!("prepared");
             journal["published_count"] = json!(0);
-            write_journal(&root, journal_path, &journal).unwrap();
+            seed_fixture_journal(&root, journal_path, &journal);
             if written {
                 fs::write(root.join(ledger_path), &ledger_raw).unwrap();
             }
@@ -1382,26 +1898,46 @@ mod tests {
                 work_operations::execution::attempt::render_attempt(&changed).unwrap();
             fs::write(root.join(attempt_path), &changed_raw).unwrap();
             assert_eq!(
-                recover_ledger_only(&root, &repo.join("../skills/work"), &[], &request, approved)
-                    .unwrap_err()
-                    .reason_code,
+                reconcile_with_runtime(
+                    &root,
+                    &repo.join("../skills/work"),
+                    &[],
+                    &request,
+                    approved,
+                    RuntimeReconciliationAction::RecoverLedger
+                )
+                .unwrap_err()
+                .reason_code,
                 "reconciliation_approval_changed"
             );
             assert_eq!(fs::read(root.join(journal_path)).unwrap(), before);
             assert_eq!(fs::read(root.join(attempt_path)).unwrap(), changed_raw);
             assert!(!root.join(marker_path).exists());
             fs::write(root.join(attempt_path), &attempt_raw).unwrap();
-            let recovered =
-                recover_ledger_only(&root, &repo.join("../skills/work"), &[], &request, approved)
-                    .unwrap();
+            let recovered = reconcile_with_runtime(
+                &root,
+                &repo.join("../skills/work"),
+                &[],
+                &request,
+                approved,
+                RuntimeReconciliationAction::RecoverLedger,
+            )
+            .unwrap();
             assert_eq!(recovered["status"], "recovered");
             assert_eq!(recovered["publication"]["publication_status"], "published");
             assert_eq!(fs::read(root.join(ledger_path)).unwrap(), ledger_raw);
             assert_eq!(fs::read(root.join(attempt_path)).unwrap(), attempt_raw);
             assert_eq!(fs::read(root.join(index_path)).unwrap(), index_raw);
             assert_eq!(
-                recover_ledger_only(&root, &repo.join("../skills/work"), &[], &request, approved)
-                    .unwrap()["publication"]["publication_status"],
+                reconcile_with_runtime(
+                    &root,
+                    &repo.join("../skills/work"),
+                    &[],
+                    &request,
+                    approved,
+                    RuntimeReconciliationAction::RecoverLedger
+                )
+                .unwrap()["publication"]["publication_status"],
                 "already_published"
             );
         }

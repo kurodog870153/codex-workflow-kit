@@ -52,6 +52,260 @@ pub struct DerivedTransaction {
 
 pub struct TransactionDeriver;
 
+pub struct JournalStagingInput<'a> {
+    pub canonical_root: &'a str,
+    pub requirement: &'a crate::identifiers::RequirementId,
+    pub execution_dir: &'a str,
+    pub journal_path: &'a str,
+    pub kind: crate::derivation::publication::JournalKind<'a>,
+    pub journal: &'a Value,
+}
+
+pub struct PreparedJournalStaging {
+    pub manifest: work_model::runtime::RuntimeManifest,
+    pub payloads: BTreeMap<String, Vec<u8>>,
+    pub prepared_journal: Vec<u8>,
+    pub published_journal: Vec<u8>,
+}
+
+/// Freeze original approval and final journal/marker bytes without changing the public journal.
+pub fn build_journal_staging(
+    input: JournalStagingInput<'_>,
+) -> Result<PreparedJournalStaging, TransactionIssue> {
+    use crate::derivation::{identity, publication, snapshot};
+    use work_model::runtime::{
+        RuntimeBytes, RuntimeFile, RuntimeManifest, RuntimePhase, RuntimeTarget,
+    };
+    let invalid = || TransactionIssue {
+        reason_code: "journal_staging_identity",
+        message: "Journal staging requires the complete original approved context.",
+        details: json!({}),
+    };
+    validate_transaction(input.journal)?;
+    if input.journal["state"] != "prepared"
+        || input.journal["published_count"] != 0
+        || input.journal["metadata"]["artifacts"]
+            .get("execution")
+            .is_some_and(|execution| execution != input.execution_dir)
+        || input.canonical_root.is_empty()
+    {
+        return Err(invalid());
+    }
+    let address = publication::bind_retained_journal_path(
+        input.execution_dir,
+        input.journal_path,
+        input.kind,
+    )?;
+    for path in input.journal["metadata"]["history_sha256"]
+        .as_object()
+        .expect("validated history map")
+        .keys()
+    {
+        if path.starts_with(&format!("{}/journals/", input.execution_dir)) {
+            let journal = if let Some(directory) = path.strip_suffix("/committed.sha256") {
+                format!("{directory}/journal.json")
+            } else {
+                path.clone()
+            };
+            if !publication::retained_journal_history_includes(
+                input.execution_dir,
+                &journal,
+                Some(input.journal_path),
+            )? {
+                return Err(invalid());
+            }
+        }
+    }
+    let prepared_journal = crate::specification::transaction::render_transaction(input.journal)?;
+    let rows = input.journal["files"]
+        .as_array()
+        .expect("validated file rows");
+    let mut published = input.journal.clone();
+    published["state"] = json!("published");
+    published["published_count"] = json!(rows.len());
+    let published_journal = crate::specification::transaction::render_transaction(&published)?;
+    let evidence = |bytes: Vec<u8>| RuntimeBytes {
+        sha256: fingerprint::raw(&bytes),
+        bytes,
+    };
+    let mut targets = rows
+        .iter()
+        .map(|row| {
+            Ok(RuntimeTarget {
+                path: row["path"].as_str().expect("validated path").to_owned(),
+                before: row
+                    .get("before")
+                    .map(snapshot::decode_snapshot)
+                    .transpose()?
+                    .map(evidence),
+                after: row
+                    .get("after")
+                    .map(snapshot::decode_snapshot)
+                    .transpose()?
+                    .map(evidence),
+            })
+        })
+        .collect::<Result<Vec<_>, TransactionIssue>>()?;
+    targets.push(RuntimeTarget {
+        path: input.journal_path.to_owned(),
+        before: None,
+        after: Some(evidence(published_journal.clone())),
+    });
+    targets.push(RuntimeTarget {
+        path: address.marker,
+        before: None,
+        after: Some(evidence(publication::completion_marker(&published_journal))),
+    });
+    let mut payloads = BTreeMap::from([("journal.json.tmp".to_owned(), published_journal.clone())]);
+    for (position, target) in targets.iter().enumerate() {
+        let bytes = target
+            .after
+            .as_ref()
+            .or(target.before.as_ref())
+            .ok_or_else(invalid)?;
+        payloads.insert(format!("targets/{position}.tmp"), bytes.bytes.clone());
+    }
+    let inventory = payloads
+        .iter()
+        .map(|(path, bytes)| RuntimeFile {
+            path: path.clone(),
+            sha256: fingerprint::raw(bytes),
+            size_bytes: bytes.len() as u64,
+        })
+        .collect();
+    let layout_identity = match input.kind {
+        publication::JournalKind::SpecificationUpdate(id) => id,
+        publication::JournalKind::SpecificationMigration(id)
+        | publication::JournalKind::SpecificationMigrationReconcile(id)
+        | publication::JournalKind::InstructionMigration(id)
+        | publication::JournalKind::SourceRefresh(id) => id,
+        publication::JournalKind::SpecificationMigrationItem { approved, .. } => approved,
+    };
+    let business_identity = json!({"domain":"WORK-JOURNAL-PREPARED-V1","layout_identity":layout_identity,
+        "item_position":address.item_position,"journal_path":input.journal_path,"original_journal":input.journal,
+        "frozen_targets":targets,"runtime_payloads":payloads});
+    let approval = input.journal["approval_sha256"]
+        .as_str()
+        .expect("validated approval");
+    let transaction_identity = identity::runtime_transaction_identity(
+        input.canonical_root,
+        input.requirement,
+        address.operation.as_str(),
+        approval,
+        &business_identity,
+        &targets
+            .iter()
+            .map(|target| target.path.clone())
+            .collect::<Vec<_>>(),
+    )?;
+    let manifest = RuntimeManifest {
+        schema: "work-runtime-transaction".to_owned(),
+        canonical_root: input.canonical_root.to_owned(),
+        requirement_id: input.requirement.as_str().to_owned(),
+        execution_dir: input.execution_dir.to_owned(),
+        operation: address.operation.as_str().to_owned(),
+        transaction_identity,
+        approval_sha256: approval.to_owned(),
+        business_identity,
+        targets,
+        inventory,
+        published_count: 0,
+        phase: RuntimePhase::Prepared,
+    };
+    manifest.validate_shape().map_err(|_| invalid())?;
+    Ok(PreparedJournalStaging {
+        manifest,
+        payloads,
+        prepared_journal,
+        published_journal,
+    })
+}
+
+/// Rebuild immutable staging proof; progress alone may differ from the frozen preparation.
+pub fn restore_journal_staging(
+    manifest: &work_model::runtime::RuntimeManifest,
+) -> Result<PreparedJournalStaging, TransactionIssue> {
+    use crate::derivation::publication::JournalKind;
+    let invalid = || TransactionIssue {
+        reason_code: "journal_staging_identity",
+        message: "Journal staging requires the complete original approved context.",
+        details: json!({}),
+    };
+    manifest.validate_shape().map_err(|_| invalid())?;
+    let business = &manifest.business_identity;
+    let layout = business["layout_identity"].as_str().ok_or_else(invalid)?;
+    let kind = match manifest.operation.as_str() {
+        "specification-update" => JournalKind::SpecificationUpdate(layout),
+        "specification-migration" => JournalKind::SpecificationMigration(layout),
+        "specification-migration-item" => JournalKind::SpecificationMigrationItem {
+            approved: layout,
+            position: usize::try_from(business["item_position"].as_u64().ok_or_else(invalid)?)
+                .map_err(|_| invalid())?,
+        },
+        "specification-migration-reconcile" => JournalKind::SpecificationMigrationReconcile(layout),
+        "instruction-migration" => JournalKind::InstructionMigration(layout),
+        "source-refresh" => JournalKind::SourceRefresh(layout),
+        _ => return Err(invalid()),
+    };
+    let requirement = manifest.requirement_id.parse().map_err(|_| invalid())?;
+    let prepared = build_journal_staging(JournalStagingInput {
+        canonical_root: &manifest.canonical_root,
+        requirement: &requirement,
+        execution_dir: &manifest.execution_dir,
+        journal_path: business["journal_path"].as_str().ok_or_else(invalid)?,
+        kind,
+        journal: &business["original_journal"],
+    })?;
+    let mut expected = prepared.manifest.clone();
+    expected.phase = manifest.phase;
+    expected.published_count = manifest.published_count;
+    if expected != *manifest {
+        return Err(invalid());
+    }
+    Ok(prepared)
+}
+
+pub fn journal_control_candidates(
+    manifest: &work_model::runtime::RuntimeManifest,
+    raw: &[u8],
+) -> Result<Vec<work_model::runtime::RuntimeManifest>, TransactionIssue> {
+    use work_model::runtime::RuntimePhase as P;
+    restore_journal_staging(manifest)?;
+    let phases = [
+        P::Prepared,
+        P::Publishing,
+        P::PublishedVerified,
+        P::Cleaning,
+    ];
+    let start = phases
+        .iter()
+        .position(|phase| *phase == manifest.phase)
+        .expect("typed phase");
+    let mut candidates = Vec::new();
+    for phase in phases.into_iter().skip(start) {
+        for count in manifest.published_count..=manifest.targets.len() {
+            let mut candidate = manifest.clone();
+            candidate.phase = phase;
+            candidate.published_count = count;
+            if candidate.validate_shape().is_ok()
+                && serde_json::to_vec(&candidate)
+                    .expect("typed manifest")
+                    .starts_with(raw)
+            {
+                candidates.push(candidate);
+            }
+        }
+    }
+    if candidates.is_empty() {
+        return Err(TransactionIssue {
+            reason_code: "journal_control_identity",
+            message: "Journal control bytes are not a monotonic state of the frozen transaction.",
+            details: json!({}),
+        });
+    }
+    Ok(candidates)
+}
+
 impl TransactionDeriver {
     pub fn derive(input: TransactionInput) -> Result<DerivedTransaction, TransactionIssue> {
         let mut files = Vec::new();
@@ -164,6 +418,167 @@ fn phase(order: &PublicationOrder, path: &str, has_after: bool) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn journal_staging_freezes_all_six_layouts_and_final_evidence_without_reapproval() {
+        use crate::derivation::publication::{JournalKind, RuntimeOperation};
+        let execution = "自訂 execution/example";
+        let result = TransactionDeriver::derive(TransactionInput {
+            kind: TransactionKind::Update,
+            order: PublicationOrder::Flat,
+            request: json!({"requirement_id":"example"}),
+            artifacts: json!({"execution":execution}),
+            affected_task_ids: vec![],
+            history: BTreeMap::new(),
+            source: BTreeMap::from([
+                ("task/index.json".into(), b"old\r\n".to_vec()),
+                ("task/retired.json".into(), b"retained old bytes".to_vec()),
+            ]),
+            candidate: BTreeMap::from([
+                ("task/index.json".into(), b"new\r\n".to_vec()),
+                ("task/new.json".into(), b"new artifact".to_vec()),
+            ]),
+        })
+        .unwrap();
+        let original =
+            crate::specification::transaction::render_transaction(&result.journal).unwrap();
+        let approved = "ab".repeat(32);
+        let requirement = "example".parse().unwrap();
+        let other_requirement = "other".parse().unwrap();
+        let root = if cfg!(windows) {
+            "C:/project"
+        } else {
+            "/project"
+        };
+        for (kind, operation) in [
+            (
+                JournalKind::SpecificationUpdate(
+                    result.journal["transaction_id"].as_str().unwrap(),
+                ),
+                RuntimeOperation::SpecificationUpdate,
+            ),
+            (
+                JournalKind::SpecificationMigration(&approved),
+                RuntimeOperation::SpecificationMigration,
+            ),
+            (
+                JournalKind::SpecificationMigrationItem {
+                    approved: &approved,
+                    position: 2,
+                },
+                RuntimeOperation::SpecificationMigrationItem,
+            ),
+            (
+                JournalKind::SpecificationMigrationReconcile(&approved),
+                RuntimeOperation::SpecificationMigrationReconcile,
+            ),
+            (
+                JournalKind::InstructionMigration(&approved),
+                RuntimeOperation::InstructionMigration,
+            ),
+            (
+                JournalKind::SourceRefresh(&approved),
+                RuntimeOperation::SourceRefresh,
+            ),
+        ] {
+            let path =
+                crate::derivation::publication::retained_journal_path(execution, kind).unwrap();
+            let build = |canonical_root, requirement, journal| {
+                build_journal_staging(JournalStagingInput {
+                    canonical_root,
+                    requirement,
+                    execution_dir: execution,
+                    journal_path: &path,
+                    kind,
+                    journal,
+                })
+            };
+            let prepared = build(root, &requirement, &result.journal).unwrap();
+            assert_eq!(prepared.prepared_journal, original);
+            assert_eq!(prepared.manifest.approval_sha256, result.approval_sha256);
+            assert_eq!(prepared.manifest.operation, operation.as_str());
+            assert_eq!(
+                prepared.payloads["journal.json.tmp"],
+                prepared.published_journal
+            );
+            assert_eq!(
+                restore_journal_staging(&prepared.manifest)
+                    .unwrap()
+                    .payloads,
+                prepared.payloads
+            );
+            assert_eq!(prepared.manifest.targets.len(), 5);
+            let mut progress = prepared.manifest.clone();
+            progress.phase = work_model::runtime::RuntimePhase::Publishing;
+            progress.published_count = 1;
+            let control = serde_json::to_vec(&progress).unwrap();
+            assert_eq!(
+                journal_control_candidates(&prepared.manifest, &control).unwrap(),
+                vec![progress.clone()]
+            );
+            assert!(
+                !journal_control_candidates(&prepared.manifest, &control[..control.len() - 5])
+                    .unwrap()
+                    .is_empty()
+            );
+            assert!(
+                journal_control_candidates(
+                    &progress,
+                    &serde_json::to_vec(&prepared.manifest).unwrap()
+                )
+                .is_err()
+            );
+            assert!(journal_control_candidates(&prepared.manifest, b"foreign").is_err());
+            assert_eq!(
+                prepared.payloads["targets/3.tmp"],
+                prepared.published_journal
+            );
+            assert_eq!(
+                prepared.payloads["targets/4.tmp"],
+                crate::derivation::publication::completion_marker(&prepared.published_journal)
+            );
+            assert_eq!(
+                prepared.payloads.keys().cloned().collect::<BTreeSet<_>>(),
+                crate::derivation::publication::runtime_inventory(operation, 5)
+                    .into_iter()
+                    .filter(|path| path != "transaction.json")
+                    .collect()
+            );
+            assert_ne!(
+                build("/other root", &requirement, &result.journal)
+                    .unwrap()
+                    .manifest
+                    .transaction_identity,
+                prepared.manifest.transaction_identity
+            );
+            assert_ne!(
+                build(root, &other_requirement, &result.journal)
+                    .unwrap()
+                    .manifest
+                    .transaction_identity,
+                prepared.manifest.transaction_identity
+            );
+            let mut published = result.journal.clone();
+            published["state"] = json!("published");
+            published["published_count"] = json!(3);
+            assert!(build(root, &requirement, &published).is_err());
+            let mut foreign = result.journal.clone();
+            foreign["metadata"]["artifacts"]["execution"] = json!("foreign");
+            foreign["approval_sha256"] =
+                json!(approval_sha256(&foreign["files"], &foreign["metadata"]));
+            assert!(build(root, &requirement, &foreign).is_err());
+            let mut tampered = prepared.manifest.clone();
+            tampered.targets[0].after.as_mut().unwrap().bytes.push(0);
+            assert!(restore_journal_staging(&tampered).is_err());
+            let mut tampered = prepared.manifest.clone();
+            tampered.business_identity["layout_identity"] = json!("foreign");
+            assert!(restore_journal_staging(&tampered).is_err());
+        }
+        assert_eq!(
+            crate::specification::transaction::render_transaction(&result.journal).unwrap(),
+            original
+        );
+    }
 
     #[test]
     fn snapshot_approval_and_identity_derive_from_one_candidate() {

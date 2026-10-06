@@ -239,11 +239,30 @@ pub struct ExecutionRecoveryPrepareRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ExecutionRecoveryRequest {
+pub struct LegacyExecutionRecoveryRequest {
     pub schema: PublicSchema,
     pub transaction: RecoveryTransaction,
     pub attempt_id: String,
     pub transaction_files: Vec<String>,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub authorization_evidence: Option<Nullable<String>>,
+}
+
+pub type ExecutionRecoveryRequest = PreparedExecutionRecoveryRequest;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PreparedExecutionRecoveryRequest {
+    pub schema: PublicSchema,
+    pub transaction: RecoveryTransaction,
+    pub attempt_id: String,
+    pub transaction_dir: String,
+    pub transaction_files: Vec<String>,
+    pub transaction_evidence_sha256: String,
     #[serde(
         default,
         deserialize_with = "deserialize_optional_nullable",
@@ -299,4 +318,34 @@ pub type AuthorizedDeviationAction = DeviationAction;
 pub fn verified<T: DeserializeOwned>(value: &Value) {
     let _: T =
         serde_json::from_value(value.clone()).expect("validated Execution request matches model");
+}
+
+#[cfg(test)]
+mod staging_request_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn candidate_recovery_request_requires_directory_and_rejects_unknown_fields() {
+        let request = json!({"schema":"work-execution-recovery-request","transaction":"record_finish",
+            "attempt_id":"ATTEMPT-001","transaction_dir":"outputs/work/runtime/staging/example/record-finish/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "transaction_files":["attempt.json.tmp","index.json.tmp","transaction.json"],"transaction_evidence_sha256":"b".repeat(64)});
+        let typed: PreparedExecutionRecoveryRequest =
+            serde_json::from_value(request.clone()).unwrap();
+        assert_eq!(serde_json::to_value(typed).unwrap(), request);
+        assert!(serde_json::from_value::<LegacyExecutionRecoveryRequest>(request.clone()).is_err());
+        let mut missing = request.clone();
+        missing.as_object_mut().unwrap().remove("transaction_dir");
+        assert!(
+            serde_json::from_value::<PreparedExecutionRecoveryRequest>(missing.clone()).is_err()
+        );
+        missing
+            .as_object_mut()
+            .unwrap()
+            .remove("transaction_evidence_sha256");
+        assert!(serde_json::from_value::<LegacyExecutionRecoveryRequest>(missing).is_ok());
+        let mut unknown = request;
+        unknown["execution_dir"] = json!("fallback");
+        assert!(serde_json::from_value::<PreparedExecutionRecoveryRequest>(unknown).is_err());
+    }
 }

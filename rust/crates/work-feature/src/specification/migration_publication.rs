@@ -17,6 +17,13 @@ pub fn publication_paths(
     request: &Value,
     approved_sha256: &str,
 ) -> Result<MigrationPublicationPaths, WorkError> {
+    publication_paths_with_layout(request, approved_sha256)
+}
+
+fn publication_paths_with_layout(
+    request: &Value,
+    approved_sha256: &str,
+) -> Result<MigrationPublicationPaths, WorkError> {
     let index = request["candidates"]
         .as_array()
         .into_iter()
@@ -43,13 +50,29 @@ pub fn publication_paths(
             "The approved migration fingerprint is invalid.",
         ));
     }
-    let journal = work_operations::derivation::publication::journal_path(
-        execution,
-        work_operations::derivation::publication::JournalKind::SpecificationMigration(
-            approved_sha256,
-        ),
+    let kind = work_operations::derivation::publication::JournalKind::SpecificationMigration(
+        approved_sha256,
     );
-    let marker = work_operations::derivation::publication::completion_marker_path(&journal);
+    let journal = {
+        work_operations::derivation::publication::retained_journal_path(execution, kind).map_err(
+            |_| {
+                fail(
+                    "migration_publication_identity",
+                    "A complete approved fingerprint and portable execution path are required.",
+                )
+            },
+        )?
+    };
+    let marker = {
+        work_operations::derivation::publication::retained_journal_marker(&journal).map_err(
+            |_| {
+                fail(
+                    "migration_publication_identity",
+                    "The retained journal path is invalid.",
+                )
+            },
+        )?
+    };
     Ok(MigrationPublicationPaths {
         execution: execution.to_owned(),
         journal,
@@ -82,14 +105,41 @@ mod tests {
         let request = json!({"candidates":[{"kind":"task_index","content":{
             "artifacts":{"execution":"outputs/work/executions/example"}}}]});
         let paths = publication_paths(&request, &"a".repeat(64)).unwrap();
-        assert_eq!(
-            paths.journal,
-            "outputs/work/executions/example/.work-spec-migration-AAAAAAAAAAAA.json"
-        );
-        assert_eq!(paths.marker, format!("{}.done", paths.journal));
+        assert_eq!(paths.journal, {
+            "outputs/work/executions/example/journals/specification-migration/AAAAAAAAAAAA/journal.json"
+        });
+        assert_eq!(paths.marker, {
+            "outputs/work/executions/example/journals/specification-migration/AAAAAAAAAAAA/committed.sha256".to_owned()
+        });
         let mut legacy = request.clone();
         legacy["candidates"][0]["kind"] = json!("plan");
         assert!(publication_paths(&legacy, &"a".repeat(64)).is_err());
+    }
+
+    #[test]
+    fn retained_paths_validate_full_digest_and_custom_scope_without_panics() {
+        let mut request = json!({"candidates":[{"kind":"task_index","content":{"artifacts":{"execution":"custom execution/例"}}}]});
+        let paths = publication_paths_with_layout(&request, &"ab".repeat(32)).unwrap();
+        assert_eq!(
+            paths.journal,
+            "custom execution/例/journals/specification-migration/ABABABABABAB/journal.json"
+        );
+        assert_eq!(
+            paths.marker,
+            "custom execution/例/journals/specification-migration/ABABABABABAB/committed.sha256"
+        );
+        for digest in ["A".repeat(64), "a".repeat(12), "g".repeat(64)] {
+            assert!(publication_paths_with_layout(&request, &digest).is_err());
+        }
+        for execution in [
+            "../execution",
+            "/execution",
+            "execution//other",
+            "execution/../other",
+        ] {
+            request["candidates"][0]["content"]["artifacts"]["execution"] = json!(execution);
+            assert!(publication_paths_with_layout(&request, &"a".repeat(64)).is_err());
+        }
     }
 
     #[test]

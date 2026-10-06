@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use serde_json::json;
 use work_feature::discussion::repository::DiscussionRepository;
 use work_feature::error::{ExitCode, WorkError};
-use work_feature::ports::{ArtifactStore, WriterLock};
+use work_feature::ports::ArtifactStore;
 use work_model::discussion::DiscussionSession;
 use work_operations::canonical::{canonical_json, parse_json_contract};
 use work_operations::discussion::{self, DiscussionOperation};
@@ -44,6 +44,110 @@ fn bytes(session: &DiscussionSession) -> Vec<u8> {
 }
 
 impl<S: ArtifactStore> LocalDiscussionStorage<S> {
+    pub fn initialize_with_runtime(
+        &self,
+        session: &DiscussionSession,
+        recover: bool,
+    ) -> Result<DiscussionSession, WorkError> {
+        self.with_runtime_session_writer(session, |_| self.initialize_scoped(session, recover))
+    }
+
+    pub fn submit_with_runtime(
+        &self,
+        requirement: &str,
+        operation: &DiscussionOperation,
+        recover: bool,
+    ) -> Result<DiscussionSession, WorkError> {
+        let current = self
+            .committed(requirement)?
+            .ok_or_else(|| error("discussion_not_initialized"))?;
+        self.with_runtime_session_writer(&current, |_| {
+            self.submit_scoped(requirement, operation, recover)
+        })
+    }
+
+    fn initialize_scoped(
+        &self,
+        session: &DiscussionSession,
+        recover: bool,
+    ) -> Result<DiscussionSession, WorkError> {
+        discussion::verify_integrity(session).map_err(rule)?;
+        self.authorized_root(session)?;
+        if session.revision != 1 {
+            return Err(error("discussion_initial_revision"));
+        }
+        let dir = self.directory(&session.requirement_id)?;
+        self.files.create_directories(&self.path(&dir)?)?;
+        if let Some(current) = self.committed(&session.requirement_id)? {
+            let original = self.read_history(&session.requirement_id, 1)?;
+            if original != *session {
+                return Err(error("discussion_already_initialized"));
+            }
+            self.authorized_root(&current)?;
+            return Ok(original);
+        }
+        self.publish(session, recover)
+    }
+
+    fn submit_scoped(
+        &self,
+        requirement: &str,
+        operation: &DiscussionOperation,
+        recover: bool,
+    ) -> Result<DiscussionSession, WorkError> {
+        let current = self
+            .committed(requirement)?
+            .ok_or_else(|| error("discussion_not_initialized"))?;
+        self.authorized_root(&current)?;
+        discussion::validate_authorization(&current, Some(operation.change.action()))
+            .map_err(rule)?;
+        let current = self
+            .committed(requirement)?
+            .ok_or_else(|| error("discussion_not_initialized"))?;
+        self.authorized_root(&current)?;
+        discussion::validate_authorization(&current, Some(operation.change.action()))
+            .map_err(rule)?;
+        if let Some(original) = self.replay(&current, operation)? {
+            return Ok(original);
+        }
+        let next = discussion::apply(&current, operation).map_err(rule)?;
+        self.publish(&next, recover)
+    }
+
+    /// Session critical section; publication may reuse the held runtime owner.
+    pub fn with_runtime_session_writer<T>(
+        &self,
+        session: &DiscussionSession,
+        write: impl FnOnce(&work_model::runtime::RuntimeOwner) -> Result<T, WorkError>,
+    ) -> Result<T, WorkError> {
+        discussion::verify_integrity(session).map_err(rule)?;
+        self.authorized_root(session)?;
+        let requirement_id = session
+            .requirement_id
+            .parse()
+            .map_err(|_| error("discussion_snapshot_identity"))?;
+        let context = work_feature::ports::RequirementWriterContext {
+            canonical_project_root: self
+                .project_root
+                .canonicalize()
+                .map_err(|_| error("discussion_project_root"))?,
+            requirement_id,
+        };
+        let execution = match &session.context.confirmed_source {
+            work_model::common::Nullable::Value(source) => {
+                Some(source.artifacts.execution.as_str())
+            }
+            work_model::common::Nullable::Null => None,
+        };
+        crate::writer_lock::require_no_legacy_locks(&context, execution)?;
+        work_feature::ports::with_runtime_writer(
+            &LocalWriterLock,
+            &context,
+            work_model::runtime::LockClass::Discussion,
+            write,
+        )
+    }
+
     fn directory(&self, requirement: &str) -> Result<String, WorkError> {
         requirement
             .parse::<work_model::identifiers::RequirementId>()
@@ -226,24 +330,7 @@ impl<S: ArtifactStore> DiscussionRepository for LocalDiscussionStorage<S> {
         session: &DiscussionSession,
         recover: bool,
     ) -> Result<DiscussionSession, WorkError> {
-        discussion::verify_integrity(session).map_err(rule)?;
-        self.authorized_root(session)?;
-        if session.revision != 1 {
-            return Err(error("discussion_initial_revision"));
-        }
-        let dir = self.directory(&session.requirement_id)?;
-        self.files.create_directories(&self.path(&dir)?)?;
-        let _guard =
-            LocalWriterLock.acquire(&self.path(&format!("{dir}/.work-state-writer.lock"))?)?;
-        if let Some(current) = self.committed(&session.requirement_id)? {
-            let original = self.read_history(&session.requirement_id, 1)?;
-            if original != *session {
-                return Err(error("discussion_already_initialized"));
-            }
-            self.authorized_root(&current)?;
-            return Ok(original);
-        }
-        self.publish(session, recover)
+        self.initialize_with_runtime(session, recover)
     }
 
     fn submit(
@@ -252,26 +339,7 @@ impl<S: ArtifactStore> DiscussionRepository for LocalDiscussionStorage<S> {
         operation: &DiscussionOperation,
         recover: bool,
     ) -> Result<DiscussionSession, WorkError> {
-        let current = self
-            .committed(requirement)?
-            .ok_or_else(|| error("discussion_not_initialized"))?;
-        self.authorized_root(&current)?;
-        discussion::validate_authorization(&current, Some(operation.change.action()))
-            .map_err(rule)?;
-        let dir = self.directory(requirement)?;
-        let _guard =
-            LocalWriterLock.acquire(&self.path(&format!("{dir}/.work-state-writer.lock"))?)?;
-        let current = self
-            .committed(requirement)?
-            .ok_or_else(|| error("discussion_not_initialized"))?;
-        self.authorized_root(&current)?;
-        discussion::validate_authorization(&current, Some(operation.change.action()))
-            .map_err(rule)?;
-        if let Some(original) = self.replay(&current, operation)? {
-            return Ok(original);
-        }
-        let next = discussion::apply(&current, operation).map_err(rule)?;
-        self.publish(&next, recover)
+        self.submit_with_runtime(requirement, operation, recover)
     }
 }
 
@@ -299,6 +367,48 @@ mod tests {
         ));
         fs::create_dir(&p).unwrap();
         p.canonicalize().unwrap()
+    }
+
+    #[test]
+    fn runtime_session_section_validates_identity_and_releases_errors() {
+        let root = root();
+        let store = LocalDiscussionStorage {
+            project_root: root.clone(),
+            files: LocalFiles,
+        };
+        let session = session(&root);
+        for fail in [false, true] {
+            let result = store.with_runtime_session_writer(&session, |owner| {
+                assert_eq!(owner.class, work_model::runtime::LockClass::Discussion);
+                assert!(
+                    store
+                        .with_runtime_session_writer(&session, |_| Ok(()))
+                        .is_err()
+                );
+                if fail {
+                    Err(error("injected_discussion_failure"))
+                } else {
+                    Ok(())
+                }
+            });
+            assert_eq!(result.is_err(), fail);
+            assert!(
+                !root
+                    .join("outputs/work/runtime/locks/example/discussion.lock")
+                    .exists()
+            );
+            store
+                .with_runtime_session_writer(&session, |_| Ok(()))
+                .unwrap();
+        }
+        let mut corrupt = session;
+        corrupt.requirement_id = "foreign".into();
+        assert!(
+            store
+                .with_runtime_session_writer(&corrupt, |_| Ok(()))
+                .is_err()
+        );
+        assert!(!root.join("outputs/work/runtime/locks/foreign").exists());
     }
 
     fn session(root: &Path) -> DiscussionSession {
@@ -501,7 +611,9 @@ mod tests {
         ] {
             let root = root();
             let store = local(&root);
-            let first = store.initialize(&session(&root), false).unwrap();
+            let first = store
+                .initialize_with_runtime(&session(&root), false)
+                .unwrap();
             let op = operation(&first, "update");
             let failing = LocalDiscussionStorage {
                 project_root: root.clone(),
@@ -512,10 +624,20 @@ mod tests {
                 },
             };
             assert!(
-                failing.submit("example", &op, false).is_err(),
+                failing.submit_with_runtime("example", &op, false).is_err(),
                 "{fault:?} must reject the submission"
             );
             assert!(failing.files.fired.get(), "{fault:?} must be injected");
+            assert!(
+                !root
+                    .join("outputs/work/runtime/locks/example/discussion.lock")
+                    .exists()
+            );
+            assert!(
+                !root
+                    .join("outputs/work/discussions/example/.work-state-writer.lock")
+                    .exists()
+            );
             let current = store.read_current("example").unwrap().unwrap();
             assert_eq!(
                 current.revision,
@@ -526,12 +648,15 @@ mod tests {
                 }
             );
             if matches!(fault, Fault::HistoryWrite | Fault::PartialHistory) {
-                assert!(store.submit("example", &op, true).is_err());
+                assert!(store.submit_with_runtime("example", &op, true).is_err());
                 assert_eq!(store.read_current("example").unwrap().unwrap().revision, 1);
             } else {
-                let recovered = store.submit("example", &op, true).unwrap();
+                let recovered = store.submit_with_runtime("example", &op, true).unwrap();
                 assert_eq!(recovered.revision, 2);
-                assert_eq!(store.submit("example", &op, false).unwrap(), recovered);
+                assert_eq!(
+                    store.submit_with_runtime("example", &op, false).unwrap(),
+                    recovered
+                );
             }
             assert_eq!(store.read_history("example", 1).unwrap(), first);
         }
@@ -591,13 +716,31 @@ mod tests {
         let root = PathBuf::from(root);
         let mode = std::env::var("WORK_DISCUSSION_TEST_MODE").unwrap();
         let store = local(&root);
+
         if mode == "hold" {
-            let _guard = LocalWriterLock
-                .acquire(&root.join("outputs/work/discussions/example/.work-state-writer.lock"))
-                .unwrap();
+            use work_feature::ports::{RuntimeWriterGuard, RuntimeWriterLock};
+            let context = work_feature::ports::RequirementWriterContext {
+                canonical_project_root: root.clone(),
+                requirement_id: store
+                    .read_history("example", 1)
+                    .unwrap()
+                    .requirement_id
+                    .parse()
+                    .unwrap(),
+            };
+            let guard = {
+                LocalWriterLock
+                    .acquire_runtime(&context, work_model::runtime::LockClass::Discussion)
+                    .unwrap()
+            };
+
             fs::write(root.join("ready"), b"ready").unwrap();
             while !root.join("release").exists() {
                 std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            {
+                let guard = guard;
+                guard.release().unwrap();
             }
         } else {
             let s = store.read_history("example", 1).unwrap();
@@ -615,10 +758,12 @@ mod tests {
                         replaced: Cell::new(false),
                     },
                 };
-                crashing.submit("example", &op, false).unwrap();
+                {
+                    crashing.submit_with_runtime("example", &op, false).unwrap();
+                }
                 panic!("Expected process termination inside commit");
             }
-            let r = store.submit("example", &op, false);
+            let r = { store.submit_with_runtime("example", &op, false) };
             fs::write(
                 root.join(format!("{mode}.result")),
                 r.map(|s| s.revision.to_string())
@@ -639,6 +784,73 @@ mod tests {
             .env("WORK_DISCUSSION_TEST_MODE", mode)
             .spawn()
             .unwrap()
+    }
+
+    /// Isolated test simulates explicit offline handling only after the actor has exited.
+    fn remove_exited_test_owner(root: &Path) {
+        let path = root.join("outputs/work/runtime/locks/example/discussion.lock");
+        let raw = fs::read(&path).unwrap();
+        let owner: work_model::runtime::RuntimeOwner = serde_json::from_slice(&raw).unwrap();
+        owner.validate_shape().unwrap();
+        assert_eq!(owner.canonical_root, root.to_str().unwrap());
+        assert_eq!(owner.requirement_id, "example");
+        assert_eq!(owner.class, work_model::runtime::LockClass::Discussion);
+        assert_eq!(
+            owner.owner_identity,
+            work_operations::derivation::identity::runtime_owner_identity(
+                root.to_str().unwrap(),
+                &"example".parse().unwrap(),
+                "discussion",
+                &owner.instance_nonce
+            )
+            .unwrap()
+        );
+        assert_eq!(fs::read(&path).unwrap(), raw);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn runtime_discussion_process_exit_keeps_owner_and_requires_offline_test_handling() {
+        for mode in ["crash-before", "crash-after"] {
+            let root = root();
+            let store = local(&root);
+            let first = store
+                .initialize_with_runtime(&session(&root), false)
+                .unwrap();
+            let status = Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "discussion::storage::tests::discussion_process_worker",
+                    "--nocapture",
+                ])
+                .env("WORK_DISCUSSION_TEST_ROOT", &root)
+                .env("WORK_DISCUSSION_TEST_MODE", mode)
+                .env("WORK_DISCUSSION_TEST_RUNTIME", "1")
+                .spawn()
+                .unwrap()
+                .wait()
+                .unwrap();
+            assert_eq!(
+                status.code(),
+                Some(if mode == "crash-before" { 17 } else { 18 })
+            );
+            let op = operation(&first, mode);
+            let lock = root.join("outputs/work/runtime/locks/example/discussion.lock");
+            let owner_before = fs::read(&lock).unwrap();
+            assert_eq!(
+                store
+                    .submit_with_runtime("example", &op, true)
+                    .unwrap_err()
+                    .reason_code,
+                "work_state_writer_busy"
+            );
+            assert_eq!(fs::read(&lock).unwrap(), owner_before);
+            remove_exited_test_owner(&root);
+            let recovered = store.submit_with_runtime("example", &op, true).unwrap();
+            assert_eq!(recovered.revision, 2);
+            assert_eq!(store.read_history("example", 1).unwrap(), first);
+            assert!(!lock.exists());
+        }
     }
 
     #[test]
@@ -683,6 +895,13 @@ mod tests {
                 if mode == "crash-before" { 1 } else { 2 }
             );
             let op = operation(&first, mode);
+            {
+                assert_eq!(
+                    store.submit("example", &op, true).unwrap_err().reason_code,
+                    "work_state_writer_busy"
+                );
+                remove_exited_test_owner(&root);
+            }
             let recovered = store.submit("example", &op, true).unwrap();
             assert_eq!(recovered.revision, 2);
             assert_eq!(store.submit("example", &op, false).unwrap(), recovered);

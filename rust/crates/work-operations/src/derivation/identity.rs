@@ -8,6 +8,98 @@ use crate::protocol::ATTEMPT_ID_PREFIX;
 use crate::protocol::valid_sha256;
 use crate::specification::transaction::TransactionIssue;
 
+/// Bind a runtime transaction to the complete approved context, never a short digest.
+/// The canonical root is supplied by Infrastructure after filesystem validation.
+pub fn runtime_transaction_identity(
+    canonical_root: &str,
+    requirement: &crate::identifiers::RequirementId,
+    operation: &str,
+    approval: &str,
+    business_identity: &Value,
+    targets: &[String],
+) -> Result<String, TransactionIssue> {
+    let valid_operation = matches!(
+        operation,
+        "attempt-start"
+            | "record-begin"
+            | "command-correction"
+            | "record-finish"
+            | "deviation-record"
+            | "attempt-close"
+            | "correction"
+            | "specification-update"
+            | "specification-migration"
+            | "specification-migration-item"
+            | "specification-migration-reconcile"
+            | "instruction-migration"
+            | "source-refresh"
+            | "source-capture"
+    );
+    let mut unique = std::collections::BTreeSet::new();
+    if canonical_root.is_empty()
+        || !valid_operation
+        || !valid_sha256(approval)
+        || !business_identity.is_object()
+        || targets.is_empty()
+        || targets.iter().any(|target| {
+            !runtime_relative_path(target)
+                || !unique.insert(crate::canonical::portable_path_identity(target))
+        })
+    {
+        return Err(runtime_identity_issue());
+    }
+    crate::derivation::fingerprint::structured(&json!({
+        "domain":"WORK-RUNTIME-IDENTITY-V1",
+        "canonical_root":canonical_root,
+        "requirement_id":requirement.as_str(),
+        "operation":operation,
+        "approval_sha256":approval,
+        "business_identity":business_identity,
+        "targets":targets,
+    }))
+    .map_err(|_| runtime_identity_issue())
+}
+
+/// Portable relative representations are canonical before they enter identity evidence.
+pub fn runtime_relative_path(path: &str) -> bool {
+    !path.is_empty()
+        && !path.contains('\\')
+        && path
+            .split('/')
+            .all(|part| crate::identifiers::path_segment_issue(part).is_none())
+}
+
+/// A fresh owner nonce distinguishes successive acquisitions in the same requirement.
+pub fn runtime_owner_identity(
+    canonical_root: &str,
+    requirement: &crate::identifiers::RequirementId,
+    class: &str,
+    instance_nonce: &str,
+) -> Result<String, TransactionIssue> {
+    if canonical_root.is_empty()
+        || !matches!(class, "source" | "discussion" | "execution")
+        || !valid_sha256(instance_nonce)
+    {
+        return Err(runtime_identity_issue());
+    }
+    crate::derivation::fingerprint::structured(&json!({
+        "domain":"WORK-RUNTIME-OWNER-V1",
+        "canonical_root":canonical_root,
+        "requirement_id":requirement.as_str(),
+        "class":class,
+        "instance_nonce":instance_nonce,
+    }))
+    .map_err(|_| runtime_identity_issue())
+}
+
+fn runtime_identity_issue() -> TransactionIssue {
+    TransactionIssue {
+        reason_code: "runtime_transaction_identity",
+        message: "Runtime identity requires the complete validated project, approval and inventory context.",
+        details: json!({}),
+    }
+}
+
 /// A Specification transaction ID is bound to a validated approval digest.
 pub fn derived_transaction_id(kind: &str, approval: &str) -> Result<String, TransactionIssue> {
     if !matches!(kind, "UPDATE" | "MIGRATION" | "RECONCILIATION") || !valid_sha256(approval) {
@@ -50,7 +142,7 @@ pub fn preview_transaction_id(
     ))
 }
 
-/// Workspace allocation combines external clock and random inputs into a distinct ID type.
+/// Clock and randomness provide a portable identifier; exclusive allocation proves freshness.
 pub fn workspace_transaction_id(
     utc_stamp: &str,
     random_suffix: &str,
@@ -186,4 +278,135 @@ pub fn next_record_id(base_record_id: &str, attempt: &Value) -> Result<String, E
         "{base_record_id}#{}",
         String::from_utf8(digits).expect("ASCII digits")
     ))
+}
+
+#[cfg(test)]
+mod runtime_tests {
+    use super::*;
+
+    #[test]
+    fn complete_identity_separates_prefix_collisions_roots_requirements_and_retry() {
+        let requirement = "example".parse().unwrap();
+        let targets = vec!["自訂 目錄/execution/index.json".to_owned()];
+        let approval = "a".repeat(64);
+        let business =
+            json!({"task_id":"TASK-001","attempt_id":"ATTEMPT-001","record_id":"CMD-001"});
+        let derive = |root: &str,
+                      requirement: &crate::identifiers::RequirementId,
+                      approval: &str,
+                      business: &Value| {
+            runtime_transaction_identity(
+                root,
+                requirement,
+                "record-begin",
+                approval,
+                business,
+                &targets,
+            )
+            .unwrap()
+        };
+        let identity = derive("/專案 空白", &requirement, &approval, &business);
+        assert_eq!(identity.len(), 64);
+        assert_eq!(
+            identity,
+            derive("/專案 空白", &requirement, &approval, &business)
+        );
+        let mut collision = approval.clone();
+        collision.replace_range(63..64, "b");
+        assert_eq!(&approval[..12], &collision[..12]);
+        assert_ne!(
+            identity,
+            derive("/專案 空白", &requirement, &collision, &business)
+        );
+        assert_ne!(
+            identity,
+            derive("/另一專案", &requirement, &approval, &business)
+        );
+        assert_ne!(
+            identity,
+            derive(
+                "/專案 空白",
+                &"other".parse().unwrap(),
+                &approval,
+                &business
+            )
+        );
+        let mut retry = business.clone();
+        retry["record_id"] = json!("CMD-001#2");
+        assert_ne!(
+            identity,
+            derive("/專案 空白", &requirement, &approval, &retry)
+        );
+        assert_ne!(
+            runtime_owner_identity("/專案 空白", &requirement, "execution", &approval).unwrap(),
+            runtime_owner_identity("/專案 空白", &requirement, "execution", &collision).unwrap()
+        );
+    }
+
+    #[test]
+    fn incomplete_or_noncanonical_inventory_and_unknown_owner_class_are_rejected() {
+        let requirement = "example".parse().unwrap();
+        let approval = "a".repeat(64);
+        for target in [
+            "",
+            "/absolute",
+            "../other",
+            "a/../other",
+            "a//b",
+            "a\\b",
+            "CON/file",
+            "file.",
+        ] {
+            assert!(
+                runtime_transaction_identity(
+                    "/project",
+                    &requirement,
+                    "record-begin",
+                    &approval,
+                    &json!({}),
+                    &[target.into()]
+                )
+                .is_err(),
+                "{target}"
+            );
+        }
+        for targets in [
+            vec![],
+            vec!["a.json".into(), "a.json".into()],
+            vec!["A.json".into(), "a.json".into()],
+            vec!["café.json".into(), "cafe\u{301}.json".into()],
+        ] {
+            assert!(
+                runtime_transaction_identity(
+                    "/project",
+                    &requirement,
+                    "record-begin",
+                    &approval,
+                    &json!({}),
+                    &targets
+                )
+                .is_err()
+            );
+        }
+        for (root, operation, digest, business) in [
+            ("", "record-begin", approval.as_str(), json!({})),
+            ("/project", "unknown", approval.as_str(), json!({})),
+            ("/project", "record-begin", "short", json!({})),
+            ("/project", "record-begin", approval.as_str(), json!(null)),
+        ] {
+            assert!(
+                runtime_transaction_identity(
+                    root,
+                    &requirement,
+                    operation,
+                    digest,
+                    &business,
+                    &["a.json".into()]
+                )
+                .is_err()
+            );
+        }
+        assert!(runtime_owner_identity("/project", &requirement, "unknown", &approval).is_err());
+        assert!(runtime_owner_identity("/project", &requirement, "source", "short").is_err());
+    }
 }

@@ -272,6 +272,105 @@ pub fn build_command_correction_candidate(
     Ok((candidate, record_id.to_owned()))
 }
 
+pub struct CommandCorrectionStagingInput<'a> {
+    pub canonical_root: &'a str,
+    pub requirement: &'a crate::identifiers::RequirementId,
+    pub execution_dir: &'a str,
+    pub task_id: &'a str,
+    pub attempt_id: &'a str,
+    pub record_id: &'a str,
+    pub task: &'a Value,
+    pub index_before: &'a [u8],
+    pub attempt_before: &'a [u8],
+    pub index_after: &'a [u8],
+}
+
+pub fn build_command_correction_staging(
+    input: CommandCorrectionStagingInput<'_>,
+) -> Result<work_model::runtime::RuntimeManifest, ExecutionIssue> {
+    use crate::canonical::parse_json_contract;
+    use crate::derivation::fingerprint;
+    use work_model::runtime::{RuntimeBytes, RuntimeTarget};
+    let parse = |raw| {
+        parse_json_contract(raw).map_err(|_| {
+            issue(
+                "command_correction_staging_contract",
+                "Canonical execution artifacts are required.",
+                json!({}),
+            )
+        })
+    };
+    let before = parse(input.index_before)?;
+    let after = parse(input.index_after)?;
+    let attempt = parse(input.attempt_before)?;
+    crate::execution::index::validate_execution_index(&before, input.index_before)?;
+    crate::execution::index::validate_execution_index(&after, input.index_after)?;
+    crate::execution::attempt::validate_attempt_bytes(&attempt, input.attempt_before)?;
+    if before["requirement_id"] != input.requirement.as_str()
+        || attempt["task_id"] != input.task_id
+        || attempt["attempt_id"] != input.attempt_id
+        || attempt["status"] != "in_progress"
+    {
+        return Err(issue(
+            "command_correction_staging_identity",
+            "The execution identities disagree.",
+            json!({}),
+        ));
+    }
+    let request = json!({"schema":"work-command-correction-request",
+        "actual_command":after["lock"]["command_correction"]["actual_command"],
+        "reason":after["lock"]["command_correction"]["reason"]});
+    let (expected, record) =
+        build_command_correction_candidate(input.task, &attempt, &before, input.task_id, &request)?;
+    if record != input.record_id
+        || crate::execution::index::render_execution_index(&expected).map_err(|_| {
+            issue(
+                "command_correction_staging_contract",
+                "The index cannot be rendered.",
+                json!({}),
+            )
+        })? != input.index_after
+    {
+        return Err(issue(
+            "command_correction_staging_transition",
+            "The prepared index is not the unique command correction.",
+            json!({}),
+        ));
+    }
+    let evidence = |raw: &[u8]| RuntimeBytes {
+        bytes: raw.to_vec(),
+        sha256: fingerprint::raw(raw),
+    };
+    let payloads =
+        std::collections::BTreeMap::from([("index.json.tmp".into(), input.index_after.to_vec())]);
+    crate::execution::recovery::build_execution_staging_manifest(
+        crate::execution::recovery::ExecutionStagingInput {
+            canonical_root: input.canonical_root,
+            requirement: input.requirement,
+            execution_dir: input.execution_dir,
+            operation: crate::derivation::publication::RuntimeOperation::CommandCorrection,
+            approval_sha256: &fingerprint::raw(input.index_after),
+            business_identity: json!({"task_id":input.task_id,"attempt_id":input.attempt_id,"record_id":input.record_id}),
+            targets: vec![
+                RuntimeTarget {
+                    path: format!("{}/index.json", input.execution_dir),
+                    before: Some(evidence(input.index_before)),
+                    after: Some(evidence(input.index_after)),
+                },
+                RuntimeTarget {
+                    path: format!(
+                        "{}/{}/{}/attempt.json",
+                        input.execution_dir, input.task_id, input.attempt_id
+                    ),
+                    before: Some(evidence(input.attempt_before)),
+                    after: Some(evidence(input.attempt_before)),
+                },
+            ],
+            payloads: &payloads,
+        },
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

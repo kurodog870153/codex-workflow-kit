@@ -50,12 +50,89 @@ pub trait DocumentRepository {
     fn read_yaml(&self, path: &Path) -> Result<serde_json::Value, WorkError>;
 }
 
-pub trait WriterGuard {}
+/// Supplied by a validated Source/Session/TASK context, never an execution-dir basename.
+#[derive(Debug, Clone)]
+pub struct RequirementWriterContext {
+    pub canonical_project_root: std::path::PathBuf,
+    pub requirement_id: work_model::identifiers::RequirementId,
+}
 
-pub trait WriterLock {
-    type Guard: WriterGuard;
-    fn acquire(&self, path: &Path) -> Result<Self::Guard, WorkError>;
-    fn require_idle(&self, path: &Path) -> Result<(), WorkError>;
+pub trait RuntimeWriterGuard {
+    fn owner(&self) -> &work_model::runtime::RuntimeOwner;
+    fn release(self) -> Result<(), WorkError>;
+}
+
+/// Separate capability while all existing writers still use their original contract.
+pub trait RuntimeWriterLock {
+    type Guard: RuntimeWriterGuard;
+    fn acquire_runtime(
+        &self,
+        context: &RequirementWriterContext,
+        class: work_model::runtime::LockClass,
+    ) -> Result<Self::Guard, WorkError>;
+    fn require_runtime_idle(
+        &self,
+        context: &RequirementWriterContext,
+        class: work_model::runtime::LockClass,
+    ) -> Result<(), WorkError>;
+}
+
+pub trait RuntimeTransactionRepository {
+    fn prepare_runtime(
+        &self,
+        manifest: &work_model::runtime::RuntimeManifest,
+        payloads: &std::collections::BTreeMap<String, Vec<u8>>,
+    ) -> Result<String, WorkError>;
+    fn read_runtime(
+        &self,
+        expected: &work_model::runtime::RuntimeManifest,
+    ) -> Result<work_model::runtime::RuntimeManifest, WorkError>;
+    fn update_runtime(
+        &self,
+        expected: &work_model::runtime::RuntimeManifest,
+        published_count: usize,
+        phase: work_model::runtime::RuntimePhase,
+    ) -> Result<(), WorkError>;
+    fn cleanup_runtime(
+        &self,
+        expected: &work_model::runtime::RuntimeManifest,
+    ) -> Result<(), WorkError>;
+}
+
+/// Explicit release covers ordinary success and every returned error from the critical section.
+pub fn with_runtime_writer<T>(
+    lock: &impl RuntimeWriterLock,
+    context: &RequirementWriterContext,
+    class: work_model::runtime::LockClass,
+    write: impl FnOnce(&work_model::runtime::RuntimeOwner) -> Result<T, WorkError>,
+) -> Result<T, WorkError> {
+    let guard = lock.acquire_runtime(context, class)?;
+    let owner = guard.owner();
+    let operation = if owner.validate_shape().is_ok()
+        && owner.canonical_root == context.canonical_project_root.to_string_lossy()
+        && owner.requirement_id == context.requirement_id.as_str()
+        && owner.class == class
+    {
+        write(owner)
+    } else {
+        Err(WorkError::new(
+            crate::error::ExitCode::ArtifactIntegrity,
+            "runtime_owner_context_mismatch",
+            "Writer owner does not match the validated requirement context.",
+            serde_json::json!({}),
+        ))
+    };
+    let release = guard.release();
+    match (operation, release) {
+        (Ok(value), Ok(())) => Ok(value),
+        (Ok(_), Err(release)) => Err(release),
+        (Err(operation), Ok(())) => Err(operation),
+        (Err(mut operation), Err(release)) => {
+            operation.details = serde_json::json!({"operation_details":operation.details,
+                "writer_release":{"exit_code":release.exit_code as i32,"reason_code":release.reason_code,"message":release.message,"details":release.details}});
+            Err(operation)
+        }
+    }
 }
 
 pub trait Git {
@@ -102,6 +179,132 @@ mod tests {
     use std::cell::RefCell;
     use std::collections::HashMap;
     use std::path::{Path, PathBuf};
+
+    struct FakeRuntimeGuard {
+        owner: work_model::runtime::RuntimeOwner,
+        releases: std::rc::Rc<std::cell::Cell<usize>>,
+        fail_release: bool,
+    }
+    impl RuntimeWriterGuard for FakeRuntimeGuard {
+        fn owner(&self) -> &work_model::runtime::RuntimeOwner {
+            &self.owner
+        }
+        fn release(self) -> Result<(), WorkError> {
+            self.releases.set(self.releases.get() + 1);
+            if self.fail_release {
+                Err(WorkError::new(
+                    crate::error::ExitCode::IoFailure,
+                    "release_failed",
+                    "release failed",
+                    serde_json::json!({"owner":self.owner.owner_identity}),
+                ))
+            } else {
+                Ok(())
+            }
+        }
+    }
+    struct FakeRuntimeLock {
+        releases: std::rc::Rc<std::cell::Cell<usize>>,
+        fail_release: bool,
+        wrong_owner: bool,
+    }
+    impl RuntimeWriterLock for FakeRuntimeLock {
+        type Guard = FakeRuntimeGuard;
+        fn acquire_runtime(
+            &self,
+            context: &RequirementWriterContext,
+            class: work_model::runtime::LockClass,
+        ) -> Result<Self::Guard, WorkError> {
+            Ok(FakeRuntimeGuard {
+                owner: work_model::runtime::RuntimeOwner {
+                    canonical_root: context
+                        .canonical_project_root
+                        .to_string_lossy()
+                        .into_owned(),
+                    requirement_id: if self.wrong_owner {
+                        "other".into()
+                    } else {
+                        context.requirement_id.as_str().into()
+                    },
+                    class,
+                    instance_nonce: "a".repeat(64),
+                    owner_identity: "b".repeat(64),
+                },
+                releases: self.releases.clone(),
+                fail_release: self.fail_release,
+            })
+        }
+        fn require_runtime_idle(
+            &self,
+            _: &RequirementWriterContext,
+            _: work_model::runtime::LockClass,
+        ) -> Result<(), WorkError> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn runtime_writer_releases_on_success_error_and_wrong_context_with_both_errors_retained() {
+        use work_model::runtime::LockClass;
+        let context = RequirementWriterContext {
+            canonical_project_root: "/project".into(),
+            requirement_id: "example".parse().unwrap(),
+        };
+        for (fail_operation, fail_release, wrong_owner) in [
+            (false, false, false),
+            (true, false, false),
+            (false, true, false),
+            (true, true, false),
+            (false, false, true),
+        ] {
+            let releases = std::rc::Rc::new(std::cell::Cell::new(0));
+            let lock = FakeRuntimeLock {
+                releases: releases.clone(),
+                fail_release,
+                wrong_owner,
+            };
+            let calls = std::cell::Cell::new(0);
+            let result = with_runtime_writer(&lock, &context, LockClass::Execution, |owner| {
+                calls.set(calls.get() + 1);
+                assert_eq!(owner.requirement_id, "example");
+                if fail_operation {
+                    Err(WorkError::new(
+                        crate::error::ExitCode::Contract,
+                        "operation_failed",
+                        "operation failed",
+                        serde_json::json!({"original":true}),
+                    ))
+                } else {
+                    Ok(42)
+                }
+            });
+            assert_eq!(releases.get(), 1);
+            assert_eq!(calls.get(), usize::from(!wrong_owner));
+            if wrong_owner {
+                assert_eq!(
+                    result.unwrap_err().reason_code,
+                    "runtime_owner_context_mismatch"
+                );
+            } else if fail_operation {
+                let error = result.unwrap_err();
+                assert_eq!(error.reason_code, "operation_failed");
+                assert_eq!(error.exit_code, crate::error::ExitCode::Contract);
+                if fail_release {
+                    assert_eq!(error.details["operation_details"]["original"], true);
+                    assert_eq!(
+                        error.details["writer_release"]["reason_code"],
+                        "release_failed"
+                    );
+                } else {
+                    assert_eq!(error.details["original"], true);
+                }
+            } else if fail_release {
+                assert_eq!(result.unwrap_err().reason_code, "release_failed");
+            } else {
+                assert_eq!(result.unwrap(), 42);
+            }
+        }
+    }
 
     #[derive(Default)]
     struct FakeStore {

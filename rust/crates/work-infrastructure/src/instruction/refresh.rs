@@ -123,8 +123,9 @@ mod tests {
 
     fn fixture_root(label: &str) -> (std::path::PathBuf, std::path::PathBuf) {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture =
-            repo.join("crates/work-infrastructure/fixtures/specification-update/item-goal");
+        let fixture = repo.join(
+            "crates/work-infrastructure/fixtures/cases/specification/update/item-goal/project",
+        );
         let root = std::env::temp_dir().join(format!(
             "work-task-refresh-{label}-{}-{}",
             std::process::id(),

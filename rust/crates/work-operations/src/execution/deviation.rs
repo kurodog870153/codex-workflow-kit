@@ -1034,6 +1034,147 @@ pub fn formalize_semantic_action(
     }
 }
 
+pub struct DeviationStagingInput<'a> {
+    pub canonical_root: &'a str,
+    pub requirement: &'a crate::identifiers::RequirementId,
+    pub execution_dir: &'a str,
+    pub task_id: &'a str,
+    pub attempt_id: &'a str,
+    pub record_id: &'a str,
+    pub task: &'a Value,
+    pub index_before: &'a [u8],
+    pub attempt_before: &'a [u8],
+    pub attempt_after: &'a [u8],
+    pub sources: &'a BTreeMap<String, Vec<u8>>,
+}
+
+pub fn build_deviation_staging(
+    input: DeviationStagingInput<'_>,
+) -> Result<work_model::runtime::RuntimeManifest, ExecutionIssue> {
+    use crate::canonical::parse_json_contract;
+    use crate::derivation::fingerprint;
+    use work_model::runtime::{RuntimeBytes, RuntimeTarget};
+    let parse = |raw| {
+        parse_json_contract(raw).map_err(|_| {
+            issue(
+                "deviation_staging_contract",
+                "Canonical artifacts are required.",
+            )
+        })
+    };
+    let index = parse(input.index_before)?;
+    let before = parse(input.attempt_before)?;
+    let after = parse(input.attempt_after)?;
+    crate::execution::index::validate_execution_index(&index, input.index_before)?;
+    crate::execution::recovery::validate_deviation_record_recovery(
+        &before,
+        input.attempt_before,
+        &after,
+        input.attempt_after,
+    )?;
+    let lock = &index["lock"];
+    if index["requirement_id"] != input.requirement.as_str()
+        || before["task_id"] != input.task_id
+        || before["attempt_id"] != input.attempt_id
+        || before["status"] != "in_progress"
+        || lock["kind"] != "execution"
+        || lock["task_id"] != input.task_id
+        || lock["attempt_id"] != input.attempt_id
+        || lock["record_id"] != input.record_id
+        || lock["execute_instructions_sha256"] != before["execute_instructions_sha256"]
+    {
+        return Err(issue(
+            "deviation_staging_identity",
+            "The active record identities disagree.",
+        ));
+    }
+    let artifact = after["execution_deviations"]
+        .as_array()
+        .and_then(|rows| rows.last())
+        .ok_or_else(|| {
+            issue(
+                "deviation_staging_contract",
+                "The appended deviation is missing.",
+            )
+        })?;
+    let proposal = &artifact["proposal"];
+    if proposal["task_id"] != input.task_id
+        || proposal["attempt_id"] != input.attempt_id
+        || proposal["anchor_record_id"] != input.record_id
+    {
+        return Err(issue(
+            "deviation_staging_identity",
+            "The deviation proposal identifies another record.",
+        ));
+    }
+    let kind = crate::execution::formal_record_kind(
+        input.task,
+        input.record_id.split('#').next().unwrap_or(""),
+    )?;
+    crate::execution::validate_deviation_action(proposal, input.task, kind)?;
+    let index_path = format!("{}/index.json", input.execution_dir);
+    let attempt_path = format!(
+        "{}/{}/{}/attempt.json",
+        input.execution_dir, input.task_id, input.attempt_id
+    );
+    if input.sources.get(&index_path).map(Vec::as_slice) != Some(input.index_before)
+        || input.sources.get(&attempt_path).map(Vec::as_slice) != Some(input.attempt_before)
+    {
+        return Err(issue(
+            "deviation_staging_sources",
+            "The complete reviewed execution sources are required.",
+        ));
+    }
+    let sources = input
+        .sources
+        .iter()
+        .map(|(path, raw)| (path.clone(), fingerprint::raw(raw)))
+        .collect();
+    let preview = build_deviation_preview(proposal, kind, &sources)?;
+    let approval = artifact["approved_preview_sha256"].as_str().unwrap_or("");
+    let (expected, _) = append_approved_deviation(
+        &before,
+        &preview,
+        approval,
+        artifact["decision"]["evidence"].as_str().unwrap_or(""),
+        input.execution_dir,
+    )?;
+    if crate::execution::attempt::render_attempt(&expected)? != input.attempt_after {
+        return Err(issue(
+            "deviation_staging_transition",
+            "The prepared Attempt differs from its approved preview.",
+        ));
+    }
+    let bytes = |raw: &[u8]| RuntimeBytes {
+        bytes: raw.to_vec(),
+        sha256: fingerprint::raw(raw),
+    };
+    let payloads = BTreeMap::from([("attempt.json.tmp".into(), input.attempt_after.to_vec())]);
+    crate::execution::recovery::build_execution_staging_manifest(
+        crate::execution::recovery::ExecutionStagingInput {
+            canonical_root: input.canonical_root,
+            requirement: input.requirement,
+            execution_dir: input.execution_dir,
+            operation: crate::derivation::publication::RuntimeOperation::DeviationRecord,
+            approval_sha256: approval,
+            business_identity: json!({"task_id":input.task_id,"attempt_id":input.attempt_id,"record_id":input.record_id,"publication_sources":input.sources}),
+            targets: vec![
+                RuntimeTarget {
+                    path: attempt_path,
+                    before: Some(bytes(input.attempt_before)),
+                    after: Some(bytes(input.attempt_after)),
+                },
+                RuntimeTarget {
+                    path: index_path,
+                    before: Some(bytes(input.index_before)),
+                    after: Some(bytes(input.index_before)),
+                },
+            ],
+            payloads: &payloads,
+        },
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

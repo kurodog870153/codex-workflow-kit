@@ -235,8 +235,114 @@ pub fn build_command_preview(input: CommandPreviewInput<'_>) -> Result<Value, Ex
         "receipt_prefix":input.receipt_prefix,"sources":input.sources});
     preview["approved_sha256"] = json!(command_preview_approval_sha256(&preview));
     Ok(work_model::execution::response::verified::<
-        work_model::execution::response::CommandPreview,
+        work_model::execution::response::LegacyCommandPreview,
     >(preview))
+}
+
+pub struct CommandReceiptPreviewInput<'a> {
+    pub request: &'a Value,
+    pub execution_dir: &'a str,
+    pub task_id: &'a str,
+    pub attempt_id: &'a str,
+    pub record_id: &'a str,
+    pub working_directory: &'a str,
+    pub execution: &'a Value,
+    pub invocation: &'a Value,
+    pub sources: &'a Value,
+}
+
+pub fn build_command_preview_with_receipts(
+    input: CommandReceiptPreviewInput<'_>,
+) -> Result<Value, ExecutionIssue> {
+    validate_command_run_request(input.request)?;
+    let paths = crate::derivation::publication::command_receipt_paths(
+        input.execution_dir,
+        input.task_id,
+        input.attempt_id,
+        input.record_id,
+    )
+    .map_err(|_| {
+        issue(
+            "command_run_receipt_invalid",
+            "The command receipt identity is invalid.",
+            json!({}),
+        )
+    })?;
+    let mut preview = json!({"schema":"work-command-preview",
+        "request":input.request,"task_id":input.task_id,"attempt_id":input.attempt_id,
+        "record_id":input.record_id,"working_directory":input.working_directory,
+        "execution":input.execution,"invocation":input.invocation,
+        "receipt_dir":paths.directory,"sources":input.sources});
+    preview["approved_sha256"] = json!(command_preview_approval_sha256(&preview));
+    serde_json::from_value::<work_model::execution::response::PreparedCommandPreview>(
+        preview.clone(),
+    )
+    .map_err(|_| {
+        issue(
+            "command_run_preview_invalid",
+            "The prepared command preview is invalid.",
+            json!({}),
+        )
+    })?;
+    Ok(preview)
+}
+
+pub fn validate_command_receipt_preview(
+    preview: &Value,
+    execution_dir: &str,
+    approval: &str,
+) -> Result<crate::derivation::publication::CommandReceiptPaths, ExecutionIssue> {
+    let typed: work_model::execution::response::PreparedCommandPreview =
+        serde_json::from_value(preview.clone()).map_err(|_| {
+            issue(
+                "command_run_preview_invalid",
+                "The command preview requires the receipt-directory contract.",
+                json!({}),
+            )
+        })?;
+    if preview["schema"] != "work-command-preview" {
+        return Err(issue(
+            "command_run_preview_invalid",
+            "The command preview schema is invalid.",
+            json!({}),
+        ));
+    }
+    validate_command_run_request(&preview["request"])?;
+    let mut unsigned = preview.clone();
+    unsigned
+        .as_object_mut()
+        .expect("typed preview is an object")
+        .remove("approved_sha256");
+    if preview["approved_sha256"] != approval
+        || command_preview_approval_sha256(&unsigned) != approval
+    {
+        return Err(issue(
+            "command_run_approval_changed",
+            "The complete command preview changed after review.",
+            json!({}),
+        ));
+    }
+    let paths = crate::derivation::publication::command_receipt_paths(
+        execution_dir,
+        &typed.task_id,
+        &typed.attempt_id,
+        &typed.record_id,
+    )
+    .map_err(|_| {
+        issue(
+            "command_run_receipt_invalid",
+            "The command receipt identity is invalid.",
+            json!({}),
+        )
+    })?;
+    if paths.directory != typed.receipt_dir {
+        return Err(issue(
+            "command_run_receipt_invalid",
+            "The command receipt directory differs from the approved instance.",
+            json!({"expected":paths.directory,"actual":typed.receipt_dir}),
+        ));
+    }
+    Ok(paths)
 }
 
 pub fn build_command_started(preview: &Value, authorization_evidence: &str) -> Value {
@@ -244,7 +350,7 @@ pub fn build_command_started(preview: &Value, authorization_evidence: &str) -> V
         "authorization_evidence":authorization_evidence})
 }
 
-pub fn build_command_result(preview: &Value, process: &Value, with_receipt: bool) -> Value {
+fn command_result_fields(preview: &Value, process: &Value, with_receipt: bool) -> Value {
     let mut result = json!({"schema":"work-command-result",
         "approved_sha256":preview["approved_sha256"],
         "record_id":preview["record_id"],
@@ -254,7 +360,6 @@ pub fn build_command_result(preview: &Value, process: &Value, with_receipt: bool
         "stderr_tail":process["stderr_tail"],
         "stderr_truncated":process["stderr_truncated"]});
     if with_receipt {
-        result["receipt_prefix"] = preview["receipt_prefix"].clone();
         result["record_finish_required"] = json!(true);
         if process["status"] == "exited" {
             let code = process["exit_code"].as_i64().unwrap_or(0);
@@ -263,13 +368,35 @@ pub fn build_command_result(preview: &Value, process: &Value, with_receipt: bool
                     "result":format!("Command exited with code {code}; inspect retained execution evidence.")}});
         }
     }
+    result
+}
+
+pub fn build_command_result(preview: &Value, process: &Value, with_receipt: bool) -> Value {
+    let mut result = command_result_fields(preview, process, with_receipt);
+    if with_receipt {
+        result["receipt_prefix"] = preview["receipt_prefix"].clone();
+    }
     if preview["approved_sha256"].is_string() && preview["record_id"].is_string() {
-        work_model::execution::response::verified::<work_model::execution::response::CommandResult>(
-            result,
-        )
+        work_model::execution::response::verified::<
+            work_model::execution::response::LegacyCommandResult,
+        >(result)
     } else {
         result
     }
+}
+
+pub fn build_command_result_with_receipts(
+    preview: &Value,
+    process: &Value,
+    with_receipt: bool,
+) -> Value {
+    let mut result = command_result_fields(preview, process, with_receipt);
+    if with_receipt {
+        result["receipt_dir"] = preview["receipt_dir"].clone();
+    }
+    work_model::execution::response::verified::<
+        work_model::execution::response::PreparedCommandResult,
+    >(result)
 }
 
 pub fn quote_windows_batch_argument(argument: &str) -> Result<String, ExecutionIssue> {
@@ -310,6 +437,79 @@ pub fn windows_batch_command_line(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn receipt_directory_preview_binds_full_identity_and_invalidates_legacy_approval() {
+        let request = json!({"schema":"work-command-run-request","timeout_seconds":60});
+        let execution = json!({"os":"macos","working_directory":"."});
+        let invocation = json!({"kind":"direct","executable":"/usr/bin/printf","executable_sha256":"a".repeat(64),"argv":["printf","中文"]});
+        let sources = json!({"task/index.json":"b".repeat(64)});
+        let preview = build_command_preview_with_receipts(CommandReceiptPreviewInput {
+            request: &request,
+            execution_dir: "自訂 空白/執行",
+            task_id: "TASK-001",
+            attempt_id: "ATTEMPT-002",
+            record_id: "CMD-001#2",
+            working_directory: "/project",
+            execution: &execution,
+            invocation: &invocation,
+            sources: &sources,
+        })
+        .unwrap();
+        let approval = preview["approved_sha256"].as_str().unwrap();
+        let paths = validate_command_receipt_preview(&preview, "自訂 空白/執行", approval).unwrap();
+        assert_eq!(
+            preview["receipt_dir"],
+            "自訂 空白/執行/TASK-001/ATTEMPT-002/receipts/CMD-001-retry-2"
+        );
+        assert!(preview.get("receipt_prefix").is_none());
+        assert_eq!(paths.finished, format!("{}/finished.json", paths.directory));
+        let mut unsigned = preview.clone();
+        unsigned.as_object_mut().unwrap().remove("approved_sha256");
+        assert_eq!(command_preview_approval_sha256(&unsigned), approval);
+        assert_eq!(
+            validate_command_receipt_preview(&preview, "other/execution", approval)
+                .unwrap_err()
+                .reason_code,
+            "command_run_receipt_invalid"
+        );
+        let mut changed = preview.clone();
+        changed["sources"]["task/index.json"] = json!("c".repeat(64));
+        assert_eq!(
+            validate_command_receipt_preview(&changed, "自訂 空白/執行", approval)
+                .unwrap_err()
+                .reason_code,
+            "command_run_approval_changed"
+        );
+        let legacy = build_command_preview(CommandPreviewInput {
+            request: &request,
+            task_id: "TASK-001",
+            attempt_id: "ATTEMPT-002",
+            record_id: "CMD-001#2",
+            working_directory: "/project",
+            execution: &execution,
+            invocation: &invocation,
+            receipt_prefix: paths.legacy_started.trim_end_matches(".started.json"),
+            sources: &sources,
+        })
+        .unwrap();
+        assert_ne!(preview["approved_sha256"], legacy["approved_sha256"]);
+        assert!(
+            validate_command_receipt_preview(
+                &legacy,
+                "自訂 空白/執行",
+                legacy["approved_sha256"].as_str().unwrap()
+            )
+            .is_err()
+        );
+        let process = json!({"status":"exited","exit_code":7,"stdout_tail":"failed","stdout_truncated":false,"stderr_tail":"","stderr_truncated":false});
+        let without_receipt = build_command_result_with_receipts(&preview, &process, false);
+        assert!(without_receipt.get("receipt_dir").is_none());
+        let result = build_command_result_with_receipts(&preview, &process, true);
+        assert_eq!(result["receipt_dir"], preview["receipt_dir"]);
+        assert!(result.get("receipt_prefix").is_none());
+        assert_eq!(result["record_finish_request"]["record"]["exit_code"], 7);
+    }
 
     #[test]
     fn reserved_command_keeps_scope_sequence_and_argv_boundary() {

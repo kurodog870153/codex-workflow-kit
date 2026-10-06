@@ -19,6 +19,185 @@ fn issue(reason_code: &'static str, message: &'static str, details: Value) -> Ex
     }
 }
 
+pub struct AttemptStartStagingInput<'a> {
+    pub canonical_root: &'a str,
+    pub requirement: &'a crate::identifiers::RequirementId,
+    pub execution_dir: &'a str,
+    pub task_id: &'a str,
+    pub attempt_id: &'a str,
+    pub index_before: &'a [u8],
+    pub locked_index: &'a [u8],
+    pub attempt: &'a [u8],
+    pub started_index: &'a [u8],
+    pub expected_snapshot: &'a str,
+}
+
+pub fn build_attempt_start_staging(
+    input: AttemptStartStagingInput<'_>,
+) -> Result<work_model::runtime::RuntimeManifest, ExecutionIssue> {
+    use crate::canonical::parse_json_contract;
+    use crate::derivation::fingerprint;
+    use work_model::runtime::{RuntimeBytes, RuntimeTarget};
+    let parse = |raw: &[u8]| {
+        parse_json_contract(raw).map_err(|_| {
+            issue(
+                "attempt_start_staging_contract",
+                "Attempt-start staging requires canonical artifacts.",
+                json!({}),
+            )
+        })
+    };
+    let before = parse(input.index_before)?;
+    let locked = parse(input.locked_index)?;
+    let started = parse(input.started_index)?;
+    let attempt = parse(input.attempt)?;
+    for (value, raw) in [
+        (&before, input.index_before),
+        (&locked, input.locked_index),
+        (&started, input.started_index),
+    ] {
+        validate_execution_index(value, raw)?;
+    }
+    crate::execution::attempt::validate_attempt_bytes(&attempt, input.attempt)?;
+    if before["requirement_id"] != input.requirement.as_str()
+        || !before["lock"].is_null()
+        || attempt["task_id"] != input.task_id
+        || attempt["attempt_id"] != input.attempt_id
+        || attempt["status"] != "in_progress"
+    {
+        return Err(issue(
+            "attempt_start_staging_identity",
+            "The frozen Attempt and index identities disagree.",
+            json!({}),
+        ));
+    }
+    let row = before["tasks"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|row| row["id"] == input.task_id)
+        .ok_or_else(|| {
+            issue(
+                "attempt_start_task_not_found",
+                "The target TASK is missing.",
+                json!({}),
+            )
+        })?;
+    for (attempt_field, expected) in [
+        ("task_spec_id", &before["task_spec_id"]),
+        ("task_collection_sha256", &before["task_collection_sha256"]),
+        ("task_index_sha256", &before["task_index_sha256"]),
+        ("task_item_sha256", &row["task_item_sha256"]),
+        ("task_instructions_sha256", &row["instructions_sha256"]),
+        (
+            "hierarchy_selection_sha256",
+            &before["hierarchy_selection_sha256"],
+        ),
+        (
+            "execute_skill_selection_sha256",
+            &before["skill_selection_sha256"],
+        ),
+        ("skill_id", &row["skill_id"]),
+    ] {
+        if &attempt[attempt_field] != expected {
+            return Err(issue(
+                "attempt_start_staging_source_mismatch",
+                "The frozen Attempt does not preserve the execution index source identity.",
+                json!({"field":attempt_field}),
+            ));
+        }
+    }
+    let next = match row["status"].as_str() {
+        Some("pending") => next_attempt_id(None)?,
+        Some("pending_retry") => next_attempt_id(row["latest_attempt"].as_str())?,
+        _ => {
+            return Err(issue(
+                "attempt_start_invalid_original_status",
+                "The original TASK cannot start an Attempt.",
+                json!({}),
+            ));
+        }
+    };
+    if next != input.attempt_id {
+        return Err(issue(
+            "attempt_start_id_mismatch",
+            "The frozen Attempt is not the unique next ID.",
+            json!({}),
+        ));
+    }
+    let mut expected = before.clone();
+    expected["lock"] = crate::execution::build_execution_lock(
+        input.task_id,
+        input.attempt_id,
+        attempt["execute_instructions_sha256"]
+            .as_str()
+            .unwrap_or(""),
+    );
+    if render_execution_index(&expected).map_err(|_| {
+        issue(
+            "attempt_start_staging_contract",
+            "The locked index cannot be rendered.",
+            json!({}),
+        )
+    })? != input.locked_index
+        || render_execution_index(&crate::execution::start_index(
+            &expected,
+            input.task_id,
+            input.attempt_id,
+        )?)
+        .map_err(|_| {
+            issue(
+                "attempt_start_staging_contract",
+                "The started index cannot be rendered.",
+                json!({}),
+            )
+        })? != input.started_index
+    {
+        return Err(issue(
+            "attempt_start_staging_transition",
+            "The locked and started index must be the exact authorized transition.",
+            json!({}),
+        ));
+    }
+    let bytes = |raw: &[u8]| RuntimeBytes {
+        bytes: raw.to_vec(),
+        sha256: fingerprint::raw(raw),
+    };
+    let payloads = std::collections::BTreeMap::from([
+        ("index.locked.json.tmp".into(), input.locked_index.to_vec()),
+        (
+            "index.started.json.tmp".into(),
+            input.started_index.to_vec(),
+        ),
+    ]);
+    crate::execution::recovery::build_execution_staging_manifest(
+        crate::execution::recovery::ExecutionStagingInput {
+            canonical_root: input.canonical_root,
+            requirement: input.requirement,
+            execution_dir: input.execution_dir,
+            operation: crate::derivation::publication::RuntimeOperation::AttemptStart,
+            approval_sha256: input.expected_snapshot,
+            business_identity: json!({"task_id":input.task_id,"attempt_id":input.attempt_id,"expected_snapshot":input.expected_snapshot}),
+            targets: vec![
+                RuntimeTarget {
+                    path: format!("{}/index.json", input.execution_dir),
+                    before: Some(bytes(input.index_before)),
+                    after: Some(bytes(input.started_index)),
+                },
+                RuntimeTarget {
+                    path: format!(
+                        "{}/{}/{}/attempt.json",
+                        input.execution_dir, input.task_id, input.attempt_id
+                    ),
+                    before: None,
+                    after: Some(bytes(input.attempt)),
+                },
+            ],
+            payloads: &payloads,
+        },
+    )
+}
+
 pub fn validate_attempt_namespace(
     existing: &[String],
     original_status: &str,
@@ -367,6 +546,86 @@ pub fn build_attempt_candidate(
 mod tests {
     use super::*;
     use crate::execution::index::build_initial_execution_index;
+
+    #[test]
+    fn staging_freezes_exact_transition_and_rejects_source_drift() {
+        let collection = json!({"requirement_id":"demo","spec_id":"TASK-SPEC-001",
+            "tasks":[{"id":"TASK-001"}]});
+        let validation = json!({"task_instructions_sha256":{"TASK-001":"a".repeat(64)},
+            "task_skill_ids":{"TASK-001":null},"task_item_sha256":{"TASK-001":"b".repeat(64)},
+            "instructions_sha256":"c".repeat(64),"hierarchy_selection_sha256":"d".repeat(64),
+            "skill_selection_sha256":"e".repeat(64),"task_collection_sha256":"f".repeat(64),
+            "task_index_sha256":"0".repeat(64)});
+        let index = build_initial_execution_index(&collection, &validation).unwrap();
+        let authorization = json!({"schema":"work-attempt-authorization",
+            "task_id":"TASK-001","commands":[],"validations":[],"modifiable_files":[],
+            "working_directories":[],"external_operations":[],"allowed_deviations":[],
+            "reapproval_conditions":["scope_expansion","source_or_worktree_drift",
+                "failure_divergence","retry","recovery","unknown_result"],
+            "authorization_evidence":"Approved"});
+        let preflight = json!({"task_id":"TASK-001","task_spec_id":index["task_spec_id"],
+            "skill_id":null,"task_collection_sha256":index["task_collection_sha256"],
+            "task_index_sha256":index["task_index_sha256"],
+            "task_item_sha256":index["tasks"][0]["task_item_sha256"],
+            "task_instructions_sha256":index["tasks"][0]["instructions_sha256"],
+            "execute_instructions_sha256":"1".repeat(64)});
+        let attempt = build_attempt_candidate(
+            &preflight,
+            &index,
+            &json!({"authorization":authorization}),
+            "ATTEMPT-001",
+            "2026-10-07T10:00+08:00",
+            None,
+        )
+        .unwrap();
+        let mut locked = index.clone();
+        locked["lock"] =
+            crate::execution::build_execution_lock("TASK-001", "ATTEMPT-001", &"1".repeat(64));
+        let started = crate::execution::start_index(&locked, "TASK-001", "ATTEMPT-001").unwrap();
+        let before_raw = render_execution_index(&index).unwrap();
+        let locked_raw = render_execution_index(&locked).unwrap();
+        let started_raw = render_execution_index(&started).unwrap();
+        let requirement = "demo".parse::<crate::identifiers::RequirementId>().unwrap();
+        let snapshot = "2".repeat(64);
+        let build = |attempt_raw: &[u8], locked_bytes: &[u8]| {
+            build_attempt_start_staging(AttemptStartStagingInput {
+                canonical_root: "/project",
+                requirement: &requirement,
+                execution_dir: "outputs/demo/Execution",
+                task_id: "TASK-001",
+                attempt_id: "ATTEMPT-001",
+                index_before: &before_raw,
+                locked_index: locked_bytes,
+                attempt: attempt_raw,
+                started_index: &started_raw,
+                expected_snapshot: &snapshot,
+            })
+        };
+        let raw = render_attempt(&attempt).unwrap();
+        let manifest = build(&raw, &locked_raw).unwrap();
+        let payloads = crate::execution::recovery::execution_staging_payloads(&manifest).unwrap();
+        assert_eq!(payloads.len(), 2);
+        assert_eq!(payloads["index.locked.json.tmp"], locked_raw);
+        assert_eq!(payloads["index.started.json.tmp"], started_raw);
+        assert_eq!(manifest.targets.len(), 2);
+        assert_eq!(
+            manifest.targets[0].before.as_ref().unwrap().bytes,
+            before_raw
+        );
+        assert_eq!(manifest.targets[1].after.as_ref().unwrap().bytes, raw);
+        let mut changed = attempt;
+        changed["task_item_sha256"] = json!("3".repeat(64));
+        assert_eq!(
+            build(&render_attempt(&changed).unwrap(), &locked_raw)
+                .unwrap_err()
+                .reason_code,
+            "attempt_start_staging_source_mismatch"
+        );
+        assert_eq!(
+            build(&raw, &started_raw).unwrap_err().reason_code,
+            "attempt_start_staging_transition"
+        );
+    }
 
     #[test]
     fn recovery_base_restores_pending_index_from_started_state() {

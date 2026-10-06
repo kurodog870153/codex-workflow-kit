@@ -9,7 +9,7 @@ use work_feature::error::{ExitCode, WorkError};
 use work_feature::instruction::{
     load as load_instructions, select as select_instructions, task_document_selection,
 };
-use work_feature::ports::{ArtifactStore, WriterLock};
+use work_feature::ports::ArtifactStore;
 use work_feature::skill::SkillRoot;
 use work_feature::specification::{SpecificationBaseline, preview_update};
 use work_feature::task::{load_collection_with_file_state, load_revision_baseline};
@@ -33,10 +33,7 @@ use work_operations::task::ordering::{TaskDocumentKind, render_task};
 use crate::files::LocalFiles;
 use crate::hierarchy_catalog::LocalHierarchyCatalog;
 use crate::skill_catalog::{LocalSkillCatalog, SkillRootConfig};
-use crate::specification::storage::{
-    execution_history_fingerprints, publish_journal, require_no_spec_update, storage_path,
-    write_journal,
-};
+use crate::specification::storage::{require_no_spec_update, storage_path};
 use crate::task::storage::LocalTaskStorage;
 use crate::writer_lock::LocalWriterLock;
 
@@ -493,6 +490,24 @@ pub fn prepare_simple_update(
     configs: &[SkillRootConfig],
     input: SpecificationPrepareInput<'_>,
 ) -> Result<Value, WorkError> {
+    prepare_simple_update_scoped(root, skill_root, configs, input)
+}
+
+pub fn prepare_simple_update_with_runtime(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[SkillRootConfig],
+    input: SpecificationPrepareInput<'_>,
+) -> Result<Value, WorkError> {
+    prepare_simple_update_scoped(root, skill_root, configs, input)
+}
+
+fn prepare_simple_update_scoped(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[SkillRootConfig],
+    input: SpecificationPrepareInput<'_>,
+) -> Result<Value, WorkError> {
     let semantic = parse_json_contract(input.raw).map_err(|_| {
         fail(
             "invalid_json_contract",
@@ -538,10 +553,26 @@ pub fn prepare_simple_update(
         .rsplit_once('/')
         .map_or("", |(parent, _)| parent);
     require_no_spec_update(root, execution_dir, None)?;
-    LocalWriterLock.require_idle(&storage_path(
-        root,
-        &format!("{execution_dir}/.work-state-writer.lock"),
-    )?)?;
+    {
+        use work_feature::ports::RuntimeWriterLock;
+        let context = work_feature::ports::RequirementWriterContext {
+            canonical_project_root: root.canonicalize().map_err(|_| {
+                fail(
+                    "spec_project_root",
+                    "The project root could not be resolved.",
+                )
+            })?,
+            requirement_id: requirement.parse().map_err(|_| {
+                fail(
+                    "spec_artifact_identity",
+                    "The verified requirement is invalid.",
+                )
+            })?,
+        };
+        crate::writer_lock::require_no_legacy_locks(&context, Some(execution_dir))?;
+        LocalWriterLock
+            .require_runtime_idle(&context, work_model::runtime::LockClass::Execution)?;
+    }
     let mut index = parse_json_contract(&baseline.index_raw)
         .map_err(|_| fail("invalid_json_contract", "The TASK index is invalid."))?;
     let mut items = baseline
@@ -1292,6 +1323,77 @@ pub fn update_from_project(
     configs: &[SkillRootConfig],
     input: SpecificationProjectRequest<'_>,
 ) -> Result<Value, WorkError> {
+    update_from_project_with_runtime(root, skill_root, configs, input)
+}
+
+/// Candidate full publication entry; identity comes from the validated approved TASK candidate.
+pub fn update_from_project_with_runtime(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[SkillRootConfig],
+    input: SpecificationProjectRequest<'_>,
+) -> Result<Value, WorkError> {
+    let request = parse_json_contract(input.raw).map_err(|_| {
+        fail(
+            "invalid_json_contract",
+            "The Specification update request is invalid.",
+        )
+    })?;
+    validate_update_request(&request).map_err(|issue| {
+        WorkError::new(
+            if issue.artifact_integrity {
+                ExitCode::ArtifactIntegrity
+            } else {
+                ExitCode::Contract
+            },
+            issue.reason_code,
+            issue.message,
+            issue.details,
+        )
+    })?;
+    let requirement_id = request["task_index"]["requirement_id"]
+        .as_str()
+        .and_then(|id| id.parse().ok())
+        .ok_or_else(|| {
+            fail(
+                "spec_artifact_identity",
+                "The approved TASK requirement is invalid.",
+            )
+        })?;
+    let context = work_feature::ports::RequirementWriterContext {
+        canonical_project_root: root.canonicalize().map_err(|_| {
+            fail(
+                "spec_project_root",
+                "The project root could not be resolved.",
+            )
+        })?,
+        requirement_id,
+    };
+    crate::writer_lock::require_no_legacy_locks(
+        &context,
+        request["task_index"]["artifacts"]["execution"].as_str(),
+    )?;
+    if matches!(input.operation, SpecOperation::Validate) {
+        use work_feature::ports::RuntimeWriterLock;
+        LocalWriterLock
+            .require_runtime_idle(&context, work_model::runtime::LockClass::Execution)?;
+        return update_from_project_scoped(root, skill_root, configs, input, None);
+    }
+    work_feature::ports::with_runtime_writer(
+        &LocalWriterLock,
+        &context,
+        work_model::runtime::LockClass::Execution,
+        |owner| update_from_project_scoped(root, skill_root, configs, input, Some(owner)),
+    )
+}
+
+fn update_from_project_scoped(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[SkillRootConfig],
+    input: SpecificationProjectRequest<'_>,
+    runtime_owner: Option<&work_model::runtime::RuntimeOwner>,
+) -> Result<Value, WorkError> {
     let request = parse_json_contract(input.raw).map_err(|_| {
         fail(
             "invalid_json_contract",
@@ -1323,6 +1425,25 @@ pub fn update_from_project(
             "The request has no execution path.",
         )
     })?;
+    let retained_context = if !matches!(input.operation, SpecOperation::Validate) {
+        let owner = runtime_owner.ok_or_else(|| {
+            fail(
+                "journal_owner_identity",
+                "Retained publication requires the current Native owner.",
+            )
+        })?;
+        Some(work_feature::ports::RequirementWriterContext {
+            canonical_project_root: std::path::PathBuf::from(&owner.canonical_root),
+            requirement_id: owner.requirement_id.parse().map_err(|_| {
+                fail(
+                    "journal_owner_identity",
+                    "The owner requirement is invalid.",
+                )
+            })?,
+        })
+    } else {
+        None
+    };
     let (transaction, mut result) = if matches!(input.operation, SpecOperation::Recover) {
         let approval = input.approved_sha256.ok_or_else(|| {
             fail(
@@ -1342,7 +1463,19 @@ pub fn update_from_project(
             execution,
             work_operations::derivation::publication::JournalKind::SpecificationUpdate(&id),
         );
-        let raw = LocalFiles.read_raw(&storage_path(root, &relative)?)?;
+        let raw = {
+            let context = retained_context.as_ref().expect("current retained context");
+
+            let original = crate::specification::storage::retained_journal_original_for_recovery(
+                context, execution, &relative,
+            )?;
+            render_transaction(&original).map_err(|_| {
+                fail(
+                    "spec_update_recovery_request",
+                    "Frozen journal evidence is invalid.",
+                )
+            })?
+        };
         let journal = parse_json_contract(&raw).map_err(|_| {
             fail(
                 "invalid_json_contract",
@@ -1422,44 +1555,58 @@ pub fn update_from_project(
                 .expect("transaction ID"),
         ),
     );
-    let marker = work_operations::derivation::publication::completion_marker_path(&journal);
-    let ignored = if matches!(input.operation, SpecOperation::Recover) {
-        Some(journal.as_str())
-    } else {
-        None
+    let mut prepared = transaction.clone();
+    prepared["state"] = json!("prepared");
+    prepared["published_count"] = json!(0);
+    let history = || -> Result<BTreeMap<String, String>, WorkError> {
+        Ok(({
+            let context = retained_context.as_ref().expect("current retained context");
+
+            crate::specification::storage::retained_journal_history_with_owner(
+                &crate::specification::storage::RetainedJournalRuntimeInput {
+                    context,
+                    execution,
+                    relative: &journal,
+                    prepared_journal: &prepared,
+                    recover: matches!(input.operation, SpecOperation::Recover),
+                },
+                runtime_owner.expect("verified native owner"),
+            )?
+        })
+        .into_iter()
+        .map(|(path, raw)| (path, fingerprint::history(&raw)))
+        .collect())
     };
-    require_no_spec_update(root, execution, ignored)?;
-    if json!(execution_history_fingerprints(root, execution)?)
-        != transaction["metadata"]["history_sha256"]
-    {
+    if json!(history()?) != transaction["metadata"]["history_sha256"] {
         return Err(fail(
             "spec_update_history_changed",
             "Execution history changed before publication.",
         ));
     }
     require_approved_publication_state(root, &transaction)?;
-    let writer = storage_path(root, &format!("{execution}/.work-state-writer.lock"))?;
-    let _guard = LocalWriterLock.acquire(&writer)?;
-    if json!(execution_history_fingerprints(root, execution)?)
-        != transaction["metadata"]["history_sha256"]
-    {
+    if json!(history()?) != transaction["metadata"]["history_sha256"] {
         return Err(fail(
             "spec_update_history_changed",
             "Execution history changed before exclusive publication.",
         ));
     }
     require_approved_publication_state(root, &transaction)?;
-    if matches!(input.operation, SpecOperation::Apply) {
-        write_journal(root, &journal, &transaction)?;
-    }
-    let published = publish_journal(root, &journal, &marker).map_err(|_| {
-        WorkError::new(
-            ExitCode::IoFailure,
-            "spec_update_interrupted",
-            "Preserve the specification transaction and obtain recovery authorization.",
-            json!({"recovery_required":true,"record":journal}),
-        )
-    })?;
+    let published = {
+        let context = retained_context.as_ref().expect("current retained context");
+
+        crate::specification::storage::publish_retained_journal_with_owner(
+            &crate::specification::storage::RetainedJournalRuntimeInput {
+                context,
+                execution,
+                relative: &journal,
+                prepared_journal: &prepared,
+                recover: matches!(input.operation, SpecOperation::Recover),
+            },
+            runtime_owner.expect("verified native owner"),
+            || require_approved_publication_state(root, &transaction),
+            |_| Ok(()),
+        )?
+    };
     sources(root, skill_root, configs, task_path)?;
     for (path, expected) in transaction["metadata"]["candidate_sha256"]
         .as_object()
@@ -1539,6 +1686,18 @@ pub fn verify_from_project(
         execution,
         work_operations::derivation::publication::JournalKind::SpecificationUpdate(id),
     );
+    {
+        let evidence =
+            crate::specification::storage::read_retained_journal(root, execution, &relative)?;
+        if evidence.completion
+            != work_operations::specification::transaction::CompletionState::Completed
+        {
+            return Err(fail(
+                "spec_verify_completion_mismatch",
+                "The retained journal is not fully committed.",
+            ));
+        }
+    }
     let raw = LocalFiles.read_raw(&storage_path(root, &relative)?)?;
     let journal = parse_json_contract(&raw).map_err(|_| {
         fail(
@@ -1654,8 +1813,9 @@ mod tests {
             build_initial_execution_index, render_execution_index,
         };
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture =
-            repo.join("crates/work-infrastructure/fixtures/specification-update/task-summary");
+        let fixture = repo.join(
+            "crates/work-infrastructure/fixtures/cases/specification/update/task-summary/project",
+        );
         let root = std::env::temp_dir().join(format!(
             "work-spec-constraint-{}-{}",
             std::process::id(),
@@ -1704,7 +1864,31 @@ mod tests {
             "edits":[{"target":{"artifact":"task_item","task_id":"TASK-001"},"field":"goal",
                 "after":"Confirmed boundary"}]}))
         .unwrap();
-        let prepared = prepare_simple_update(
+        {
+            use work_feature::ports::{RuntimeWriterGuard, RuntimeWriterLock};
+            let context = work_feature::ports::RequirementWriterContext {
+                canonical_project_root: root.canonicalize().unwrap(),
+                requirement_id: "example".parse().unwrap(),
+            };
+            let held = LocalWriterLock
+                .acquire_runtime(&context, work_model::runtime::LockClass::Execution)
+                .unwrap();
+            assert!(
+                prepare_simple_update_with_runtime(
+                    &root,
+                    &skill,
+                    &[],
+                    SpecificationPrepareInput {
+                        raw: &semantic,
+                        date: "2026-09-26",
+                        output_file: None,
+                    }
+                )
+                .is_err()
+            );
+            held.release().unwrap();
+        }
+        let prepared = prepare_simple_update_with_runtime(
             &root,
             &skill,
             &[],
@@ -1732,7 +1916,66 @@ mod tests {
         )
         .unwrap();
         let approved = preview["approved_sha256"].as_str().unwrap();
-        let published = update_from_project(
+        assert_eq!(
+            update_from_project_with_runtime(
+                &root,
+                &skill,
+                &[],
+                SpecificationProjectRequest {
+                    raw: &request,
+                    operation: SpecOperation::Validate,
+                    approved_sha256: None,
+                }
+            )
+            .unwrap(),
+            preview
+        );
+        assert!(
+            !root
+                .join("outputs/work/runtime/locks/example/execution.lock")
+                .exists()
+        );
+        let runtime_context = work_feature::ports::RequirementWriterContext {
+            canonical_project_root: root.canonicalize().unwrap(),
+            requirement_id: "example".parse().unwrap(),
+        };
+        {
+            use work_feature::ports::{RuntimeWriterGuard, RuntimeWriterLock};
+            let held = LocalWriterLock
+                .acquire_runtime(&runtime_context, work_model::runtime::LockClass::Execution)
+                .unwrap();
+            assert!(
+                update_from_project_with_runtime(
+                    &root,
+                    &skill,
+                    &[],
+                    SpecificationProjectRequest {
+                        raw: &request,
+                        operation: SpecOperation::Apply,
+                        approved_sha256: Some(approved),
+                    }
+                )
+                .is_err()
+            );
+            held.release().unwrap();
+            assert!(
+                update_from_project_with_runtime(
+                    &root,
+                    &skill,
+                    &[],
+                    SpecificationProjectRequest {
+                        raw: &request,
+                        operation: SpecOperation::Apply,
+                        approved_sha256: Some(&"0".repeat(64)),
+                    }
+                )
+                .is_err()
+            );
+            LocalWriterLock
+                .require_runtime_idle(&runtime_context, work_model::runtime::LockClass::Execution)
+                .unwrap();
+        }
+        let published = update_from_project_with_runtime(
             &root,
             &skill,
             &[],
@@ -1943,8 +2186,9 @@ mod tests {
     #[test]
     fn source_replacement_requires_complete_review_and_binds_immutable_evidence() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture =
-            repo.join("crates/work-infrastructure/fixtures/specification-update/item-goal");
+        let fixture = repo.join(
+            "crates/work-infrastructure/fixtures/cases/specification/update/item-goal/project",
+        );
         let root = std::env::temp_dir().join(format!(
             "work-spec-source-review-{}-{}",
             std::process::id(),
@@ -2084,8 +2328,9 @@ mod tests {
     #[test]
     fn instruction_drift_requires_reviewed_revise_and_preserves_current_source() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture =
-            repo.join("crates/work-infrastructure/fixtures/specification-update/item-goal");
+        let fixture = repo.join(
+            "crates/work-infrastructure/fixtures/cases/specification/update/item-goal/project",
+        );
         let root = std::env::temp_dir().join(format!(
             "work-revise-instruction-{}-{}",
             std::process::id(),
@@ -2256,7 +2501,7 @@ mod tests {
     #[test]
     fn semantic_index_and_task_edits_build_one_complete_candidate() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-update");
+        let fixture = repo.join("crates/work-infrastructure/fixtures/cases/specification/update/collection-summary/project");
         let root = std::env::temp_dir().join(format!(
             "work-spec-semantic-candidate-{}-{}",
             std::process::id(),
@@ -2375,8 +2620,8 @@ mod tests {
     #[test]
     fn untrusted_specification_sources_direct_to_migration() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-update");
-        let semantic = fs::read(fixture.join("semantic-request.json")).unwrap();
+        let fixture = repo.join("crates/work-infrastructure/fixtures/cases/specification/update/collection-summary/project");
+        let semantic = fs::read(fixture.join("../input/semantic-request.json")).unwrap();
         for (case, include_item, corrupt_plan, corrupt_history) in [
             ("missing-item", false, false, false),
             ("invalid-plan", true, true, false),
@@ -2434,8 +2679,9 @@ mod tests {
     #[test]
     fn semantic_dependency_and_defaults_rebuild_execution_binding() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture =
-            repo.join("crates/work-infrastructure/fixtures/specification-update/remove-task");
+        let fixture = repo.join(
+            "crates/work-infrastructure/fixtures/cases/specification/update/remove-task/project",
+        );
         let root = std::env::temp_dir().join(format!(
             "work-spec-dependencies-{}-{}",
             std::process::id(),
@@ -2500,7 +2746,7 @@ mod tests {
     #[test]
     fn index_revision_preview_publication_and_verify_match_current_contract() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-update");
+        let fixture = repo.join("crates/work-infrastructure/fixtures/cases/specification/update/collection-summary/project");
         let root = std::env::temp_dir().join(format!(
             "work-spec-update-parity-{}-{}",
             std::process::id(),
@@ -2520,11 +2766,12 @@ mod tests {
             crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         }
         fs::write(root.join("src.txt"), b"source\n").unwrap();
-        let request = fs::read(fixture.join("request.json")).unwrap();
+        let request = fs::read(fixture.join("../input/request.json")).unwrap();
         let expected: Value =
-            serde_json::from_slice(&fs::read(fixture.join("expected.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../expected/result.json")).unwrap())
+                .unwrap();
         let skill = repo.join("../skills/work");
-        let semantic = fs::read(fixture.join("semantic-request.json")).unwrap();
+        let semantic = fs::read(fixture.join("../input/semantic-request.json")).unwrap();
         let expected_request: Value = serde_json::from_slice(&request).unwrap();
         let date = expected_request["task_index"]["changes"]
             .as_array()
@@ -2641,8 +2888,9 @@ mod tests {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         for variant in ["item-goal", "task-summary", "add-task", "remove-task"] {
             let fixture = repo
-                .join("crates/work-infrastructure/fixtures/specification-update")
-                .join(variant);
+                .join("crates/work-infrastructure/fixtures/cases/specification/update")
+                .join(variant)
+                .join("project");
             let root = std::env::temp_dir().join(format!(
                 "work-spec-item-parity-{}-{}",
                 std::process::id(),
@@ -2669,11 +2917,12 @@ mod tests {
                 fs::copy(fixture.join(relative), destination).unwrap();
                 crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
             }
-            let request = fs::read(fixture.join("request.json")).unwrap();
+            let request = fs::read(fixture.join("../input/request.json")).unwrap();
             let expected_request: Value = serde_json::from_slice(&request).unwrap();
             let expected: Value =
-                serde_json::from_slice(&fs::read(fixture.join("expected.json")).unwrap()).unwrap();
-            let semantic = fs::read(fixture.join("semantic-request.json")).unwrap();
+                serde_json::from_slice(&fs::read(fixture.join("../expected/result.json")).unwrap())
+                    .unwrap();
+            let semantic = fs::read(fixture.join("../input/semantic-request.json")).unwrap();
             let date = expected_request["task_index"]["changes"]
                 .as_array()
                 .unwrap()
@@ -2748,8 +2997,9 @@ mod tests {
         use work_operations::derivation::snapshot::decode_snapshot;
 
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture =
-            repo.join("crates/work-infrastructure/fixtures/specification-update/remove-task");
+        let fixture = repo.join(
+            "crates/work-infrastructure/fixtures/cases/specification/update/remove-task/project",
+        );
         let root = std::env::temp_dir().join(format!(
             "work-spec-item-recovery-{}-{}",
             std::process::id(),
@@ -2773,7 +3023,7 @@ mod tests {
         let other = root.join("outputs/work/tasks/example/tasks/TASK-002.json");
         let other_before = fs::read(&other).unwrap();
         let semantic = fs::read(
-            repo.join("crates/work-infrastructure/fixtures/specification-update/item-goal/semantic-request.json"),
+            repo.join("crates/work-infrastructure/fixtures/cases/specification/update/item-goal/input/semantic-request.json"),
         )
         .unwrap();
         let skill = repo.join("../skills/work");
@@ -2806,19 +3056,65 @@ mod tests {
         let request =
             render_task(&prepared["request"], TaskDocumentKind::SpecificationRequest).unwrap();
         let approval = prepared["preview"]["approved_sha256"].as_str().unwrap();
-        let mut journal = prepared["preview"]["transaction"].clone();
+        let journal = prepared["preview"]["transaction"].clone();
         assert!(journal["files"].as_array().unwrap().len() > 1);
         let first = &journal["files"][0];
         let first_path = root.join(first["path"].as_str().unwrap());
         let first_bytes = decode_snapshot(&first["after"]).unwrap();
-        fs::write(&first_path, first_bytes).unwrap();
-        journal["published_count"] = json!(1);
-        journal["state"] = json!("publishing");
-        let relative = format!(
-            "outputs/work/executions/example/.work-spec-update-{}.json",
-            journal["transaction_id"].as_str().unwrap()
+        let execution = "outputs/work/executions/example";
+        let relative = work_operations::derivation::publication::journal_path(
+            execution,
+            work_operations::derivation::publication::JournalKind::SpecificationUpdate(
+                journal["transaction_id"].as_str().unwrap(),
+            ),
         );
-        write_journal(&root, &relative, &journal).unwrap();
+        {
+            let context = work_feature::ports::RequirementWriterContext {
+                canonical_project_root: root.canonicalize().unwrap(),
+                requirement_id: "example".parse().unwrap(),
+            };
+            let interrupted = work_feature::ports::with_runtime_writer(
+                &LocalWriterLock,
+                &context,
+                work_model::runtime::LockClass::Execution,
+                |owner| {
+                    crate::specification::storage::publish_retained_journal_with_owner(
+                        &crate::specification::storage::RetainedJournalRuntimeInput {
+                            context: &context,
+                            execution,
+                            relative: &relative,
+                            prepared_journal: &journal,
+                            recover: false,
+                        },
+                        owner,
+                        || Ok(()),
+                        |stage| {
+                            if stage
+                                == crate::transaction_storage::JournalRuntimeStage::TargetWritten(0)
+                            {
+                                Err(WorkError::new(
+                                    ExitCode::IoFailure,
+                                    "injected_update_fault",
+                                    "injected",
+                                    json!({}),
+                                ))
+                            } else {
+                                Ok(())
+                            }
+                        },
+                    )
+                },
+            )
+            .unwrap_err();
+            assert_eq!(interrupted.reason_code, "injected_update_fault");
+            assert_eq!(interrupted.details["recovery_required"], true);
+            assert_eq!(fs::read(&first_path).unwrap(), first_bytes);
+            assert!(
+                !root
+                    .join("outputs/work/runtime/locks/example/execution.lock")
+                    .exists()
+            );
+        }
         let remaining = journal["files"]
             .as_array()
             .unwrap()
