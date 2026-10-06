@@ -61,7 +61,7 @@ pub(crate) fn order(path: &[String]) -> &'static [&'static str] {
     if let Some(order) = crate::execution::acceptance::field_order(path) {
         return order;
     }
-    if let Some(order) = crate::instruction_refresh::manifest_field_order(path) {
+    if let Some(order) = crate::instruction::refresh::manifest_field_order(path) {
         return order;
     }
     if path.is_empty() {

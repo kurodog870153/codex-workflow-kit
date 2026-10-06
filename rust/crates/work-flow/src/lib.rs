@@ -2,7 +2,7 @@
 
 pub mod contract;
 pub mod delegation;
-pub mod draft;
+pub mod discussion;
 pub mod error;
 pub mod execution;
 pub mod fingerprint;
@@ -11,7 +11,6 @@ pub mod hierarchy;
 pub mod instruction;
 pub mod invocation;
 pub mod paths;
-pub mod progress;
 pub mod skill;
 pub mod source_snapshot;
 pub mod specification;

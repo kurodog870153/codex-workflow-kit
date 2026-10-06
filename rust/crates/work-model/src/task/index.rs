@@ -136,6 +136,8 @@ pub struct TaskIndex {
     pub acceptance_criteria: Vec<super::source::TaskAcceptance>,
     pub instruction_selection: TaskDocumentInstructionSelection,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub discussion: Option<super::discussion_trace::DiscussionTrace>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution_defaults: Option<TaskExecutionDefaults>,
     pub tasks: Vec<TaskItemReference>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

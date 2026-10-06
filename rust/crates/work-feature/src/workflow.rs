@@ -18,7 +18,7 @@ pub trait WorkflowRoutingRepository {
 pub struct WorkflowSnapshot {
     pub artifacts: Value,
     pub source: Option<Value>,
-    pub draft: Option<Value>,
+    pub discussion: Option<Value>,
     pub task: Option<Value>,
     pub index: Option<Value>,
     pub latest_attempts: Value,
@@ -147,7 +147,7 @@ pub fn pre_execution_state(
     requirement_id: &str,
     artifacts: &Value,
     source_validation: Option<&Value>,
-    draft: Option<&Value>,
+    discussion: Option<&Value>,
     task_validation: Option<&Value>,
     execution_index_exists: bool,
 ) -> Result<Option<Value>, WorkError> {
@@ -159,7 +159,7 @@ pub fn pre_execution_state(
             formal_events: &[],
         },
         source_validation,
-        draft,
+        discussion,
         task_validation,
         execution_index_exists,
     )
@@ -175,13 +175,13 @@ pub fn pre_execution_state_with_events(
     routing: &mut impl WorkflowRoutingRepository,
     context: WorkflowRoutingContext<'_>,
     source_validation: Option<&Value>,
-    draft: Option<&Value>,
+    discussion: Option<&Value>,
     task_validation: Option<&Value>,
     execution_index_exists: bool,
 ) -> Result<Option<Value>, WorkError> {
     let decision = decide_pre_execution(
         source_validation,
-        draft,
+        discussion,
         task_validation,
         execution_index_exists,
     )
@@ -315,7 +315,7 @@ mod tests {
             &mut FixedRouting,
             &OperationContextRequest {
                 command: "task",
-                operation: "prepare",
+                operation: "preview",
                 delegated_role: None,
                 artifacts: &artifacts,
                 project_root: "/project",
@@ -352,7 +352,7 @@ mod tests {
         let read = build_operation_context(
             &mut FixedRouting,
             &OperationContextRequest {
-                command: "progress",
+                command: "discussion",
                 operation: "read",
                 delegated_role: None,
                 artifacts: &artifacts,
@@ -366,8 +366,8 @@ mod tests {
         let save = build_operation_context(
             &mut FixedRouting,
             &OperationContextRequest {
-                command: "progress",
-                operation: "save",
+                command: "discussion",
+                operation: "update",
                 delegated_role: None,
                 artifacts: &artifacts,
                 project_root: "/project",

@@ -1,5 +1,5 @@
 //! Exact provenance and independently confirmed Task planning choices.
-use crate::source_snapshot::SourceSnapshot;
+use crate::source::snapshot::SourceSnapshot;
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

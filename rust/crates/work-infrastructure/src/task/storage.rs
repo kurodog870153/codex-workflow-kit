@@ -113,7 +113,7 @@ mod tests {
     use work_operations::execution::preflight::FileState;
     use work_operations::task::ordering::{TaskDocumentKind, render_task};
 
-    use crate::execution_storage::{
+    use crate::execution::storage::{
         AttemptStartRecoveryRequest, CorrectionRecoveryInput, LocalExecutionStorage,
     };
     use crate::git::LocalGit;
@@ -506,11 +506,11 @@ mod tests {
         assert_eq!(context.contract["tasks"][0]["id"], "TASK-001");
         assert_eq!(
             canonical_json_sha256(&context.contract).unwrap(),
-            "a63c7e8cbcbf8e43284a3fff6246b164849bc48beae47c810c770a3e07d48314"
+            "f13613cbc40ccc684ce4404570d19fd8ab735470bdf1d0af2f070c18432f2197"
         );
         assert_eq!(
             canonical_json_sha256(&context.validation).unwrap(),
-            "55ff42f60f8ffcd116ed023935ca8d1b4a357e75f9d5fde5d099fed87ed9e145"
+            "30c3235d6c071d9baf8d262d293a7cded10055360d89cbabb6c896898cc70892"
         );
         assert_eq!(
             context.validation["task_collection_sha256"],

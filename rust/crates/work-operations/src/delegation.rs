@@ -22,7 +22,6 @@ pub fn role_marker(role: &str) -> Option<&'static str> {
         "task-coordinator" | "execute" => Some("WORK_DELEGATION"),
         "task-skill" => Some("WORK_TASK_SKILL"),
         "artifact-editor" => Some("WORK_ARTIFACT_EDIT"),
-        "progress-saver" => Some("WORK_PROGRESS_SAVE"),
         _ => None,
     }
 }
@@ -41,7 +40,6 @@ fn mode_allowed(role: &str, mode: &str) -> bool {
     match role {
         "task-coordinator" | "task-skill" => mode == "task",
         "execute" => mode == "execute",
-        "progress-saver" => mode == "task",
         "artifact-editor" => matches!(mode, "task" | "execute"),
         _ => false,
     }
@@ -147,7 +145,7 @@ pub fn validate_envelope(
         request.into(),
         mode.into(),
         Value::Object(context.clone()),
-        context.contains_key("saved_progress"),
+        context.contains_key("session_view"),
     ))
 }
 
@@ -217,7 +215,7 @@ mod tests {
     #[test]
     fn role_sender_mode_and_resume_boundaries() {
         let (project_root, skill_root) = absolute_roots();
-        let context = json!({"saved_progress":{"revision":1}});
+        let context = json!({"session_view":{"revision":1}});
         assert!(
             build_envelope(
                 "plan",
@@ -231,7 +229,7 @@ mod tests {
         );
         assert!(
             build_envelope(
-                "progress-saver",
+                "task-coordinator",
                 "plan",
                 "Save",
                 project_root,
@@ -241,7 +239,7 @@ mod tests {
             .is_err()
         );
         let envelope = build_envelope(
-            "progress-saver",
+            "task-coordinator",
             "task",
             "Continue",
             project_root,
@@ -252,7 +250,7 @@ mod tests {
         assert!(
             validate_envelope(
                 &envelope,
-                "progress-saver",
+                "task-coordinator",
                 "parent",
                 project_root,
                 skill_root
@@ -261,13 +259,13 @@ mod tests {
             .3
         );
         assert_eq!(
-            validation_result("progress-saver", "task", true)["scope"],
+            validation_result("task-coordinator", "task", true)["scope"],
             "discussion_restoration"
         );
         assert_eq!(
             validate_envelope(
                 &envelope,
-                "progress-saver",
+                "task-coordinator",
                 "task-coordinator",
                 project_root,
                 skill_root
@@ -292,7 +290,7 @@ mod tests {
         assert_eq!(
             validate_envelope(
                 &relative,
-                "progress-saver",
+                "task-coordinator",
                 "parent",
                 "relative/project",
                 skill_root
@@ -396,7 +394,6 @@ mod tests {
             ("task-skill", "task"),
             ("execute", "execute"),
             ("artifact-editor", "task"),
-            ("progress-saver", "task"),
         ] {
             let mut envelope = build_envelope(
                 role,

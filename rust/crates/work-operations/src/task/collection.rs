@@ -68,6 +68,7 @@ pub fn semantic_projection(
         skill_selection: index.skill_selection,
         acceptance_criteria: index.acceptance_criteria,
         instruction_selection: index.instruction_selection,
+        discussion: index.discussion,
         execution_defaults: index.execution_defaults,
         decisions: index.decisions,
         tasks: items

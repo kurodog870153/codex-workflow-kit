@@ -1,12 +1,12 @@
 {
-  "completion_marker": "outputs/work/executions/example/.work-spec-migration-6DB16DFC2F60.json.done",
+  "completion_marker": "outputs/work/executions/example/.work-spec-migration-4DEC1920BE07.json.done",
   "documents": [
     "outputs/work/executions/example/index.json",
     "outputs/work/tasks/example/index.json",
     "outputs/work/tasks/example/tasks/TASK-001.json"
   ],
-  "fingerprint": "6db16dfc2f6000e9363ce8f6928fb8b524e7993acd68c056e12a726aee49051b",
-  "journal": "outputs/work/executions/example/.work-spec-migration-6DB16DFC2F60.json",
+  "fingerprint": "4dec1920be071f8c7d87d54545ce710a658d1fe5cea9485d7d1257b968057ed3",
+  "journal": "outputs/work/executions/example/.work-spec-migration-4DEC1920BE07.json",
   "publication_status": "published",
   "relationship_results": [
     {
@@ -24,7 +24,7 @@
   ],
   "schema": "work-spec-migration-publication",
   "status": "updated",
-  "transaction_approval_sha256": "1508ea11c3c44111010abdff0f61e03f16ce956c3b85aed284fbed7dbe5dd4e0",
+  "transaction_approval_sha256": "d0350ee0bbae1481386ac4016a319e2af6e8fd4ff80e945f27c15998dff8b8c5",
   "validator_results": [
     {
       "name": "task_collection",

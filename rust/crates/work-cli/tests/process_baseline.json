@@ -4,7 +4,7 @@
       "name": "missing_arguments",
       "argv": [],
       "exit_code": 2,
-      "stdout": "{\n  \"schema\": \"work-cli-result\",\n  \"status\": \"rejected\",\n  \"reason_code\": \"cli_usage_error\",\n  \"message\": \"The CLI arguments are invalid.\",\n  \"data\": {\n    \"reason\": \"error: 'work' requires a subcommand but one was not provided\\n  [subcommands: contract, paths, hierarchy, instructions, fingerprint, skills, handoff, attempt, correction, progress, task, specification, workflow, workspace, execute, invocation, migration, delegation, source, help]\\n\\nUsage: work [OPTIONS] --project-root <project_root> <COMMAND>\\n\\nFor more information, try '--help'.\"\n  }\n}\n",
+      "stdout": "{\n  \"schema\": \"work-cli-result\",\n  \"status\": \"rejected\",\n  \"reason_code\": \"cli_usage_error\",\n  \"message\": \"The CLI arguments are invalid.\",\n  \"data\": {\n    \"reason\": \"error: 'work' requires a subcommand but one was not provided\\n  [subcommands: contract, paths, hierarchy, instructions, fingerprint, skills, handoff, attempt, correction, discussion, task, specification, workflow, workspace, execute, invocation, migration, delegation, source, help]\\n\\nUsage: work [OPTIONS] --project-root <project_root> <COMMAND>\\n\\nFor more information, try '--help'.\"\n  }\n}\n",
       "stderr": ""
     },
     {

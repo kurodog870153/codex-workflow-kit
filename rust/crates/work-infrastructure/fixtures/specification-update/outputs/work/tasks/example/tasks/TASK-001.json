@@ -22,7 +22,7 @@
       {
         "kind": "instruction",
         "logical_name": "task.general",
-        "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0"
+        "canonical_sha256": "baa775eddfb45bcc9f562c9e97ec5216f57386d8f34863e6f78471817d61e053"
       },
       {
         "kind": "reference",
@@ -33,7 +33,7 @@
     "references": [
       "task.general.task-records"
     ],
-    "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16"
+    "instructions_sha256": "bbb1285eeb68a50a9c91c7ce8ebadce33aba447624a33ab31f2708f751fee875"
   },
   "traceability": {
     "acceptance_ids": [

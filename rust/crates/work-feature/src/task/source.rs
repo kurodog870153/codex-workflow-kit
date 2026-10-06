@@ -5,7 +5,7 @@ use crate::instruction::InstructionSourceRepository;
 use crate::ports::{SnapshotBytes, SourceSnapshotReader};
 use crate::skill::{SkillRoot, SkillSnapshotRepository};
 use serde_json::{Value, json};
-use work_model::task::draft::PlanningSource;
+use work_model::task::planning::PlanningSource;
 pub fn validate_context(
     snapshots: &impl SourceSnapshotReader,
     instructions: &impl InstructionSourceRepository,

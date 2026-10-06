@@ -3,11 +3,11 @@
   "reason": "Confirmed collection revision",
   "expected": {
     "source_sha256": "1d269f69453e9d8c3da1c45b96d97807277f763725bd22b9ee1c9f22212f6f50",
-    "task_index_sha256": "83b06ecc053e882c6ae75ee58e8ef909296b72bf9c7c9f52da8d58c7c1030846",
-    "execution_index_sha256": "2b4cfb631d95f926d490cc5dac070e56eed4d023cd71b8916f5d3e42a5eae3f3",
+    "task_index_sha256": "f8b7d832cb203a04e9faad433fa64e4e476fbdcd7805c588d72ad3ec95e5cc58",
+    "execution_index_sha256": "2306b34732a5349bf30c9f2efd795c3fa2eaab1a98d238663f5946a5234d9351",
     "task_item_sha256": {
-      "TASK-001": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77",
-      "TASK-002": "53f310d007e3d849305f1a781394f62dca6085b1d92f54b4159abf2a24ae5596"
+      "TASK-001": "f1071ad659955de4e360da6b0e53b6f99870d9bede067bb26e0341749c594abb",
+      "TASK-002": "7c92e292211dea44e98cc99f5e461aca3158dc54115e51b9008eeb9325c56fe0"
     }
   },
   "task_index": {
@@ -74,7 +74,7 @@
         {
           "kind": "instruction",
           "logical_name": "task.general",
-          "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0"
+          "canonical_sha256": "baa775eddfb45bcc9f562c9e97ec5216f57386d8f34863e6f78471817d61e053"
         },
         {
           "kind": "reference",
@@ -85,7 +85,7 @@
       "references": [
         "task.general.task-records"
       ],
-      "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16"
+      "instructions_sha256": "bbb1285eeb68a50a9c91c7ce8ebadce33aba447624a33ab31f2708f751fee875"
     },
     "execution_defaults": {
       "working_directory": ".",
@@ -96,7 +96,7 @@
       {
         "id": "TASK-001",
         "path": "tasks/TASK-001.json",
-        "canonical_sha256": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77"
+        "canonical_sha256": "f1071ad659955de4e360da6b0e53b6f99870d9bede067bb26e0341749c594abb"
       }
     ],
     "changes": [
@@ -139,7 +139,7 @@
                   {
                     "kind": "instruction",
                     "logical_name": "task.general",
-                    "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0"
+                    "canonical_sha256": "baa775eddfb45bcc9f562c9e97ec5216f57386d8f34863e6f78471817d61e053"
                   },
                   {
                     "kind": "reference",
@@ -150,7 +150,7 @@
                 "references": [
                   "task.general.task-records"
                 ],
-                "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16"
+                "instructions_sha256": "bbb1285eeb68a50a9c91c7ce8ebadce33aba447624a33ab31f2708f751fee875"
               },
               "traceability": {
                 "acceptance_ids": [
@@ -228,7 +228,7 @@
                   {
                     "kind": "instruction",
                     "logical_name": "task.general",
-                    "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0"
+                    "canonical_sha256": "baa775eddfb45bcc9f562c9e97ec5216f57386d8f34863e6f78471817d61e053"
                   },
                   {
                     "kind": "reference",
@@ -239,7 +239,7 @@
                 "references": [
                   "task.general.task-records"
                 ],
-                "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16"
+                "instructions_sha256": "bbb1285eeb68a50a9c91c7ce8ebadce33aba447624a33ab31f2708f751fee875"
               },
               "traceability": {
                 "acceptance_ids": [
@@ -312,7 +312,7 @@
           {
             "kind": "instruction",
             "logical_name": "task.general",
-            "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0"
+            "canonical_sha256": "baa775eddfb45bcc9f562c9e97ec5216f57386d8f34863e6f78471817d61e053"
           },
           {
             "kind": "reference",
@@ -323,7 +323,7 @@
         "references": [
           "task.general.task-records"
         ],
-        "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16"
+        "instructions_sha256": "bbb1285eeb68a50a9c91c7ce8ebadce33aba447624a33ab31f2708f751fee875"
       },
       "traceability": {
         "acceptance_ids": [

@@ -303,7 +303,7 @@ mod macos {
         assert_eq!(modes, ["execute", "task"]);
         for relative in [
             "references/workflows/task/complete-the-request.md",
-            "references/workflows/progress/resume-in-task.md",
+            "references/workflows/discussion/resume-in-task.md",
             "references/instruction-loading/artifact-migration.md",
             "references/instructions/task/general/references/task-records.md",
         ] {
@@ -661,9 +661,9 @@ mod macos {
             "references/instruction-loading/invocation.md",
             "references/workflows/specification.md",
             "references/workflows/task.md",
-            "references/workflows/progress.md",
+            "references/workflows/discussion.md",
             "references/subagents/artifact-editor.md",
-            "references/subagents/progress-saver.md",
+            "references/subagents/task-coordinator.md",
             "references/instructions/task/web/backend/instructions.md",
         ] {
             for existing in [false, true] {

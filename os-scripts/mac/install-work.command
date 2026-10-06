@@ -97,10 +97,10 @@ validate_base_sources() {
     require_file "references/instruction-loading/invocation.md" || return 1
 
     local mode
-    for mode in task execute specification progress; do
+    for mode in task execute specification discussion; do
         require_file "references/workflows/$mode.md" || return 1
     done
-    for mode in task-coordinator task-skill execute artifact-editor progress-saver; do
+    for mode in task-coordinator task-skill execute artifact-editor; do
         require_file "references/subagents/$mode.md" || return 1
     done
 

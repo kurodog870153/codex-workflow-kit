@@ -21,7 +21,6 @@ pub fn build(
         "task-coordinator" => delegation::build_task_coordinator(source, request),
         "task-skill" => delegation::build_task_skill(source, request),
         "execute" => delegation::build_execute_role(source, request),
-        "progress-saver" => delegation::build_progress_saver(source, request),
         "artifact-editor" => delegation::build_artifact_editor(source, request),
         _ => Err(unknown_role()),
     }
@@ -35,24 +34,25 @@ pub fn validate(
 ) -> Result<Value, WorkError> {
     if !matches!(
         role,
-        "task-coordinator" | "task-skill" | "execute" | "progress-saver" | "artifact-editor"
+        "task-coordinator" | "task-skill" | "execute" | "artifact-editor"
     ) {
         return Err(unknown_role());
     }
     let project_root = source.canonical_project_root()?;
     let skill_root = source.canonical_skill_root()?;
     match role {
-        "task-coordinator" => {
-            delegation::validate_task_coordinator(request, sender, &project_root, &skill_root)
-        }
+        "task-coordinator" => delegation::validate_task_coordinator(
+            source,
+            request,
+            sender,
+            &project_root,
+            &skill_root,
+        ),
         "task-skill" => {
             delegation::validate_task_skill(request, sender, &project_root, &skill_root)
         }
         "execute" => {
             delegation::validate_execute_role(source, request, sender, &project_root, &skill_root)
-        }
-        "progress-saver" => {
-            delegation::validate_progress_saver(request, sender, &project_root, &skill_root)
         }
         "artifact-editor" => delegation::validate_artifact_editor(
             source,

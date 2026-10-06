@@ -20,7 +20,7 @@ pub struct WorkflowIssue {
 
 pub fn decide_pre_execution(
     source_validation: Option<&Value>,
-    draft: Option<&Value>,
+    discussion: Option<&Value>,
     task_validation: Option<&Value>,
     execution_index_exists: bool,
 ) -> Result<Option<WorkflowDecision>, WorkflowIssue> {
@@ -34,42 +34,46 @@ pub fn decide_pre_execution(
             details: json!({}),
         },
         (Some(source_validation), None, _) => {
-            let draft = draft.ok_or(WorkflowIssue {
-                reason_code: "workflow_draft_required",
-                message: "A TASK draft state is required before formal TASK creation.",
-            })?;
-            let status = draft["status"].as_str().ok_or(WorkflowIssue {
-                reason_code: "workflow_draft_invalid",
-                message: "The TASK draft state is invalid.",
-            })?;
-            let action = draft["next_action"].as_str().ok_or(WorkflowIssue {
-                reason_code: "workflow_draft_invalid",
-                message: "The TASK draft action is invalid.",
-            })?;
-            let checks = draft["required_checks"]
-                .as_array()
-                .filter(|checks| checks.iter().all(Value::is_string))
-                .ok_or(WorkflowIssue {
-                    reason_code: "workflow_draft_invalid",
-                    message: "The TASK draft checks are invalid.",
-                })?
-                .iter()
-                .map(|value| value.as_str().expect("checked string").to_owned())
-                .collect();
-            let confirmation =
-                draft["requires_user_confirmation"]
-                    .as_bool()
-                    .ok_or(WorkflowIssue {
-                        reason_code: "workflow_draft_invalid",
-                        message: "The TASK draft confirmation state is invalid.",
-                    })?;
+            let (status, action, details) = match discussion {
+                None => (
+                    "task_discussion_required",
+                    "initialize_discussion",
+                    json!({"source":source_validation}),
+                ),
+                Some(discussion) => {
+                    let action = match discussion["next_action"].as_str() {
+                        Some("preview") => "preview_task",
+                        Some("answer") => "answer_discussion",
+                        Some("update") => "update_discussion",
+                        _ => {
+                            return Err(WorkflowIssue {
+                                reason_code: "workflow_discussion_invalid",
+                                message: "The committed Discussion action is invalid.",
+                            });
+                        }
+                    };
+                    if discussion["view"].is_null()
+                        || discussion["requires_user_confirmation"] != true
+                    {
+                        return Err(WorkflowIssue {
+                            reason_code: "workflow_discussion_invalid",
+                            message: "A verified committed Session view is required.",
+                        });
+                    }
+                    (
+                        "task_discussion",
+                        action,
+                        json!({"source":source_validation,"discussion":discussion}),
+                    )
+                }
+            };
             WorkflowDecision {
-                status: format!("task_{status}"),
+                status: status.into(),
                 next_action: action.into(),
                 target_artifact: "task",
-                requires_user_confirmation: confirmation,
-                required_checks: checks,
-                details: json!({"source":source_validation,"draft":draft}),
+                requires_user_confirmation: true,
+                required_checks: vec!["source validate".into()],
+                details,
             }
         }
         (Some(_), Some(task_validation), false) => WorkflowDecision {
@@ -200,16 +204,19 @@ pub fn next_action_guidance(next_action: &str, requirement_id: &str, artifacts: 
             None,
             json!({"input_file":"<capture-metadata-file>","payload_file":"<original-source-bytes-file>"}),
         ),
-        "confirm_task_list" => (Some("task prepare"), Some("work-task-semantic-request"), {
-            let mut value = task;
-            value["input_file"] = json!("<semantic-input-file>");
-            value
-        }),
-        "choose_task" => (Some("task status"), None, task.clone()),
-        "confirm_start" | "confirm_resume" | "confirm_review" => (
-            Some("task status"),
-            None,
-            json!({"requirement_id":requirement_id,"user_config_root":"<user-config-root>","task_id":"<confirmed-task-id>"}),
+        "initialize_discussion" | "update_discussion" | "answer_discussion" | "preview_task" => (
+            Some(match next_action {
+                "initialize_discussion" => "discussion init",
+                "answer_discussion" => "discussion answer",
+                "preview_task" => "task preview",
+                _ => "discussion update",
+            }),
+            Some("work-discussion-request"),
+            {
+                let mut value = task;
+                value["input_file"] = json!("<discussion-request-file>");
+                value
+            },
         ),
         "select_task_for_execution" | "confirm_retry" => (Some("execute preflight"), None, execute),
         "review_reconciliation" => (
@@ -231,7 +238,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn source_draft_and_recovery_states_follow_dependency_order() {
+    fn source_discussion_and_recovery_states_follow_dependency_order() {
         let missing = decide_pre_execution(None, None, None, false)
             .unwrap()
             .unwrap();
@@ -245,8 +252,9 @@ mod tests {
         );
         assert!(missing.requires_user_confirmation);
         let plan = json!({"sources":["SRC-001"]});
-        let draft = json!({"status":"list_pending","next_action":"confirm_task_list","requires_user_confirmation":true,"required_checks":["source validate"]});
-        let pending = decide_pre_execution(Some(&plan), Some(&draft), None, false)
+        let discussion =
+            json!({"view":{"revision":1},"next_action":"update","requires_user_confirmation":true});
+        let pending = decide_pre_execution(Some(&plan), Some(&discussion), None, false)
             .unwrap()
             .unwrap();
         assert_eq!(
@@ -255,16 +263,15 @@ mod tests {
                 pending.next_action.as_str(),
                 pending.target_artifact
             ),
-            ("task_list_pending", "confirm_task_list", "task")
+            ("task_discussion", "update_discussion", "task")
         );
         assert_eq!(pending.details["source"], plan);
         let artifacts = json!({"source":"outputs/work/sources/example","task":"outputs/work/tasks/example/index.json","execution":"outputs/work/executions/example"});
         for (action, command) in [
-            ("confirm_task_list", "task prepare"),
-            ("choose_task", "task status"),
-            ("confirm_start", "task status"),
-            ("confirm_resume", "task status"),
-            ("confirm_review", "task status"),
+            ("initialize_discussion", "discussion init"),
+            ("update_discussion", "discussion update"),
+            ("answer_discussion", "discussion answer"),
+            ("preview_task", "task preview"),
         ] {
             let guidance = next_action_guidance(action, "example", &artifacts);
             assert_eq!(guidance["command"], command);

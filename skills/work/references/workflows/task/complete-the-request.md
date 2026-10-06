@@ -1,8 +1,6 @@
 # Complete the request
 
-
-1. Perform the user's Task request under the loaded instructions.
-2. Loading Task instructions alone does not create or modify a TASK document. Create or modify artifacts only when the request and applicable authorization permit it.
-3. Do not execute a TASK merely because Task instructions or a TASK document were loaded. Execution requires the Execute workflow and its applicable authorization.
-4. Save structured Task draft checkpoints only through authorized `task prepare/status/save/preview/apply/recover` commands and their internal storage procedures. Independent user-requested discussion progress uses the parent-owned progress saver above. An unfinished discussion can be saved only when the user requests it; completing a structured TASK discussion uses one confirmation for the discussed content and its draft save. Neither progress nor draft status grants formal approval.
-5. After saving a refined TASK, stop and let the user choose this session or a new session. Return `$work task -- <requirement-id>` and a short progress summary. Do not automatically refine the next TASK.
+1. Perform the user's Task request under the loaded instructions and confirmed scope. Loading Task instructions alone grants no artifact writes or execution authority.
+2. Persist discussion and local changes within the recorded bounded Session save authorization. Read committed state each turn, preserve unchanged confirmed choices, and ask only after the exact question mapping is committed and verified.
+3. Continue the user's authorized scope without treating a normal saved revision or completed TASK discussion as a new approval requirement. If the user stops or switches conversations, return the saved revision, unresolved decisions and `$work task -- resume <requirement-id>`.
+4. After all required decisions and planning reviews are complete, show the full formal preview and obtain its distinct publication approval. Saving discussion or confirming requirements never authorizes publication or Execute.

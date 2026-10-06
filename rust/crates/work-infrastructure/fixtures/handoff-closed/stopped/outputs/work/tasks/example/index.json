@@ -62,7 +62,7 @@
       {
         "kind": "instruction",
         "logical_name": "task.general",
-        "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0"
+        "canonical_sha256": "baa775eddfb45bcc9f562c9e97ec5216f57386d8f34863e6f78471817d61e053"
       },
       {
         "kind": "reference",
@@ -73,18 +73,18 @@
     "references": [
       "task.general.task-records"
     ],
-    "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16"
+    "instructions_sha256": "bbb1285eeb68a50a9c91c7ce8ebadce33aba447624a33ab31f2708f751fee875"
   },
   "tasks": [
     {
       "id": "TASK-001",
       "path": "tasks/TASK-001.json",
-      "canonical_sha256": "a49a2399ffb755915b7c0f94e97258aca936cc930340054dd50da4af90a5fbca"
+      "canonical_sha256": "868ccd9b9dbb3d485ae2666825072ea9be8ee7086ca24da12aff1ea82393947f"
     },
     {
       "id": "TASK-002",
       "path": "tasks/TASK-002.json",
-      "canonical_sha256": "1fa8dac195d0981c013617f1575049f632a3eea69ad4ad8bdd4b07e73c0ec2d3"
+      "canonical_sha256": "ac842f806b800eff6d38a12d34684eaf60ef99a23f5d97d93095dba024cce239"
     }
   ],
   "readiness": {

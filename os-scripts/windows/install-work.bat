@@ -251,11 +251,11 @@ call :require_file "references\instruction-loading.md"
 if errorlevel 1 exit /b 1
 call :require_file "references\instruction-loading\invocation.md"
 if errorlevel 1 exit /b 1
-for %%M in (task execute specification progress) do (
+for %%M in (task execute specification discussion) do (
     call :require_file "references\workflows\%%M.md"
     if errorlevel 1 exit /b 1
 )
-for %%M in (task-coordinator task-skill execute artifact-editor progress-saver) do (
+for %%M in (task-coordinator task-skill execute artifact-editor) do (
     call :require_file "references\subagents\%%M.md"
     if errorlevel 1 exit /b 1
 )

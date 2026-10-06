@@ -12,7 +12,7 @@ use work_feature::ports::{
 };
 use work_model::identifiers::{RequirementId, SourceId};
 use work_model::schema::PublicSchema;
-use work_model::source_snapshot::{
+use work_model::source::snapshot::{
     SnapshotContent, SnapshotSource, SourceContentPath, SourceSnapshot,
 };
 use work_operations::derivation::fingerprint;

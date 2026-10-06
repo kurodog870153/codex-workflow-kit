@@ -47,7 +47,7 @@
           "selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569"
         },
         "instruction_selection": {
-          "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+          "instructions_sha256": "bbb1285eeb68a50a9c91c7ce8ebadce33aba447624a33ab31f2708f751fee875",
           "references": [
             "task.general.task-records"
           ],
@@ -63,7 +63,7 @@
               "logical_name": "work.workflow.task"
             },
             {
-              "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
+              "canonical_sha256": "baa775eddfb45bcc9f562c9e97ec5216f57386d8f34863e6f78471817d61e053",
               "kind": "instruction",
               "logical_name": "task.general"
             },
@@ -7843,7 +7843,7 @@
         "summary": "Task summary. revised",
         "tasks": [
           {
-            "canonical_sha256": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77",
+            "canonical_sha256": "f1071ad659955de4e360da6b0e53b6f99870d9bede067bb26e0341749c594abb",
             "id": "TASK-001",
             "path": "tasks/TASK-001.json"
           }
@@ -7867,9 +7867,9 @@
         "requirement_id": "example",
         "schema": "work-execution-index",
         "skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
-        "task_collection_sha256": "57e5f26c57b8a686847b01c386c7a7c3272a1ba69578c5f98087dee969e68db2",
-        "task_index_sha256": "3d8fc9b91ceded74cf319614dad13e0b80d11c9e34487d166cd8135f7cc39216",
-        "task_instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+        "task_collection_sha256": "728e6aa0fe1ebdd6b01c98c1d2225209d67e6430eeb0f8452bd024fd92c2063e",
+        "task_index_sha256": "2653d8c8cdd7ab66c8373d34891efe4dc6f2a630b55a120844b52066185d373a",
+        "task_instructions_sha256": "bbb1285eeb68a50a9c91c7ce8ebadce33aba447624a33ab31f2708f751fee875",
         "task_spec_id": "TASK-SPEC-002",
         "tasks": [
           {
@@ -7886,10 +7886,10 @@
               }
             ],
             "id": "TASK-001",
-            "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+            "instructions_sha256": "bbb1285eeb68a50a9c91c7ce8ebadce33aba447624a33ab31f2708f751fee875",
             "skill_id": null,
             "status": "pending",
-            "task_item_sha256": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77"
+            "task_item_sha256": "f1071ad659955de4e360da6b0e53b6f99870d9bede067bb26e0341749c594abb"
           }
         ],
         "title": "Execution"
@@ -7925,7 +7925,7 @@
         "goal": "Modify the source and validate it.",
         "id": "TASK-001",
         "instruction_selection": {
-          "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+          "instructions_sha256": "bbb1285eeb68a50a9c91c7ce8ebadce33aba447624a33ab31f2708f751fee875",
           "references": [
             "task.general.task-records"
           ],
@@ -7945,7 +7945,7 @@
               "logical_name": "work.workflow.task"
             },
             {
-              "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
+              "canonical_sha256": "baa775eddfb45bcc9f562c9e97ec5216f57386d8f34863e6f78471817d61e053",
               "kind": "instruction",
               "logical_name": "task.general"
             },
@@ -8006,15 +8006,15 @@
   "sources": [
     {
       "path": "outputs/work/executions/example/index.json",
-      "raw_sha256": "187e03c0e7e3c040324f954443046cc1f1d4930e7e072261a1b65ba94d26973a"
+      "raw_sha256": "094a8cc45234a6c493a45a919097147dfaa1abfc1df912154fdac39bc0505597"
     },
     {
       "path": "outputs/work/tasks/example/index.json",
-      "raw_sha256": "002c2cc79c1a6d2a7473c5b562a510d055cd64141b9383e59cc688319d64d3e5"
+      "raw_sha256": "c763bb6a4df337fb3f0a434bf3ece2ced78856a1b987152b0098ee80d76be2b4"
     },
     {
       "path": "outputs/work/tasks/example/tasks/TASK-001.json",
-      "raw_sha256": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77"
+      "raw_sha256": "f1071ad659955de4e360da6b0e53b6f99870d9bede067bb26e0341749c594abb"
     }
   ]
 }

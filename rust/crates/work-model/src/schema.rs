@@ -4,6 +4,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PublicSchema {
+    #[serde(rename = "work-discussion-session")]
+    WorkDiscussionSession,
+    #[serde(rename = "work-discussion-request")]
+    WorkDiscussionRequest,
+    #[serde(rename = "work-discussion-result")]
+    WorkDiscussionResult,
+
     #[serde(rename = "work-source-snapshot")]
     WorkSourceSnapshot,
     #[serde(rename = "work-source-read")]
@@ -66,8 +73,6 @@ pub enum PublicSchema {
     WorkDiscussionHandoffRequest,
     #[serde(rename = "work-discussion-handoff")]
     WorkDiscussionHandoff,
-    #[serde(rename = "work-discussion-progress")]
-    WorkDiscussionProgress,
     #[serde(rename = "work-error")]
     WorkError,
     #[serde(rename = "work-execute-preflight")]
@@ -124,16 +129,6 @@ pub enum PublicSchema {
     WorkOperationEnvelope,
     #[serde(rename = "work-operation-result")]
     WorkOperationResult,
-    #[serde(rename = "work-progress-prepare")]
-    WorkProgressPrepare,
-    #[serde(rename = "work-progress-preview")]
-    WorkProgressPreview,
-    #[serde(rename = "work-progress-read")]
-    WorkProgressRead,
-    #[serde(rename = "work-progress-save-request")]
-    WorkProgressSaveRequest,
-    #[serde(rename = "work-progress-save")]
-    WorkProgressSave,
     #[serde(rename = "work-record-begin")]
     WorkRecordBegin,
     #[serde(rename = "work-record-finish-request")]
@@ -192,18 +187,6 @@ pub enum PublicSchema {
     WorkTaskCollectionProjection,
     #[serde(rename = "work-task-collection-validation")]
     WorkTaskCollectionValidation,
-    #[serde(rename = "work-task-draft-prepare")]
-    WorkTaskDraftPrepare,
-    #[serde(rename = "work-task-draft-recovery")]
-    WorkTaskDraftRecovery,
-    #[serde(rename = "work-task-draft-save")]
-    WorkTaskDraftSave,
-    #[serde(rename = "work-task-draft-source-check")]
-    WorkTaskDraftSourceCheck,
-    #[serde(rename = "work-task-draft-validation")]
-    WorkTaskDraftValidation,
-    #[serde(rename = "work-task-draft")]
-    WorkTaskDraft,
     #[serde(rename = "work-task-index-validation")]
     WorkTaskIndexValidation,
     #[serde(rename = "work-task-index")]
@@ -212,18 +195,15 @@ pub enum PublicSchema {
     WorkTaskItemValidation,
     #[serde(rename = "work-task-item")]
     WorkTaskItem,
-    #[serde(rename = "work-task-planning-index-validation")]
-    WorkTaskPlanningIndexValidation,
-    #[serde(rename = "work-task-planning-index")]
-    WorkTaskPlanningIndex,
-    #[serde(rename = "work-task-semantic-request")]
-    WorkTaskSemanticRequest,
     #[serde(rename = "work-workflow-state")]
     WorkWorkflowState,
 }
 
 impl PublicSchema {
-    pub const ALL: [Self; 108] = [
+    pub const ALL: [Self; 96] = [
+        Self::WorkDiscussionSession,
+        Self::WorkDiscussionRequest,
+        Self::WorkDiscussionResult,
         Self::WorkSourceSnapshot,
         Self::WorkSourceRead,
         Self::WorkSourceValidation,
@@ -255,7 +235,6 @@ impl PublicSchema {
         Self::WorkDelegationValidation,
         Self::WorkDiscussionHandoffRequest,
         Self::WorkDiscussionHandoff,
-        Self::WorkDiscussionProgress,
         Self::WorkError,
         Self::WorkExecutePreflight,
         Self::WorkExecuteWorktreeSnapshot,
@@ -284,11 +263,6 @@ impl PublicSchema {
         Self::WorkInvocation,
         Self::WorkOperationEnvelope,
         Self::WorkOperationResult,
-        Self::WorkProgressPrepare,
-        Self::WorkProgressPreview,
-        Self::WorkProgressRead,
-        Self::WorkProgressSaveRequest,
-        Self::WorkProgressSave,
         Self::WorkRecordBegin,
         Self::WorkRecordFinishRequest,
         Self::WorkRecordFinish,
@@ -318,24 +292,19 @@ impl PublicSchema {
         Self::WorkTaskCollectionFingerprint,
         Self::WorkTaskCollectionProjection,
         Self::WorkTaskCollectionValidation,
-        Self::WorkTaskDraftPrepare,
-        Self::WorkTaskDraftRecovery,
-        Self::WorkTaskDraftSave,
-        Self::WorkTaskDraftSourceCheck,
-        Self::WorkTaskDraftValidation,
-        Self::WorkTaskDraft,
         Self::WorkTaskIndexValidation,
         Self::WorkTaskIndex,
         Self::WorkTaskItemValidation,
         Self::WorkTaskItem,
-        Self::WorkTaskPlanningIndexValidation,
-        Self::WorkTaskPlanningIndex,
-        Self::WorkTaskSemanticRequest,
         Self::WorkWorkflowState,
     ];
 
     pub const fn as_str(self) -> &'static str {
         match self {
+            Self::WorkDiscussionSession => "work-discussion-session",
+            Self::WorkDiscussionRequest => "work-discussion-request",
+            Self::WorkDiscussionResult => "work-discussion-result",
+
             Self::WorkSourceSnapshot => "work-source-snapshot",
             Self::WorkSourceRead => "work-source-read",
             Self::WorkSourceValidation => "work-source-validation",
@@ -367,7 +336,6 @@ impl PublicSchema {
             Self::WorkDelegationValidation => "work-delegation-validation",
             Self::WorkDiscussionHandoffRequest => "work-discussion-handoff-request",
             Self::WorkDiscussionHandoff => "work-discussion-handoff",
-            Self::WorkDiscussionProgress => "work-discussion-progress",
             Self::WorkError => "work-error",
             Self::WorkExecutePreflight => "work-execute-preflight",
             Self::WorkExecuteWorktreeSnapshot => "work-execute-worktree-snapshot",
@@ -398,11 +366,6 @@ impl PublicSchema {
             Self::WorkInvocation => "work-invocation",
             Self::WorkOperationEnvelope => "work-operation-envelope",
             Self::WorkOperationResult => "work-operation-result",
-            Self::WorkProgressPrepare => "work-progress-prepare",
-            Self::WorkProgressPreview => "work-progress-preview",
-            Self::WorkProgressRead => "work-progress-read",
-            Self::WorkProgressSaveRequest => "work-progress-save-request",
-            Self::WorkProgressSave => "work-progress-save",
             Self::WorkRecordBegin => "work-record-begin",
             Self::WorkRecordFinishRequest => "work-record-finish-request",
             Self::WorkRecordFinish => "work-record-finish",
@@ -436,19 +399,10 @@ impl PublicSchema {
             Self::WorkTaskCollectionFingerprint => "work-task-collection-fingerprint",
             Self::WorkTaskCollectionProjection => "work-task-collection-projection",
             Self::WorkTaskCollectionValidation => "work-task-collection-validation",
-            Self::WorkTaskDraftPrepare => "work-task-draft-prepare",
-            Self::WorkTaskDraftRecovery => "work-task-draft-recovery",
-            Self::WorkTaskDraftSave => "work-task-draft-save",
-            Self::WorkTaskDraftSourceCheck => "work-task-draft-source-check",
-            Self::WorkTaskDraftValidation => "work-task-draft-validation",
-            Self::WorkTaskDraft => "work-task-draft",
             Self::WorkTaskIndexValidation => "work-task-index-validation",
             Self::WorkTaskIndex => "work-task-index",
             Self::WorkTaskItemValidation => "work-task-item-validation",
             Self::WorkTaskItem => "work-task-item",
-            Self::WorkTaskPlanningIndexValidation => "work-task-planning-index-validation",
-            Self::WorkTaskPlanningIndex => "work-task-planning-index",
-            Self::WorkTaskSemanticRequest => "work-task-semantic-request",
             Self::WorkWorkflowState => "work-workflow-state",
         }
     }
@@ -779,11 +733,9 @@ mod tests {
             ))
             .is_err()
         );
-        assert_eq!(
+        assert!(
             serde_json::from_value::<PublicSchema>(serde_json::json!("work-task-planning-index"))
-                .unwrap()
-                .as_str(),
-            "work-task-planning-index"
+                .is_err()
         );
     }
 
@@ -795,13 +747,11 @@ mod tests {
             ))
             .is_err()
         );
-        assert_eq!(
+        assert!(
             serde_json::from_value::<PublicSchema>(serde_json::json!(
                 "work-task-planning-index-validation"
             ))
-            .unwrap()
-            .as_str(),
-            "work-task-planning-index-validation"
+            .is_err()
         );
     }
 
@@ -811,11 +761,8 @@ mod tests {
             serde_json::from_value::<PublicSchema>(serde_json::json!("work-task-draft/v1"))
                 .is_err()
         );
-        assert_eq!(
-            serde_json::from_value::<PublicSchema>(serde_json::json!("work-task-draft"))
-                .unwrap()
-                .as_str(),
-            "work-task-draft"
+        assert!(
+            serde_json::from_value::<PublicSchema>(serde_json::json!("work-task-draft")).is_err()
         );
     }
 
@@ -837,11 +784,9 @@ mod tests {
             serde_json::from_value::<PublicSchema>(serde_json::json!("work-task-draft-prepare/v1"))
                 .is_err()
         );
-        assert_eq!(
+        assert!(
             serde_json::from_value::<PublicSchema>(serde_json::json!("work-task-draft-prepare"))
-                .unwrap()
-                .as_str(),
-            "work-task-draft-prepare"
+                .is_err()
         );
         assert!(
             serde_json::from_value::<PublicSchema>(serde_json::json!(
@@ -849,21 +794,17 @@ mod tests {
             ))
             .is_err()
         );
-        assert_eq!(
+        assert!(
             serde_json::from_value::<PublicSchema>(serde_json::json!("work-task-draft-recovery"))
-                .unwrap()
-                .as_str(),
-            "work-task-draft-recovery"
+                .is_err()
         );
         assert!(
             serde_json::from_value::<PublicSchema>(serde_json::json!("work-task-draft-save/v1"))
                 .is_err()
         );
-        assert_eq!(
+        assert!(
             serde_json::from_value::<PublicSchema>(serde_json::json!("work-task-draft-save"))
-                .unwrap()
-                .as_str(),
-            "work-task-draft-save"
+                .is_err()
         );
     }
 
@@ -875,13 +816,11 @@ mod tests {
             ))
             .is_err()
         );
-        assert_eq!(
+        assert!(
             serde_json::from_value::<PublicSchema>(serde_json::json!(
                 "work-task-draft-source-check"
             ))
-            .unwrap()
-            .as_str(),
-            "work-task-draft-source-check"
+            .is_err()
         );
         assert!(
             serde_json::from_value::<PublicSchema>(serde_json::json!(
@@ -899,11 +838,9 @@ mod tests {
             ))
             .is_err()
         );
-        assert_eq!(
+        assert!(
             serde_json::from_value::<PublicSchema>(serde_json::json!("work-task-draft-validation"))
-                .unwrap()
-                .as_str(),
-            "work-task-draft-validation"
+                .is_err()
         );
     }
 
@@ -929,11 +866,9 @@ mod tests {
             ))
             .is_err()
         );
-        assert_eq!(
+        assert!(
             serde_json::from_value::<PublicSchema>(serde_json::json!("work-task-semantic-request"))
-                .unwrap()
-                .as_str(),
-            "work-task-semantic-request"
+                .is_err()
         );
     }
 
@@ -961,11 +896,9 @@ mod tests {
             ))
             .is_err()
         );
-        assert_eq!(
+        assert!(
             serde_json::from_value::<PublicSchema>(serde_json::json!("work-discussion-progress"))
-                .unwrap()
-                .as_str(),
-            "work-discussion-progress"
+                .is_err()
         );
     }
 
@@ -975,31 +908,25 @@ mod tests {
             serde_json::from_value::<PublicSchema>(serde_json::json!("work-progress-prepare/v1"))
                 .is_err()
         );
-        assert_eq!(
+        assert!(
             serde_json::from_value::<PublicSchema>(serde_json::json!("work-progress-prepare"))
-                .unwrap()
-                .as_str(),
-            "work-progress-prepare"
+                .is_err()
         );
         assert!(
             serde_json::from_value::<PublicSchema>(serde_json::json!("work-progress-preview/v1"))
                 .is_err()
         );
-        assert_eq!(
+        assert!(
             serde_json::from_value::<PublicSchema>(serde_json::json!("work-progress-preview"))
-                .unwrap()
-                .as_str(),
-            "work-progress-preview"
+                .is_err()
         );
         assert!(
             serde_json::from_value::<PublicSchema>(serde_json::json!("work-progress-read/v1"))
                 .is_err()
         );
-        assert_eq!(
+        assert!(
             serde_json::from_value::<PublicSchema>(serde_json::json!("work-progress-read"))
-                .unwrap()
-                .as_str(),
-            "work-progress-read"
+                .is_err()
         );
         assert!(
             serde_json::from_value::<PublicSchema>(serde_json::json!(
@@ -1007,21 +934,17 @@ mod tests {
             ))
             .is_err()
         );
-        assert_eq!(
+        assert!(
             serde_json::from_value::<PublicSchema>(serde_json::json!("work-progress-save-request"))
-                .unwrap()
-                .as_str(),
-            "work-progress-save-request"
+                .is_err()
         );
         assert!(
             serde_json::from_value::<PublicSchema>(serde_json::json!("work-progress-save/v1"))
                 .is_err()
         );
-        assert_eq!(
+        assert!(
             serde_json::from_value::<PublicSchema>(serde_json::json!("work-progress-save"))
-                .unwrap()
-                .as_str(),
-            "work-progress-save"
+                .is_err()
         );
     }
 
@@ -2047,7 +1970,7 @@ mod tests {
             .iter()
             .map(|schema| schema.as_str())
             .collect();
-        assert_eq!(ids.len(), 108);
+        assert_eq!(ids.len(), PublicSchema::ALL.len());
         for schema in PublicSchema::ALL {
             let literal = serde_json::to_value(schema).unwrap();
             assert_eq!(literal, schema.as_str());

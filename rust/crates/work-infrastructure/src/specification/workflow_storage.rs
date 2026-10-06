@@ -992,7 +992,7 @@ pub fn prepare_simple_update(
         }
         index["source"] = json!({"kind":"snapshot","manifest":new_source["snapshot"]});
         for (id, item) in &mut items {
-            let selected: work_model::task::draft::DraftInstructionSelection =
+            let selected: work_model::task::planning::PlanningInstructionSelection =
                 serde_json::from_value(selections[id].clone()).map_err(|_| {
                     fail(
                         "invalid_instruction_selection",

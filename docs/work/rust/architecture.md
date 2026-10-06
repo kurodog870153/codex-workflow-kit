@@ -119,7 +119,7 @@ sequenceDiagram
 
 最後一次 workspace 完整測試前，依下列順序檢查受變更影響的現行測試資料：
 
-1. Task 建立測試：以已保存草稿的實際 bytes 經 `fingerprint::raw` 核對 `draft_ref.sha256`；重新組裝草稿時，以 `fingerprint::task_draft_approval` 計算組裝結果的 `approval_sha256`。兩者的輸入與用途不同，應各自對照對應欄位，不直接比較彼此。若合成測試資料與保存後資料不一致，先修正測試資料的產生流程並重跑相關測試。
+1. Task 建立測試：以 `fingerprint::discussion_session` 核對已提交 Session 的內容 SHA；直接生成正式集合時，以 `fingerprint::discussion_approval` 綁定 Session 與全部 canonical target bytes，計算 `approval_sha256`。兩者的輸入與用途不同，應各自對照對應欄位，不直接比較彼此。若合成測試資料與保存後資料不一致，先修正測試資料的產生流程並重跑相關測試。
 2. Specification 測試：以現行 fixture 的 Source proof、TASK index、Execution index 與 Task item 原始 bytes，經 `fingerprint::specification_baseline` 重算 `expected`，再核對測試請求。若來源檔已變更，透過現有產生流程更新現行 fixture 的相依指紋與預期結果；不要改寫歷史 fixture 或既有核准證據。
 3. 先執行受影響的 Task／Specification 測試，確認衍生值與資料契約一致；通過後再執行第 5 點所列的 workspace 完整驗證。僅修改文件且未影響 artifact 或指紋規則時，確認沒有需要重算的測試資料即可。
 

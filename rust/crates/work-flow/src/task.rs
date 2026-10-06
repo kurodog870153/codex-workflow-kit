@@ -7,10 +7,6 @@ use work_feature::instruction::InstructionSourceRepository;
 use work_feature::ports::SourceSnapshotReader;
 use work_feature::skill::{SkillRoot, SkillSnapshotRepository};
 pub use work_feature::task::TaskCollectionRepository;
-pub use work_feature::task::assembly::ProjectAssemblyInput;
-use work_feature::task::assembly::{
-    TaskAssemblyRepository, approved_contract, assemble_from_repository, render_approved_contract,
-};
 pub use work_feature::task::create::TaskCreateProjectInput;
 use work_feature::task::create::{TaskCreationRepository, create_task_from_project};
 
@@ -29,81 +25,6 @@ where
     T: TaskCreationRepository,
 {
     create_task_from_project(instructions, skills, paths, storage, skill_roots, request)
-}
-
-pub fn assemble_task<R, H, S, P>(
-    repository: &R,
-    instructions: &H,
-    skills: &S,
-    paths: &P,
-    skill_roots: &[SkillRoot],
-    request: ProjectAssemblyInput<'_>,
-) -> Result<Value, WorkError>
-where
-    R: TaskAssemblyRepository,
-    H: InstructionSourceRepository,
-    S: SkillSnapshotRepository,
-    P: ArtifactPathRepository + SourceSnapshotReader,
-{
-    assemble_from_repository(
-        repository,
-        instructions,
-        skills,
-        paths,
-        skill_roots,
-        request,
-    )
-}
-
-pub struct DraftCreatePorts<'a, R, H, S, P, T> {
-    pub repository: &'a R,
-    pub instructions: &'a H,
-    pub skills: &'a S,
-    pub paths: &'a P,
-    pub storage: &'a T,
-    pub skill_roots: &'a [SkillRoot],
-}
-
-pub fn create_from_drafts<R, H, S, P, T>(
-    ports: DraftCreatePorts<'_, R, H, S, P, T>,
-    request: ProjectAssemblyInput<'_>,
-    approved_sha256: &str,
-    recovery: bool,
-) -> Result<Value, WorkError>
-where
-    R: TaskAssemblyRepository,
-    H: InstructionSourceRepository,
-    S: SkillSnapshotRepository,
-    P: ArtifactPathRepository + SourceSnapshotReader,
-    T: TaskCreationRepository,
-{
-    let assembled = assemble_task(
-        ports.repository,
-        ports.instructions,
-        ports.skills,
-        ports.paths,
-        ports.skill_roots,
-        request,
-    )?;
-    let contract = approved_contract(&assembled, approved_sha256)?;
-    let raw = render_approved_contract(&assembled, approved_sha256)?;
-    let artifacts = &contract["artifacts"];
-    let mut created = create_task(
-        ports.instructions,
-        ports.skills,
-        ports.paths,
-        ports.storage,
-        ports.skill_roots,
-        TaskCreateProjectInput {
-            raw: &raw,
-            source_root: artifacts["source"].as_str().unwrap(),
-            task_path: artifacts["task"].as_str().unwrap(),
-            execution_dir: artifacts["execution"].as_str().unwrap(),
-            recovery,
-        },
-    )?;
-    created["approval_sha256"] = serde_json::json!(approved_sha256);
-    Ok(created)
 }
 
 pub fn validate_collection<H, S, P, R>(

@@ -196,7 +196,7 @@ mod tests {
 
     #[test]
     fn command_manifest_keeps_all_current_contract_public_leaves() {
-        assert_eq!(leaves(&manifest().root), 81);
+        assert_eq!(leaves(&manifest().root), 82);
         command(&manifest().root).debug_assert();
     }
 
@@ -671,13 +671,11 @@ mod tests {
             .map(|child| child.name.as_str())
             .collect::<Vec<_>>();
         names.sort_unstable();
-        assert_eq!(
-            names,
-            [
-                "apply", "prepare", "preview", "recover", "save", "status", "validate"
-            ]
-        );
+        assert_eq!(names, ["apply", "preview", "recover", "validate"]);
         for command in [
+            "prepare",
+            "save",
+            "status",
             "draft-init",
             "semantic-prepare",
             "draft-save",
@@ -706,10 +704,8 @@ mod tests {
         let tokens = [
             "--project-root",
             "/project",
-            "task",
-            "save",
-            "--requirement-id",
-            "example",
+            "discussion",
+            "update",
             "--user-config-root",
             "/config",
             "--input-file",
@@ -717,11 +713,12 @@ mod tests {
         ]
         .map(str::to_owned);
         let ParseOutcome::Command(parsed) = parse_tokens(&tokens).unwrap() else {
-            panic!("expected task save");
+            panic!("expected discussion update")
         };
-        assert_eq!(parsed.path, ["task", "save"]);
+        assert_eq!(parsed.path, ["discussion", "update"]);
         assert!(!parsed.arguments.contains_key("task_id"));
     }
+
     #[test]
     fn help_and_unknown_stdin_follow_public_contract() {
         let help = ["task", "--help"].map(str::to_owned);
@@ -755,7 +752,7 @@ mod tests {
             ),
             (
                 &["delegation", "validate", "--role", "bad"],
-                "error: invalid value 'bad' for '--role <role>'\n  [possible values: task-coordinator, execute, task-skill, artifact-editor, progress-saver]\n\nFor more information, try '--help'.",
+                "error: invalid value 'bad' for '--role <role>'\n  [possible values: task-coordinator, execute, task-skill, artifact-editor]\n\nFor more information, try '--help'.",
             ),
         ];
         for (arguments, expected) in cases {

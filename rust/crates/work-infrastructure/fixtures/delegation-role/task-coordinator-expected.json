@@ -803,7 +803,7 @@
       ]
     },
     "work_instruction_selection": {
-      "instructions_sha256": "7189f9caea8f9ceaede9d487145486dc8f02ab1e8c822985c5d3c0f7ff144490",
+      "instructions_sha256": "d3925f7ab0eafa8d7331aa67be27f0d0f06f21c0dbca62f720de2253db503808",
       "references": [],
       "resolved_paths": [
         "general"
@@ -821,7 +821,7 @@
           "logical_name": "work.workflow.task"
         },
         {
-          "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
+          "canonical_sha256": "baa775eddfb45bcc9f562c9e97ec5216f57386d8f34863e6f78471817d61e053",
           "kind": "instruction",
           "logical_name": "task.general"
         }

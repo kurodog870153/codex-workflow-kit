@@ -41,7 +41,7 @@ pub fn status_with_events(
     let WorkflowSnapshot {
         artifacts,
         source,
-        draft,
+        discussion,
         task,
         index,
         latest_attempts,
@@ -54,7 +54,7 @@ pub fn status_with_events(
             formal_events,
         },
         source.as_ref(),
-        draft.as_ref(),
+        discussion.as_ref(),
         task.as_ref(),
         index.is_some(),
     )? {

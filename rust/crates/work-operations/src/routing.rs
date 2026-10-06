@@ -53,7 +53,6 @@ where
         "execute",
         "task-skill",
         "artifact-editor",
-        "progress-saver",
     ]
     .contains(&request.role)
     {
@@ -65,8 +64,8 @@ where
     let known_events = [
         "invocation",
         "handoff",
-        "progress_read",
-        "progress_save",
+        "discussion_read",
+        "discussion_save",
         "migration",
         "revision",
         "reconciliation",
@@ -543,7 +542,7 @@ mod tests {
             } else {
                 "main"
             };
-            let mode = if event.starts_with("progress_") {
+            let mode = if event.starts_with("discussion_") {
                 "task"
             } else {
                 "execute"

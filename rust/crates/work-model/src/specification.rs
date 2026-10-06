@@ -109,8 +109,8 @@ pub struct SpecPrepareRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SpecificationSourceUpdate {
-    pub source: crate::task::draft::PlanningSource,
-    pub selections: BTreeMap<String, crate::task::draft::DraftInstructionSelection>,
+    pub source: crate::task::planning::PlanningSource,
+    pub selections: BTreeMap<String, crate::task::planning::PlanningInstructionSelection>,
     pub source_confirmation: crate::task::request::SourceReplacementConfirmation,
 }
 
@@ -183,7 +183,7 @@ pub struct MigrationSemanticTask {
     pub selected_paths: Vec<String>,
     pub references: Vec<String>,
     pub dependency_positions: Vec<u64>,
-    pub candidate: crate::task::draft::SemanticTaskCandidate,
+    pub candidate: crate::task::candidate::SemanticTaskCandidate,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -198,14 +198,14 @@ mod tests {
     }
 
     #[test]
-    fn progress_read_operation_context_validates_current_hashes() {
+    fn discussion_read_operation_context_validates_current_hashes() {
         let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
         let mut session = RoutingSourceSession::new(root);
         let artifacts = json!({});
         let (envelope, selection) = build_operation_context(
             &mut session,
             &OperationContextRequest {
-                command: "progress",
+                command: "discussion",
                 operation: "read",
                 delegated_role: None,
                 artifacts: &artifacts,

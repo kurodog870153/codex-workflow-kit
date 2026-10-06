@@ -284,7 +284,7 @@ mod tests {
     #[test]
     fn migration_fingerprints_match_current_contract_bytes() {
         let fixtures: Value = serde_json::from_str(include_str!(
-            "../../../crates/work-operations/fixtures.json"
+            "../../../crates/work-operations/fixtures/migration.json"
         ))
         .unwrap();
         for case in fixtures["canonical_text"].as_array().unwrap() {
@@ -482,7 +482,7 @@ mod tests {
     #[test]
     fn transaction_approval_uses_sorted_compact_json() {
         let fixtures: Value = serde_json::from_str(include_str!(
-            "../../../crates/work-operations/fixtures.json"
+            "../../../crates/work-operations/fixtures/migration.json"
         ))
         .unwrap();
         let transaction = &fixtures["transaction"];

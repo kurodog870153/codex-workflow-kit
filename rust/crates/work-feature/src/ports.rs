@@ -7,7 +7,7 @@ use crate::error::WorkError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SnapshotBytes {
-    pub manifest: work_model::source_snapshot::SourceSnapshot,
+    pub manifest: work_model::source::snapshot::SourceSnapshot,
     pub bytes: Vec<u8>,
 }
 
@@ -15,8 +15,8 @@ pub trait SourceSnapshotWriter {
     fn capture(
         &self,
         requirement_id: &work_model::identifiers::RequirementId,
-        source: &work_model::source_snapshot::SnapshotSource,
-        content_path: &work_model::source_snapshot::SourceContentPath,
+        source: &work_model::source::snapshot::SnapshotSource,
+        content_path: &work_model::source::snapshot::SourceContentPath,
         bytes: &[u8],
         captured_at: &str,
     ) -> Result<SnapshotBytes, WorkError>;

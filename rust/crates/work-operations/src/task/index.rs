@@ -103,7 +103,7 @@ pub fn validate_task_index(
         "tasks",
         "readiness",
     ];
-    let optional = ["execution_defaults", "decisions", "changes"];
+    let optional = ["execution_defaults", "decisions", "changes", "discussion"];
     let index = strict(value, "task_index", &required, &optional)?;
     if index["schema"] != "work-task-index" {
         return Err(issue(
@@ -201,6 +201,10 @@ pub fn validate_task_index(
         ids.push(id.to_owned());
         paths.insert(id.into(), json!(path));
         hashes.insert(id.into(), reference["canonical_sha256"].clone());
+    }
+    if let Some(trace) = index.get("discussion") {
+        crate::discussion::validate_trace(trace, requirement, &ids)
+            .map_err(|e| issue(e.0, "Formal discussion provenance is invalid.", json!({})))?;
     }
     if let Some(decisions) = index.get("decisions") {
         let decisions = decisions

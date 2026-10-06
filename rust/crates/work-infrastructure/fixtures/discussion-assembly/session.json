@@ -1,0 +1,153 @@
+{
+  "authorization": {
+    "allowed_actions": [
+      "update_continuation",
+      "update_planning"
+    ],
+    "directory": "outputs/work/discussions/example",
+    "evidence": "User authorized bounded saves",
+    "project_root": "/fixture",
+    "requirement_id": "example",
+    "revoked_reason": null
+  },
+  "commit": {
+    "content_sha256": "868401207b4e017e8f47c6f734f707262e8a2ad70b15ef5dc199740fdc8c978b",
+    "operation_id": "init",
+    "operation_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "previous_sha256": null
+  },
+  "context": {
+    "acceptance_criteria": [
+      {
+        "criterion": "Observable",
+        "id": "ACCEPTANCE-001"
+      }
+    ],
+    "confirmed_source": {
+      "acceptance_criteria": [
+        {
+          "criterion": "Observable",
+          "id": "ACCEPTANCE-001"
+        }
+      ],
+      "artifacts": {
+        "execution": "outputs/work/executions/example",
+        "source": "outputs/work/sources/example",
+        "task": "outputs/work/tasks/example/index.json"
+      },
+      "hierarchy_selection": {
+        "catalog_sha256": "3e51eaedbc128afd999c796bd337d9471c15411d3e66677383e6fd188e90f390",
+        "decision": "general_only",
+        "entries": [],
+        "schema": "work-hierarchy-selection",
+        "selected_paths": [],
+        "selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569"
+      },
+      "skill_selection": {
+        "decision": "base_only",
+        "schema": "work-skill-selection",
+        "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
+        "skills": []
+      },
+      "snapshot": {
+        "captured_at": "2026-10-03T00:00:00Z",
+        "content": {
+          "path": "source.txt",
+          "sha256": "7207f68cff308aed428d6c1a6b51f48c9778d933fe34dceb8bf26193e4ef87b9",
+          "size": 687
+        },
+        "requirement_id": "example",
+        "schema": "work-source-snapshot",
+        "source": {
+          "kind": "user_text"
+        },
+        "source_id": "SRC-001"
+      }
+    },
+    "constraints": [],
+    "goal": "Result",
+    "original_references": [
+      "source.txt"
+    ],
+    "revision": 1,
+    "scope": [
+      "Source"
+    ],
+    "work_type": "task"
+  },
+  "continuation": {
+    "current_task_id": "TASK-001",
+    "question": null
+  },
+  "decisions": [],
+  "next_decision_number": 1,
+  "next_task_number": 2,
+  "requirement_id": "example",
+  "retired_task_ids": [],
+  "revision": 1,
+  "schema": "work-discussion-session",
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        {
+          "criterion": "Result is observable.",
+          "id": "TASK-001-ACCEPTANCE-001"
+        }
+      ],
+      "acceptance_ids": [
+        "ACCEPTANCE-001"
+      ],
+      "commands": [],
+      "decision_ids": [],
+      "dependencies": [],
+      "files": [],
+      "goal": "Result",
+      "id": "TASK-001",
+      "inputs": [],
+      "instruction_selection": {
+        "references": [
+          "task.general.task-records"
+        ],
+        "selected_paths": []
+      },
+      "instructions_sha256": "bbb1285eeb68a50a9c91c7ce8ebadce33aba447624a33ab31f2708f751fee875",
+      "operations": [],
+      "review": {
+        "context_revision": 1,
+        "decision_versions": {},
+        "needs_review": false,
+        "semantic_consistency_evidence": "Reviewed complete requirement and technical acceptance"
+      },
+      "risks": [],
+      "scope": [
+        "Source"
+      ],
+      "skill_id": null,
+      "steps": [
+        {
+          "action": "Review result.",
+          "key": "review",
+          "references": [
+            {
+              "key": "result",
+              "kind": "validations"
+            }
+          ]
+        }
+      ],
+      "title": "Task",
+      "validations": [
+        {
+          "acceptance_ids": [
+            "ACCEPTANCE-001",
+            "TASK-001-ACCEPTANCE-001"
+          ],
+          "confirmer": "User",
+          "criteria": "Result is observable.",
+          "key": "result",
+          "kind": "manual"
+        }
+      ]
+    }
+  ]
+}

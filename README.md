@@ -37,9 +37,9 @@ $work execute -- 執行 example 的正式 TASK-001
 
 ### 保存討論進度
 
-1. 在 Task 討論中要求保存進度，核對保存內容與核准指紋後即可暫停，不必先完成全部決策。
+1. 先授權需求編號、專案根目錄與 Session 保存範圍；每次局部更新及提問前保存問題後回讀已提交版本。
 2. 已確認事項、未決方案、問題與續談位置，以及同一 Source 與選擇 context 都會保留。
-3. 用下列指令恢復；進度僅為歷史討論，不代表正式驗證或執行授權。
+3. 用下列指令恢復；恢復目前已提交的 Session、決策狀態與顯示選項映射；保存授權不代表正式發布或 Execute 授權。
 
 ```text
 $work task -- resume example
@@ -50,7 +50,7 @@ $work task -- resume example
 1. Source：`outputs/work/sources/<requirement-id>/SRC-NNN/`，包含 manifest、完成標記與精確原始內容。 File capture metadata 的 `source` 必須包含 `kind: file`、原始 `path` 及 host 提供的 `media_type`（如 `application/pdf`；僅 type/subtype，不含參數），原樣保存且不從副檔名猜測；capture time 保存於 `captured_at`。
 2. 正式 TASK：`outputs/work/tasks/<requirement-id>/index.json` 與 `tasks/TASK-NNN.json`，保存主驗收及各 TASK 子驗收。
 3. Execution：`outputs/work/executions/<requirement-id>/`，保存 index、不可變 Attempt／Correction 及衍生交易紀錄。
-4. 討論進度與 draft 不替代正式 TASK；自訂路徑需完整確認並通過跨平台安全檢查。
+4. DiscussionSession：`outputs/work/discussions/<requirement-id>/session.json`，不可變版本位於 `history/<revision>/session.json`。目前 Session 是唯一提交點；討論直接生成完整 TASK 預覽，核准綁定 Session、Source、目標路徑與精確 bytes。
 
 ## 必要環境
 

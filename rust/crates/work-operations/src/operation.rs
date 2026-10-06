@@ -88,18 +88,20 @@ pub fn routing_identity(
             route.mode = "task";
             route.next_action = "choose_task";
         }
-        "progress" => {
+        "discussion" => {
             route.mode = "task";
-            route.next_action = if operation == "read" {
+            route.next_action = if matches!(operation, "read" | "status" | "history") {
                 "confirm_resume"
             } else {
                 "confirm_review"
             };
-            route.formal_events.push(if operation == "read" {
-                "progress_read"
-            } else {
-                "progress_save"
-            });
+            route
+                .formal_events
+                .push(if matches!(operation, "read" | "status" | "history") {
+                    "discussion_read"
+                } else {
+                    "discussion_save"
+                });
         }
         "handoff" => route.formal_events.push("handoff"),
         "delegation" => {
@@ -137,12 +139,12 @@ mod tests {
         let table: Value = serde_json::from_str(EFFECTS).unwrap();
         for (command, count) in [
             ("source", 3),
-            ("task", 7),
+            ("task", 4),
             ("specification", 9),
             ("migration", 6),
             ("execute", 16),
             ("delegation", 2),
-            ("progress", 4),
+            ("discussion", 8),
             ("handoff", 7),
         ] {
             assert_eq!(table[command].as_object().unwrap().len(), count);
@@ -166,7 +168,7 @@ mod tests {
             "authorized_external_effect"
         );
         assert_eq!(
-            operation_effect("task", "save")
+            operation_effect("discussion", "update")
                 .unwrap()
                 .side_effect_boundary(),
             "authorized_atomic_write"

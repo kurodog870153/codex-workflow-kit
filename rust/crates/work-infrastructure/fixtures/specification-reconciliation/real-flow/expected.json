@@ -5,7 +5,7 @@
   "deviation_classifications": {
     "DEVIATION-001": "retain_only"
   },
-  "fingerprint": "8b03f4ba79c40da3da6f7f2b36b00333f63d58a11455573675bd6e96ddcd6ab3",
+  "fingerprint": "5d4ae9cdc470de33ccc07e9ca0a1f3aaaa036445fa43dd4055fda63123fe3668",
   "ledger": {
     "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
     "entries": [
@@ -13,7 +13,7 @@
         "attempt_sha256": "d0034312a3ef3f6ad0d6839aca77e4bf3f8db090f27099f2125a6fc14f3f9f1f",
         "deviation_id": "DEVIATION-001",
         "outcome": "retained",
-        "reconciliation_fingerprint": "8b03f4ba79c40da3da6f7f2b36b00333f63d58a11455573675bd6e96ddcd6ab3",
+        "reconciliation_fingerprint": "5d4ae9cdc470de33ccc07e9ca0a1f3aaaa036445fa43dd4055fda63123fe3668",
         "target": "retain_only"
       }
     ],

@@ -1,1 +1,73 @@
-{"delegation":{"build":"read_only","validate":"read_only"},"execute":{"attempt-close":"write","attempt-start":"write","attempt-start-prepare":"read_only","command-correction":"write","command-prepare":"read_only","command-run":"external_effect","correction-create":"write","deviation-prepare-semantic":"read_only","deviation-record":"write","preflight":"read_only","record-begin":"write","record-finish":"write","recover":"write","recover-attempt-start":"write","recovery-prepare":"read_only","worktree":"read_only"},"handoff":{"build-discussion":"read_only","build-execute-to-task":"read_only","build-task-to-execute":"read_only","render":"read_only","validate":"read_only","verify-execute-to-task":"read_only","verify-task-to-execute":"read_only"},"progress":{"prepare":"read_only","read":"read_only","save":"write","validate":"read_only"},"task":{"prepare":"read_only","status":"read_only","save":"write","preview":"read_only","apply":"write","recover":"write","validate":"read_only"},"migration":{"analyze":"read_only","prepare":"write","preview":"read_only","apply":"write","verify":"read_only","recover":"write"},"specification":{"prepare":"read_only","preview":"read_only","apply":"write","verify":"read_only","recover":"write","reconciliation-prepare":"read_only","reconciliation-preview":"read_only","reconciliation-apply":"write","reconciliation-recover":"write"},"source":{"capture":"write","read":"read_only","validate":"read_only"}}
+{
+  "delegation": {
+    "build": "read_only",
+    "validate": "read_only"
+  },
+  "execute": {
+    "attempt-close": "write",
+    "attempt-start": "write",
+    "attempt-start-prepare": "read_only",
+    "command-correction": "write",
+    "command-prepare": "read_only",
+    "command-run": "external_effect",
+    "correction-create": "write",
+    "deviation-prepare-semantic": "read_only",
+    "deviation-record": "write",
+    "preflight": "read_only",
+    "record-begin": "write",
+    "record-finish": "write",
+    "recover": "write",
+    "recover-attempt-start": "write",
+    "recovery-prepare": "read_only",
+    "worktree": "read_only"
+  },
+  "handoff": {
+    "build-discussion": "read_only",
+    "build-execute-to-task": "read_only",
+    "build-task-to-execute": "read_only",
+    "render": "read_only",
+    "validate": "read_only",
+    "verify-execute-to-task": "read_only",
+    "verify-task-to-execute": "read_only"
+  },
+  "task": {
+    "preview": "read_only",
+    "apply": "write",
+    "recover": "write",
+    "validate": "read_only"
+  },
+  "migration": {
+    "analyze": "read_only",
+    "prepare": "write",
+    "preview": "read_only",
+    "apply": "write",
+    "verify": "read_only",
+    "recover": "write"
+  },
+  "specification": {
+    "prepare": "read_only",
+    "preview": "read_only",
+    "apply": "write",
+    "verify": "read_only",
+    "recover": "write",
+    "reconciliation-prepare": "read_only",
+    "reconciliation-preview": "read_only",
+    "reconciliation-apply": "write",
+    "reconciliation-recover": "write"
+  },
+  "source": {
+    "capture": "write",
+    "read": "read_only",
+    "validate": "read_only"
+  },
+  "discussion": {
+    "init": "write",
+    "read": "read_only",
+    "status": "read_only",
+    "update": "write",
+    "question": "write",
+    "answer": "write",
+    "history": "read_only",
+    "recover": "write"
+  }
+}

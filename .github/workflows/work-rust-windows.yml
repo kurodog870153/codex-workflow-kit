@@ -25,7 +25,7 @@ jobs:
           $paths = @(
             'README.md',
             'skills/work/SKILL.md',
-            'rust/crates/work-infrastructure/fixtures/task-draft-sources/valid/outputs/work/sources/example/SRC-001/source.txt'
+            'rust/crates/work-infrastructure/fixtures/discussion-assembly/outputs/work/sources/example/SRC-001/source.txt'
           )
           foreach ($path in $paths) {
             $entry = git ls-files --eol -- $path
