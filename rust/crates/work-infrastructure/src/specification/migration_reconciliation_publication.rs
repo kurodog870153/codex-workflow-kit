@@ -4,7 +4,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use serde_json::{Value, json};
-use work_feature::artifact_paths::default_artifact_paths;
 use work_feature::error::{ExitCode, WorkError};
 use work_feature::ports::ArtifactStore;
 use work_feature::skill::SkillRoot;
@@ -24,18 +23,7 @@ use work_operations::specification::transaction::{render_transaction, validate_t
 use crate::files::LocalFiles;
 use crate::hierarchy_catalog::LocalHierarchyCatalog;
 use crate::skill_catalog::{LocalSkillCatalog, SkillRootConfig};
-use crate::specification::storage::{
-    execution_history_bytes, publish_journal, storage_path, write_journal,
-};
-
-fn artifact_paths(id: &RequirementId) -> BTreeMap<String, String> {
-    let paths = default_artifact_paths(id);
-    BTreeMap::from([
-        ("source".into(), paths.source),
-        ("task".into(), paths.task),
-        ("execution".into(), paths.execution),
-    ])
-}
+use crate::specification::storage::{execution_history_bytes_for_journal, storage_path};
 
 fn fail(code: &str, message: &str) -> WorkError {
     WorkError::new(ExitCode::ArtifactIntegrity, code, message, json!({}))
@@ -77,7 +65,7 @@ fn build_updates(
             "A valid requirement ID is required.",
         )
     })?;
-    let paths = artifact_paths(&id);
+    let paths = crate::specification::artifact_migration::resolved_artifact_paths(root, &id)?;
     let index_path = &paths["task"];
     let execution_path = format!("{}/index.json", paths["execution"]);
     let index_raw = read_optional(root, index_path, overrides)?;
@@ -281,7 +269,7 @@ pub fn verify_final_chain(
             "A valid requirement ID is required.",
         )
     })?;
-    let paths = artifact_paths(&id);
+    let paths = crate::specification::artifact_migration::resolved_artifact_paths(root, &id)?;
     if !storage_path(root, &paths["task"])?.is_file() {
         return Err(fail(
             "migration_task_missing",
@@ -314,23 +302,78 @@ pub fn reconcile(
     requirement: &str,
     request_sha256: &str,
 ) -> Result<Value, WorkError> {
+    reconcile_scoped(root, skill_root, configs, requirement, request_sha256, None)
+}
+
+pub(super) fn reconcile_scoped(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[SkillRootConfig],
+    requirement: &str,
+    request_sha256: &str,
+    runtime_owner: Option<&work_model::runtime::RuntimeOwner>,
+) -> Result<Value, WorkError> {
     let id: RequirementId = requirement.parse().map_err(|_| {
         fail(
             "migration_requirement_id",
             "A valid requirement ID is required.",
         )
     })?;
-    let paths = artifact_paths(&id);
+    let paths = crate::specification::artifact_migration::resolved_artifact_paths(root, &id)?;
     let execution = &paths["execution"];
+    if runtime_owner.is_none() {
+        return Err(fail(
+            "journal_owner_identity",
+            "Retained reconciliation requires the current Native owner.",
+        ));
+    }
     let journal = work_operations::derivation::publication::journal_path(
         execution,
         work_operations::derivation::publication::JournalKind::SpecificationMigrationReconcile(
             request_sha256,
         ),
     );
-    let marker = work_operations::derivation::publication::completion_marker_path(&journal);
-    if storage_path(root, &journal)?.is_file() {
-        let raw = LocalFiles.read_raw(&storage_path(root, &journal)?)?;
+    let context = {
+        Some(work_feature::ports::RequirementWriterContext {
+            canonical_project_root: root
+                .canonicalize()
+                .map_err(|_| fail("journal_owner_identity", "The project root is invalid."))?,
+            requirement_id: id,
+        })
+    };
+    let input = |prepared, recover| crate::specification::storage::RetainedJournalRuntimeInput {
+        context: context.as_ref().expect("retained context"),
+        execution,
+        relative: &journal,
+        prepared_journal: prepared,
+        recover,
+    };
+    let pending = {
+        let context = context.as_ref().expect("current retained context");
+
+        crate::execution::storage::LocalExecutionStorage {
+            project_root: context.canonical_project_root.clone(),
+        }
+        .retained_requirement_inventory(context, execution)?
+        .iter()
+        .any(|item| item.manifest.business_identity["journal_path"] == journal)
+    };
+    if storage_path(root, &journal)?.is_file() || pending {
+        let raw = {
+            let context = context.as_ref().expect("current retained context");
+
+            render_transaction(
+                &crate::specification::storage::retained_journal_original_for_recovery(
+                    context, execution, &journal,
+                )?,
+            )
+            .map_err(|_| {
+                fail(
+                    "migration_reconciliation_journal",
+                    "Frozen journal evidence is invalid.",
+                )
+            })?
+        };
         let transaction = parse_json_contract(&raw).map_err(|_| {
             fail(
                 "migration_reconciliation_journal",
@@ -391,10 +434,18 @@ pub fn reconcile(
             .iter()
             .map(|update| (update.path.clone(), fingerprint::raw(&update.before)))
             .collect::<BTreeMap<_, _>>();
-        let history = execution_history_bytes(root, execution)?
-            .iter()
-            .map(|(path, raw)| (path.clone(), fingerprint::history(raw)))
-            .collect::<BTreeMap<_, _>>();
+        let mut prepared = transaction.clone();
+        prepared["state"] = json!("prepared");
+        prepared["published_count"] = json!(0);
+        let history = ({
+            crate::specification::storage::retained_journal_history_with_owner(
+                &input(&prepared, true),
+                runtime_owner.expect("native scope"),
+            )?
+        })
+        .iter()
+        .map(|(path, raw)| (path.clone(), fingerprint::history(raw)))
+        .collect::<BTreeMap<_, _>>();
         if transaction["metadata"]["candidate_sha256"] != json!(expected_after)
             || transaction["metadata"]["source_sha256"] != json!(expected_before)
             || transaction["metadata"]["history_sha256"] != json!(history)
@@ -404,7 +455,14 @@ pub fn reconcile(
                 "Reconciliation recovery requires exact derived bindings, immutable Source and unchanged history.",
             ));
         }
-        let publication = publish_journal(root, &journal, &marker)?;
+        let publication = {
+            crate::specification::storage::publish_retained_journal_with_owner(
+                &input(&prepared, true),
+                runtime_owner.expect("native scope"),
+                || Ok(()),
+                |_| Ok(()),
+            )?
+        };
         if !build_updates(root, skill_root, configs, requirement, &BTreeMap::new())?.is_empty() {
             return Err(fail(
                 "migration_reconciliation_incomplete",
@@ -426,7 +484,28 @@ pub fn reconcile(
         .iter()
         .map(|update| (update.path.clone(), update.after.clone()))
         .collect::<BTreeMap<_, _>>();
-    let history = execution_history_bytes(root, execution)?;
+    let history = {
+        let prepared = TransactionDeriver::derive(TransactionInput {
+            kind: TransactionKind::Reconciliation,
+            order: PublicationOrder::FinalReconciliation {
+                task_index_path: paths["task"].clone(),
+            },
+            request: json!({"request_sha256":request_sha256,"phase":"reconciliation"}),
+            artifacts: json!(paths),
+            affected_task_ids: vec![],
+            history: BTreeMap::new(),
+            source: source.clone(),
+            candidate: candidate.clone(),
+        })
+        .map_err(|_| {
+            fail(
+                "migration_reconciliation",
+                "The reviewed reconciliation scope is invalid.",
+            )
+        })?
+        .journal;
+        execution_history_bytes_for_journal(root, execution, &journal, &prepared)?
+    };
     let derived = TransactionDeriver::derive(TransactionInput {
         kind: TransactionKind::Reconciliation,
         order: PublicationOrder::FinalReconciliation {
@@ -452,8 +531,14 @@ pub fn reconcile(
             "Reconciliation sources changed before journal publication.",
         ));
     }
-    write_journal(root, &journal, &transaction)?;
-    let publication = publish_journal(root, &journal, &marker)?;
+    let publication = {
+        crate::specification::storage::publish_retained_journal_with_owner(
+            &input(&transaction, false),
+            runtime_owner.expect("native scope"),
+            || Ok(()),
+            |_| Ok(()),
+        )?
+    };
     if !build_updates(root, skill_root, configs, requirement, &BTreeMap::new())?.is_empty() {
         return Err(fail(
             "migration_reconciliation_incomplete",

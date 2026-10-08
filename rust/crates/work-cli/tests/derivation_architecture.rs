@@ -416,7 +416,8 @@ fn fixture_binding_rebuild_is_deterministic_and_rejects_damaged_items() {
         ArtifactNode, raw_sha256, rebuild_fixture_bindings,
     };
 
-    let root = crates_root().join("work-infrastructure/fixtures/task-diagnostics/outputs/work");
+    let root = crates_root()
+        .join("work-infrastructure/fixtures/shared/task-diagnostics-project/outputs/work");
     let index: Value =
         serde_json::from_slice(&fs::read(root.join("tasks/example/index.json")).unwrap()).unwrap();
     let execution: Value =

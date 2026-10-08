@@ -81,6 +81,7 @@ mod tests {
     use std::cell::{Cell, RefCell};
     use std::collections::BTreeMap;
 
+    use crate::writer_lock::WriterLock;
     use serde_json::{Value, json};
     use work_feature::execution::{
         AttemptStartPublication, AttemptStartRepository, CommandProjectRequest,
@@ -89,13 +90,13 @@ mod tests {
         close_attempt_from_project, create_correction_from_project, finish_record_from_project,
         inspect_worktree_from_project, prepare_attempt_start_from_project,
         prepare_command_from_project, prepare_deviation_from_project,
-        prepare_execute_preflight_from_project, prepare_recovery_from_project,
+        prepare_execute_preflight_from_project,
+        prepare_legacy_recovery_from_project as prepare_recovery_from_project,
         prepare_semantic_deviation_from_project, record_command_correction_from_project,
         record_deviation_from_project, start_attempt_from_project,
     };
     use work_feature::instruction::{load, select, task_document_selection};
     use work_feature::ports::Git;
-    use work_feature::ports::WriterLock;
     use work_feature::task::{
         CollectionInput, load_collection, load_task_execution_context,
         recheck_task_execution_context, validate_collection,
@@ -142,11 +143,19 @@ mod tests {
         target_reads: Cell<usize>,
     }
 
+    #[derive(Clone, Copy)]
+    enum StagingEvidenceChange {
+        Add,
+        Delete,
+        Bytes,
+    }
+
     struct ChangingRecoveryStorage<'a> {
         inner: &'a LocalExecutionStorage,
         inventory_calls: Cell<usize>,
         staged_reads: Cell<usize>,
         change_inventory: bool,
+        staging_change: Option<StagingEvidenceChange>,
     }
 
     impl ExecutionIndexRepository for ChangingRecoveryStorage<'_> {
@@ -184,6 +193,31 @@ mod tests {
     }
 
     impl RecoveryPrepareRepository for ChangingRecoveryStorage<'_> {
+        fn staging_transactions(
+            &self,
+            context: &work_feature::execution::ExecutionWriterContext,
+        ) -> Result<Vec<work_feature::execution::StagingRecoverySnapshot>, WorkError> {
+            let mut transactions = self.inner.staging_transactions(context)?;
+            self.inventory_calls.set(self.inventory_calls.get() + 1);
+            if self.inventory_calls.get() == 2 {
+                if let Some(change) = self.staging_change {
+                    let files = &mut transactions[0].files;
+                    match change {
+                        StagingEvidenceChange::Add => {
+                            files.insert("foreign.tmp".into(), b"foreign".to_vec());
+                        }
+                        StagingEvidenceChange::Delete => {
+                            files.remove("index.json.tmp");
+                        }
+                        StagingEvidenceChange::Bytes => {
+                            files.get_mut("index.json.tmp").unwrap().push(0);
+                        }
+                    }
+                }
+            }
+            Ok(transactions)
+        }
+
         fn check_recovery_idle(&self, execution: &str) -> Result<(), WorkError> {
             self.inner.check_recovery_idle(execution)
         }
@@ -227,6 +261,137 @@ mod tests {
     }
 
     #[test]
+    fn staging_recovery_fake_detects_added_deleted_or_changed_bytes_without_touching_other_requirement()
+     {
+        use work_model::runtime::*;
+        use work_operations::execution::recovery::*;
+        let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+        let fixture =
+            repo.join("crates/work-infrastructure/fixtures/shared/task-diagnostics-project");
+        let root = std::env::temp_dir().join(format!(
+            "work-task-staging-fake-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let task_path = "outputs/work/tasks/example/index.json";
+        for relative in [task_path, "outputs/work/tasks/example/tasks/TASK-001.json"] {
+            let target = root.join(relative);
+            fs::create_dir_all(target.parent().unwrap()).unwrap();
+            fs::copy(fixture.join(relative), target).unwrap();
+        }
+        crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
+        fs::write(root.join("src.txt"), b"original\n").unwrap();
+        let work = LocalHierarchyCatalog {
+            skill_root: repo.join("../skills/work"),
+        };
+        let skills = LocalSkillCatalog { roots: vec![] };
+        let paths = crate::artifact_paths::LocalArtifactPaths {
+            project_root: root.clone(),
+        };
+        let tasks = LocalTaskStorage {
+            project_root: root.clone(),
+        };
+        let sources = CommandProjectSources {
+            instructions: &work,
+            skills: &skills,
+            paths: &paths,
+            task_repository: &tasks,
+            skill_roots: &[],
+        };
+        let full = load_collection(&work, &skills, &paths, &tasks, &[], task_path).unwrap();
+        let execution = full["collection_contract"]["artifacts"]["execution"]
+            .as_str()
+            .unwrap();
+        let index = build_initial_execution_index(&full["collection_contract"], &full).unwrap();
+        let raw = render_execution_index(&index).unwrap();
+        let target = format!("{execution}/index.json");
+        fs::create_dir_all(root.join(execution)).unwrap();
+        fs::write(root.join(&target), &raw).unwrap();
+        let context = work_feature::execution::load_execution_writer_context(
+            &sources,
+            ExecutionProjectTarget {
+                task_path,
+                execution_dir: execution,
+                task_id: "TASK-001",
+            },
+        )
+        .unwrap();
+        let payloads = BTreeMap::from([("index.json.tmp".into(), raw.clone())]);
+        let evidence = RuntimeBytes {
+            sha256: sha256_hex(&raw),
+            bytes: raw.clone(),
+        };
+        let manifest=build_execution_staging_manifest(ExecutionStagingInput {
+            canonical_root:context.writer().canonical_project_root.to_str().unwrap(),requirement:&context.writer().requirement_id,
+            execution_dir:execution,operation:work_operations::derivation::publication::RuntimeOperation::RecordBegin,
+            approval_sha256:&sha256_hex(&raw),business_identity:json!({"task_id":"TASK-001","attempt_id":"ATTEMPT-001","record_id":"CMD-001"}),
+            targets:vec![RuntimeTarget {path:target.clone(),before:Some(evidence.clone()),after:Some(evidence)}],payloads:&payloads,
+        }).unwrap();
+        let directory = crate::transaction_storage::prepare_runtime_transaction(
+            &LocalFiles,
+            &context.writer().canonical_project_root,
+            &manifest,
+            &payloads,
+        )
+        .unwrap();
+        let other = root.join("outputs/work/runtime/staging/other/unknown/bad");
+        fs::create_dir_all(&other).unwrap();
+        fs::write(other.join("transaction.json"), b"unknown other requirement").unwrap();
+        let storage = LocalExecutionStorage {
+            project_root: root.clone(),
+        };
+        for change in [
+            StagingEvidenceChange::Add,
+            StagingEvidenceChange::Delete,
+            StagingEvidenceChange::Bytes,
+        ] {
+            let fake = ChangingRecoveryStorage {
+                inner: &storage,
+                inventory_calls: Cell::new(0),
+                staged_reads: Cell::new(0),
+                change_inventory: false,
+                staging_change: Some(change),
+            };
+            let before = fake.staging_transactions(&context).unwrap();
+            let after = fake.staging_transactions(&context).unwrap();
+            let binding = |snap: &work_feature::execution::StagingRecoverySnapshot| {
+                execution_staging_binding(
+                    &snap.manifest,
+                    context.writer().canonical_project_root.to_str().unwrap(),
+                    &context.writer().requirement_id,
+                    execution,
+                    "TASK-001",
+                    &snap.files,
+                )
+            };
+            let reviewed = binding(&before[0]).unwrap();
+            match binding(&after[0]) {
+                Ok(current) => assert_eq!(
+                    work_feature::execution::recovery::require_staging_recovery_evidence(
+                        &reviewed, &current
+                    )
+                    .unwrap_err()
+                    .reason_code,
+                    "execution_recovery_evidence_changed"
+                ),
+                Err(issue) => assert!(matches!(
+                    issue.reason_code,
+                    "execution_staging_inventory" | "execution_staging_evidence_changed"
+                )),
+            }
+        }
+        assert_eq!(fs::read(directory.join("index.json.tmp")).unwrap(), raw);
+        assert_eq!(fs::read(root.join(target)).unwrap(), raw);
+        assert_eq!(
+            fs::read(other.join("transaction.json")).unwrap(),
+            b"unknown other requirement"
+        );
+    }
+
+    #[test]
     fn task_item_read_stays_within_formal_collection() {
         let root = std::env::temp_dir().join(format!(
             "work-task-item-path-{}-{}",
@@ -267,7 +432,10 @@ mod tests {
 
     #[test]
     fn independent_collection_accepts_both_provenances_and_rejects_missing_evidence() {
-        for fixture_name in ["task-diagnostics", "specification-migration"] {
+        for fixture_name in [
+            "shared/task-diagnostics-project",
+            "shared/specification-migration-project",
+        ] {
             let fixture =
                 PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures")).join(fixture_name);
             let root = std::env::temp_dir().join(format!(
@@ -294,7 +462,9 @@ mod tests {
                 fs::create_dir_all(target.parent().unwrap()).unwrap();
                 fs::write(target, fs::read(fixture.join(relative)).unwrap()).unwrap();
             }
-            crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
+            if fixture_name == "shared/task-diagnostics-project" {
+                crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
+            }
             let work = LocalHierarchyCatalog {
                 skill_root: PathBuf::from(concat!(
                     env!("CARGO_MANIFEST_DIR"),
@@ -1144,8 +1314,27 @@ mod tests {
         let command_index_before = fs::read(&execution_index_file).unwrap();
         let command_attempt_before = fs::read(&attempt_path).unwrap();
         let command_lock = root.join(format!("{execution_dir}/.work-state-writer.lock"));
+        // The isolated actor owns this released legacy kernel-lock test artifact.
+        // Native production gates never remove it or infer a dead owner.
+        if command_lock.exists() {
+            fs::remove_file(&command_lock).unwrap();
+        }
+        let load_command_context = || {
+            work_feature::execution::load_execution_writer_context(
+                &sources,
+                ExecutionProjectTarget {
+                    task_path,
+                    execution_dir,
+                    task_id: "TASK-001",
+                },
+            )
+        };
+        let command_storage = crate::execution::storage::RuntimeExecutionSession {
+            storage: &execution_storage,
+            load_context: &load_command_context,
+        };
         let command_lock_before = fs::read(&command_lock).ok();
-        let preview = prepare_command_from_project(&sources, &execution_storage, input).unwrap();
+        let preview = prepare_command_from_project(&sources, &command_storage, input).unwrap();
         assert_eq!(
             fs::read(&execution_index_file).unwrap(),
             command_index_before
@@ -1153,7 +1342,7 @@ mod tests {
         assert_eq!(fs::read(&attempt_path).unwrap(), command_attempt_before);
         assert_eq!(fs::read(&command_lock).ok(), command_lock_before);
         let approved = preview["approved_sha256"].as_str().unwrap();
-        let command_result = execution_storage
+        let command_result = command_storage
             .run_command_from_project(&sources, input, approved)
             .unwrap();
         assert_eq!(command_result["stdout_tail"], "verified");
@@ -1164,7 +1353,7 @@ mod tests {
         );
         assert_eq!(fs::read(&attempt_path).unwrap(), command_attempt_before);
         assert_eq!(
-            execution_storage
+            command_storage
                 .run_command_from_project(&sources, input, approved)
                 .unwrap_err()
                 .reason_code,
@@ -1476,6 +1665,7 @@ mod tests {
                 inventory_calls: Cell::new(0),
                 staged_reads: Cell::new(0),
                 change_inventory,
+                staging_change: None,
             };
             assert_eq!(
                 prepare_recovery_from_project(
@@ -1535,7 +1725,7 @@ mod tests {
         assert_eq!(fs::read(&temporary).unwrap(), before_recovery_stage);
         assert_eq!(fs::read(&recovery_lock).ok(), before_recovery_lock);
         let recovered = execution_storage
-            .recover_execution_from_project(
+            .recover_legacy_execution_from_project(
                 &sources,
                 ExecutionProjectTarget {
                     task_path,
@@ -1729,7 +1919,7 @@ mod tests {
         )
         .unwrap();
         let recovered_correction = execution_storage
-            .recover_execution_from_project(&sources, target, &second_preview["request"])
+            .recover_legacy_execution_from_project(&sources, target, &second_preview["request"])
             .unwrap();
         assert_eq!(recovered_correction["status"], "recovered");
         assert_eq!(

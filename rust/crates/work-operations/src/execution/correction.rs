@@ -283,6 +283,138 @@ pub fn build_correction_candidates(
     })
 }
 
+pub struct CorrectionStagingInput<'a> {
+    pub canonical_root: &'a str,
+    pub requirement: &'a crate::identifiers::RequirementId,
+    pub execution_dir: &'a str,
+    pub task_id: &'a str,
+    pub attempt_id: &'a str,
+    pub correction_id: &'a str,
+    pub collection: &'a Value,
+    pub index_before: &'a [u8],
+    pub attempt_before: &'a [u8],
+    pub artifact: &'a [u8],
+    pub locked_index: &'a [u8],
+    pub final_index: &'a [u8],
+}
+
+pub fn build_correction_staging(
+    input: CorrectionStagingInput<'_>,
+) -> Result<work_model::runtime::RuntimeManifest, ExecutionIssue> {
+    use crate::canonical::parse_json_contract;
+    use crate::derivation::fingerprint;
+    use work_model::runtime::{RuntimeBytes, RuntimeTarget};
+    let parse = |raw| {
+        parse_json_contract(raw).map_err(|_| {
+            issue(
+                "correction_staging_contract",
+                "Canonical artifacts are required.",
+                json!({}),
+            )
+        })
+    };
+    let before = parse(input.index_before)?;
+    let attempt = parse(input.attempt_before)?;
+    let artifact = parse(input.artifact)?;
+    let locked = parse(input.locked_index)?;
+    validate_execution_index(&before, input.index_before)?;
+    validate_execution_index(&locked, input.locked_index)?;
+    crate::execution::attempt::validate_attempt_bytes(&attempt, input.attempt_before)?;
+    validate_correction(&artifact)?;
+    if before["requirement_id"] != input.requirement.as_str()
+        || artifact["correction_id"] != input.correction_id
+        || artifact["target_attempt_id"] != input.attempt_id
+        || attempt["task_id"] != input.task_id
+        || attempt["attempt_id"] != input.attempt_id
+    {
+        return Err(issue(
+            "correction_staging_identity",
+            "The Correction identities disagree.",
+            json!({}),
+        ));
+    }
+    let request = json!({"schema":"work-correction-create-request","target_attempt_id":input.attempt_id,
+        "field":artifact["field"],"correct_value":artifact["correct_value"],"reason":artifact["reason"],
+        "invalidates_completion":locked["lock"]["invalidates_completion"]});
+    let expected = build_correction_candidates(
+        input.collection,
+        &before,
+        &attempt,
+        input.task_id,
+        &request,
+        input.correction_id,
+        artifact["created_at"].as_str().unwrap_or(""),
+    )?;
+    let render_error = |_| {
+        issue(
+            "correction_staging_contract",
+            "The index cannot be rendered.",
+            json!({}),
+        )
+    };
+    if render_correction(&expected.artifact)? != input.artifact
+        || render_execution_index(&expected.locked_index).map_err(render_error)?
+            != input.locked_index
+        || render_execution_index(&expected.final_index).map_err(render_error)? != input.final_index
+    {
+        return Err(issue(
+            "correction_staging_transition",
+            "The prepared Correction transition is not the unique canonical target.",
+            json!({}),
+        ));
+    }
+    let bytes = |raw: &[u8]| RuntimeBytes {
+        bytes: raw.to_vec(),
+        sha256: fingerprint::raw(raw),
+    };
+    let payloads = std::collections::BTreeMap::from([
+        ("correction.json.tmp".into(), input.artifact.to_vec()),
+        ("index.locked.json.tmp".into(), input.locked_index.to_vec()),
+        ("index.json.tmp".into(), input.final_index.to_vec()),
+    ]);
+    crate::execution::recovery::build_execution_staging_manifest(
+        crate::execution::recovery::ExecutionStagingInput {
+            canonical_root: input.canonical_root,
+            requirement: input.requirement,
+            execution_dir: input.execution_dir,
+            operation: crate::derivation::publication::RuntimeOperation::Correction,
+            approval_sha256: &fingerprint::structured(&request).map_err(|_| {
+                issue(
+                    "correction_staging_contract",
+                    "The request cannot be fingerprinted.",
+                    json!({}),
+                )
+            })?,
+            business_identity: json!({"task_id":input.task_id,"attempt_id":input.attempt_id,"correction_id":input.correction_id,
+            "correction_request":request,"affected_task_ids":expected.affected_task_ids}),
+            targets: vec![
+                RuntimeTarget {
+                    path: format!("{}/index.json", input.execution_dir),
+                    before: Some(bytes(input.index_before)),
+                    after: Some(bytes(input.final_index)),
+                },
+                RuntimeTarget {
+                    path: format!(
+                        "{}/{}/{}/corrections/{}.json",
+                        input.execution_dir, input.task_id, input.attempt_id, input.correction_id
+                    ),
+                    before: None,
+                    after: Some(bytes(input.artifact)),
+                },
+                RuntimeTarget {
+                    path: format!(
+                        "{}/{}/{}/attempt.json",
+                        input.execution_dir, input.task_id, input.attempt_id
+                    ),
+                    before: Some(bytes(input.attempt_before)),
+                    after: Some(bytes(input.attempt_before)),
+                },
+            ],
+            payloads: &payloads,
+        },
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

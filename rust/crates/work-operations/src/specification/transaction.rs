@@ -455,9 +455,394 @@ pub fn completion_state(record_raw: &[u8], marker_raw: Option<&[u8]>) -> Complet
     }
 }
 
+pub fn verified_retained_journal_kind<'a>(
+    execution: &str,
+    relative: &str,
+    journal: &'a Value,
+) -> Result<crate::derivation::publication::JournalKind<'a>, TransactionIssue> {
+    use crate::derivation::publication::{self, JournalKind, RuntimeOperation as O};
+    validate_transaction(journal)?;
+    let address = publication::parse_retained_journal_path(execution, relative)?;
+    if journal["metadata"]["artifacts"]
+        .get("execution")
+        .is_some_and(|path| path != execution)
+    {
+        return Err(issue(
+            "journal_layout_metadata",
+            "The journal execution path differs from its verified scope.",
+        ));
+    }
+    let request = &journal["metadata"]["request"];
+    let transaction_id = journal["transaction_id"]
+        .as_str()
+        .expect("validated identity");
+    let hash = |field: &str| {
+        request[field]
+            .as_str()
+            .filter(|sha| valid_sha256(sha))
+            .ok_or_else(|| {
+                issue(
+                    "journal_layout_metadata",
+                    "Complete approved journal identity evidence is required.",
+                )
+            })
+    };
+    let kind = match address.operation {
+        O::SpecificationUpdate => {
+            if !transaction_id.starts_with("SPEC-UPDATE-")
+                || request["schema"] != "work-spec-update-request"
+                || request["task_index"]["requirement_id"]
+                    .as_str()
+                    .is_none_or(|id| id.parse::<crate::identifiers::RequirementId>().is_err())
+            {
+                return Err(issue(
+                    "journal_layout_metadata",
+                    "The original Specification update identity is required.",
+                ));
+            }
+            JournalKind::SpecificationUpdate(transaction_id)
+        }
+        O::SpecificationMigration => {
+            if request.get("migration").is_some() {
+                if !transaction_id.starts_with("SPEC-MIGRATION-") {
+                    return Err(issue(
+                        "journal_layout_metadata",
+                        "The migration journal kind is invalid.",
+                    ));
+                }
+                strict(request, &["migration", "preview_fingerprint"], &[])?;
+                JournalKind::SpecificationMigration(hash("preview_fingerprint")?)
+            } else {
+                if !transaction_id.starts_with("SPEC-RECONCILIATION-") {
+                    return Err(issue(
+                        "journal_layout_metadata",
+                        "The reconciliation journal kind is invalid.",
+                    ));
+                }
+                strict(
+                    request,
+                    &["reconciliation_fingerprint", "attempt_path"],
+                    &[],
+                )?;
+                let numbered = |id: &str, prefix: &str| {
+                    id.strip_prefix(prefix).is_some_and(|digits| {
+                        digits.len() == 3
+                            && digits != "000"
+                            && digits.bytes().all(|b| b.is_ascii_digit())
+                    })
+                };
+                let in_scope = request["attempt_path"].as_str().and_then(|path| path.strip_prefix(&format!("{execution}/")))
+                    .is_some_and(|path| matches!(path.split('/').collect::<Vec<_>>().as_slice(), [task, attempt, "attempt.json"] if numbered(task, "TASK-") && numbered(attempt, "ATTEMPT-")));
+                if !in_scope {
+                    return Err(issue(
+                        "journal_layout_metadata",
+                        "The reconciliation Attempt is outside the verified execution scope.",
+                    ));
+                }
+                JournalKind::SpecificationMigration(hash("reconciliation_fingerprint")?)
+            }
+        }
+        O::SpecificationMigrationItem => {
+            if !transaction_id.starts_with("SPEC-MIGRATION-")
+                || journal["metadata"]["artifacts"]["execution"] != execution
+            {
+                return Err(issue(
+                    "journal_layout_metadata",
+                    "Migration item journals require the approved execution scope.",
+                ));
+            }
+            strict(
+                request,
+                &["request_sha256", "analysis_fingerprint", "item_id"],
+                &[],
+            )?;
+            hash("analysis_fingerprint")?;
+            if request["item_id"].as_str().is_none_or(|id| id.is_empty()) {
+                return Err(issue(
+                    "journal_layout_metadata",
+                    "The original migration item identity is required.",
+                ));
+            }
+            JournalKind::SpecificationMigrationItem {
+                approved: hash("request_sha256")?,
+                position: address.item_position.expect("parsed item position"),
+            }
+        }
+        O::SpecificationMigrationReconcile => {
+            if !transaction_id.starts_with("SPEC-RECONCILIATION-") {
+                return Err(issue(
+                    "journal_layout_metadata",
+                    "The reconciliation journal kind is invalid.",
+                ));
+            }
+            strict(request, &["request_sha256", "phase"], &[])?;
+            if request["phase"] != "reconciliation" {
+                return Err(issue(
+                    "journal_layout_metadata",
+                    "The original migration reconciliation identity is required.",
+                ));
+            }
+            JournalKind::SpecificationMigrationReconcile(hash("request_sha256")?)
+        }
+        O::InstructionMigration | O::SourceRefresh => {
+            strict(
+                request,
+                &["kind", "requirement_id", "preview_fingerprint"],
+                &[],
+            )?;
+            let expected_kind = if address.operation == O::InstructionMigration {
+                "instruction_migration"
+            } else {
+                "source_refresh"
+            };
+            if request["kind"] != expected_kind
+                || request["requirement_id"]
+                    .as_str()
+                    .is_none_or(|id| id.parse::<crate::identifiers::RequirementId>().is_err())
+            {
+                return Err(issue(
+                    "journal_layout_metadata",
+                    "The original recover-only journal kind and requirement are required.",
+                ));
+            }
+            let transaction_kind = if address.operation == O::InstructionMigration {
+                crate::derivation::identity::PreviewTransactionKind::InstructionMigration
+            } else {
+                crate::derivation::identity::PreviewTransactionKind::SourceRefresh
+            };
+            if crate::derivation::identity::preview_transaction_id(
+                transaction_kind,
+                hash("preview_fingerprint")?,
+            )? != transaction_id
+            {
+                return Err(issue(
+                    "journal_layout_metadata",
+                    "The recover-only journal ID differs from its full original preview proof.",
+                ));
+            }
+            if address.operation == O::InstructionMigration {
+                JournalKind::InstructionMigration(hash("preview_fingerprint")?)
+            } else {
+                JournalKind::SourceRefresh(hash("preview_fingerprint")?)
+            }
+        }
+        _ => {
+            return Err(issue(
+                "journal_layout_metadata",
+                "Only retained journal operations are valid here.",
+            ));
+        }
+    };
+    publication::bind_retained_journal_path(execution, relative, kind)?;
+    Ok(kind)
+}
+
+pub fn verify_retained_journal_layout(
+    execution: &str,
+    relative: &str,
+    journal: &Value,
+) -> Result<crate::derivation::publication::RetainedJournalAddress, TransactionIssue> {
+    let kind = verified_retained_journal_kind(execution, relative, journal)?;
+    crate::derivation::publication::bind_retained_journal_path(execution, relative, kind)
+}
+
+/// Only canonical progress fields may differ from the complete frozen journal.
+pub fn verify_retained_journal_progress(
+    prepared: &Value,
+    actual_raw: &[u8],
+) -> Result<Value, TransactionIssue> {
+    validate_transaction(prepared)?;
+    if prepared["state"] != "prepared" || prepared["published_count"] != 0 {
+        return Err(issue(
+            "journal_preparation_invalid",
+            "Original prepared journal evidence is required.",
+        ));
+    }
+    let actual: Value = serde_json::from_slice(actual_raw).map_err(|_| {
+        issue(
+            "journal_progress_invalid",
+            "Canonical journal progress is required.",
+        )
+    })?;
+    if render_transaction(&actual)? != actual_raw {
+        return Err(issue(
+            "journal_progress_noncanonical",
+            "Canonical journal progress is required.",
+        ));
+    }
+    let mut expected = prepared.clone();
+    expected["state"] = actual["state"].clone();
+    expected["published_count"] = actual["published_count"].clone();
+    if actual != expected {
+        return Err(issue(
+            "journal_progress_identity",
+            "Journal progress changed immutable approved evidence.",
+        ));
+    }
+    Ok(actual)
+}
+
+pub fn verify_retained_journal_commit(
+    prepared: &Value,
+    actual_raw: &[u8],
+    marker_raw: Option<&[u8]>,
+) -> Result<Value, TransactionIssue> {
+    let actual = verify_retained_journal_progress(prepared, actual_raw)?;
+    if actual["state"] != "published"
+        || completion_state(actual_raw, marker_raw) != CompletionState::Completed
+    {
+        return Err(issue(
+            "journal_commit_evidence",
+            "Published journal and exact committed marker evidence are required.",
+        ));
+    }
+    Ok(actual)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn retained_metadata_binding_covers_six_kinds_and_ledger_only_without_short_hash_proof() {
+        use crate::derivation::{
+            publication::{self, JournalKind},
+            transaction::*,
+        };
+        let execution = "custom execution/例";
+        let approved = "ab".repeat(32);
+        let requests = [
+            json!({"schema":"work-spec-update-request","task_index":{"requirement_id":"example"}}),
+            json!({"migration":{},"preview_fingerprint":approved}),
+            json!({"request_sha256":approved,"analysis_fingerprint":"c".repeat(64),"item_id":"ITEM-003"}),
+            json!({"request_sha256":approved,"phase":"reconciliation"}),
+            json!({"kind":"instruction_migration","requirement_id":"example","preview_fingerprint":approved}),
+            json!({"kind":"source_refresh","requirement_id":"example","preview_fingerprint":approved}),
+            json!({"reconciliation_fingerprint":approved,"attempt_path":format!("{execution}/TASK-001/ATTEMPT-001/attempt.json")}),
+        ];
+        for (position, request) in requests.into_iter().enumerate() {
+            let transaction_kind = match position {
+                1 | 2 => TransactionKind::Migration,
+                3 | 6 => TransactionKind::Reconciliation,
+                4 => TransactionKind::InstructionMigration,
+                5 => TransactionKind::SourceRefresh,
+                _ => TransactionKind::Update,
+            };
+            let journal = TransactionDeriver::derive(TransactionInput {
+                kind: transaction_kind,
+                order: PublicationOrder::Flat,
+                request,
+                artifacts: if position == 6 {
+                    json!({})
+                } else {
+                    json!({"execution":execution})
+                },
+                affected_task_ids: vec![],
+                history: std::collections::BTreeMap::new(),
+                source: std::collections::BTreeMap::new(),
+                candidate: std::collections::BTreeMap::from([(
+                    "formal.json".into(),
+                    b"new".to_vec(),
+                )]),
+            })
+            .unwrap()
+            .journal;
+            let kind = match position {
+                0 => JournalKind::SpecificationUpdate(journal["transaction_id"].as_str().unwrap()),
+                1 | 6 => JournalKind::SpecificationMigration(&approved),
+                2 => JournalKind::SpecificationMigrationItem {
+                    approved: &approved,
+                    position: 2,
+                },
+                3 => JournalKind::SpecificationMigrationReconcile(&approved),
+                4 => JournalKind::InstructionMigration(&approved),
+                5 => JournalKind::SourceRefresh(&approved),
+                _ => unreachable!(),
+            };
+            let path = publication::retained_journal_path(execution, kind).unwrap();
+            let before = render_transaction(&journal).unwrap();
+            verify_retained_journal_layout(execution, &path, &journal).unwrap();
+            assert!(verify_retained_journal_layout("foreign", &path, &journal).is_err());
+            let copied = path.replace(execution, "foreign");
+            assert!(
+                verify_retained_journal_layout("foreign", &copied, &journal).is_err(),
+                "position={position}"
+            );
+            assert_eq!(render_transaction(&journal).unwrap(), before);
+            if position != 0 {
+                let field = if position == 2 || position == 3 {
+                    "request_sha256"
+                } else if position == 6 {
+                    "reconciliation_fingerprint"
+                } else {
+                    "preview_fingerprint"
+                };
+                let mut missing = journal.clone();
+                missing["metadata"]["request"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove(field);
+                assert!(verify_retained_journal_layout(execution, &path, &missing).is_err());
+            }
+        }
+    }
+
+    #[test]
+    fn retained_commit_requires_full_original_identity_canonical_progress_and_exact_marker() {
+        use crate::derivation::transaction::{
+            PublicationOrder, TransactionDeriver, TransactionInput, TransactionKind,
+        };
+        let prepared = TransactionDeriver::derive(TransactionInput {
+            kind: TransactionKind::Update,
+            order: PublicationOrder::Flat,
+            request: json!({}),
+            artifacts: json!({}),
+            affected_task_ids: vec![],
+            history: std::collections::BTreeMap::new(),
+            source: std::collections::BTreeMap::new(),
+            candidate: std::collections::BTreeMap::from([
+                ("task/one.json".into(), b"one".to_vec()),
+                ("task/two.json".into(), b"two".to_vec()),
+            ]),
+        })
+        .unwrap()
+        .journal;
+        for (count, state) in [(0, "prepared"), (1, "publishing"), (2, "published")] {
+            let mut actual = prepared.clone();
+            actual["state"] = json!(state);
+            actual["published_count"] = json!(count);
+            let raw = render_transaction(&actual).unwrap();
+            assert_eq!(
+                verify_retained_journal_progress(&prepared, &raw).unwrap(),
+                actual
+            );
+            let marker = completion_marker(&raw);
+            assert_eq!(
+                verify_retained_journal_commit(&prepared, &raw, Some(&marker)).is_ok(),
+                count == 2
+            );
+            for missing in [
+                None,
+                Some(&b""[..]),
+                Some(&marker[..20]),
+                Some(&b"foreign marker\n"[..]),
+            ] {
+                assert!(verify_retained_journal_commit(&prepared, &raw, missing).is_err());
+            }
+            let mut noncanonical = raw.clone();
+            noncanonical.push(b'\n');
+            assert!(verify_retained_journal_progress(&prepared, &noncanonical).is_err());
+            let mut foreign = actual.clone();
+            foreign["metadata"]["request"] = json!({"foreign":true});
+            let approved = approval_sha256(&foreign["files"], &foreign["metadata"]);
+            foreign["approval_sha256"] = json!(approved);
+            foreign["transaction_id"] = json!(derived_transaction_id("UPDATE", &approved).unwrap());
+            assert!(
+                verify_retained_journal_progress(&prepared, &render_transaction(&foreign).unwrap())
+                    .is_err()
+            );
+        }
+    }
 
     #[test]
     fn shared_journal_identity_snapshot_and_progress_cases_match_current_contract() {

@@ -1,0 +1,54 @@
+{
+  "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
+  "attempt_sha256": "d0034312a3ef3f6ad0d6839aca77e4bf3f8db090f27099f2125a6fc14f3f9f1f",
+  "deviation_classifications": {
+    "DEVIATION-001": "task_only"
+  },
+  "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
+  "ledger_sha256": "3666f0a4ea22a5d0a7fa63ce65b08801aaf8eff2d64e0bcc8edfce063c5349d7",
+  "publication": {
+    "completion_marker": "outputs/work/executions/example/journals/specification-migration/58E5098CEDB0/committed.sha256",
+    "documents": [
+      "outputs/work/executions/example/index.json",
+      "outputs/work/tasks/example/index.json",
+      "outputs/work/tasks/example/tasks/TASK-001.json"
+    ],
+    "fingerprint": "58e5098cedb09924aed6bdbdfe5dfbfdfe64ba3255057a0e574c33c7a5ab5fb4",
+    "journal": "outputs/work/executions/example/journals/specification-migration/58E5098CEDB0/journal.json",
+    "publication_status": "published",
+    "relationship_results": [
+      {
+        "name": "candidate_set",
+        "status": "passed"
+      },
+      {
+        "name": "artifact_paths",
+        "status": "passed"
+      },
+      {
+        "name": "execution_binding",
+        "status": "passed"
+      }
+    ],
+    "schema": "work-spec-migration-publication",
+    "status": "updated",
+    "transaction_approval_sha256": "3c7303d3753f7922ff1406b44cce6a99061ba9b1b2fa2ff54e617f8f5145195e",
+    "validator_results": [
+      {
+        "name": "task_collection",
+        "status": "passed"
+      },
+      {
+        "name": "execution_index",
+        "status": "passed"
+      }
+    ]
+  },
+  "reconciliation_fingerprint": "680c5d6582dbe9bc348d980fcc7929525c5307976c527bd302f8d9379569d92e",
+  "retained_deviation_ids": [],
+  "schema": "work-spec-reconciliation-publication",
+  "selected_deviation_ids": [
+    "DEVIATION-001"
+  ],
+  "status": "updated"
+}

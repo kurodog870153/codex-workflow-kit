@@ -3,6 +3,71 @@
 use crate::error::{ExitCode, WorkError};
 use serde_json::{Value, json};
 
+pub fn require_staging_recovery_binding(
+    request: &Value,
+    manifest: &work_model::runtime::RuntimeManifest,
+    binding: &work_operations::execution::recovery::ExecutionStagingBinding,
+) -> Result<(), WorkError> {
+    work_operations::execution::requests::validate_staging_recovery_request(request, false)
+        .map_err(|issue| {
+            WorkError::new(
+                ExitCode::Contract,
+                issue.reason_code,
+                issue.message,
+                issue.details,
+            )
+        })?;
+    if request["transaction_dir"] != binding.transaction_dir
+        || request["transaction_files"] != json!(binding.transaction_files)
+        || request["attempt_id"] != manifest.business_identity["attempt_id"]
+        || request["transaction"]
+            .as_str()
+            .map(|name| name.replace('_', "-"))
+            != Some(manifest.operation.clone())
+    {
+        return Err(WorkError::new(
+            ExitCode::ArtifactIntegrity,
+            "execution_recovery_transaction_changed",
+            "The request requires the identical transaction, operation, Attempt and complete observed inventory.",
+            json!({}),
+        ));
+    }
+    if request["transaction_evidence_sha256"]
+        != work_operations::execution::recovery::execution_staging_evidence_sha256(binding)
+            .map_err(|issue| {
+                WorkError::new(
+                    ExitCode::ArtifactIntegrity,
+                    issue.reason_code,
+                    issue.message,
+                    issue.details,
+                )
+            })?
+    {
+        return Err(WorkError::new(
+            ExitCode::ArtifactIntegrity,
+            "execution_recovery_evidence_changed",
+            "The transaction's bytes and SHA/size evidence changed after review.",
+            json!({}),
+        ));
+    }
+    Ok(())
+}
+
+pub fn require_staging_recovery_evidence(
+    reviewed: &work_operations::execution::recovery::ExecutionStagingBinding,
+    current: &work_operations::execution::recovery::ExecutionStagingBinding,
+) -> Result<(), WorkError> {
+    if reviewed != current {
+        return Err(WorkError::new(
+            ExitCode::ArtifactIntegrity,
+            "execution_recovery_evidence_changed",
+            "Recovery bytes, hashes, sizes or inventory changed before publication.",
+            json!({}),
+        ));
+    }
+    Ok(())
+}
+
 pub fn command_correction_identity(
     index: &Value,
     task_id: &str,
@@ -111,6 +176,106 @@ pub fn require_started_attempt(stage: u8, attempt_exists: bool) -> Result<(), Wo
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn staging_recovery_binds_full_directory_inventory_and_attempt_then_rechecks_evidence() {
+        use work_model::runtime::*;
+        use work_operations::derivation::fingerprint;
+        use work_operations::execution::recovery::*;
+        let raw = b"prepared".to_vec();
+        let payloads = std::collections::BTreeMap::from([("index.json.tmp".into(), raw.clone())]);
+        let manifest=build_execution_staging_manifest(ExecutionStagingInput {
+            canonical_root:"/project",requirement:&"example".parse().unwrap(),execution_dir:"custom execution",
+            operation:work_operations::derivation::publication::RuntimeOperation::RecordBegin,
+            approval_sha256:&"a".repeat(64),business_identity:json!({"task_id":"TASK-001","attempt_id":"ATTEMPT-001","record_id":"VAL-001"}),
+            targets:vec![RuntimeTarget {path:"custom execution/index.json".into(),before:None,
+                after:Some(RuntimeBytes {sha256:fingerprint::raw(&raw),bytes:raw})}],payloads:&payloads,
+        }).unwrap();
+        let mut observed = payloads;
+        observed.insert(
+            "transaction.json".into(),
+            serde_json::to_vec(&manifest).unwrap(),
+        );
+        let binding = execution_staging_binding(
+            &manifest,
+            "/project",
+            &"example".parse().unwrap(),
+            "custom execution",
+            "TASK-001",
+            &observed,
+        )
+        .unwrap();
+        let request = json!({"schema":"work-execution-recovery-request","transaction":"record_begin","attempt_id":"ATTEMPT-001",
+            "transaction_dir":binding.transaction_dir,"transaction_files":binding.transaction_files,
+            "transaction_evidence_sha256":execution_staging_evidence_sha256(&binding).unwrap()});
+        require_staging_recovery_binding(&request, &manifest, &binding).unwrap();
+        require_staging_recovery_evidence(&binding, &binding).unwrap();
+        let mut stale = request.clone();
+        stale["transaction_evidence_sha256"] = json!("f".repeat(64));
+        assert_eq!(
+            require_staging_recovery_binding(&stale, &manifest, &binding)
+                .unwrap_err()
+                .reason_code,
+            "execution_recovery_evidence_changed"
+        );
+        for (field, value) in [
+            ("attempt_id", json!("ATTEMPT-002")),
+            (
+                "transaction_dir",
+                json!(format!(
+                    "outputs/work/runtime/staging/other/record-begin/{}",
+                    "a".repeat(64)
+                )),
+            ),
+            ("transaction_files", json!(["transaction.json"])),
+        ] {
+            let mut changed = request.clone();
+            changed[field] = value;
+            assert_eq!(
+                require_staging_recovery_binding(&changed, &manifest, &binding)
+                    .unwrap_err()
+                    .reason_code,
+                "execution_recovery_transaction_changed"
+            );
+        }
+        for change in 0..4 {
+            let mut current = binding.clone();
+            match change {
+                0 => current
+                    .transaction_files
+                    .push("transaction.json.tmp".into()),
+                1 => {
+                    current
+                        .evidence
+                        .get_mut("index.json.tmp")
+                        .unwrap()
+                        .raw_sha256 = "b".repeat(64)
+                }
+                2 => {
+                    current
+                        .evidence
+                        .get_mut("index.json.tmp")
+                        .unwrap()
+                        .size_bytes += 1
+                }
+                _ => current.missing_files.push("index.json.tmp".into()),
+            }
+            assert_eq!(
+                require_staging_recovery_evidence(&binding, &current)
+                    .unwrap_err()
+                    .reason_code,
+                "execution_recovery_evidence_changed"
+            );
+            if change == 1 || change == 2 {
+                assert_eq!(
+                    require_staging_recovery_binding(&request, &manifest, &current)
+                        .unwrap_err()
+                        .reason_code,
+                    "execution_recovery_evidence_changed"
+                );
+            }
+        }
+    }
 
     #[test]
     fn mixed_transaction_is_rejected_before_recovery() {

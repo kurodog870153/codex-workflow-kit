@@ -21,6 +21,111 @@ fn issue(reason_code: &'static str, message: &'static str, details: Value) -> Ex
     }
 }
 
+pub struct RecordFinishStagingInput<'a> {
+    pub canonical_root: &'a str,
+    pub requirement: &'a crate::identifiers::RequirementId,
+    pub execution_dir: &'a str,
+    pub task_id: &'a str,
+    pub attempt_id: &'a str,
+    pub record_id: &'a str,
+    pub task: &'a Value,
+    pub request: &'a Value,
+    pub index_before: &'a [u8],
+    pub index_after: &'a [u8],
+    pub attempt_before: &'a [u8],
+    pub attempt_after: &'a [u8],
+}
+
+pub fn build_record_finish_staging(
+    input: RecordFinishStagingInput<'_>,
+) -> Result<work_model::runtime::RuntimeManifest, ExecutionIssue> {
+    use crate::canonical::parse_json_contract;
+    use crate::derivation::fingerprint;
+    use work_model::runtime::{RuntimeBytes, RuntimeTarget};
+    let parse = |raw| {
+        parse_json_contract(raw).map_err(|_| {
+            issue(
+                "record_finish_staging_contract",
+                "Canonical artifacts are required.",
+                json!({}),
+            )
+        })
+    };
+    let index = parse(input.index_before)?;
+    let attempt = parse(input.attempt_before)?;
+    validate_execution_index(&index, input.index_before)?;
+    crate::execution::attempt::validate_attempt_bytes(&attempt, input.attempt_before)?;
+    if index["requirement_id"] != input.requirement.as_str()
+        || attempt["task_id"] != input.task_id
+        || attempt["attempt_id"] != input.attempt_id
+        || attempt["status"] != "in_progress"
+    {
+        return Err(issue(
+            "record_finish_staging_identity",
+            "The execution identities disagree.",
+            json!({}),
+        ));
+    }
+    let expected =
+        build_record_finish_candidates(input.task, &attempt, &index, input.task_id, input.request)?;
+    if expected.record_id != input.record_id
+        || render_attempt(&expected.attempt)? != input.attempt_after
+        || render_execution_index(&expected.index).map_err(|_| {
+            issue(
+                "record_finish_staging_contract",
+                "The index cannot be rendered.",
+                json!({}),
+            )
+        })? != input.index_after
+    {
+        return Err(issue(
+            "record_finish_staging_transition",
+            "The prepared artifacts do not match the authorized result.",
+            json!({}),
+        ));
+    }
+    let bytes = |raw: &[u8]| RuntimeBytes {
+        bytes: raw.to_vec(),
+        sha256: fingerprint::raw(raw),
+    };
+    let payloads = std::collections::BTreeMap::from([
+        ("attempt.json.tmp".into(), input.attempt_after.to_vec()),
+        ("index.json.tmp".into(), input.index_after.to_vec()),
+    ]);
+    crate::execution::recovery::build_execution_staging_manifest(
+        crate::execution::recovery::ExecutionStagingInput {
+            canonical_root: input.canonical_root,
+            requirement: input.requirement,
+            execution_dir: input.execution_dir,
+            operation: crate::derivation::publication::RuntimeOperation::RecordFinish,
+            approval_sha256: &fingerprint::structured(input.request).map_err(|_| {
+                issue(
+                    "record_finish_staging_contract",
+                    "The request cannot be fingerprinted.",
+                    json!({}),
+                )
+            })?,
+            business_identity: json!({"task_id":input.task_id,"attempt_id":input.attempt_id,"record_id":input.record_id,"record_finish_request":input.request}),
+            targets: vec![
+                RuntimeTarget {
+                    path: format!(
+                        "{}/{}/{}/attempt.json",
+                        input.execution_dir, input.task_id, input.attempt_id
+                    ),
+                    before: Some(bytes(input.attempt_before)),
+                    after: Some(bytes(input.attempt_after)),
+                },
+                RuntimeTarget {
+                    path: format!("{}/index.json", input.execution_dir),
+                    before: Some(bytes(input.index_before)),
+                    after: Some(bytes(input.index_after)),
+                },
+            ],
+            payloads: &payloads,
+        },
+    )
+}
+
 pub struct RecordFinishCandidates {
     pub attempt: Value,
     pub index: Value,

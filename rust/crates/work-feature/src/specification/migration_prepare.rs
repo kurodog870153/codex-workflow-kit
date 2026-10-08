@@ -126,6 +126,8 @@ pub fn validate_semantic_request(value: &Value) -> Result<(), WorkError> {
             "Complete Task context, title, summary and semantic tasks are required.",
         ));
     }
+    work_operations::derivation::legacy_layout::validate_offline_review(value)
+        .map_err(|code| fail(code, "Layout migration requires explicit offline deployment review and the complete exact raw inventory."))?;
     Ok(())
 }
 

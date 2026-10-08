@@ -43,47 +43,47 @@ const RETIRED_SCHEMAS: &[&str] = &[
 ];
 const RETIRED_EVIDENCE: &[(&str, &str)] = &[
     (
-        "rust/crates/work-infrastructure/fixtures/delegation-role/progress-saver-expected.json",
+        "rust/crates/work-infrastructure/fixtures/historical/delegation/progress-saver/expected/result.json",
         "7227c8da01d21946ee677b7c07d034f569d2855724add9e878ee60cbe0827166",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/task-assembly/draft.json",
+        "rust/crates/work-infrastructure/fixtures/historical/task/assembly/draft.json",
         "83e1c9a4c677b18014e9dd3788f2c5c1b53fa5d69f9cbdff0399e72bb8a19f58",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/task-assembly/index.json",
+        "rust/crates/work-infrastructure/fixtures/historical/task/assembly/index.json",
         "7fbd7294fca31e21b226ea8ec25e2fa70ba3c92f5513a765a742c0f5d98160a3",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/task-draft-sources/valid/expected.json",
+        "rust/crates/work-infrastructure/fixtures/historical/task/draft-sources/valid/expected.json",
         "7ea4e4acfb5dea3b25b5dd7f145ba2c9840fd6d637d5db0b7c1a9e043934b3f4",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/task-draft-sources/source-drift/outputs/work/tasks/example/drafts/index.json",
+        "rust/crates/work-infrastructure/fixtures/historical/task/draft-sources/source-drift/outputs/work/tasks/example/drafts/index.json",
         "a1d599387c37e1ff72d61186b56ad28edaea689a5d10e5da27f09859ecde4242",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/task-draft-sources/source-drift/outputs/work/tasks/example/drafts/history/1/index.json",
+        "rust/crates/work-infrastructure/fixtures/historical/task/draft-sources/source-drift/outputs/work/tasks/example/drafts/history/1/index.json",
         "a1d599387c37e1ff72d61186b56ad28edaea689a5d10e5da27f09859ecde4242",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/task-draft-sources/missing-selection/outputs/work/tasks/example/drafts/index.json",
+        "rust/crates/work-infrastructure/fixtures/historical/task/draft-sources/missing-selection/outputs/work/tasks/example/drafts/index.json",
         "8a9139b81004b37e1b38a1894b3bdb34564f5e0f21f3b3106d2131320dbdbedb",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/task-draft-sources/missing-selection/outputs/work/tasks/example/drafts/history/1/index.json",
+        "rust/crates/work-infrastructure/fixtures/historical/task/draft-sources/missing-selection/outputs/work/tasks/example/drafts/history/1/index.json",
         "8a9139b81004b37e1b38a1894b3bdb34564f5e0f21f3b3106d2131320dbdbedb",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/task-draft-sources/valid/outputs/work/tasks/example/drafts/index.json",
+        "rust/crates/work-infrastructure/fixtures/historical/task/draft-sources/valid/outputs/work/tasks/example/drafts/index.json",
         "d4e4f775a41e316f1955bf337b2d29cb963e07d7268755672039169e4d921764",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/task-draft-sources/valid/outputs/work/tasks/example/drafts/history/1/index.json",
+        "rust/crates/work-infrastructure/fixtures/historical/task/draft-sources/valid/outputs/work/tasks/example/drafts/history/1/index.json",
         "d4e4f775a41e316f1955bf337b2d29cb963e07d7268755672039169e4d921764",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/delegation-role/outputs/work/progress/example/task/progress.json",
+        "rust/crates/work-infrastructure/fixtures/historical/delegation/progress-saver/project/outputs/work/progress/example/task/progress.json",
         "3dc23b07b4e169fabee7bb0fff9af7efea22964ee86e0bac204bb3e1f5bd2497",
     ),
 ];
@@ -95,121 +95,145 @@ const IMMUTABLE: &[(&str, &str)] = &[
         "3c48773b404d850071dff4006d4ef0d7302d1343aefc58fbc84d730753de8831",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/delegation-role/legacy-plan/outputs/work/plans/example.json",
+        "rust/crates/work-infrastructure/fixtures/cases/delegation/role/legacy-plan/project/outputs/work/plans/example.json",
         "6e62f1f148ba58c554362529a568f6dfd1d57983f8ff7aa092baa0c7f7cb3d52",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/delegation-role/outputs/work/sources/example/SRC-001/source.txt",
+        "rust/crates/work-infrastructure/fixtures/historical/delegation/progress-saver/project/outputs/work/sources/example/SRC-001/source.txt",
         "c0025641ad55f45e002ef3307cbe976060548cd4f3a0f068f1bf4d614ea7a9a8",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/delegation-role/plan-expected.json",
+        "rust/crates/work-infrastructure/fixtures/historical/delegation/plan/expected/result.json",
         "d59260cad51d5350326077c8d89b735d1cd78aa8b8ff8c550126d39e8b4e36fb",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/delegation-role/task-skill/outputs/work/sources/example/SRC-001/source.txt",
+        "rust/crates/work-infrastructure/fixtures/cases/delegation/role/task-skill/project/outputs/work/sources/example/SRC-001/source.txt",
         "c0025641ad55f45e002ef3307cbe976060548cd4f3a0f068f1bf4d614ea7a9a8",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/handoff-closed/blocked/outputs/work/plans/example.json",
+        "rust/crates/work-infrastructure/fixtures/cases/execution/handoff/closed-blocked/project/outputs/work/plans/example.json",
         "477a9c931dc3e1aeb41b80d2fa6aa9486453b0aaa4a17e2778025c9236b6f673",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/handoff-closed/blocked/outputs/work/sources/example/SRC-001/source.txt",
+        "rust/crates/work-infrastructure/fixtures/cases/execution/handoff/closed-blocked/project/outputs/work/sources/example/SRC-001/source.txt",
         "7207f68cff308aed428d6c1a6b51f48c9778d933fe34dceb8bf26193e4ef87b9",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/handoff-closed/instruction-baseline/instructions.md",
+        "rust/crates/work-infrastructure/fixtures/historical/instructions/execute/handoff-baseline/instructions.md",
         "4eb8ea4bccf08a049721ab8315b1cb3d992ebdaca2cdce5a8fe1cbd52490bba3",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/handoff-closed/instruction-baseline/references/execution-records.md",
+        "rust/crates/work-infrastructure/fixtures/historical/instructions/execute/handoff-baseline/references/execution-records.md",
         "fdb3e4239f73887f10244e1f766c99612746ca2164ded2959ea9f7dd58f5e302",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/handoff-closed/instruction-baseline/references/execution-recovery.md",
+        "rust/crates/work-infrastructure/fixtures/historical/instructions/execute/handoff-baseline/references/execution-recovery.md",
         "0b10178791148e51d0f1e46f413a6ebb430979d654df6874006b8a9c9b7a0092",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/handoff-closed/stopped/outputs/work/plans/example.json",
+        "rust/crates/work-infrastructure/fixtures/cases/execution/handoff/closed-stopped/project/outputs/work/plans/example.json",
         "477a9c931dc3e1aeb41b80d2fa6aa9486453b0aaa4a17e2778025c9236b6f673",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/handoff-closed/stopped/outputs/work/sources/example/SRC-001/source.txt",
+        "rust/crates/work-infrastructure/fixtures/cases/execution/handoff/closed-stopped/project/outputs/work/sources/example/SRC-001/source.txt",
         "7207f68cff308aed428d6c1a6b51f48c9778d933fe34dceb8bf26193e4ef87b9",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/specification-migration/outputs/work/plans/example.json",
+        "rust/crates/work-infrastructure/fixtures/shared/specification-migration-project/outputs/work/plans/example.json",
         "32060424c0c7084b6301982b90f71472ee5abe5cec3f2e9712bfa4e6134e3e5c",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/specification-migration/reconstruction/outputs/work/plans/example.json",
+        "rust/crates/work-infrastructure/fixtures/cases/specification/migration/reconstruction/project/outputs/work/plans/example.json",
         "06159f62f16157a896a81d7211baf91d7be55cb8fd8e776dda0a9656fd2fac16",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/specification-reconciliation/attempt-raw.txt",
+        "rust/crates/work-infrastructure/fixtures/historical/specification/reconciliation/attempt-raw.txt",
         "1d566b34bf20c67837166d44cfb00f4b9a2a3fbaf3b31d67caf0dffba52f18a7",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/specification-reconciliation/real-flow/with-migration/outputs/work/executions/example/.work-spec-migration-8A3356E4F4D2.json",
+        "rust/crates/work-infrastructure/fixtures/cases/specification/reconciliation/with-migration/project/outputs/work/executions/example/.work-spec-migration-8A3356E4F4D2.json",
         "b1a58d432675b12e1ff986b470b89a658b20882c40feffe73a96ce4486421058",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/specification-reconciliation/real-flow/with-migration/outputs/work/plans/example.json",
+        "rust/crates/work-infrastructure/fixtures/cases/specification/reconciliation/with-migration/project/outputs/work/plans/example.json",
         "32060424c0c7084b6301982b90f71472ee5abe5cec3f2e9712bfa4e6134e3e5c",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/specification-update/add-task/outputs/work/sources/example/SRC-001/source.txt",
+        "rust/crates/work-infrastructure/fixtures/cases/specification/update/add-task/project/outputs/work/sources/example/SRC-001/source.txt",
         "c0025641ad55f45e002ef3307cbe976060548cd4f3a0f068f1bf4d614ea7a9a8",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/specification-update/item-goal/outputs/work/sources/example/SRC-001/source.txt",
+        "rust/crates/work-infrastructure/fixtures/cases/specification/update/item-goal/project/outputs/work/sources/example/SRC-001/source.txt",
         "c0025641ad55f45e002ef3307cbe976060548cd4f3a0f068f1bf4d614ea7a9a8",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/specification-update/outputs/work/sources/example/SRC-001/source.txt",
+        "rust/crates/work-infrastructure/fixtures/cases/specification/update/collection-summary/project/outputs/work/sources/example/SRC-001/source.txt",
         "c0025641ad55f45e002ef3307cbe976060548cd4f3a0f068f1bf4d614ea7a9a8",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/specification-update/remove-task/outputs/work/sources/example/SRC-001/source.txt",
+        "rust/crates/work-infrastructure/fixtures/cases/specification/update/remove-task/project/outputs/work/sources/example/SRC-001/source.txt",
         "c0025641ad55f45e002ef3307cbe976060548cd4f3a0f068f1bf4d614ea7a9a8",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/specification-update/revision-migration/outputs/work/plans/example.json",
+        "rust/crates/work-infrastructure/fixtures/cases/specification/update/revision-migration/project/outputs/work/plans/example.json",
         "32060424c0c7084b6301982b90f71472ee5abe5cec3f2e9712bfa4e6134e3e5c",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/specification-update/task-summary/outputs/work/sources/example/SRC-001/source.txt",
+        "rust/crates/work-infrastructure/fixtures/cases/specification/update/task-summary/project/outputs/work/sources/example/SRC-001/source.txt",
         "c0025641ad55f45e002ef3307cbe976060548cd4f3a0f068f1bf4d614ea7a9a8",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/task-assembly/outputs/work/sources/example/SRC-001/source.txt",
+        "rust/crates/work-infrastructure/fixtures/historical/task/assembly/outputs/work/sources/example/SRC-001/source.txt",
         "7207f68cff308aed428d6c1a6b51f48c9778d933fe34dceb8bf26193e4ef87b9",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/task-assembly/plan.json",
+        "rust/crates/work-infrastructure/fixtures/historical/task/assembly/plan.json",
         "ff2063a3da86ffda334b109b7e6afecd4a1ea5dfd172e977ff0742154f5c1c2d",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/task-diagnostics/outputs/work/sources/example/SRC-001/source.txt",
+        "rust/crates/work-infrastructure/fixtures/shared/task-diagnostics-project/outputs/work/sources/example/SRC-001/source.txt",
         "c0025641ad55f45e002ef3307cbe976060548cd4f3a0f068f1bf4d614ea7a9a8",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/task-draft-sources/missing-selection/outputs/work/sources/example/SRC-001/source.txt",
+        "rust/crates/work-infrastructure/fixtures/historical/task/draft-sources/missing-selection/outputs/work/sources/example/SRC-001/source.txt",
         "7207f68cff308aed428d6c1a6b51f48c9778d933fe34dceb8bf26193e4ef87b9",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/task-draft-sources/source-drift/outputs/work/sources/example/SRC-001/source.txt",
+        "rust/crates/work-infrastructure/fixtures/historical/task/draft-sources/source-drift/outputs/work/sources/example/SRC-001/source.txt",
         "813cdc534521528983b3ea97ea55cab8f6e7a806ab9ec0e84407a4b6832737e2",
     ),
     (
-        "rust/crates/work-infrastructure/fixtures/task-draft-sources/valid/outputs/work/sources/example/SRC-001/source.txt",
+        "rust/crates/work-infrastructure/fixtures/historical/task/draft-sources/valid/outputs/work/sources/example/SRC-001/source.txt",
         "7207f68cff308aed428d6c1a6b51f48c9778d933fe34dceb8bf26193e4ef87b9",
     ),
 ];
 
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..")
+}
+
+fn evidence_inventory<'a>(
+    evidence: &'a [(&str, &str)],
+    mut read: impl FnMut(&str) -> Option<Vec<u8>>,
+) -> Result<BTreeMap<&'a str, &'a str>, String> {
+    let mut inventory = BTreeMap::new();
+    for &(relative, digest) in evidence {
+        let raw = read(relative).ok_or_else(|| format!("{relative}: missing evidence"))?;
+        if work_infrastructure::fixture_support::raw_sha256(&raw) != digest {
+            return Err(format!("{relative}: exact evidence SHA mismatch"));
+        }
+        inventory.insert(relative, digest);
+    }
+    Ok(inventory)
+}
+
+#[test]
+fn exact_guard_rejects_corrupt_or_missing_evidence() {
+    let digest = work_infrastructure::fixture_support::raw_sha256(b"original");
+    let evidence = [("exact", digest.as_str())];
+    assert!(evidence_inventory(&evidence, |_| None).is_err());
+    assert!(evidence_inventory(&evidence, |_| Some(b"corrupt".to_vec())).is_err());
+    assert!(evidence_inventory(&evidence, |_| Some(b"original".to_vec())).is_ok());
 }
 
 fn current_schema(value: &str) -> bool {
@@ -230,7 +254,7 @@ fn inspect_value(value: &Value, file: &str, pointer: &str) -> Result<(), String>
                 ) {
                     if let Some(schema) = value.as_str() {
                         let rejected_plan = file
-                            == "rust/crates/work-infrastructure/fixtures/specification-migration/invalid-plan-request.json"
+                            == "rust/crates/work-infrastructure/fixtures/cases/specification/migration/invalid-plan/input/request.json"
                             && at == "$/candidates/0/content/schema"
                             && schema == "work-plan/v1";
                         if !current_schema(schema) && !rejected_plan {
@@ -373,15 +397,13 @@ fn artifact_models_have_no_retired_field_alias_or_fallback() {
 #[test]
 fn current_fixtures_and_embedded_stdout_are_checked_with_exact_evidence_exceptions() {
     let root = root();
-    let immutable: BTreeMap<_, _> = IMMUTABLE.iter().copied().collect();
-    for (relative, digest) in &immutable {
-        let raw = fs::read(root.join(relative)).unwrap();
-        assert_eq!(
-            work_infrastructure::fixture_support::raw_sha256(&raw),
-            *digest,
-            "{relative}"
-        );
-    }
+    let read = |relative: &str| match fs::read(root.join(relative)) {
+        Ok(raw) => Some(raw),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => panic!("{relative}: {error}"),
+    };
+    let immutable = evidence_inventory(IMMUTABLE, read).unwrap();
+    let retired = evidence_inventory(RETIRED_EVIDENCE, read).unwrap();
     let mut checked = 0;
     for path in files(&root.join("rust/crates")) {
         if path.extension().is_none_or(|extension| extension != "json") {
@@ -393,7 +415,7 @@ fn current_fixtures_and_embedded_stdout_are_checked_with_exact_evidence_exceptio
             .to_str()
             .unwrap()
             .replace('\\', "/");
-        if let Some((_, digest)) = RETIRED_EVIDENCE.iter().find(|(file, _)| *file == relative) {
+        if let Some(digest) = retired.get(relative.as_str()) {
             let raw = fs::read(&path).unwrap();
             assert_eq!(
                 work_infrastructure::fixture_support::raw_sha256(&raw),
@@ -538,7 +560,7 @@ fn installer_and_negative_probe_guards_detect_regressions_without_mutating_the_r
         )
         .is_ok()
     );
-    assert!(inspect_value(&json!({"schema":"work-plan/v1"}), "rust/crates/work-infrastructure/fixtures/specification-migration/invalid-plan-request.json", "$/candidates/0/content").is_ok());
+    assert!(inspect_value(&json!({"schema":"work-plan/v1"}), "rust/crates/work-infrastructure/fixtures/cases/specification/migration/invalid-plan/input/request.json", "$/candidates/0/content").is_ok());
     for frame in [
         "WORK-INSTRUCTIONS-SHA-256-V1",
         "WORK-TASK-COLLECTION-CREATE-V1",
@@ -562,41 +584,77 @@ fn installer_and_negative_probe_guards_detect_regressions_without_mutating_the_r
 // Rebuilds must not accumulate unreferenced transactions in golden fixtures.
 #[test]
 fn reconciliation_fixtures_keep_only_reviewed_journals() {
-    let base = root()
-        .join("rust/crates/work-infrastructure/fixtures/specification-reconciliation/real-flow");
-    let historical =
-        "with-migration/outputs/work/executions/example/.work-spec-migration-8A3356E4F4D2.json";
-    let mut expected = BTreeSet::from([historical.to_owned()]);
-    for case in [base.clone(), base.join("with-migration")] {
+    let base =
+        root().join("rust/crates/work-infrastructure/fixtures/cases/specification/reconciliation");
+    let historical = base.join("with-migration/project/outputs/work/executions/example/.work-spec-migration-8A3356E4F4D2.json");
+    assert!(historical.is_file());
+    let mut expected = BTreeSet::from([historical]);
+    for case in ["real-flow", "with-migration"] {
+        let case = base.join(case);
         let publication: Value =
-            serde_json::from_slice(&fs::read(case.join("publication.json")).unwrap()).unwrap();
-        let path = case.join(publication["publication"]["journal"].as_str().unwrap());
-        let journal: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(case.join("input/publication.json")).unwrap())
+                .unwrap();
+        let fingerprint = publication["publication"]["fingerprint"].as_str().unwrap();
+        let execution = "outputs/work/executions/example";
+        let relative = format!(
+            "{execution}/journals/specification-migration/{}/journal.json",
+            fingerprint[..12].to_ascii_uppercase()
+        );
+        let path = case.join("project").join(&relative);
+        let raw = fs::read(&path).unwrap();
+        let journal: Value = serde_json::from_slice(&raw).unwrap();
         assert_eq!(journal["schema"], "work-spec-transaction");
         assert_eq!(journal["state"], "published");
-        expected.insert(
-            path.strip_prefix(&base)
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .replace('\\', "/"),
+        let evidence = work_infrastructure::specification::storage::read_retained_journal(
+            &case.join("project"),
+            execution,
+            &relative,
+        )
+        .unwrap();
+        assert_eq!(evidence.contract, journal);
+        assert_eq!(evidence.raw, raw);
+        let marker = case
+            .join("project")
+            .join(relative.replace("/journal.json", "/committed.sha256"));
+        assert_eq!(
+            fs::read(marker).unwrap(),
+            format!(
+                "{}\n",
+                work_infrastructure::fixture_support::raw_sha256(&raw)
+            )
+            .into_bytes()
         );
+        expected.insert(path);
     }
-    let actual: BTreeSet<_> = files(&base)
+    let actual = files(&base)
         .into_iter()
         .filter(|path| {
             let name = path.file_name().unwrap().to_str().unwrap();
-            name.starts_with(".work-spec-migration-") && name.ends_with(".json")
-        })
-        .map(|path| {
-            path.strip_prefix(&base)
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .replace('\\', "/")
+            name == "journal.json"
+                || (name.starts_with(".work-spec-migration-") && name.ends_with(".json"))
         })
         .collect();
-    assert_eq!(actual, expected, "unreviewed fixture journal accumulation");
+    assert_reviewed_journals(&actual, &expected).unwrap();
+    for unreviewed in [
+        "real-flow/project/foreign/.work-spec-migration-foreign.json",
+        "real-flow/project/foreign/journal.json",
+    ] {
+        let mut foreign = actual.clone();
+        foreign.insert(base.join(unreviewed));
+        assert!(assert_reviewed_journals(&foreign, &expected).is_err());
+    }
+}
+
+fn assert_reviewed_journals(
+    actual: &BTreeSet<PathBuf>,
+    expected: &BTreeSet<PathBuf>,
+) -> Result<(), String> {
+    if actual != expected {
+        return Err(format!(
+            "unreviewed fixture journal accumulation: {actual:?} != {expected:?}"
+        ));
+    }
+    Ok(())
 }
 
 #[test]
@@ -626,7 +684,7 @@ fn retired_discussion_lifecycles_have_no_public_schema_or_private_role() {
 #[test]
 fn active_session_fixture_has_exact_integrity_without_repairing_it() {
     let path =
-        root().join("rust/crates/work-infrastructure/fixtures/discussion-assembly/session.json");
+        root().join("rust/crates/work-infrastructure/fixtures/cases/discussion/assembly/valid/input/session.json");
     let value: work_model::discussion::DiscussionSession =
         serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
     assert_eq!(

@@ -51,6 +51,8 @@ where
         ));
     }
     let _: work_model::specification::SpecMigrationPreviewRequest = serde_json::from_value(request.clone()).map_err(|cause| WorkError::new(ExitCode::Contract,"invalid_contract_value","Migration accepts only current TASK and Execution candidates with exact source fingerprints.",json!({"cause":cause.to_string()})))?;
+    work_operations::derivation::legacy_layout::validate_offline_review(request)
+        .map_err(|code| fail(code, "Layout migration requires the identical reviewed offline inventory and deployment evidence."))?;
     for candidate in request["candidates"].as_array().ok_or_else(|| {
         fail(
             "migration_candidate_set_incomplete",

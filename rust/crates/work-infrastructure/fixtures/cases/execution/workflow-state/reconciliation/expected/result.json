@@ -1,0 +1,129 @@
+{
+  "arguments": {
+    "input_file": "<semantic-input-file>",
+    "user_config_root": "<user-config-root>"
+  },
+  "artifacts": {
+    "execution": "outputs/work/executions/example",
+    "source": "outputs/work/sources/example",
+    "task": "outputs/work/tasks/example/index.json"
+  },
+  "command": "specification reconciliation-prepare",
+  "details": {
+    "overall_status": "completed",
+    "pending_deviation_ids": [
+      "DEVIATION-001"
+    ]
+  },
+  "next_action": "review_reconciliation",
+  "request_contract_id": "work-spec-reconciliation-prepare-request",
+  "required_checks": [
+    "task validate",
+    "execute preflight"
+  ],
+  "required_instruction_sources": [
+    "work.instruction-loading",
+    "work.shared.transaction-workspace",
+    "work.shared.artifact-revision",
+    "work.shared.artifact-paths",
+    "work.shared.fingerprints",
+    "work.workflow.specification",
+    "work.workflow.specification.active-task-collection-revision-boundary",
+    "work.workflow.specification.prepare-and-review",
+    "work.workflow.specification.publish-and-recover",
+    "work.workflow.specification.specification-verification"
+  ],
+  "requirement_id": "example",
+  "requires_user_confirmation": true,
+  "routing_reasons": [
+    "operation:review_reconciliation",
+    "workflow_status:execution_reconciliation_pending",
+    "mode:revise"
+  ],
+  "routing_status": "VALID",
+  "schema": "work-workflow-state",
+  "selection_manifest": {
+    "confirmation_required": true,
+    "routing_input": {
+      "artifact_lifecycle": "execution_reconciliation_pending",
+      "authorization_state": "confirmation_required",
+      "formal_events": [],
+      "mode": "revise",
+      "operation": "review_reconciliation",
+      "role": "main",
+      "status": "execution_reconciliation_pending",
+      "verified_state_sha256": "34fec66970e6f698565ec721c77d74f3f4184a2218b3d0338b330e2f6c6c77e1"
+    },
+    "routing_status": "VALID",
+    "schema": "work-instruction-selection-manifest",
+    "selection_sha256": "08b2e25fbebca2e87a0d08a40993924b902e0b7bd6ed6aea8406c48e45cb8c0c",
+    "sources": [
+      {
+        "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
+        "logical_name": "work.instruction-loading",
+        "path": "references/instruction-loading.md"
+      },
+      {
+        "canonical_sha256": "b46b09857612eec375ab6f0550f5d9f6f72a7807b566fb2be5d81918e25e44b0",
+        "logical_name": "work.shared.transaction-workspace",
+        "path": "references/instruction-loading/transaction-workspace.md"
+      },
+      {
+        "canonical_sha256": "f70b591b9f1c3ec2bbd3d241a5693c93fb7ad0d0bbbffe75ba779fe29d999a82",
+        "logical_name": "work.shared.artifact-revision",
+        "path": "references/instruction-loading/artifact-revision.md"
+      },
+      {
+        "canonical_sha256": "73310b679b1c1059f1e99121699d80f8b0f48e97e33c64f9f4f4e37df5147624",
+        "logical_name": "work.shared.artifact-paths",
+        "path": "references/instruction-loading/artifact-paths.md"
+      },
+      {
+        "canonical_sha256": "fb41d17c58fd4a425d725c364fe6e225a2bfaee254c474dbc1198edcae611642",
+        "logical_name": "work.shared.fingerprints",
+        "path": "references/instruction-loading/fingerprints.md"
+      },
+      {
+        "canonical_sha256": "84226e4ca7f658f553b33e313e5c159d1765d29799683b3bda8fe3d23eac39b1",
+        "logical_name": "work.workflow.specification",
+        "path": "references/workflows/specification.md"
+      },
+      {
+        "canonical_sha256": "dd6679048e2f0892e9cf52c38a24ebb7c52d4a23da5335ac8eeaccc7e955e083",
+        "logical_name": "work.workflow.specification.active-task-collection-revision-boundary",
+        "path": "references/workflows/specification/active-task-collection-revision-boundary.md"
+      },
+      {
+        "canonical_sha256": "feaab1a51edce59a866233e947b0389f943b0181d47a247c784cc99b257caf6a",
+        "logical_name": "work.workflow.specification.prepare-and-review",
+        "path": "references/workflows/specification/prepare-and-review.md"
+      },
+      {
+        "canonical_sha256": "4fc28242cf143515eeba1f0e69e8b41165e839458140812c280ba45b22400192",
+        "logical_name": "work.workflow.specification.publish-and-recover",
+        "path": "references/workflows/specification/publish-and-recover.md"
+      },
+      {
+        "canonical_sha256": "102d07ff01cdfc18bd587d538df0b5ed8981fbb9ee34650b5fee8752002821f1",
+        "logical_name": "work.workflow.specification.specification-verification",
+        "path": "references/workflows/specification/specification-verification.md"
+      }
+    ]
+  },
+  "selection_sha256": "08b2e25fbebca2e87a0d08a40993924b902e0b7bd6ed6aea8406c48e45cb8c0c",
+  "semantic_input_contract": "work-spec-reconciliation-prepare-request",
+  "source_order": [
+    "work.instruction-loading",
+    "work.shared.transaction-workspace",
+    "work.shared.artifact-revision",
+    "work.shared.artifact-paths",
+    "work.shared.fingerprints",
+    "work.workflow.specification",
+    "work.workflow.specification.active-task-collection-revision-boundary",
+    "work.workflow.specification.prepare-and-review",
+    "work.workflow.specification.publish-and-recover",
+    "work.workflow.specification.specification-verification"
+  ],
+  "status": "execution_reconciliation_pending",
+  "target": "outputs/work/executions/example"
+}

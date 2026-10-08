@@ -13,9 +13,23 @@ pub fn discover_requirements(root: &Path) -> Result<BTreeMap<String, Value>, Wor
     if !start.is_dir() {
         return Ok(BTreeMap::new());
     }
-    let mut pending = vec![start];
+    let mut pending = vec![start.clone()];
     let mut paths = Vec::new();
     while let Some(directory) = pending.pop() {
+        if directory.parent() == Some(start.as_path()) {
+            let name = directory
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("");
+            #[cfg(windows)]
+            let excluded =
+                name.eq_ignore_ascii_case("runtime") || name.eq_ignore_ascii_case("transactions");
+            #[cfg(not(windows))]
+            let excluded = matches!(name, "runtime" | "transactions");
+            if excluded {
+                continue;
+            }
+        }
         let entries = fs::read_dir(&directory).map_err(|_| {
             WorkError::new(
                 ExitCode::IoFailure,
@@ -128,6 +142,24 @@ mod tests {
             found["custom"]["task"],
             "outputs/work/custom/tasks/index.json"
         );
+        let raw = fs::read(&path).unwrap();
+        for directory in [
+            "runtime/staging/custom/specification-update/saved",
+            "transactions/custom/specification/saved/inputs",
+            "transactions/pending/invocation/saved/requests",
+        ] {
+            let relative = format!("outputs/work/{directory}/index.json");
+            let target = root.join(&relative);
+            fs::create_dir_all(target.parent().unwrap()).unwrap();
+            let mut fake: Value = serde_json::from_slice(&raw).unwrap();
+            fake["artifacts"]["task"] = json!(relative);
+            fs::write(&target, serde_json::to_vec(&fake).unwrap()).unwrap();
+            assert_eq!(discover_requirements(&root).unwrap(), found);
+            assert_eq!(
+                serde_json::from_slice::<Value>(&fs::read(&target).unwrap()).unwrap(),
+                fake
+            );
+        }
         let duplicate = root.join("outputs/work/other/index.json");
         fs::create_dir_all(duplicate.parent().unwrap()).unwrap();
         fs::write(&duplicate, b"{\"schema\":\"work-task-index\",\"requirement_id\":\"custom\",\"artifacts\":{\"source\":\"outputs/work/other/sources\",\"task\":\"outputs/work/other/index.json\",\"execution\":\"execution\"}}\n").unwrap();

@@ -179,7 +179,7 @@ mod tests {
         let path = "outputs/work/tasks/example/index.json";
         let raw = include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../work-infrastructure/fixtures/task-diagnostics/outputs/work/tasks/example/index.json"
+            "/../work-infrastructure/fixtures/shared/task-diagnostics-project/outputs/work/tasks/example/index.json"
         ));
         let current = analyze_artifact("task_index", path, raw);
         assert!(current.issue.is_empty());

@@ -90,38 +90,75 @@ impl HandoffCommandRepository for LocalHandoffStorage {
 }
 
 impl LocalHandoffStorage {
-    fn require_no_execution_transaction(&self, execution_dir: &str) -> Result<(), WorkError> {
-        let (_, path) = resolve_project_path(&self.project_root, execution_dir)?;
-        if path.is_dir() {
-            let entries = fs::read_dir(path).map_err(|_| {
-                WorkError::new(
-                    ExitCode::IoFailure,
-                    "file_read_failed",
-                    "The execution directory could not be read.",
-                    json!({}),
-                )
-            })?;
-            for entry in entries {
-                let entry = entry.map_err(|_| {
-                    WorkError::new(
-                        ExitCode::IoFailure,
-                        "file_read_failed",
-                        "The execution directory could not be read.",
-                        json!({}),
-                    )
-                })?;
-                let name = entry.file_name().to_string_lossy().into_owned();
-                if name.starts_with(".work-") && name.ends_with(".tmp") {
-                    return Err(WorkError::new(
-                        ExitCode::WorkflowState,
-                        "handoff_execution_recovery_required",
-                        "An execution transaction requires recovery.",
-                        json!({}),
-                    ));
-                }
-            }
+    fn require_execution_transaction_state(
+        &self,
+        task_path: &str,
+        task_id: &str,
+        execution_dir: &str,
+    ) -> Result<(), WorkError> {
+        self.require_staging_execution_ready(task_path, task_id, execution_dir)
+    }
+
+    fn require_staging_execution_ready(
+        &self,
+        task_path: &str,
+        _task_id: &str,
+        execution_dir: &str,
+    ) -> Result<(), WorkError> {
+        let normalized = resolve_project_path(&self.project_root, task_path)?.0;
+        let instructions = LocalHierarchyCatalog {
+            skill_root: self.skill_root.clone(),
+        };
+        let skills = LocalSkillCatalog {
+            roots: self.skill_configs.clone(),
+        };
+        let roots = self
+            .skill_configs
+            .iter()
+            .map(|config| SkillRoot {
+                scope: config.scope.clone(),
+                locator: config.locator.clone(),
+            })
+            .collect::<Vec<_>>();
+        let paths = crate::artifact_paths::LocalArtifactPaths {
+            project_root: self.project_root.clone(),
+        };
+        let tasks = LocalTaskStorage {
+            project_root: self.project_root.clone(),
+        };
+        let sources = work_feature::execution::CommandProjectSources {
+            instructions: &instructions,
+            skills: &skills,
+            paths: &paths,
+            task_repository: &tasks,
+            skill_roots: &roots,
+        };
+        let context = work_feature::execution::load_execution_inventory_context(
+            &sources,
+            work_feature::execution::ExecutionInventoryTarget {
+                task_path: &normalized,
+                execution_dir,
+            },
+        )?;
+        let result = crate::execution::storage::LocalExecutionStorage {
+            project_root: self.project_root.clone(),
         }
-        Ok(())
+        .require_runtime_execution_inventory_ready(&context);
+        result.map_err(|failure| {
+            if matches!(
+                failure.reason_code.as_str(),
+                "runtime_execution_transaction_present" | "legacy_execution_transaction_present"
+            ) {
+                WorkError::new(
+                    ExitCode::WorkflowState,
+                    "handoff_execution_recovery_required",
+                    "An execution transaction requires recovery.",
+                    json!({"cause":failure.reason_code,"evidence":failure.details}),
+                )
+            } else {
+                failure
+            }
+        })
     }
 
     fn require_unstarted_task_directory(
@@ -186,6 +223,17 @@ impl LocalHandoffStorage {
             &normalized,
         )?;
         let contract = &validation["collection_contract"];
+        {
+            self.require_staging_execution_ready(
+                &normalized,
+                contract["tasks"][0]["id"]
+                    .as_str()
+                    .expect("validated nonempty TASK collection"),
+                contract["artifacts"]["execution"]
+                    .as_str()
+                    .expect("validated execution path"),
+            )?;
+        }
         require_no_spec_update(
             &self.project_root,
             contract["artifacts"]["execution"]
@@ -357,7 +405,7 @@ impl LocalHandoffStorage {
         let execution = validation["collection_contract"]["artifacts"]["execution"]
             .as_str()
             .expect("validated execution path");
-        self.require_no_execution_transaction(execution)?;
+        self.require_execution_transaction_state(task_path, task_id, execution)?;
         let index_path = format!("{execution}/index.json");
         let (_, index_absolute) = resolve_project_path(&self.project_root, &index_path)?;
         let index_raw = LocalFiles.read_raw(&index_absolute)?;
@@ -385,7 +433,7 @@ impl LocalHandoffStorage {
         self.require_unstarted_task_directory(execution, task_id)?;
         self.recheck_task(&validation, &snapshot)?;
         Self::recheck_file(&index_absolute, &index_raw, "execution_index")?;
-        self.require_no_execution_transaction(execution)?;
+        self.require_execution_transaction_state(task_path, task_id, execution)?;
         self.require_unstarted_task_directory(execution, task_id)?;
         Ok(result)
     }
@@ -425,7 +473,7 @@ impl LocalHandoffStorage {
         let execution = validation["collection_contract"]["artifacts"]["execution"]
             .as_str()
             .expect("validated execution path");
-        self.require_no_execution_transaction(execution)?;
+        self.require_execution_transaction_state(task_path, task_id, execution)?;
         let index_path = format!("{execution}/index.json");
         let (_, index_absolute) = resolve_project_path(&self.project_root, &index_path)?;
         let index_raw = LocalFiles.read_raw(&index_absolute)?;
@@ -506,7 +554,7 @@ impl LocalHandoffStorage {
         ] {
             Self::recheck_file(path, expected, field)?;
         }
-        self.require_no_execution_transaction(execution)?;
+        self.require_execution_transaction_state(task_path, task_id, execution)?;
         Ok(result)
     }
 
@@ -539,10 +587,87 @@ mod tests {
     use super::*;
     use std::fs;
 
+    fn pending_specification_journal(root: &std::path::Path) -> (PathBuf, Vec<u8>, PathBuf) {
+        {
+            let (relative, _) = crate::specification::storage::synthetic_retained_journal(
+                root,
+                "outputs/work/executions/example",
+                0,
+            );
+            let marker = root.join(
+                work_operations::derivation::publication::retained_journal_marker(&relative)
+                    .unwrap(),
+            );
+            fs::remove_file(&marker).unwrap();
+            let journal = root.join(relative);
+            let raw = fs::read(&journal).unwrap();
+            (journal, raw, marker)
+        }
+    }
+
+    #[test]
+    fn staging_handoff_blocks_partial_or_unknown_own_evidence_and_ignores_other_requirement_without_writes()
+     {
+        let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+        let fixture =
+            repo.join("crates/work-infrastructure/fixtures/shared/task-diagnostics-project");
+        let root = std::env::temp_dir().join(format!(
+            "work-handoff-staging-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let task_path = "outputs/work/tasks/example/index.json";
+        let execution = "outputs/work/executions/example";
+        for relative in [task_path, "outputs/work/tasks/example/tasks/TASK-001.json"] {
+            let target = root.join(relative);
+            fs::create_dir_all(target.parent().unwrap()).unwrap();
+            fs::copy(fixture.join(relative), target).unwrap();
+        }
+        crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
+        fs::write(root.join("src.txt"), b"original\n").unwrap();
+        let storage = LocalHandoffStorage {
+            project_root: root.clone(),
+            skill_root: repo.join("../skills/work"),
+            skill_configs: vec![],
+        };
+        let other = root.join("outputs/work/runtime/staging/other/unknown/bad");
+        fs::create_dir_all(&other).unwrap();
+        fs::write(other.join("transaction.json"), b"partial other").unwrap();
+        storage
+            .require_staging_execution_ready(task_path, "TASK-001", execution)
+            .unwrap();
+        let directory = root.join(format!(
+            "outputs/work/runtime/staging/example/record-begin/{}",
+            "a".repeat(64)
+        ));
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(directory.join("transaction.json"), b"partial own manifest").unwrap();
+        assert_eq!(
+            storage
+                .require_staging_execution_ready(task_path, "TASK-001", execution)
+                .unwrap_err()
+                .reason_code,
+            "runtime_manifest_invalid"
+        );
+        assert_eq!(
+            fs::read(directory.join("transaction.json")).unwrap(),
+            b"partial own manifest"
+        );
+        assert_eq!(
+            fs::read(other.join("transaction.json")).unwrap(),
+            b"partial other"
+        );
+        assert!(!root.join(execution).exists());
+    }
+
     #[test]
     fn task_handoff_ignores_legacy_plan_and_rejects_source_task_drift_and_aliases() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/task-diagnostics");
+        let fixture =
+            repo.join("crates/work-infrastructure/fixtures/shared/task-diagnostics-project");
         let root = std::env::temp_dir().join(format!(
             "work-handoff-task-drift-{}-{}",
             std::process::id(),
@@ -705,8 +830,8 @@ mod tests {
         let task_path = "outputs/work/tasks/example/index.json";
         for status in ["stopped", "blocked"] {
             let fixture = repo
-                .join("crates/work-infrastructure/fixtures/handoff-closed")
-                .join(status);
+                .join("crates/work-infrastructure/fixtures/cases/execution/handoff")
+                .join(format!("closed-{status}/project"));
             let storage = LocalHandoffStorage {
                 project_root: fixture.clone(),
                 skill_root: historical_skill.clone(),
@@ -775,7 +900,7 @@ mod tests {
                 "handoff_task_already_started"
             );
             let legacy: Value = serde_json::from_slice(
-                &fs::read(fixture.join("execute_to_plan-expected.json")).unwrap(),
+                &fs::read(fixture.join("../expected/execute-to-plan-result.json")).unwrap(),
             )
             .unwrap();
             let paths = crate::artifact_paths::LocalArtifactPaths {
@@ -790,11 +915,19 @@ mod tests {
             {
                 let direction = "execute_to_task";
                 let expected: Value = serde_json::from_slice(
-                    &fs::read(fixture.join(format!("{direction}-expected.json"))).unwrap(),
+                    &fs::read(fixture.join(format!(
+                        "../expected/{}-result.json",
+                        direction.replace('_', "-")
+                    )))
+                    .unwrap(),
                 )
                 .unwrap();
                 let validation: Value = serde_json::from_slice(
-                    &fs::read(fixture.join(format!("{direction}-validation.json"))).unwrap(),
+                    &fs::read(fixture.join(format!(
+                        "../input/{}-request.json",
+                        direction.replace('_', "-")
+                    )))
+                    .unwrap(),
                 )
                 .unwrap();
                 assert_eq!(
@@ -890,7 +1023,7 @@ mod tests {
         let storage = LocalHandoffStorage {
             project_root: PathBuf::from(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/../../crates/work-infrastructure/fixtures/task-diagnostics"
+                "/../../crates/work-infrastructure/fixtures/shared/task-diagnostics-project"
             )),
             skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
             skill_configs: vec![],
@@ -1025,7 +1158,7 @@ mod tests {
         let storage = LocalHandoffStorage {
             project_root: PathBuf::from(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/../../crates/work-infrastructure/fixtures/task-diagnostics"
+                "/../../crates/work-infrastructure/fixtures/shared/task-diagnostics-project"
             )),
             skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
             skill_configs: vec![],
@@ -1100,7 +1233,7 @@ mod tests {
         let storage = LocalHandoffStorage {
             project_root: PathBuf::from(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/../../crates/work-infrastructure/fixtures/task-diagnostics"
+                "/../../crates/work-infrastructure/fixtures/shared/task-diagnostics-project"
             )),
             skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
             skill_configs: vec![],
@@ -1238,7 +1371,8 @@ mod tests {
     #[test]
     fn preflight_return_accepts_empty_target_and_rejects_orphan_or_transaction() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/task-diagnostics");
+        let fixture =
+            repo.join("crates/work-infrastructure/fixtures/shared/task-diagnostics-project");
         let task_path = "outputs/work/tasks/example/index.json";
         let request = json!({"summary":"Review specification.","reason":"Specification defect.",
             "confirmed_approach":"Retain the interface.",
@@ -1333,7 +1467,8 @@ mod tests {
     #[test]
     fn specification_transaction_marker_gates_task_and_execute_handoffs() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/task-diagnostics");
+        let fixture =
+            repo.join("crates/work-infrastructure/fixtures/shared/task-diagnostics-project");
         let root = std::env::temp_dir().join(format!(
             "work-handoff-spec-marker-{}-{}",
             std::process::id(),
@@ -1380,10 +1515,8 @@ mod tests {
                 .reason_code,
             "handoff_direction_mismatch"
         );
-        let journal =
-            root.join("outputs/work/executions/example/.work-spec-update-SPEC-UPDATE-001.json");
-        let journal_raw = b"{\"transaction\":\"test\"}\n";
-        fs::write(&journal, journal_raw).unwrap();
+        let (_journal, journal_bytes, marker) = pending_specification_journal(&root);
+        let journal_raw = journal_bytes.as_slice();
         assert_eq!(
             storage
                 .verify_task_to_execute(task_path, "TASK-001", &task_handoff)
@@ -1405,7 +1538,7 @@ mod tests {
                 .reason_code,
             "spec_update_pending"
         );
-        let check_pending = || {
+        let check_pending = |expected| {
             let results = [
                 storage.verify_task_to_execute(task_path, "TASK-001", &task_handoff),
                 storage.build_task_to_execute(task_path, "TASK-001", &execute_request),
@@ -1424,14 +1557,13 @@ mod tests {
             ];
             for result in results {
                 let error = result.unwrap_err();
-                assert_eq!(error.reason_code, "spec_update_pending");
+                assert_eq!(error.reason_code, expected);
                 assert_eq!(error.details["recovery_required"], true);
             }
         };
-        check_pending();
-        let marker = PathBuf::from(format!("{}.done", journal.display()));
+        check_pending("spec_update_pending");
         fs::write(&marker, b"incorrect\n").unwrap();
-        check_pending();
+        check_pending("journal_commit_evidence");
         fs::write(
             &marker,
             work_operations::derivation::publication::completion_marker(journal_raw),
@@ -1461,7 +1593,9 @@ mod tests {
         let historical_skill =
             crate::fixture_support::historical_execute_skill_root(&repo.join("../skills/work"))
                 .unwrap();
-        let fixture = repo.join("crates/work-infrastructure/fixtures/handoff-closed/stopped");
+        let fixture = repo.join(
+            "crates/work-infrastructure/fixtures/cases/execution/handoff/closed-stopped/project",
+        );
         let root = std::env::temp_dir().join(format!(
             "work-handoff-closed-marker-{}-{}",
             std::process::id(),
@@ -1492,10 +1626,8 @@ mod tests {
             "confirmed_approach":"保留既有介面", "requested_changes":["新增驗收條件"],
             "preserve":["既有功能"], "affected_ids":["ACCEPTANCE-001","TASK-001"],
             "validation_requirements":["重新確認驗收條件"], "reason":"Clarify specification"});
-        let journal =
-            root.join("outputs/work/executions/example/.work-spec-update-SPEC-UPDATE-001.json");
-        let journal_raw = b"{\"transaction\":\"test\"}\n";
-        fs::write(&journal, journal_raw).unwrap();
+        let (_journal, journal_bytes, marker) = pending_specification_journal(&root);
+        let journal_raw = journal_bytes.as_slice();
         {
             let direction = "execute_to_task";
             assert_eq!(
@@ -1513,7 +1645,7 @@ mod tests {
             );
         }
         fs::write(
-            PathBuf::from(format!("{}.done", journal.display())),
+            &marker,
             work_operations::derivation::publication::completion_marker(journal_raw),
         )
         .unwrap();
@@ -1717,7 +1849,8 @@ mod tests {
     #[test]
     fn task_handoff_rejects_invalid_request_before_reading_and_preserves_inputs() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/task-diagnostics");
+        let fixture =
+            repo.join("crates/work-infrastructure/fixtures/shared/task-diagnostics-project");
         let storage = LocalHandoffStorage {
             project_root: fixture.clone(),
             skill_root: repo.join("../skills/work"),

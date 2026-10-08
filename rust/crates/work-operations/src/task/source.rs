@@ -361,7 +361,7 @@ mod tests {
         );
         let path = std::path::Path::new(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../work-infrastructure/fixtures/specification-migration/outputs/work/tasks/example/index.json"
+            "/../work-infrastructure/fixtures/shared/specification-migration-project/outputs/work/tasks/example/index.json"
         ));
         let migrated: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
         context["source"] = migrated["source"].clone();

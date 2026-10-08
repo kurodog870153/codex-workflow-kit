@@ -238,16 +238,21 @@ mod tests {
     fn ledger_keeps_exact_reviewed_scope_and_task_execution_impact() {
         let fixture = Path::new(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/fixtures/specification-reconciliation"
+            "/../../crates/work-infrastructure/fixtures/shared/specification-reconciliation-inputs"
         ));
         let mut attempt: Value =
             serde_json::from_slice(&fs::read(fixture.join("attempt.json")).unwrap()).unwrap();
         let index: Value =
             serde_json::from_slice(&fs::read(fixture.join("execution-index.json")).unwrap())
                 .unwrap();
-        let mut request: Value =
-            serde_json::from_slice(&fs::read(fixture.join("selective-request.json")).unwrap())
-                .unwrap();
+        let mut request: Value = serde_json::from_slice(
+            &fs::read(
+                fixture
+                    .join("../../cases/specification/reconciliation/selective/input/request.json"),
+            )
+            .unwrap(),
+        )
+        .unwrap();
         let path = request["attempt_path"].as_str().unwrap().to_owned();
         attempt["execution_deviations"][0]["proposal"]["impact"]["acceptance_criteria_changed"] =
             json!(true);
@@ -360,11 +365,13 @@ mod tests {
     fn reviewed_choices_and_fingerprints_match_current_contract() {
         let fixture = Path::new(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/fixtures/specification-reconciliation"
+            "/../../crates/work-infrastructure/fixtures/shared/specification-reconciliation-inputs"
         ));
         let attempt: Value =
             serde_json::from_slice(&fs::read(fixture.join("attempt.json")).unwrap()).unwrap();
-        let attempt_raw = fs::read(fixture.join("attempt-raw.txt")).unwrap();
+        let attempt_raw =
+            fs::read(fixture.join("../../historical/specification/reconciliation/attempt-raw.txt"))
+                .unwrap();
         let index: Value =
             serde_json::from_slice(&fs::read(fixture.join("execution-index.json")).unwrap())
                 .unwrap();
@@ -373,11 +380,17 @@ mod tests {
                 .unwrap();
         for variant in ["all", "selective", "retain-only"] {
             let request: Value = serde_json::from_slice(
-                &fs::read(fixture.join(format!("{variant}-request.json"))).unwrap(),
+                &fs::read(fixture.join(format!(
+                    "../../cases/specification/reconciliation/{variant}/input/request.json"
+                )))
+                .unwrap(),
             )
             .unwrap();
             let expected: Value = serde_json::from_slice(
-                &fs::read(fixture.join(format!("{variant}-expected.json"))).unwrap(),
+                &fs::read(fixture.join(format!(
+                    "../../cases/specification/reconciliation/{variant}/expected/result.json"
+                )))
+                .unwrap(),
             )
             .unwrap();
             let supplied = (variant != "retain-only").then_some(&migration);

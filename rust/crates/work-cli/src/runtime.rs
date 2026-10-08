@@ -531,6 +531,38 @@ fn skill_roots(configs: &[SkillRootConfig]) -> Vec<SkillRoot> {
         .collect()
 }
 
+/// Load a verified writer context without creating locks or publishing artifacts.
+pub fn prepare_execution_writer_context(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[SkillRootConfig],
+    target: ExecutionProjectTarget<'_>,
+) -> Result<work_flow::execution::ExecutionWriterContext, WorkError> {
+    let hierarchy = LocalHierarchyCatalog {
+        skill_root: skill_root.to_path_buf(),
+    };
+    let skills = LocalSkillCatalog {
+        roots: configs.to_vec(),
+    };
+    let paths = LocalArtifactPaths {
+        project_root: root.to_path_buf(),
+    };
+    let tasks = LocalTaskStorage {
+        project_root: root.to_path_buf(),
+    };
+    let roots = skill_roots(configs);
+    work_flow::execution::load_execution_writer_context(
+        &CommandProjectSources {
+            instructions: &hierarchy,
+            skills: &skills,
+            paths: &paths,
+            task_repository: &tasks,
+            skill_roots: &roots,
+        },
+        target,
+    )
+}
+
 fn require_collection_path(path: &str) -> Result<(), WorkError> {
     if path.ends_with("/index.json") {
         Ok(())
@@ -568,6 +600,15 @@ fn specification_summary(result: &Value) -> Value {
 }
 
 fn dispatch(
+    parsed: &ParsedCommand,
+    root: &Path,
+    input: Option<&FileInput>,
+    skill_root: &Path,
+) -> Result<Value, WorkError> {
+    dispatch_with_writer_family(parsed, root, input, skill_root)
+}
+
+fn dispatch_with_writer_family(
     parsed: &ParsedCommand,
     root: &Path,
     input: Option<&FileInput>,
@@ -1407,54 +1448,64 @@ fn dispatch(
                 task_id: argument(parsed, "task_id")?,
             };
             let confirmed = string_list(parsed, "confirmed_input");
-            work_flow::execution::run(
-                work_flow::execution::ExecutionCommandInput {
-                    command: &parsed.path[1],
-                    target,
-                    confirmed: &confirmed,
-                    record_id: parsed.arguments.get("record_id").and_then(Value::as_str),
-                    approved_sha256: parsed
-                        .arguments
-                        .get("approved_sha256")
-                        .and_then(Value::as_str),
-                    authorization_evidence: parsed
-                        .arguments
-                        .get("authorization_evidence")
-                        .and_then(Value::as_str),
-                },
-                &sources,
-                &execution,
-                || input_json(input),
-                local_timestamp,
-                work_flow::execution::ExecutionTechnical {
-                    recover_start: |request: Value, started_at: String| {
-                        execution.recover_attempt_start_from_project(
-                            &sources,
-                            AttemptStartRecoveryRequest {
-                                target,
-                                request: &request,
-                                confirmed_inputs: &confirmed,
-                                started_at: &started_at,
-                            },
-                        )
+            {
+                let load_context =
+                    || work_flow::execution::load_execution_writer_context(&sources, target);
+                let runtime_execution =
+                    work_infrastructure::execution::storage::RuntimeExecutionSession {
+                        storage: &execution,
+                        load_context: &load_context,
+                    };
+                work_flow::execution::run(
+                    work_flow::execution::ExecutionCommandInput {
+                        command: &parsed.path[1],
+                        target,
+                        confirmed: &confirmed,
+                        record_id: parsed.arguments.get("record_id").and_then(Value::as_str),
+                        approved_sha256: parsed
+                            .arguments
+                            .get("approved_sha256")
+                            .and_then(Value::as_str),
+                        authorization_evidence: parsed
+                            .arguments
+                            .get("authorization_evidence")
+                            .and_then(Value::as_str),
                     },
-                    recover: |request: Value| {
-                        execution.recover_execution_from_project(&sources, target, &request)
+                    &sources,
+                    &runtime_execution,
+                    || input_json(input),
+                    local_timestamp,
+                    work_flow::execution::ExecutionTechnical {
+                        recover_start: |request: Value, started_at: String| {
+                            runtime_execution.recover_attempt_start_from_project(
+                                &sources,
+                                AttemptStartRecoveryRequest {
+                                    target,
+                                    request: &request,
+                                    confirmed_inputs: &confirmed,
+                                    started_at: &started_at,
+                                },
+                            )
+                        },
+                        recover: |request: Value| {
+                            runtime_execution
+                                .recover_execution_from_project(&sources, target, &request)
+                        },
+                        command_run: |request: Value, approved_sha256: String| {
+                            runtime_execution.run_command_from_project(
+                                &sources,
+                                CommandProjectRequest {
+                                    task_path: &task_path,
+                                    execution_dir: &execution_dir,
+                                    task_id: target.task_id,
+                                    request: &request,
+                                },
+                                &approved_sha256,
+                            )
+                        },
                     },
-                    command_run: |request: Value, approved_sha256: String| {
-                        execution.run_command_from_project(
-                            &sources,
-                            CommandProjectRequest {
-                                task_path: &task_path,
-                                execution_dir: &execution_dir,
-                                task_id: target.task_id,
-                                request: &request,
-                            },
-                            &approved_sha256,
-                        )
-                    },
-                },
-            )
+                )
+            }
         }
         _ => Err(WorkError::new(
             ExitCode::InternalError,
@@ -1585,6 +1636,91 @@ pub fn run_with_skill_root(tokens: &[String], skill_root: &Path) -> (i32, CliRes
 mod tests {
     use super::*;
     use std::collections::BTreeMap;
+
+    #[test]
+    fn candidate_writer_context_is_verified_and_read_only() {
+        let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+        let fixture = repo.join(
+            "crates/work-infrastructure/fixtures/cases/specification/update/item-goal/project",
+        );
+        let project = std::env::temp_dir().join(format!(
+            "work-writer-context-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fn copy_project(source: &Path, destination: &Path) {
+            fs::create_dir_all(destination).unwrap();
+            for entry in fs::read_dir(source).unwrap() {
+                let entry = entry.unwrap();
+                let target = destination.join(entry.file_name());
+                if entry.file_type().unwrap().is_dir() {
+                    copy_project(&entry.path(), &target);
+                } else {
+                    fs::copy(entry.path(), target).unwrap();
+                }
+            }
+        }
+        copy_project(&fixture, &project);
+        fs::write(project.join("src.txt"), b"source\n").unwrap();
+        let project = project.canonicalize().unwrap();
+        let source = project.join("outputs/work/sources/example/SRC-001/manifest.json");
+        let task = project.join("outputs/work/tasks/example/index.json");
+        let before = (fs::read(&source).unwrap(), fs::read(&task).unwrap());
+        let target = ExecutionProjectTarget {
+            task_path: "outputs/work/tasks/example/index.json",
+            execution_dir: "outputs/work/executions/example",
+            task_id: "TASK-001",
+        };
+        let context =
+            prepare_execution_writer_context(&project, &repo.join("../skills/work"), &[], target)
+                .unwrap();
+        assert_eq!(context.writer().canonical_project_root, project);
+        assert_eq!(context.writer().requirement_id.as_str(), "example");
+        let mut parsed = ParsedCommand {
+            path: vec!["execute".into(), "preflight".into()],
+            arguments: BTreeMap::from([
+                ("task_path".into(), json!(target.task_path)),
+                ("execution_dir".into(), json!(target.execution_dir)),
+                ("task_id".into(), json!(target.task_id)),
+            ]),
+        };
+        let legacy =
+            dispatch_with_writer_family(&parsed, &project, None, &repo.join("../skills/work"))
+                .unwrap();
+        let candidate =
+            dispatch_with_writer_family(&parsed, &project, None, &repo.join("../skills/work"))
+                .unwrap();
+        assert_eq!(candidate, legacy);
+        parsed.path[1] = "record-begin".into();
+        parsed.arguments.insert(
+            "task_path".into(),
+            json!("outputs/work/tasks/missing/index.json"),
+        );
+        parsed.arguments.insert("record_id".into(), json!("CMD-1"));
+        assert_eq!(
+            dispatch_with_writer_family(&parsed, &project, None, &repo.join("../skills/work"))
+                .unwrap_err()
+                .reason_code,
+            "record_begin_invalid_base_record_id"
+        );
+        assert!(
+            prepare_execution_writer_context(
+                &project,
+                &repo.join("../skills/work"),
+                &[],
+                ExecutionProjectTarget {
+                    execution_dir: "outputs/work/executions/foreign",
+                    ..target
+                },
+            )
+            .is_err()
+        );
+        assert_eq!(before, (fs::read(source).unwrap(), fs::read(task).unwrap()));
+        assert!(!project.join("outputs/work/runtime").exists());
+    }
 
     #[test]
     fn operation_context_binds_project_paths_and_rechecks_pre_read_input() {
@@ -1764,7 +1900,8 @@ mod tests {
     #[test]
     fn delegation_cli_build_and_validate_keep_formal_context_read_only() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let project = repo.join("crates/work-infrastructure/fixtures/task-diagnostics");
+        let project =
+            repo.join("crates/work-infrastructure/fixtures/shared/task-diagnostics-project");
         let skill_root = repo.join("../skills/work");
         let source = project.join("outputs/work/sources/example/SRC-001/manifest.json");
         let before = fs::read(&source).unwrap();
@@ -3033,7 +3170,7 @@ mod tests {
     #[test]
     fn attempt_input_validation_matches_current_contract_reference() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-reconciliation/real-flow/outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json");
+        let fixture = repo.join("crates/work-infrastructure/fixtures/cases/specification/reconciliation/real-flow/project/outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json");
         let (exit, result) = run(&[
             "--project-root".into(),
             repo.to_string_lossy().into_owned(),
@@ -3055,7 +3192,9 @@ mod tests {
     #[test]
     fn handoff_validation_matches_current_contract_reference() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/handoff-closed/stopped");
+        let fixture = repo.join(
+            "crates/work-infrastructure/fixtures/cases/execution/handoff/closed-stopped/project",
+        );
         let (exit, result) = run_with_skill_root(
             &[
                 "--project-root".into(),
@@ -3065,7 +3204,7 @@ mod tests {
                 "validate".into(),
                 "--input-file".into(),
                 fixture
-                    .join("execute_to_task-expected.json")
+                    .join("../expected/execute-to-task-result.json")
                     .to_string_lossy()
                     .into_owned(),
             ],
@@ -3129,7 +3268,9 @@ mod tests {
     #[test]
     fn task_collection_validation_matches_current_contract_reference() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/handoff-closed/stopped");
+        let fixture = repo.join(
+            "crates/work-infrastructure/fixtures/cases/execution/handoff/closed-stopped/project",
+        );
         let (exit, result) = run_with_skill_root(
             &[
                 "--project-root".into(),
@@ -3163,7 +3304,7 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let chain = repo.join("crates/work-infrastructure/fixtures/specification-update");
+        let chain = repo.join("crates/work-infrastructure/fixtures/cases/specification/update/collection-summary/project");
         for relative in [
             "outputs/work/tasks/example/index.json",
             "outputs/work/tasks/example/tasks/TASK-001.json",
@@ -3176,7 +3317,7 @@ mod tests {
         work_infrastructure::fixture_support::copy_fixture_sources(&chain, &root).unwrap();
         let plan_path = root.join("outputs/work/tasks/example/index.json");
         fs::create_dir_all(plan_path.parent().unwrap()).unwrap();
-        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-update/outputs/work/tasks/example/index.json");
+        let fixture = repo.join("crates/work-infrastructure/fixtures/cases/specification/update/collection-summary/project/outputs/work/tasks/example/index.json");
         let mut legacy: Value = serde_json::from_slice(&fs::read(&fixture).unwrap()).unwrap();
         legacy["schema"] = json!("legacy/v0");
         fs::write(&plan_path, serde_json::to_vec_pretty(&legacy).unwrap()).unwrap();

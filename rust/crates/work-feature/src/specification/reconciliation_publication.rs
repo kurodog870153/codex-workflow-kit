@@ -72,6 +72,16 @@ pub fn ledger_transaction_with_history(
     after: &[u8],
     history: BTreeMap<String, Vec<u8>>,
 ) -> Result<LedgerPublication, WorkError> {
+    ledger_transaction_with_layout(preview, approved_sha256, before, after, history)
+}
+
+fn ledger_transaction_with_layout(
+    preview: &Value,
+    approved_sha256: &str,
+    before: Option<&[u8]>,
+    after: &[u8],
+    history: BTreeMap<String, Vec<u8>>,
+) -> Result<LedgerPublication, WorkError> {
     let ledger_path = preview["ledger_path"].as_str().unwrap();
     let derived = TransactionDeriver::derive(TransactionInput {
         kind: TransactionKind::Reconciliation,
@@ -99,18 +109,44 @@ pub fn ledger_transaction_with_history(
     let execution_dir = preview["attempt_path"]
         .as_str()
         .unwrap()
-        .split("/TASK-")
-        .next()
-        .unwrap()
+        .rsplit_once("/TASK-")
+        .ok_or_else(|| {
+            fail(
+                "reconciliation_attempt_identity",
+                "A complete Attempt path is required.",
+            )
+        })?
+        .0
         .to_owned();
-    let journal_path = work_operations::derivation::publication::journal_path(
-        &execution_dir,
-        work_operations::derivation::publication::JournalKind::SpecificationMigration(
-            approved_sha256,
-        ),
-    );
-    let marker_path =
-        work_operations::derivation::publication::completion_marker_path(&journal_path);
+    use work_operations::derivation::publication::{self, JournalKind};
+    let kind = JournalKind::SpecificationMigration(approved_sha256);
+    let journal_path = {
+        publication::retained_journal_path(&execution_dir, kind).map_err(|_| {
+            fail(
+                "reconciliation_attempt_identity",
+                "Complete approval and execution identities are required.",
+            )
+        })?
+    };
+    let marker_path = {
+        work_operations::specification::transaction::verify_retained_journal_layout(
+            &execution_dir,
+            &journal_path,
+            &journal,
+        )
+        .map_err(|_| {
+            fail(
+                "reconciliation_attempt_identity",
+                "The reviewed Attempt must bind its exact journal scope.",
+            )
+        })?;
+        publication::retained_journal_marker(&journal_path).map_err(|_| {
+            fail(
+                "reconciliation_attempt_identity",
+                "The retained journal path is invalid.",
+            )
+        })?
+    };
     Ok(LedgerPublication {
         journal,
         approval,
@@ -140,6 +176,48 @@ mod tests {
         let error = require_approved_preview(&preview, &request, "same", true)
             .expect_err("migration is required");
         assert_eq!(error.reason_code, "reconciliation_migration_required");
+    }
+
+    #[test]
+    fn retained_ledger_binds_complete_attempt_in_custom_execution_scope() {
+        let execution = "custom/TASK-folder/例";
+        let mut preview = json!({"ledger_path":format!("{execution}/TASK-001/ATTEMPT-001/reconciliation.json"),
+            "attempt_path":format!("{execution}/TASK-001/ATTEMPT-001/attempt.json")});
+        let transaction = ledger_transaction_with_layout(
+            &preview,
+            &"a".repeat(64),
+            None,
+            b"ledger\n",
+            BTreeMap::new(),
+        )
+        .unwrap();
+        assert_eq!(transaction.execution_dir, execution);
+        assert_eq!(
+            transaction.journal_path,
+            format!("{execution}/journals/specification-migration/AAAAAAAAAAAA/journal.json")
+        );
+        assert_eq!(
+            transaction.marker_path,
+            format!("{execution}/journals/specification-migration/AAAAAAAAAAAA/committed.sha256")
+        );
+        assert_eq!(transaction.journal["metadata"]["artifacts"], json!({}));
+        for attempt in [
+            format!("{execution}/TASK-000/ATTEMPT-001/attempt.json"),
+            format!("{execution}/TASK-001/ATTEMPT-000/attempt.json"),
+            format!("{execution}/TASK-001/ATTEMPT-001/foreign.json"),
+        ] {
+            preview["attempt_path"] = json!(attempt);
+            assert!(
+                ledger_transaction_with_layout(
+                    &preview,
+                    &"a".repeat(64),
+                    None,
+                    b"ledger\n",
+                    BTreeMap::new()
+                )
+                .is_err()
+            );
+        }
     }
 
     #[test]

@@ -514,7 +514,8 @@ mod tests {
     #[test]
     fn independent_preview_matches_current_contract_complete_unchanged_collection() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-migration");
+        let fixture =
+            repo.join("crates/work-infrastructure/fixtures/shared/specification-migration-project");
         let root = std::env::temp_dir().join(format!(
             "work-spec-migration-preview-{}-{}",
             std::process::id(),
@@ -533,18 +534,34 @@ mod tests {
             fs::create_dir_all(destination.parent().unwrap()).unwrap();
             fs::copy(fixture.join(relative), destination).unwrap();
         }
-        let request: Value =
-            serde_json::from_slice(&fs::read(fixture.join("request.json")).unwrap()).unwrap();
-        let expected: Value =
-            serde_json::from_slice(&fs::read(fixture.join("expected.json")).unwrap()).unwrap();
+        let request: Value = serde_json::from_slice(
+            &fs::read(fixture.join("../../cases/specification/migration/valid/input/request.json"))
+                .unwrap(),
+        )
+        .unwrap();
+        let expected: Value = serde_json::from_slice(
+            &fs::read(
+                fixture.join("../../cases/specification/migration/valid/expected/result.json"),
+            )
+            .unwrap(),
+        )
+        .unwrap();
         let actual = preview_migration(&root, &repo.join("../skills/work"), &[], &request).unwrap();
         assert_eq!(actual, expected);
-        let unresolved: Value =
-            serde_json::from_slice(&fs::read(fixture.join("unresolved-request.json")).unwrap())
-                .unwrap();
-        let blocked: Value =
-            serde_json::from_slice(&fs::read(fixture.join("unresolved-expected.json")).unwrap())
-                .unwrap();
+        let unresolved: Value = serde_json::from_slice(
+            &fs::read(
+                fixture.join("../../cases/specification/migration/unresolved/input/request.json"),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let blocked: Value = serde_json::from_slice(
+            &fs::read(
+                fixture.join("../../cases/specification/migration/unresolved/expected/result.json"),
+            )
+            .unwrap(),
+        )
+        .unwrap();
         assert_eq!(
             preview_migration(&root, &repo.join("../skills/work"), &[], &unresolved).unwrap(),
             blocked
@@ -576,20 +593,30 @@ mod tests {
         );
         for variant in ["invalid-execution-binding", "incomplete-candidate-set"] {
             let request: Value = serde_json::from_slice(
-                &fs::read(fixture.join(format!("{variant}-request.json"))).unwrap(),
+                &fs::read(fixture.join(format!(
+                    "../../cases/specification/migration/{variant}/input/request.json"
+                )))
+                .unwrap(),
             )
             .unwrap();
             let expected: Value = serde_json::from_slice(
-                &fs::read(fixture.join(format!("{variant}-expected.json"))).unwrap(),
+                &fs::read(fixture.join(format!(
+                    "../../cases/specification/migration/{variant}/expected/result.json"
+                )))
+                .unwrap(),
             )
             .unwrap();
             let actual =
                 preview_migration(&root, &repo.join("../skills/work"), &[], &request).unwrap();
             assert_eq!(actual, expected, "variant {variant}");
         }
-        let legacy_candidate: Value =
-            serde_json::from_slice(&fs::read(fixture.join("invalid-plan-request.json")).unwrap())
-                .unwrap();
+        let legacy_candidate: Value = serde_json::from_slice(
+            &fs::read(
+                fixture.join("../../cases/specification/migration/invalid-plan/input/request.json"),
+            )
+            .unwrap(),
+        )
+        .unwrap();
         assert_eq!(
             preview_migration(&root, &repo.join("../skills/work"), &[], &legacy_candidate)
                 .unwrap_err()
@@ -625,7 +652,7 @@ mod tests {
     fn revision_migration_request_matches_current_contract_candidate_set() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo
-            .join("crates/work-infrastructure/fixtures/specification-update/revision-migration");
+            .join("crates/work-infrastructure/fixtures/cases/specification/update/revision-migration/project");
         let root = std::env::temp_dir().join(format!(
             "work-spec-migration-{}-{}",
             std::process::id(),
@@ -646,7 +673,8 @@ mod tests {
         }
         fs::write(root.join("src.txt"), b"source\n").unwrap();
         let expected: Value =
-            serde_json::from_slice(&fs::read(fixture.join("request.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../input/request.json")).unwrap())
+                .unwrap();
         let date = expected["candidates"]
             .as_array()
             .unwrap()
@@ -663,14 +691,15 @@ mod tests {
             &root,
             &repo.join("../skills/work"),
             &[],
-            &fs::read(fixture.join("semantic-request.json")).unwrap(),
+            &fs::read(fixture.join("../input/semantic-request.json")).unwrap(),
             date,
         )
         .unwrap();
         assert_eq!(actual, expected);
-        let semantic: Value =
-            serde_json::from_slice(&fs::read(fixture.join("semantic-request.json")).unwrap())
-                .unwrap();
+        let semantic: Value = serde_json::from_slice(
+            &fs::read(fixture.join("../input/semantic-request.json")).unwrap(),
+        )
+        .unwrap();
         let mut redirected = semantic.clone();
         redirected["plan_path"] = json!("outputs/work/plans/other.json");
         assert_eq!(
@@ -712,7 +741,8 @@ mod tests {
         )
         .unwrap();
         let expected_preview: Value =
-            serde_json::from_slice(&fs::read(fixture.join("expected.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../expected/result.json")).unwrap())
+                .unwrap();
         let preview = preview_revision_from_prepared(&root, &actual, &prepared).unwrap();
         assert_eq!(preview, expected_preview);
         assert_eq!(
@@ -738,7 +768,8 @@ mod tests {
         fs::write(&plan_source, original_plan).unwrap();
         let mut journal = revision_transaction(&root, &actual, &preview, &prepared).unwrap();
         let published: Value =
-            serde_json::from_slice(&fs::read(fixture.join("journal.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../input/journal.json")).unwrap())
+                .unwrap();
         assert_eq!(journal["approval_sha256"], published["approval_sha256"]);
         journal["state"] = json!("published");
         journal["published_count"] = json!(journal["files"].as_array().unwrap().len());
@@ -752,11 +783,20 @@ mod tests {
             preview["fingerprint"].as_str().unwrap(),
         )
         .unwrap();
-        let expected_publication: Value =
-            serde_json::from_slice(&fs::read(fixture.join("publication.json")).unwrap()).unwrap();
+        let mut expected_publication: Value =
+            serde_json::from_slice(&fs::read(fixture.join("../input/publication.json")).unwrap())
+                .unwrap();
+        {
+            expected_publication["journal"] = json!(
+                "outputs/work/executions/example/journals/specification-migration/4DEC1920BE07/journal.json"
+            );
+            expected_publication["completion_marker"] = json!(
+                "outputs/work/executions/example/journals/specification-migration/4DEC1920BE07/committed.sha256"
+            );
+        }
         assert_eq!(result, expected_publication);
         let installed = fs::read(root.join(result["journal"].as_str().unwrap())).unwrap();
-        let reference = fs::read(fixture.join("journal.json")).unwrap();
+        let reference = fs::read(fixture.join("../input/journal.json")).unwrap();
         let installed_text = String::from_utf8(installed.clone()).unwrap();
         let reference_text = String::from_utf8(reference.clone()).unwrap();
         let mismatch = installed_text
@@ -785,7 +825,7 @@ mod tests {
     fn revision_migration_recovers_after_first_published_file() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo
-            .join("crates/work-infrastructure/fixtures/specification-update/revision-migration");
+            .join("crates/work-infrastructure/fixtures/cases/specification/update/revision-migration/project");
         let root = std::env::temp_dir().join(format!(
             "work-spec-migration-recovery-{}-{}",
             std::process::id(),
@@ -806,15 +846,18 @@ mod tests {
         }
         fs::write(root.join("src.txt"), b"source\n").unwrap();
         let request: Value =
-            serde_json::from_slice(&fs::read(fixture.join("request.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../input/request.json")).unwrap())
+                .unwrap();
         let preview: Value =
-            serde_json::from_slice(&fs::read(fixture.join("expected.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../expected/result.json")).unwrap())
+                .unwrap();
         let published: Value =
-            serde_json::from_slice(&fs::read(fixture.join("journal.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../input/journal.json")).unwrap())
+                .unwrap();
         let approved = preview["fingerprint"].as_str().unwrap();
-        let journal_path = format!(
-            "outputs/work/executions/example/.work-spec-migration-{}.json",
-            approved[..12].to_ascii_uppercase()
+        let journal_path = work_operations::derivation::publication::journal_path(
+            "outputs/work/executions/example",
+            work_operations::derivation::publication::JournalKind::SpecificationMigration(approved),
         );
         let mut partial = published.clone();
         partial["state"] = json!("publishing");
@@ -822,6 +865,23 @@ mod tests {
         let first = &partial["files"][0];
         let destination = root.join(first["path"].as_str().unwrap());
         fs::write(&destination, decode_snapshot(&first["after"]).unwrap()).unwrap();
+        {
+            partial["state"] = json!("prepared");
+            partial["published_count"] = json!(0);
+            let staged = work_operations::derivation::transaction::build_journal_staging(work_operations::derivation::transaction::JournalStagingInput {
+                canonical_root:root.canonicalize().unwrap().to_str().unwrap(),requirement:&"example".parse().unwrap(),
+                execution_dir:"outputs/work/executions/example",journal_path:&journal_path,
+                kind:work_operations::derivation::publication::JournalKind::SpecificationMigration(approved),journal:&partial,
+            }).unwrap();
+            crate::transaction_storage::prepare_runtime_transaction(
+                &LocalFiles,
+                &root,
+                &staged.manifest,
+                &staged.payloads,
+            )
+            .unwrap();
+        }
+        fs::create_dir_all(root.join(&journal_path).parent().unwrap()).unwrap();
         write_journal(&root, &journal_path, &partial).unwrap();
         let mut changed = request.clone();
         changed["semantic_decisions"] =
@@ -852,7 +912,7 @@ mod tests {
         assert_eq!(result["publication_status"], "published");
         assert_eq!(
             fs::read(root.join(journal_path)).unwrap(),
-            fs::read(fixture.join("journal.json")).unwrap()
+            fs::read(fixture.join("../input/journal.json")).unwrap()
         );
         assert!(
             root.join(result["completion_marker"].as_str().unwrap())

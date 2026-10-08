@@ -113,6 +113,7 @@ impl<R: TaskCollectionRepository> TaskCollectionRepository for CachedTaskCollect
 
 pub struct ExecutionTaskContext {
     pub contract: Value,
+    pub collection: Value,
     pub validation: Value,
     pub sources: HashMap<String, Vec<u8>>,
     pub index: Value,
@@ -331,6 +332,7 @@ where
         "hierarchy_selection_sha256":validated["hierarchy_selection_sha256"]});
     Ok(ExecutionTaskContext {
         contract,
+        collection: validated["collection_contract"].clone(),
         validation,
         sources,
         index,

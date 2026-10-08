@@ -28,8 +28,7 @@ use work_operations::execution::command_correction::{
     build_command_correction_candidate, validate_command_correction_request,
 };
 use work_operations::execution::command_run::{
-    CommandPreviewInput, build_command_preview, select_reserved_argv_command,
-    validate_command_run_request,
+    select_reserved_argv_command, validate_command_run_request,
 };
 use work_operations::execution::correction::{build_correction_candidates, render_correction};
 use work_operations::execution::deviation::{
@@ -45,11 +44,9 @@ use work_operations::execution::preflight::{
 };
 use work_operations::execution::record_finish::build_record_finish_candidates;
 use work_operations::execution::recovery::validate_recovery_direction;
+use work_operations::execution::requests::validate_correction_create_request;
 use work_operations::execution::requests::{
     validate_attempt_close_request, validate_attempt_start_request, validate_record_finish_request,
-};
-use work_operations::execution::requests::{
-    validate_correction_create_request, validate_recovery_request,
 };
 use work_operations::execution::worktree::inspect_records;
 use work_operations::execution::{
@@ -222,12 +219,23 @@ fn prepare_command_context(
         .map(|value| value.as_str().expect("validated argument").to_owned())
         .collect();
     let invocation = repository.resolve_invocation(&argv, &cwd)?;
-    let receipt = work_operations::derivation::publication::command_receipt_prefix(
-        execution_dir,
-        task_id,
-        &selected.attempt_id,
-        &selected.record_id,
-    );
+    let receipt = {
+        work_operations::derivation::publication::command_receipt_paths(
+            execution_dir,
+            task_id,
+            &selected.attempt_id,
+            &selected.record_id,
+        )
+        .map_err(|_| {
+            error(
+                ExitCode::ArtifactIntegrity,
+                "command_run_receipt_invalid",
+                "The command receipt identity is invalid.",
+                json!({}),
+            )
+        })?
+        .directory
+    };
     if repository.receipt_exists(&receipt)? {
         return Err(error(
             ExitCode::WorkflowState,
@@ -262,17 +270,20 @@ fn prepare_command_context(
         }
         source_hashes.insert(path.clone(), json!(fingerprint::raw(bytes)));
     }
-    build_command_preview(CommandPreviewInput {
-        request,
-        task_id,
-        attempt_id: &selected.attempt_id,
-        record_id: &selected.record_id,
-        working_directory: &cwd,
-        execution: settings,
-        invocation: &invocation,
-        receipt_prefix: &receipt,
-        sources: &Value::Object(source_hashes),
-    })
+
+    work_operations::execution::command_run::build_command_preview_with_receipts(
+        work_operations::execution::command_run::CommandReceiptPreviewInput {
+            request,
+            execution_dir,
+            task_id,
+            attempt_id: &selected.attempt_id,
+            record_id: &selected.record_id,
+            working_directory: &cwd,
+            execution: settings,
+            invocation: &invocation,
+            sources: &Value::Object(source_hashes),
+        },
+    )
     .map_err(rule)
 }
 
@@ -325,6 +336,268 @@ pub struct ExecutionProjectTarget<'a> {
     pub task_id: &'a str,
 }
 
+/// Retains the verified TASK bytes and requirement identity for publication/readiness adapters.
+pub struct ExecutionWriterContext {
+    writer: crate::ports::RequirementWriterContext,
+    task_path: String,
+    execution_dir: String,
+    task_id: String,
+    task_context: task::ExecutionTaskContext,
+}
+
+impl ExecutionWriterContext {
+    fn from_verified_task(
+        canonical_root: std::path::PathBuf,
+        target: ExecutionProjectTarget<'_>,
+        context: task::ExecutionTaskContext,
+    ) -> Result<Self, WorkError> {
+        let requirement = context.index["requirement_id"].as_str().ok_or_else(|| {
+            error(
+                ExitCode::ArtifactIntegrity,
+                "execution_writer_requirement_missing",
+                "Verified TASK context requires a requirement identity.",
+                json!({}),
+            )
+        })?;
+        if context.index["artifacts"]["task"] != target.task_path
+            || context.index["artifacts"]["execution"] != target.execution_dir
+        {
+            return Err(error(
+                ExitCode::ArtifactIntegrity,
+                "execute_preflight_artifact_path_mismatch",
+                "The explicit TASK and execution paths do not match the formal artifacts.",
+                json!({}),
+            ));
+        }
+        if !canonical_root.is_absolute()
+            || context.contract["requirement_id"] != requirement
+            || context.collection["requirement_id"] != requirement
+            || context.validation["requirement_id"] != requirement
+            || context.contract["artifacts"] != context.index["artifacts"]
+            || context.collection["artifacts"] != context.index["artifacts"]
+            || !context.contract["tasks"]
+                .as_array()
+                .is_some_and(|tasks| tasks.iter().any(|task| task["id"] == target.task_id))
+            || !work_operations::derivation::identity::runtime_relative_path(target.task_path)
+            || !work_operations::derivation::identity::runtime_relative_path(target.execution_dir)
+        {
+            return Err(error(
+                ExitCode::ArtifactIntegrity,
+                "execution_writer_context_mismatch",
+                "Publication paths and TASK must match the verified requirement context.",
+                json!({}),
+            ));
+        }
+        let requirement_id = requirement.parse().map_err(|_| {
+            error(
+                ExitCode::Contract,
+                "invalid_requirement_id",
+                "Verified TASK requirement ID is invalid.",
+                json!({}),
+            )
+        })?;
+        Ok(Self {
+            writer: crate::ports::RequirementWriterContext {
+                canonical_project_root: canonical_root,
+                requirement_id,
+            },
+            task_path: target.task_path.into(),
+            execution_dir: target.execution_dir.into(),
+            task_id: target.task_id.into(),
+            task_context: context,
+        })
+    }
+
+    pub fn writer(&self) -> &crate::ports::RequirementWriterContext {
+        &self.writer
+    }
+    pub fn target(&self) -> ExecutionProjectTarget<'_> {
+        ExecutionProjectTarget {
+            task_path: &self.task_path,
+            execution_dir: &self.execution_dir,
+            task_id: &self.task_id,
+        }
+    }
+    pub fn task_context(&self) -> &task::ExecutionTaskContext {
+        &self.task_context
+    }
+
+    pub fn check_execution_index(&self, index: &Value, raw: &[u8]) -> Result<(), WorkError> {
+        validate_execution_index(index, raw).map_err(rule)?;
+        validate_preflight_identity(
+            index,
+            &self.task_context.collection,
+            &self.task_context.validation,
+        )
+        .map_err(rule)
+    }
+}
+
+pub fn load_execution_writer_context<H, S, P, T>(
+    sources: &CommandProjectSources<'_, H, S, P, T>,
+    target: ExecutionProjectTarget<'_>,
+) -> Result<ExecutionWriterContext, WorkError>
+where
+    H: InstructionSourceRepository,
+    S: SkillSnapshotRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
+    T: TaskCollectionRepository,
+{
+    let context = task::load_task_execution_context(
+        sources.instructions,
+        sources.skills,
+        sources.paths,
+        sources.task_repository,
+        sources.skill_roots,
+        target.task_path,
+        target.task_id,
+    )?;
+    // Obtain the physical root from the trusted path port and the validated full TASK path.
+    // No requirement identity or root is guessed from the execution directory's basename.
+    let mut canonical_root = sources.paths.resolve(target.task_path)?;
+    if !work_operations::derivation::identity::runtime_relative_path(target.task_path) {
+        return Err(error(
+            ExitCode::Contract,
+            "execution_writer_task_path",
+            "TASK path must be canonical and project-relative.",
+            json!({}),
+        ));
+    }
+    for _ in target.task_path.split('/') {
+        if !canonical_root.pop() {
+            return Err(error(
+                ExitCode::ArtifactIntegrity,
+                "execution_writer_root",
+                "Resolved TASK path does not bind a project root.",
+                json!({}),
+            ));
+        }
+    }
+    ExecutionWriterContext::from_verified_task(canonical_root, target, context)
+}
+
+/// Verified collection identity for read-only inventory queries, without execution file preflight.
+pub struct ExecutionInventoryContext {
+    writer: crate::ports::RequirementWriterContext,
+    execution_dir: String,
+}
+
+pub struct ExecutionInventoryTarget<'a> {
+    pub task_path: &'a str,
+    pub execution_dir: &'a str,
+}
+
+impl ExecutionInventoryContext {
+    pub fn writer(&self) -> &crate::ports::RequirementWriterContext {
+        &self.writer
+    }
+    pub fn execution_dir(&self) -> &str {
+        &self.execution_dir
+    }
+}
+
+pub fn load_execution_inventory_context<H, S, P, T>(
+    sources: &CommandProjectSources<'_, H, S, P, T>,
+    target: ExecutionInventoryTarget<'_>,
+) -> Result<ExecutionInventoryContext, WorkError>
+where
+    H: InstructionSourceRepository,
+    S: SkillSnapshotRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
+    T: TaskCollectionRepository,
+{
+    let validated = task::load_collection(
+        sources.instructions,
+        sources.skills,
+        sources.paths,
+        sources.task_repository,
+        sources.skill_roots,
+        target.task_path,
+    )?;
+    let raw = sources.task_repository.read_task_file(target.task_path)?;
+    if fingerprint::raw(&raw) != validated["task_index_sha256"] {
+        return Err(error(
+            ExitCode::ArtifactIntegrity,
+            "task_execution_source_changed",
+            "The verified TASK index changed during inventory loading.",
+            json!({}),
+        ));
+    }
+    let index = parse_json_contract(&raw).map_err(|_| {
+        error(
+            ExitCode::ArtifactIntegrity,
+            "execution_writer_context_mismatch",
+            "The verified TASK index is invalid.",
+            json!({}),
+        )
+    })?;
+    if index["requirement_id"] != validated["requirement_id"]
+        || index["artifacts"]["task"] != target.task_path
+        || index["artifacts"]["execution"] != target.execution_dir
+        || !work_operations::derivation::identity::runtime_relative_path(target.task_path)
+        || !work_operations::derivation::identity::runtime_relative_path(target.execution_dir)
+    {
+        return Err(error(
+            ExitCode::ArtifactIntegrity,
+            "execution_writer_context_mismatch",
+            "Inventory identity must match the verified TASK declarations.",
+            json!({}),
+        ));
+    }
+    let requirement_id = index["requirement_id"]
+        .as_str()
+        .unwrap_or("")
+        .parse()
+        .map_err(|_| {
+            error(
+                ExitCode::Contract,
+                "invalid_requirement_id",
+                "The verified requirement identity is invalid.",
+                json!({}),
+            )
+        })?;
+    let mut canonical_project_root = sources.paths.resolve(target.task_path)?;
+    for _ in target.task_path.split('/') {
+        if !canonical_project_root.pop() {
+            return Err(error(
+                ExitCode::ArtifactIntegrity,
+                "execution_writer_root",
+                "The verified TASK path does not bind a project root.",
+                json!({}),
+            ));
+        }
+    }
+    if !canonical_project_root.is_absolute() {
+        return Err(error(
+            ExitCode::ArtifactIntegrity,
+            "execution_writer_root",
+            "The verified project root must be absolute.",
+            json!({}),
+        ));
+    }
+    Ok(ExecutionInventoryContext {
+        writer: crate::ports::RequirementWriterContext {
+            canonical_project_root,
+            requirement_id,
+        },
+        execution_dir: target.execution_dir.into(),
+    })
+}
+
+pub trait RuntimeExecutionReadiness {
+    fn check_command_context(
+        &self,
+        context: &ExecutionWriterContext,
+        require_idle: bool,
+    ) -> Result<(), WorkError>;
+    fn check_recovery_context(&self, context: &ExecutionWriterContext) -> Result<(), WorkError>;
+}
+
+pub struct ScopedExecutionPublication<'a, P> {
+    pub context: &'a ExecutionWriterContext,
+    pub publication: &'a P,
+}
+
 pub struct CorrectionPublication<'a> {
     pub execution_dir: &'a str,
     pub task_id: &'a str,
@@ -347,7 +620,25 @@ pub trait CorrectionRepository {
     fn publish_correction(&self, publication: &CorrectionPublication<'_>) -> Result<(), WorkError>;
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StagingRecoverySnapshot {
+    pub transaction_dir: String,
+    pub manifest: work_model::runtime::RuntimeManifest,
+    pub files: std::collections::BTreeMap<String, Vec<u8>>,
+}
+
 pub trait RecoveryPrepareRepository {
+    fn staging_transactions(
+        &self,
+        _context: &ExecutionWriterContext,
+    ) -> Result<Vec<StagingRecoverySnapshot>, WorkError> {
+        Err(error(
+            ExitCode::ArtifactIntegrity,
+            "execution_staging_repository_required",
+            "Recovery requires the complete verified staging reader.",
+            json!({}),
+        ))
+    }
     fn check_recovery_idle(&self, execution_dir: &str) -> Result<(), WorkError>;
     fn temporary_names(&self, execution_dir: &str) -> Result<Vec<String>, WorkError>;
     fn recovery_source_exists(&self, relative_path: &str) -> Result<bool, WorkError>;
@@ -367,7 +658,24 @@ where
     T: TaskCollectionRepository,
     E: RecoveryPrepareRepository + ExecutionIndexRepository + AttemptStartRepository,
 {
-    validate_recovery_request(request, true).map_err(rule)?;
+    prepare_staging_recovery_from_project(sources, repository, target, request)
+}
+
+pub fn prepare_legacy_recovery_from_project<H, S, P, T, E>(
+    sources: &CommandProjectSources<'_, H, S, P, T>,
+    repository: &E,
+    target: ExecutionProjectTarget<'_>,
+    request: &Value,
+) -> Result<Value, WorkError>
+where
+    H: InstructionSourceRepository,
+    S: SkillSnapshotRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
+    T: TaskCollectionRepository,
+    E: RecoveryPrepareRepository + ExecutionIndexRepository + AttemptStartRepository,
+{
+    work_operations::execution::requests::validate_legacy_recovery_request(request, true)
+        .map_err(rule)?;
     repository.check_recovery_idle(target.execution_dir)?;
     let context = task::load_task_execution_context(
         sources.instructions,
@@ -415,7 +723,7 @@ where
         ));
     }
     validate_execution_identity(
-        &context.contract,
+        &context.collection,
         &context.validation,
         &index,
         &attempt,
@@ -493,15 +801,212 @@ where
     repository.check_recovery_idle(target.execution_dir)?;
     let recovery_request = json!({"schema":"work-execution-recovery-request",
         "transaction":transaction,"attempt_id":attempt_id,"transaction_files":files});
-    validate_recovery_request(&recovery_request, false).map_err(rule)?;
+    work_operations::execution::requests::validate_legacy_recovery_request(
+        &recovery_request,
+        false,
+    )
+    .map_err(rule)?;
     Ok(work_model::execution::response::verified::<
-        work_model::execution::response::ExecutionRecoveryPrepare,
+        work_model::execution::response::LegacyExecutionRecoveryPrepare,
     >(
         json!({"schema":"work-execution-recovery-prepare","status":"prepared",
         "request":recovery_request,"task_id":target.task_id,
         "attempt_path":attempt_path,"index_path":index_path,"lock":index["lock"],
         "attempt_status":attempt["status"],"evidence":evidence,
         "recovery_validation":"requires_authorized_recover","recovery_authorized":false}),
+    ))
+}
+
+/// Candidate uses a trusted context and complete transaction snapshots, with no root-file fallback.
+pub fn prepare_staging_recovery_from_project<H, S, P, T, E>(
+    sources: &CommandProjectSources<'_, H, S, P, T>,
+    repository: &E,
+    target: ExecutionProjectTarget<'_>,
+    request: &Value,
+) -> Result<Value, WorkError>
+where
+    H: InstructionSourceRepository,
+    S: SkillSnapshotRepository,
+    P: ArtifactPathRepository + SourceSnapshotReader,
+    T: TaskCollectionRepository,
+    E: RecoveryPrepareRepository + ExecutionIndexRepository + AttemptStartRepository,
+{
+    work_operations::execution::requests::validate_staging_recovery_request(request, true)
+        .map_err(rule)?;
+    repository.check_recovery_idle(target.execution_dir)?;
+    let context = load_execution_writer_context(sources, target)?;
+    let transactions = repository.staging_transactions(&context)?;
+    if transactions.len() != 1 {
+        return Err(error(
+            ExitCode::ArtifactIntegrity,
+            "recovery_prepare_mixed_transactions",
+            "Recovery requires exactly one complete transaction; foreign evidence must not be omitted.",
+            json!({}),
+        ));
+    }
+    let snapshot = &transactions[0];
+    let manifest = &snapshot.manifest;
+    let binding = work_operations::execution::recovery::execution_staging_binding(
+        manifest,
+        context
+            .writer()
+            .canonical_project_root
+            .to_str()
+            .ok_or_else(|| {
+                error(
+                    ExitCode::ArtifactIntegrity,
+                    "execution_writer_root",
+                    "The canonical root must have a portable representation.",
+                    json!({}),
+                )
+            })?,
+        &context.writer().requirement_id,
+        target.execution_dir,
+        target.task_id,
+        &snapshot.files,
+    )
+    .map_err(rule)?;
+    if binding.transaction_dir != snapshot.transaction_dir
+        || manifest.operation
+            != request["transaction"]
+                .as_str()
+                .unwrap_or("")
+                .replace('_', "-")
+        || manifest.business_identity["attempt_id"] != request["attempt_id"]
+    {
+        return Err(error(
+            ExitCode::ArtifactIntegrity,
+            "execution_recovery_transaction_changed",
+            "The requested operation and Attempt differ from preserved evidence.",
+            json!({}),
+        ));
+    }
+    let index_path = format!("{}/index.json", target.execution_dir);
+    let index_raw = repository.read_index(&index_path)?;
+    let index = parse_execution_document(&index_raw, &index_path)?;
+    context.check_execution_index(&index, &index_raw)?;
+    let attempt_id = request["attempt_id"].as_str().unwrap_or("");
+    let attempt_path = format!(
+        "{}/{}/{attempt_id}/attempt.json",
+        target.execution_dir, target.task_id
+    );
+    let attempt_raw = repository.read_attempt(&attempt_path)?;
+    let attempt = parse_execution_document(&attempt_raw, &attempt_path)?;
+    validate_attempt_bytes(&attempt, &attempt_raw).map_err(rule)?;
+    validate_execution_identity(
+        &context.task_context().collection,
+        &context.task_context().validation,
+        &index,
+        &attempt,
+        target.task_id,
+    )
+    .map_err(rule)?;
+    if attempt["attempt_id"] != attempt_id {
+        return Err(error(
+            ExitCode::ArtifactIntegrity,
+            "recovery_prepare_attempt_id",
+            "The current Attempt differs from the requested identity.",
+            json!({}),
+        ));
+    }
+    // Domain recovery validates transitions before writing; preparation also verifies every frozen artifact shape.
+    for artifact in &manifest.targets {
+        for bytes in artifact.before.iter().chain(artifact.after.iter()) {
+            let document = parse_execution_document(&bytes.bytes, &artifact.path)?;
+            if artifact.path == index_path {
+                context.check_execution_index(&document, &bytes.bytes)?;
+            } else if artifact.path == attempt_path {
+                validate_attempt_bytes(&document, &bytes.bytes).map_err(rule)?;
+                if document["attempt_id"] != attempt_id || document["task_id"] != target.task_id {
+                    return Err(error(
+                        ExitCode::ArtifactIntegrity,
+                        "execution_recovery_transaction_changed",
+                        "Frozen Attempt evidence belongs to another identity.",
+                        json!({}),
+                    ));
+                }
+            } else if artifact.path.starts_with(&format!(
+                "{}/{}/{attempt_id}/corrections/",
+                target.execution_dir, target.task_id
+            )) {
+                if render_correction(&document).map_err(rule)? != bytes.bytes {
+                    return Err(error(
+                        ExitCode::ArtifactIntegrity,
+                        "recovery_prepare_noncanonical_correction",
+                        "Preserved Correction evidence is not canonical.",
+                        json!({}),
+                    ));
+                }
+            } else {
+                return Err(error(
+                    ExitCode::ArtifactIntegrity,
+                    "execution_recovery_transaction_changed",
+                    "Unexpected formal targets must not be guessed during recovery.",
+                    json!({}),
+                ));
+            }
+        }
+    }
+    let mut observed = context.task_context().sources.clone();
+    for path in task::source::evidence_paths(&context.task_context().contract)? {
+        observed.insert(path.clone(), repository.read_recovery_source(&path)?);
+    }
+    observed.insert(index_path.clone(), index_raw);
+    observed.insert(attempt_path.clone(), attempt_raw);
+    for (name, raw) in &snapshot.files {
+        observed.insert(format!("{}/{name}", binding.transaction_dir), raw.clone());
+    }
+    for artifact in &manifest.targets {
+        if repository.recovery_source_exists(&artifact.path)? {
+            observed.insert(
+                artifact.path.clone(),
+                repository.read_recovery_source(&artifact.path)?,
+            );
+        } else if artifact.before.is_some() {
+            return Err(error(
+                ExitCode::ArtifactIntegrity,
+                "recovery_prepare_source_changed",
+                "A preserved formal source disappeared.",
+                json!({"path":artifact.path}),
+            ));
+        }
+    }
+    let mut evidence = serde_json::Map::new();
+    for (path, raw) in &observed {
+        if repository.read_recovery_source(path)? != *raw {
+            return Err(error(
+                ExitCode::ArtifactIntegrity,
+                "recovery_prepare_source_changed",
+                "Recovery evidence changed during preparation.",
+                json!({"path":path}),
+            ));
+        }
+        evidence.insert(
+            path.clone(),
+            json!({"raw_sha256":fingerprint::raw(raw),"size_bytes":raw.len() as u64}),
+        );
+    }
+    let fresh = repository.staging_transactions(&context)?;
+    if fresh != transactions {
+        return Err(error(
+            ExitCode::ArtifactIntegrity,
+            "recovery_prepare_source_changed",
+            "The complete transaction inventory changed during preparation.",
+            json!({}),
+        ));
+    }
+    repository.check_recovery_idle(target.execution_dir)?;
+    let recovery_request = json!({"schema":"work-execution-recovery-request","transaction":request["transaction"],
+        "attempt_id":attempt_id,"transaction_dir":binding.transaction_dir,"transaction_files":binding.transaction_files,
+        "transaction_evidence_sha256":work_operations::execution::recovery::execution_staging_evidence_sha256(&binding).map_err(rule)?});
+    recovery::require_staging_recovery_binding(&recovery_request, manifest, &binding)?;
+    Ok(work_model::execution::response::verified::<
+        work_model::execution::response::PreparedExecutionRecoveryPrepare,
+    >(
+        json!({"schema":"work-execution-recovery-prepare","status":"prepared","request":recovery_request,
+            "task_id":target.task_id,"attempt_path":attempt_path,"index_path":index_path,"lock":index["lock"],
+            "attempt_status":attempt["status"],"evidence":evidence,
+            "recovery_validation":"requires_authorized_recover","recovery_authorized":false}),
     ))
 }
 
@@ -659,7 +1164,7 @@ where
 {
     task::recheck_task_execution_context(sources.paths, sources.task_repository, context)?;
     let mut validation = context.validation.clone();
-    validation["collection_contract"] = context.contract.clone();
+    validation["collection_contract"] = context.collection.clone();
     let result = prepare_execute_preflight(
         repository,
         sources.instructions,
@@ -1131,7 +1636,7 @@ where
     )?);
     action(
         RecordBeginContext {
-            collection: &context.contract,
+            collection: &context.collection,
             validation: &context.validation,
             task,
             attempt: &attempt,
@@ -1404,7 +1909,7 @@ where
     source_files.insert(index_path, index_raw.clone());
     source_files.insert(attempt_path, attempt_raw.clone());
     let lifecycle = RecordBeginContext {
-        collection: &context.contract,
+        collection: &context.collection,
         validation: &context.validation,
         task,
         attempt: &attempt,
@@ -1543,7 +2048,7 @@ where
         &references
     )?);
     let lifecycle = RecordBeginContext {
-        collection: &context.contract,
+        collection: &context.collection,
         validation: &context.validation,
         task,
         attempt: &attempt,
@@ -1716,6 +2221,7 @@ pub struct RecordFinishPublication<'a> {
     pub task_id: &'a str,
     pub attempt_id: &'a str,
     pub record_id: &'a str,
+    pub request: &'a Value,
     pub attempt_before: &'a [u8],
     pub attempt_after: &'a [u8],
     pub index_before: &'a [u8],
@@ -2087,6 +2593,7 @@ pub fn finish_record_from_context(
         task_id,
         attempt_id,
         record_id: &candidates.record_id,
+        request,
         attempt_before: attempt_raw,
         attempt_after: &attempt_after,
         index_before: index_raw,
@@ -2965,6 +3472,65 @@ mod tests {
     use work_operations::instruction::{LoadedSource, SourceSet, SourceSummary};
 
     #[test]
+    fn writer_context_uses_verified_requirement_and_rejects_cross_context_paths() {
+        let root = std::path::PathBuf::from(if cfg!(windows) {
+            "C:/project"
+        } else {
+            "/project"
+        });
+        let make = || {
+            let index = json!({"requirement_id":"example","artifacts":{"task":"custom/tasks/example/index.json","execution":"custom/not-derived-from-requirement"},"tasks":[{"id":"TASK-001"}]});
+            task::ExecutionTaskContext {
+                contract: index.clone(),
+                collection: index.clone(),
+                index,
+                validation: json!({"requirement_id":"example"}),
+                sources: HashMap::new(),
+            }
+        };
+        let target = ExecutionProjectTarget {
+            task_path: "custom/tasks/example/index.json",
+            execution_dir: "custom/not-derived-from-requirement",
+            task_id: "TASK-001",
+        };
+        let context =
+            ExecutionWriterContext::from_verified_task(root.clone(), target, make()).unwrap();
+        assert_eq!(context.writer().requirement_id.as_str(), "example");
+        assert_eq!(
+            context.target().execution_dir,
+            "custom/not-derived-from-requirement"
+        );
+        assert_eq!(context.task_context().index["requirement_id"], "example");
+        assert!(
+            ExecutionWriterContext::from_verified_task("relative".into(), target, make()).is_err()
+        );
+        let mut mismatched = make();
+        mismatched.validation["requirement_id"] = json!("other");
+        assert!(
+            ExecutionWriterContext::from_verified_task(root.clone(), target, mismatched).is_err()
+        );
+        let wrong_path = ExecutionProjectTarget {
+            execution_dir: "foreign/execution",
+            ..target
+        };
+        assert!(
+            ExecutionWriterContext::from_verified_task(root.clone(), wrong_path, make()).is_err()
+        );
+        let wrong_task = ExecutionProjectTarget {
+            task_id: "TASK-002",
+            ..target
+        };
+        assert!(
+            ExecutionWriterContext::from_verified_task(root.clone(), wrong_task, make()).is_err()
+        );
+        assert!(
+            context
+                .check_execution_index(&json!({"requirement_id":"other"}), b"{}")
+                .is_err()
+        );
+    }
+
+    #[test]
     fn record_lifecycle_instruction_selection_keeps_operation_specific_errors() {
         let task = json!({"instruction_selection":{"selected_paths":["web/backend/java/jpa"],
             "resolved_paths":["general","web","web/backend","web/backend/java",
@@ -3236,10 +3802,20 @@ mod tests {
             preview["sources"]["outputs/work/sources/demo/SRC-001/source.txt"],
             sha256_hex(b"requirements")
         );
+        {
+            assert_eq!(
+                preview["receipt_dir"],
+                "execution/TASK-001/ATTEMPT-001/receipts/CMD-001"
+            );
+            assert!(preview.get("receipt_prefix").is_none());
+        }
+        let candidate =
+            prepare_command_context(&repository, make_context(), &request, false).unwrap();
         assert_eq!(
-            preview["receipt_prefix"],
-            "execution/TASK-001/ATTEMPT-001/.work-command-CMD-001"
+            candidate["receipt_dir"],
+            "execution/TASK-001/ATTEMPT-001/receipts/CMD-001"
         );
+        assert!(candidate.get("receipt_prefix").is_none());
         let correction_repo = FakeCommandCorrection::default();
         let correction = record_command_correction_from_context(
             &correction_repo,

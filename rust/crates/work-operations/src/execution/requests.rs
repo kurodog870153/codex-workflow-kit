@@ -382,6 +382,14 @@ pub fn validate_correction_create_request(value: &Value) -> Result<(), Execution
 }
 
 pub fn validate_recovery_request(value: &Value, prepare: bool) -> Result<(), ExecutionIssue> {
+    validate_staging_recovery_request(value, prepare)
+}
+
+/// Isolated historical body validation; not a public schema alias or production fallback.
+pub fn validate_legacy_recovery_request(
+    value: &Value,
+    prepare: bool,
+) -> Result<(), ExecutionIssue> {
     let schema = if prepare {
         "work-execution-recovery-prepare-request"
     } else {
@@ -486,9 +494,113 @@ pub fn validate_recovery_request(value: &Value, prepare: bool) -> Result<(), Exe
         >(value);
     } else {
         work_model::execution::request::verified::<
-            work_model::execution::request::ExecutionRecoveryRequest,
+            work_model::execution::request::LegacyExecutionRecoveryRequest,
         >(value);
     }
+    Ok(())
+}
+
+pub fn validate_staging_recovery_request(
+    value: &Value,
+    prepare: bool,
+) -> Result<(), ExecutionIssue> {
+    if prepare {
+        return validate_legacy_recovery_request(value, true);
+    }
+    fields(
+        value,
+        &[
+            "schema",
+            "transaction",
+            "attempt_id",
+            "transaction_dir",
+            "transaction_files",
+            "transaction_evidence_sha256",
+        ],
+        &["authorization_evidence"],
+        "execution_recovery_invalid_fields",
+        "Execution recovery requires an explicit transaction directory and complete inventory.",
+    )?;
+    let mut legacy = value.clone();
+    legacy.as_object_mut().unwrap().remove("transaction_dir");
+    legacy
+        .as_object_mut()
+        .unwrap()
+        .remove("transaction_evidence_sha256");
+    if !value["transaction_evidence_sha256"]
+        .as_str()
+        .is_some_and(valid_sha256)
+    {
+        return Err(issue(
+            "execution_recovery_invalid_evidence_sha256",
+            "Recovery requires the exact reviewed SHA-256 evidence binding.",
+            json!({}),
+        ));
+    }
+    validate_legacy_recovery_request(&legacy, false)?;
+    let directory = value["transaction_dir"].as_str().unwrap_or("");
+    if !crate::derivation::identity::runtime_relative_path(directory) {
+        return Err(issue(
+            "execution_recovery_invalid_transaction_dir",
+            "Use a canonical project-relative transaction directory.",
+            json!({}),
+        ));
+    }
+    let parts=directory.strip_prefix("outputs/work/runtime/staging/").map(|tail| tail.split('/').collect::<Vec<_>>())
+        .filter(|parts| parts.len()==3).ok_or_else(|| issue("execution_recovery_invalid_transaction_dir",
+            "The directory must identify exactly one requirement, operation and full transaction identity.",json!({})))?;
+    let requirement: crate::identifiers::RequirementId = parts[0].parse().map_err(|_| {
+        issue(
+            "execution_recovery_invalid_transaction_dir",
+            "The transaction requirement identity is invalid.",
+            json!({}),
+        )
+    })?;
+    use crate::derivation::publication::RuntimeOperation;
+    let operation = match value["transaction"].as_str().unwrap_or("") {
+        "record_begin" => RuntimeOperation::RecordBegin,
+        "command_correction" => RuntimeOperation::CommandCorrection,
+        "record_finish" => RuntimeOperation::RecordFinish,
+        "attempt_close" => RuntimeOperation::AttemptClose,
+        "correction" => RuntimeOperation::Correction,
+        "deviation_record" => RuntimeOperation::DeviationRecord,
+        _ => unreachable!("validated transaction"),
+    };
+    let expected =
+        crate::derivation::publication::runtime_staging_path(&requirement, operation, parts[2])
+            .map_err(|_| {
+                issue(
+                    "execution_recovery_invalid_transaction_dir",
+                    "The transaction identity requires its full SHA-256.",
+                    json!({}),
+                )
+            })?;
+    if expected != directory {
+        return Err(issue(
+            "execution_recovery_invalid_transaction_dir",
+            "The transaction operation and directory disagree.",
+            json!({}),
+        ));
+    }
+    let mut allowed = crate::derivation::publication::runtime_inventory(operation, 1);
+    allowed.push("transaction.json.tmp".into());
+    let files = value["transaction_files"]
+        .as_array()
+        .expect("validated file list");
+    if !files.iter().any(|file| file == "transaction.json")
+        || files
+            .iter()
+            .any(|file| !allowed.iter().any(|allowed| file == allowed))
+    {
+        return Err(issue(
+            "execution_recovery_invalid_file_list",
+            "Only the operation's complete observed inventory, including transaction.json, is allowed.",
+            json!({}),
+        ));
+    }
+    work_model::execution::request::verified::<
+        work_model::execution::request::PreparedExecutionRecoveryRequest,
+    >(value);
     Ok(())
 }
 
@@ -519,14 +631,14 @@ mod tests {
         );
         let recovery = json!({"schema":"work-execution-recovery-request","transaction":"record_begin","attempt_id":"ATTEMPT-001",
             "transaction_files":[".work-a.tmp",".work-b.tmp"]});
-        assert!(validate_recovery_request(&recovery, false).is_ok());
+        assert!(validate_legacy_recovery_request(&recovery, false).is_ok());
         let mut with_evidence = recovery.clone();
         with_evidence["transaction"] = json!("record_finish");
         with_evidence["authorization_evidence"] = json!("Fresh failure authorization");
-        assert!(validate_recovery_request(&with_evidence, false).is_ok());
+        assert!(validate_legacy_recovery_request(&with_evidence, false).is_ok());
         with_evidence["authorization_evidence"] = json!(123);
         assert_eq!(
-            validate_recovery_request(&with_evidence, false)
+            validate_legacy_recovery_request(&with_evidence, false)
                 .unwrap_err()
                 .reason_code,
             "execution_recovery_invalid_authorization_evidence"
@@ -534,7 +646,7 @@ mod tests {
         let mut unsorted = recovery;
         unsorted["transaction_files"] = json!(["b", "a"]);
         assert_eq!(
-            validate_recovery_request(&unsorted, false)
+            validate_legacy_recovery_request(&unsorted, false)
                 .unwrap_err()
                 .reason_code,
             "execution_recovery_noncanonical_file_list"
@@ -696,14 +808,14 @@ mod tests {
         let base = json!({"schema":"work-execution-recovery-request",
             "transaction":"record_begin","attempt_id":"ATTEMPT-001",
             "transaction_files":["prepared.tmp"]});
-        assert!(validate_recovery_request(&base, false).is_ok());
+        assert!(validate_legacy_recovery_request(&base, false).is_ok());
         let mut deviation = base.clone();
         deviation["transaction"] = json!("deviation_record");
-        assert!(validate_recovery_request(&deviation, false).is_ok());
+        assert!(validate_legacy_recovery_request(&deviation, false).is_ok());
         let mut finish = base.clone();
         finish["transaction"] = json!("record_finish");
         finish["authorization_evidence"] = json!("Fresh failure authorization.");
-        assert!(validate_recovery_request(&finish, false).is_ok());
+        assert!(validate_legacy_recovery_request(&finish, false).is_ok());
         for (field, value, code) in [
             (
                 "schema",
@@ -744,7 +856,7 @@ mod tests {
             let mut invalid = base.clone();
             invalid[field] = value;
             assert_eq!(
-                validate_recovery_request(&invalid, false)
+                validate_legacy_recovery_request(&invalid, false)
                     .unwrap_err()
                     .reason_code,
                 code
@@ -841,5 +953,71 @@ mod tests {
             error.details,
             json!({"missing":["reason"],"unknown":["extra"]})
         );
+    }
+}
+
+#[cfg(test)]
+mod staging_request_tests {
+    use super::*;
+
+    #[test]
+    fn staging_recovery_requires_full_directory_identity_and_scoped_sorted_inventory() {
+        let directory = format!(
+            "outputs/work/runtime/staging/example/record-finish/{}",
+            "a".repeat(64)
+        );
+        let request = json!({"schema":"work-execution-recovery-request","transaction":"record_finish","attempt_id":"ATTEMPT-001",
+            "transaction_dir":directory,"transaction_files":["attempt.json.tmp","index.json.tmp","transaction.json"],"transaction_evidence_sha256":"b".repeat(64)});
+        validate_staging_recovery_request(&request, false).unwrap();
+        for digest in [json!("short"), json!(null), json!(123)] {
+            let mut invalid = request.clone();
+            invalid["transaction_evidence_sha256"] = digest;
+            assert_eq!(
+                validate_staging_recovery_request(&invalid, false)
+                    .unwrap_err()
+                    .reason_code,
+                "execution_recovery_invalid_evidence_sha256"
+            );
+        }
+        for value in [
+            "/absolute",
+            "../outside",
+            "outputs/work/runtime/staging/example/record-finish/short",
+            "outputs/work/runtime/staging/example/record-begin/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "outputs/work/runtime/staging/example/record-finish/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "outputs/work/runtime/staging/example/record-finish/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/extra",
+        ] {
+            let mut invalid = request.clone();
+            invalid["transaction_dir"] = json!(value);
+            assert_eq!(
+                validate_staging_recovery_request(&invalid, false)
+                    .unwrap_err()
+                    .reason_code,
+                "execution_recovery_invalid_transaction_dir"
+            );
+        }
+        let mut missing = request.clone();
+        missing.as_object_mut().unwrap().remove("transaction_dir");
+        assert_eq!(
+            validate_staging_recovery_request(&missing, false)
+                .unwrap_err()
+                .reason_code,
+            "execution_recovery_invalid_fields"
+        );
+        for files in [
+            json!([]),
+            json!(["foreign.tmp", "transaction.json"]),
+            json!(["index.json.tmp"]),
+            json!(["transaction.json", "attempt.json.tmp"]),
+            json!(["../index.json.tmp", "transaction.json"]),
+            json!(["transaction.json", "transaction.json"]),
+        ] {
+            let mut invalid = request.clone();
+            invalid["transaction_files"] = files;
+            assert!(validate_staging_recovery_request(&invalid, false).is_err());
+        }
+        let mut cleanup = request;
+        cleanup["transaction_files"] = json!(["transaction.json"]);
+        validate_staging_recovery_request(&cleanup, false).unwrap();
     }
 }

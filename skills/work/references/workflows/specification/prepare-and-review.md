@@ -9,16 +9,18 @@
 7. `retain_only` requires no migration or edits and prepares only a ledger transaction. Review the saved request with `specification reconciliation-preview`; then use `specification reconciliation-apply` with the exact approved fingerprint. Incorporation publishes the approved migration set with its ledger. Ledger outcomes account for incorporated, retained and declined deviations; historical Attempt and Correction bytes remain unchanged.
 8. Preserve the identical request and approved fingerprint for `specification recover` or `specification reconciliation-recover`. Approval does not authorize a new Attempt, CMD, OP or VAL. If a semantic operation is unsupported, retain the rejection and return to the parent for a confirmed decision; never substitute caller-authored formal candidates or derived bytes.
 
+Create the workspace first and use its returned `data.paths.requests`. The examples assume the allocator returned the shown transaction directory; substitute the actual directory. Retain the full response in `data.paths.responses/001-specification-prepare.json`; save the generated request as a distinct step.
+
 macOS example:
 
 ```text
-"/path/to/work/scripts/work" --project-root "/path/to/project" --verbose specification prepare --input-file "/path/to/project/outputs/work/transactions/example/specification/spec-prepare.json" --output-file "/path/to/project/outputs/work/transactions/example/specification/spec-prepared-request.json" --user-config-root "/path/to/user-config"
+"/path/to/work/scripts/work" --project-root "/path/to/project" --verbose specification prepare --input-file "/path/to/project/outputs/work/transactions/example/specification/20261007T000000Z-01234567/requests/001-specification-prepare.json" --output-file "/path/to/project/outputs/work/transactions/example/specification/20261007T000000Z-01234567/requests/002-specification-preview.json" --user-config-root "/path/to/user-config"
 ```
 
 Windows PowerShell example:
 
 ```text
-& "C:\skills\work\scripts\work.exe" --project-root "C:\project" --verbose specification prepare --input-file "C:\project\outputs\work\transactions\example\specification\spec-prepare.json" --output-file "C:\project\outputs\work\transactions\example\specification\spec-prepared-request.json" --user-config-root "C:\user-config"
+& "C:\skills\work\scripts\work.exe" --project-root "C:\project" --verbose specification prepare --input-file "C:\project\outputs\work\transactions\example\specification\20261007T000000Z-01234567\requests\001-specification-prepare.json" --output-file "C:\project\outputs\work\transactions\example\specification\20261007T000000Z-01234567\requests\002-specification-preview.json" --user-config-root "C:\user-config"
 ```
 
 Use the installed Work binary and identical confirmed roots for subsequent commands. Include the same `--skill-root` selections when needed. Transport JSON through UTF-8 files, without shell interpolation, redirection or pipelines.

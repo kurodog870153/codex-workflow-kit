@@ -34,5 +34,5 @@ $RECYCLE.BIN/
 ### Rust
 /rust/target/
 
-### Work transport
-/.work/
+# Transport only; runtime and formal evidence remain visible.
+/outputs/work/transactions/

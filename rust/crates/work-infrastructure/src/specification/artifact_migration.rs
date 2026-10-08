@@ -29,11 +29,8 @@ use work_operations::specification::migration_diff::unified_diff;
 use work_operations::specification::transaction::{render_transaction, validate_transaction};
 
 use crate::files::LocalFiles;
-use crate::specification::storage::{
-    execution_history_bytes, publish_journal, require_no_spec_update, storage_path, write_journal,
-};
+use crate::specification::storage::storage_path;
 use crate::writer_lock::LocalWriterLock;
-use work_feature::ports::WriterLock;
 
 fn artifact_paths(id: &RequirementId) -> BTreeMap<String, String> {
     let paths = default_artifact_paths(id);
@@ -42,6 +39,48 @@ fn artifact_paths(id: &RequirementId) -> BTreeMap<String, String> {
         ("task".into(), paths.task),
         ("execution".into(), paths.execution),
     ])
+}
+
+pub(crate) fn resolved_artifact_paths(
+    root: &Path,
+    id: &RequirementId,
+) -> Result<BTreeMap<String, String>, WorkError> {
+    let defaults = artifact_paths(id);
+    let discovered = crate::instruction::refresh_storage::discover_requirements(root)?;
+    let Some(routes) = discovered.get(id.as_str()) else {
+        return Ok(defaults);
+    };
+    let task = routes["task"].as_str().ok_or_else(|| {
+        fail(
+            "migration_artifact_context_invalid",
+            "The TASK route is invalid.",
+        )
+    })?;
+    let raw = LocalFiles.read_raw(&storage_path(root, task)?)?;
+    let index = parse_json_contract(&raw).map_err(|_| {
+        fail(
+            "migration_artifact_context_invalid",
+            "The TASK context is invalid.",
+        )
+    })?;
+    if work_operations::task::source::validate_formal_context(&index, id.as_str()).is_err() {
+        if routes == &serde_json::to_value(&defaults).expect("routes serialize") {
+            return Ok(defaults);
+        }
+        return Err(fail(
+            "migration_artifact_context_invalid",
+            "Custom routes require a verifiable current TASK context.",
+        ));
+    }
+    let mut result = BTreeMap::new();
+    for key in ["source", "task", "execution"] {
+        let route = routes[key]
+            .as_str()
+            .ok_or_else(|| fail("migration_artifact_context_invalid", "A route is missing."))?;
+        storage_path(root, route)?;
+        result.insert(key.to_owned(), route.to_owned());
+    }
+    Ok(result)
 }
 
 fn fail(code: &str, message: &str) -> WorkError {
@@ -175,55 +214,50 @@ fn relationship_diagnostics(
 }
 
 fn transaction_diagnostics(root: &Path, execution_dir: &str) -> Result<Vec<Value>, WorkError> {
-    let directory = storage_path(root, execution_dir)?;
-    if !directory.is_dir() {
-        return Ok(Vec::new());
-    }
-    let mut diagnostics = Vec::new();
-    let mut entries = fs::read_dir(&directory)
-        .map_err(|_| {
-            fail(
-                "migration_transaction_read",
-                "Transaction journals cannot be listed.",
-            )
-        })?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| {
-            fail(
-                "migration_transaction_read",
-                "Transaction journals cannot be listed.",
-            )
-        })?;
-    entries.sort_by_key(|entry| entry.file_name());
-    for entry in entries {
-        let name = entry.file_name().to_string_lossy().into_owned();
-        let command = if name.starts_with(".work-spec-update-") && name.ends_with(".json") {
-            "specification recover"
-        } else if name.starts_with(".work-spec-migration-") && name.ends_with(".json") {
-            "migration recover"
-        } else {
-            continue;
-        };
-        if directory
-            .join(work_operations::derivation::publication::completion_marker_path(&name))
-            .is_file()
-        {
-            continue;
+    retained_transaction_diagnostics(root, execution_dir)
+}
+
+pub(crate) fn retained_transaction_diagnostics(
+    root: &Path,
+    execution: &str,
+) -> Result<Vec<Value>, WorkError> {
+    use crate::specification::storage::{read_retained_journal, retained_journal_paths};
+    use work_operations::derivation::publication::{RuntimeOperation, parse_retained_journal_path};
+    let paths = match retained_journal_paths(root, execution) {
+        Ok(paths) => paths,
+        Err(problem) => {
+            return Ok(vec![json!({"code":problem.reason_code,"path":execution,
+            "detail":"Journal layout requires explicit review before any publication",
+            "next_command":"manual review","mode":"blocked"})]);
         }
-        let path = format!("{execution_dir}/{name}");
-        let raw = LocalFiles.read_raw(&entry.path())?;
-        let valid = parse_json_contract(&raw).ok().is_some_and(|journal| {
-            validate_transaction(&journal).is_ok()
-                && render_transaction(&journal).ok().as_deref() == Some(raw.as_slice())
-        });
-        if valid {
-            diagnostics.push(json!({"code":"incomplete_transaction","path":path,
-                "detail":"An approved transaction has no completion marker",
-                "next_command":command,"mode":"recover"}));
-        } else {
-            diagnostics.push(json!({"code":"invalid_transaction","path":path,
-                "detail":"Transaction evidence is invalid; inspect bytes before any publication",
-                "next_command":"manual review","mode":"blocked"}));
+    };
+    let mut diagnostics = Vec::new();
+    for path in paths {
+        match read_retained_journal(root, execution, &path) {
+            Ok(evidence)
+                if evidence.completion
+                    == work_operations::specification::transaction::CompletionState::Completed => {}
+            Ok(_) => {
+                let address = parse_retained_journal_path(execution, &path).map_err(|_| {
+                    fail(
+                        "journal_layout_identity",
+                        "The journal identity is invalid.",
+                    )
+                })?;
+                let command = match address.operation {
+                    RuntimeOperation::SpecificationUpdate => "specification recover",
+                    RuntimeOperation::SpecificationMigration
+                    | RuntimeOperation::SpecificationMigrationItem
+                    | RuntimeOperation::SpecificationMigrationReconcile => "migration recover",
+                    _ => "manual review",
+                };
+                diagnostics.push(json!({"code":"incomplete_transaction","path":path,
+                    "detail":"A retained journal has no complete committed marker",
+                    "next_command":command,"mode":"recover"}));
+            }
+            Err(problem) => diagnostics.push(json!({"code":if problem.reason_code=="invalid_contract_value" {"invalid_transaction"} else {&problem.reason_code},"cause":problem.reason_code,"path":path,
+                "detail":"Retained journal evidence is invalid or incomplete",
+                "next_command":"manual review","mode":"blocked"})),
         }
     }
     Ok(diagnostics)
@@ -249,7 +283,7 @@ pub fn analyze_with_evidence(
             "A valid requirement ID is required.",
         )
     })?;
-    let paths = artifact_paths(&id);
+    let paths = resolved_artifact_paths(root, &id)?;
     let requested =
         |kind: &str| selected_kinds.is_empty() || selected_kinds.iter().any(|row| row == kind);
     if selected_kinds
@@ -351,13 +385,19 @@ pub fn analyze_with_evidence(
         }
         items.push(item);
     }
-    let diagnostics = if requested("task") || requested("execute") {
+    let mut diagnostics = if requested("task") || requested("execute") {
         let mut diagnostics = relationship_diagnostics(root, &paths)?;
         diagnostics.extend(transaction_diagnostics(root, &paths["execution"])?);
         diagnostics
     } else {
         Vec::new()
     };
+    diagnostics.extend(crate::specification::layout_migration::diagnostics(
+        root,
+        &id,
+        &paths["source"],
+        &paths["execution"],
+    )?);
     let evidence = if diagnostics.is_empty() {
         json!({"requirement_id":requirement,"items":items})
     } else {
@@ -578,7 +618,7 @@ fn read_request(
             "The request requirement ID is invalid.",
         )
     })?;
-    let paths = artifact_paths(&id);
+    let paths = resolved_artifact_paths(root, &id)?;
     let task_directory = paths["task"]
         .rsplit_once('/')
         .map(|(parent, _)| parent)
@@ -695,6 +735,7 @@ fn transaction_for_file(
     before: &[u8],
     after: &[u8],
     history: &BTreeMap<String, Vec<u8>>,
+    execution: &str,
 ) -> Result<Value, WorkError> {
     let path = &decision.item.path;
     let derived = TransactionDeriver::derive(TransactionInput {
@@ -702,7 +743,7 @@ fn transaction_for_file(
         order: PublicationOrder::Flat,
         request: json!({"request_sha256":request_sha256,
             "analysis_fingerprint":request.analysis_fingerprint,"item_id":decision.item.id}),
-        artifacts: json!({}),
+        artifacts: { json!({"execution":execution}) },
         affected_task_ids: Vec::new(),
         history: history.clone(),
         source: BTreeMap::from([(path.clone(), before.to_vec())]),
@@ -756,6 +797,35 @@ fn checked_journal(
     approved_sha256: &str,
     decision: &ArtifactMigrationDecision,
 ) -> Result<(), WorkError> {
+    {
+        let id: RequirementId = request.requirement_id.parse().map_err(|_| {
+            fail(
+                "migration_requirement_id",
+                "The request requirement ID is invalid.",
+            )
+        })?;
+        let paths = resolved_artifact_paths(root, &id)?;
+        let execution = &paths["execution"];
+        let position = request
+            .decisions
+            .iter()
+            .position(|row| row.item.id == decision.item.id)
+            .ok_or_else(|| {
+                fail(
+                    "migration_recovery_request_changed",
+                    "The selected item is not part of the reviewed request.",
+                )
+            })?;
+        if item_journal(execution, approved_sha256, position) != journal {
+            return Err(fail(
+                "migration_recovery_request_changed",
+                "The journal must identify the reviewed item position.",
+            ));
+        }
+        crate::specification::storage::read_retained_journal_for_recovery(
+            root, execution, journal,
+        )?;
+    }
     let raw = LocalFiles.read_raw(&storage_path(root, journal)?)?;
     let transaction = parse_json_contract(&raw).map_err(|_| {
         fail(
@@ -822,7 +892,7 @@ pub fn preview(
             "The request requirement ID is invalid.",
         )
     })?;
-    let paths = artifact_paths(&id);
+    let paths = resolved_artifact_paths(root, &id)?;
     let sources = checked_sources(root, &request, &paths["execution"], approved_sha256)?;
     let mut items = Vec::new();
     for (position, decision) in request.decisions.iter().enumerate() {
@@ -894,12 +964,172 @@ pub fn preview(
         "relationship_error":relationship_error}))
 }
 
+/// Candidate full apply/recovery scope uses the fingerprint-verified saved request.
+pub fn migrate_with_runtime(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[crate::skill_catalog::SkillRootConfig],
+    relative: &str,
+    approved_sha256: &str,
+    recovery: bool,
+) -> Result<Value, WorkError> {
+    let request = read_request(root, relative, approved_sha256)?;
+    let context = work_feature::ports::RequirementWriterContext {
+        canonical_project_root: root.canonicalize().map_err(|_| {
+            fail(
+                "migration_project_root",
+                "The project root could not be resolved.",
+            )
+        })?,
+        requirement_id: request.requirement_id.parse().map_err(|_| {
+            fail(
+                "migration_requirement_id",
+                "The approved requirement is invalid.",
+            )
+        })?,
+    };
+    crate::writer_lock::require_no_legacy_locks(
+        &context,
+        Some(&resolved_artifact_paths(root, &context.requirement_id)?["execution"]),
+    )?;
+    work_feature::ports::with_runtime_writer(
+        &LocalWriterLock,
+        &context,
+        work_model::runtime::LockClass::Execution,
+        |owner| {
+            if recovery {
+                recover_scoped(
+                    root,
+                    skill_root,
+                    configs,
+                    relative,
+                    approved_sha256,
+                    Some(owner),
+                )
+            } else {
+                execute_scoped(
+                    root,
+                    skill_root,
+                    configs,
+                    relative,
+                    approved_sha256,
+                    Some(owner),
+                )
+            }
+        },
+    )
+}
+
 pub fn execute(
     root: &Path,
     skill_root: &Path,
     configs: &[crate::skill_catalog::SkillRootConfig],
     relative: &str,
     approved_sha256: &str,
+) -> Result<Value, WorkError> {
+    migrate_with_runtime(root, skill_root, configs, relative, approved_sha256, false)
+}
+
+fn retained_artifact_context(
+    root: &Path,
+    request: &ArtifactMigrationRequest,
+) -> Result<work_feature::ports::RequirementWriterContext, WorkError> {
+    Ok(work_feature::ports::RequirementWriterContext {
+        canonical_project_root: root
+            .canonicalize()
+            .map_err(|_| fail("journal_owner_identity", "The project root is invalid."))?,
+        requirement_id: request.requirement_id.parse().map_err(|_| {
+            fail(
+                "migration_requirement_id",
+                "The approved requirement is invalid.",
+            )
+        })?,
+    })
+}
+
+fn retained_artifact_history(
+    context: &work_feature::ports::RequirementWriterContext,
+    request: &ArtifactMigrationRequest,
+    approved: &str,
+    execution: &str,
+) -> Result<BTreeMap<String, Vec<u8>>, WorkError> {
+    let mut history = crate::specification::storage::prepare_retained_batch_history(
+        &context.canonical_project_root,
+        execution,
+        approved,
+    )?;
+    for decision in &request.decisions {
+        if decision.action != ArtifactMigrationAction::Skip
+            && history.contains_key(&decision.item.path)
+        {
+            history.insert(decision.item.path.clone(), decision.item.raw.clone());
+        }
+    }
+    Ok(history)
+}
+
+fn retained_artifact_batch(
+    context: &work_feature::ports::RequirementWriterContext,
+    request: &ArtifactMigrationRequest,
+    approved: &str,
+    execution: &str,
+    history: &BTreeMap<String, Vec<u8>>,
+) -> Result<crate::specification::storage::RetainedJournalBatch, WorkError> {
+    let journals = request
+        .decisions
+        .iter()
+        .enumerate()
+        .filter(|(_, row)| row.action != ArtifactMigrationAction::Skip)
+        .map(|(position, row)| {
+            Ok((
+                item_journal(execution, approved, position),
+                transaction_for_file(
+                    request,
+                    approved,
+                    row,
+                    &row.item.raw,
+                    &approved_candidate(row)?,
+                    history,
+                    execution,
+                )?,
+            ))
+        })
+        .collect::<Result<BTreeMap<_, _>, WorkError>>()?;
+    crate::specification::storage::prepare_retained_journal_batch(
+        context, execution, approved, &journals,
+    )
+}
+
+fn execute_scoped(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[crate::skill_catalog::SkillRootConfig],
+    relative: &str,
+    approved_sha256: &str,
+    runtime_owner: Option<&work_model::runtime::RuntimeOwner>,
+) -> Result<Value, WorkError> {
+    execute_scoped_with_fault(
+        root,
+        skill_root,
+        configs,
+        relative,
+        approved_sha256,
+        runtime_owner,
+        &mut |_, _| Ok(()),
+    )
+}
+
+fn execute_scoped_with_fault(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[crate::skill_catalog::SkillRootConfig],
+    relative: &str,
+    approved_sha256: &str,
+    runtime_owner: Option<&work_model::runtime::RuntimeOwner>,
+    after_stage: &mut impl FnMut(
+        usize,
+        crate::transaction_storage::JournalRuntimeStage,
+    ) -> Result<(), WorkError>,
 ) -> Result<Value, WorkError> {
     let request = read_request(root, relative, approved_sha256)?;
     if !request.executable() {
@@ -914,8 +1144,9 @@ pub fn execute(
             "The request requirement ID is invalid.",
         )
     })?;
-    let paths = artifact_paths(&id);
+    let paths = resolved_artifact_paths(root, &id)?;
     let execution = &paths["execution"];
+    let retained_context = { Some(retained_artifact_context(root, &request)?) };
     let directory = storage_path(root, execution)?;
     fs::create_dir_all(&directory).map_err(|_| {
         fail(
@@ -923,11 +1154,7 @@ pub fn execute(
             "Execution directory cannot be created.",
         )
     })?;
-    require_no_spec_update(root, execution, None)?;
-    let lock = storage_path(root, &format!("{execution}/.work-state-writer.lock"))?;
-    let _guard = LocalWriterLock.acquire(&lock)?;
-    require_no_spec_update(root, execution, None)?;
-    let sources = checked_sources(root, &request, execution, approved_sha256)?;
+    checked_sources(root, &request, execution, approved_sha256)?;
     let candidates = approved_candidates(&request)?;
     crate::specification::migration_reconciliation_publication::validate_expected(
         root,
@@ -936,7 +1163,49 @@ pub fn execute(
         &request.requirement_id,
         &candidates,
     )?;
-    let history = execution_history_bytes(root, execution)?;
+    let history = {
+        let context = retained_context.as_ref().expect("current retained context");
+
+        retained_artifact_history(context, &request, approved_sha256, execution)?
+    };
+    let batch = retained_context
+        .as_ref()
+        .map(|context| {
+            retained_artifact_batch(context, &request, approved_sha256, execution, &history)
+        })
+        .transpose()?;
+    {
+        let context = retained_context.as_ref().expect("current retained context");
+
+        for (position, decision) in request.decisions.iter().enumerate() {
+            if decision.action == ArtifactMigrationAction::Skip {
+                continue;
+            }
+            let journal = item_journal(execution, approved_sha256, position);
+            let transaction = transaction_for_file(
+                &request,
+                approved_sha256,
+                decision,
+                &decision.item.raw,
+                &approved_candidate(decision)?,
+                &history,
+                execution,
+            )?;
+            crate::specification::storage::retained_journal_history_with_batch_owner(
+                &crate::specification::storage::RetainedJournalRuntimeInput {
+                    context,
+                    execution,
+                    relative: &journal,
+                    prepared_journal: &transaction,
+                    recover: true,
+                },
+                runtime_owner.ok_or_else(|| {
+                    fail("journal_owner_identity", "The Native owner is required.")
+                })?,
+                batch.as_ref(),
+            )?;
+        }
+    }
     let mut statuses = Vec::new();
     for (position, decision) in request.decisions.iter().enumerate() {
         if decision.action == ArtifactMigrationAction::Skip {
@@ -953,21 +1222,34 @@ pub fn execute(
             }
         };
         let journal = item_journal(execution, approved_sha256, position);
-        let marker = work_operations::derivation::publication::completion_marker_path(&journal);
-        let outcome = if storage_path(root, &journal)?.is_file() {
-            checked_journal(root, &journal, &request, approved_sha256, decision)
-                .and_then(|_| publish_journal(root, &journal, &marker))
-        } else {
+        let outcome = {
+            let context = retained_context.as_ref().expect("current retained context");
+
             let transaction = transaction_for_file(
                 &request,
                 approved_sha256,
                 decision,
-                &sources[&decision.item.path],
+                &decision.item.raw,
                 &candidate,
                 &history,
+                execution,
             )?;
-            write_journal(root, &journal, &transaction)
-                .and_then(|_| publish_journal(root, &journal, &marker))
+            let recovering = storage_path(root, &journal)?.is_file();
+            crate::specification::storage::publish_retained_journal_with_batch_owner(
+                &crate::specification::storage::RetainedJournalRuntimeInput {
+                    context,
+                    execution,
+                    relative: &journal,
+                    prepared_journal: &transaction,
+                    recover: recovering,
+                },
+                runtime_owner.ok_or_else(|| {
+                    fail("journal_owner_identity", "The Native owner is required.")
+                })?,
+                batch.as_ref(),
+                || Ok(()),
+                |stage| after_stage(position, stage),
+            )
         };
         match outcome {
             Ok(publication) => {
@@ -982,12 +1264,13 @@ pub fn execute(
         .iter()
         .all(|row| row["status"] == "published" || row["status"] == "skipped");
     let reconciliation = if complete {
-        match crate::specification::migration_reconciliation_publication::reconcile(
+        match crate::specification::migration_reconciliation_publication::reconcile_scoped(
             root,
             skill_root,
             configs,
             &request.requirement_id,
             approved_sha256,
+            runtime_owner,
         ) {
             Ok(result) => result,
             Err(problem) => json!({"status":"blocked","code":problem.reason_code}),
@@ -1008,6 +1291,17 @@ pub fn recover(
     relative: &str,
     approved_sha256: &str,
 ) -> Result<Value, WorkError> {
+    migrate_with_runtime(root, skill_root, configs, relative, approved_sha256, true)
+}
+
+fn recover_scoped(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[crate::skill_catalog::SkillRootConfig],
+    relative: &str,
+    approved_sha256: &str,
+    runtime_owner: Option<&work_model::runtime::RuntimeOwner>,
+) -> Result<Value, WorkError> {
     let request = read_request(root, relative, approved_sha256)?;
     let id: RequirementId = request.requirement_id.parse().map_err(|_| {
         fail(
@@ -1015,10 +1309,9 @@ pub fn recover(
             "The request requirement ID is invalid.",
         )
     })?;
-    let paths = artifact_paths(&id);
+    let paths = resolved_artifact_paths(root, &id)?;
     let execution = &paths["execution"];
-    let lock = storage_path(root, &format!("{execution}/.work-state-writer.lock"))?;
-    let _guard = LocalWriterLock.acquire(&lock)?;
+    let retained_context = { Some(retained_artifact_context(root, &request)?) };
     if !request.executable() {
         return Err(fail(
             "migration_decisions",
@@ -1034,6 +1327,22 @@ pub fn recover(
         &request.requirement_id,
         &candidates,
     )?;
+    let retained_history = retained_context
+        .as_ref()
+        .map(|context| retained_artifact_history(context, &request, approved_sha256, execution))
+        .transpose()?;
+    let batch = retained_context
+        .as_ref()
+        .map(|context| {
+            retained_artifact_batch(
+                context,
+                &request,
+                approved_sha256,
+                execution,
+                retained_history.as_ref().expect("retained history"),
+            )
+        })
+        .transpose()?;
     let mut statuses = Vec::new();
     for (position, decision) in request.decisions.iter().enumerate() {
         if decision.action == ArtifactMigrationAction::Skip {
@@ -1041,14 +1350,50 @@ pub fn recover(
             continue;
         }
         let journal = item_journal(execution, approved_sha256, position);
-        let marker = work_operations::derivation::publication::completion_marker_path(&journal);
         let journal_path = storage_path(root, &journal)?;
-        if !journal_path.is_file() {
+        let staged = {
+            let context = retained_context.as_ref().expect("current retained context");
+
+            crate::execution::storage::LocalExecutionStorage {
+                project_root: context.canonical_project_root.clone(),
+            }
+            .retained_requirement_inventory(context, execution)?
+            .iter()
+            .any(|item| item.manifest.business_identity["journal_path"] == journal)
+        };
+        if !journal_path.is_file() && !staged {
             statuses.push(json!({"id":decision.item.id,"status":"not_started"}));
             continue;
         }
-        checked_journal(root, &journal, &request, approved_sha256, decision)?;
-        match publish_journal(root, &journal, &marker) {
+        let publication = {
+            let context = retained_context.as_ref().expect("current retained context");
+
+            let transaction = transaction_for_file(
+                &request,
+                approved_sha256,
+                decision,
+                &decision.item.raw,
+                &approved_candidate(decision)?,
+                retained_history.as_ref().expect("retained history"),
+                execution,
+            )?;
+            crate::specification::storage::publish_retained_journal_with_batch_owner(
+                &crate::specification::storage::RetainedJournalRuntimeInput {
+                    context,
+                    execution,
+                    relative: &journal,
+                    prepared_journal: &transaction,
+                    recover: true,
+                },
+                runtime_owner.ok_or_else(|| {
+                    fail("journal_owner_identity", "The Native owner is required.")
+                })?,
+                batch.as_ref(),
+                || Ok(()),
+                |_| Ok(()),
+            )
+        };
+        match publication {
             Ok(publication) => statuses.push(json!({"id":decision.item.id,"status":"published",
                 "journal":journal,"publication_status":publication["status"]})),
             Err(problem) => statuses.push(json!({"id":decision.item.id,"status":"failed",
@@ -1059,12 +1404,13 @@ pub fn recover(
         .iter()
         .all(|row| row["status"] == "published" || row["status"] == "skipped");
     let reconciliation = if complete {
-        match crate::specification::migration_reconciliation_publication::reconcile(
+        match crate::specification::migration_reconciliation_publication::reconcile_scoped(
             root,
             skill_root,
             configs,
             &request.requirement_id,
             approved_sha256,
+            runtime_owner,
         ) {
             Ok(result) => result,
             Err(problem) => json!({"status":"blocked","code":problem.reason_code}),
@@ -1098,7 +1444,7 @@ pub fn verify(
             "The request requirement ID is invalid.",
         )
     })?;
-    let paths = artifact_paths(&id);
+    let paths = resolved_artifact_paths(root, &id)?;
     let execution = &paths["execution"];
     let mut results = Vec::new();
     for (position, decision) in request.decisions.iter().enumerate() {
@@ -1150,7 +1496,7 @@ mod tests {
     fn copy_current_chain(root: &Path) {
         let fixture = Path::new(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/fixtures/specification-update"
+            "/fixtures/cases/specification/update/collection-summary/project"
         ));
         for path in [
             "outputs/work/tasks/example/index.json",
@@ -1169,13 +1515,71 @@ mod tests {
             &fs::read(
                 Path::new(concat!(
                     env!("CARGO_MANIFEST_DIR"),
-                    "/fixtures/specification-update"
+                    "/fixtures/cases/specification/update/collection-summary/project"
                 ))
                 .join(path),
             )
             .unwrap(),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn layout_analysis_binds_custom_routes_and_refuses_legacy_approval_before_any_write() {
+        let root = std::env::temp_dir().join(format!(
+            "work-layout-analysis-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        copy_current_chain(&root);
+        let execution = "自訂 空白/執行/example";
+        let task_path = "outputs/work/tasks/example/index.json";
+        let mut index: Value =
+            serde_json::from_slice(&fs::read(root.join(task_path)).unwrap()).unwrap();
+        index["artifacts"]["execution"] = json!(execution);
+        let raw = crate::fixture_support::render_task_index(&index).unwrap();
+        fs::write(root.join(task_path), &raw).unwrap();
+        let old = root.join(format!(
+            "{execution}/.work-spec-migration-ABCDEF123456.json"
+        ));
+        fs::create_dir_all(old.parent().unwrap()).unwrap();
+        let original = b"{ interrupted legacy journal\r\n";
+        fs::write(&old, original).unwrap();
+        let analysis = analyze(&root, "example", &["execute".into()]).unwrap();
+        let report = analysis["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["code"] == "legacy_layout_review_required")
+            .unwrap();
+        assert_eq!(report["inventory"]["execution"], execution);
+        assert_eq!(
+            report["inventory"]["mappings"][0]["candidate_path"],
+            format!("{execution}/journals/specification-migration/ABCDEF123456/journal.json")
+        );
+        assert_eq!(
+            report["inventory"]["files"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|file| file["path"]
+                    == format!("{execution}/.work-spec-migration-ABCDEF123456.json"))
+                .unwrap()["raw"],
+            json!(original.as_slice())
+        );
+        assert_eq!(
+            prepare_request(&root, &analysis, &json!([]))
+                .unwrap_err()
+                .reason_code,
+            "migration_reconstruction_required"
+        );
+        assert_eq!(fs::read(&old).unwrap(), original);
+        assert_eq!(fs::read(root.join(task_path)).unwrap(), raw);
+        assert!(!root.join("outputs/work/migrations").exists());
+        assert!(!root.join(format!("{execution}/journals")).exists());
     }
 
     #[test]
@@ -1245,7 +1649,7 @@ mod tests {
         fs::create_dir_all(source.parent().unwrap()).unwrap();
         let fixture = Path::new(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/fixtures/specification-update/outputs/work/tasks/example/index.json"
+            "/fixtures/cases/specification/update/collection-summary/project/outputs/work/tasks/example/index.json"
         ));
         let mut legacy: Value = serde_json::from_slice(&fs::read(fixture).unwrap()).unwrap();
         legacy["schema"] = json!("work-task-index/v0");
@@ -1310,7 +1714,17 @@ mod tests {
             preview(&root, &skill_root, &[], relationship_path, relationship_sha).unwrap();
         assert_eq!(relationship_preview["status"], "blocked");
         assert!(relationship_preview["relationship_error"].is_string());
-        assert!(execute(&root, &skill_root, &[], relationship_path, relationship_sha).is_err());
+        assert!(
+            migrate_with_runtime(
+                &root,
+                &skill_root,
+                &[],
+                relationship_path,
+                relationship_sha,
+                false
+            )
+            .is_err()
+        );
         assert_eq!(fs::read(&source).unwrap(), original);
         assert_eq!(
             prepare_request(&root, &analysis, &json!([]))
@@ -1354,23 +1768,70 @@ mod tests {
             .reason_code,
             "migration_approval_changed"
         );
-        let published = execute(
+        {
+            use work_feature::ports::{RuntimeWriterGuard, RuntimeWriterLock};
+            let saved = read_request(
+                &root,
+                prepared["request_path"].as_str().unwrap(),
+                prepared["request_sha256"].as_str().unwrap(),
+            )
+            .unwrap();
+            let context = work_feature::ports::RequirementWriterContext {
+                canonical_project_root: root.canonicalize().unwrap(),
+                requirement_id: saved.requirement_id.parse().unwrap(),
+            };
+            let held = LocalWriterLock
+                .acquire_runtime(&context, work_model::runtime::LockClass::Execution)
+                .unwrap();
+            assert!(
+                migrate_with_runtime(
+                    &root,
+                    &skill_root,
+                    &[],
+                    prepared["request_path"].as_str().unwrap(),
+                    prepared["request_sha256"].as_str().unwrap(),
+                    false
+                )
+                .is_err()
+            );
+            held.release().unwrap();
+            fs::write(&source, b"unexpected source drift").unwrap();
+            assert!(
+                migrate_with_runtime(
+                    &root,
+                    &skill_root,
+                    &[],
+                    prepared["request_path"].as_str().unwrap(),
+                    prepared["request_sha256"].as_str().unwrap(),
+                    true
+                )
+                .is_err()
+            );
+            assert_eq!(fs::read(&source).unwrap(), b"unexpected source drift");
+            fs::write(&source, &original).unwrap();
+            LocalWriterLock
+                .require_runtime_idle(&context, work_model::runtime::LockClass::Execution)
+                .unwrap();
+        }
+        let published = migrate_with_runtime(
             &root,
             &skill_root,
             &[],
             prepared["request_path"].as_str().unwrap(),
             prepared["request_sha256"].as_str().unwrap(),
+            false,
         )
         .unwrap();
         assert_eq!(published["status"], "completed", "{published:?}");
         assert_eq!(published["items"][0]["status"], "published");
         assert_eq!(published["reconciliation"]["status"], "valid");
-        let repeated = execute(
+        let repeated = migrate_with_runtime(
             &root,
             &skill_root,
             &[],
             prepared["request_path"].as_str().unwrap(),
             prepared["request_sha256"].as_str().unwrap(),
+            false,
         )
         .unwrap();
         assert_eq!(repeated["status"], "completed");
@@ -1389,12 +1850,13 @@ mod tests {
             .unwrap()["items"][0]["status"],
             "published"
         );
-        let recovered = recover(
+        let recovered = migrate_with_runtime(
             &root,
             &skill_root,
             &[],
             prepared["request_path"].as_str().unwrap(),
             prepared["request_sha256"].as_str().unwrap(),
+            true,
         )
         .unwrap();
         assert_eq!(
@@ -1422,7 +1884,7 @@ mod tests {
     #[test]
     fn mixed_artifacts_publish_from_one_saved_request() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-update");
+        let fixture = repo.join("crates/work-infrastructure/fixtures/cases/specification/update/collection-summary/project");
         let root = std::env::temp_dir().join(format!(
             "work-artifact-mixed-{}-{}",
             std::process::id(),
@@ -1508,7 +1970,7 @@ mod tests {
     #[test]
     fn failed_item_preserves_prior_publication_and_allows_later_item() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-update");
+        let fixture = repo.join("crates/work-infrastructure/fixtures/cases/specification/update/collection-summary/project");
         let root = std::env::temp_dir().join(format!(
             "work-artifact-partial-{}-{}",
             std::process::id(),
@@ -1549,25 +2011,55 @@ mod tests {
         let prepared = prepare_request(&root, &analysis, &choices).unwrap();
         let approved = prepared["request_sha256"].as_str().unwrap();
         let journal = item_journal("outputs/work/executions/example", approved, 1);
-        let journal_path = root.join(journal);
+        let journal_path = root.join(&journal);
         fs::create_dir_all(journal_path.parent().unwrap()).unwrap();
         fs::write(&journal_path, b"invalid journal").unwrap();
+        let marker = work_operations::derivation::publication::completion_marker_path(&journal);
         fs::write(
-            root.join(format!(
-                "{}.done",
-                journal_path.strip_prefix(&root).unwrap().display()
-            )),
+            root.join(&marker),
             work_operations::derivation::publication::completion_marker(b"invalid journal"),
         )
         .unwrap();
-        let result = execute(
-            &root,
-            &repo.join("../skills/work"),
-            &[],
-            prepared["request_path"].as_str().unwrap(),
-            approved,
-        )
-        .unwrap();
+        let result = {
+            assert!(
+                execute(
+                    &root,
+                    &repo.join("../skills/work"),
+                    &[],
+                    prepared["request_path"].as_str().unwrap(),
+                    approved
+                )
+                .is_err()
+            );
+            for (position, path) in paths.iter().enumerate() {
+                assert_eq!(fs::read(root.join(path)).unwrap(), originals[position]);
+            }
+            assert_eq!(fs::read(&journal_path).unwrap(), b"invalid journal");
+            fs::remove_file(&journal_path).unwrap();
+            fs::remove_file(root.join(&marker)).unwrap();
+            fs::remove_dir(journal_path.parent().unwrap()).unwrap();
+            fs::remove_dir(journal_path.parent().unwrap().parent().unwrap()).unwrap();
+            fs::remove_dir(
+                journal_path
+                    .parent()
+                    .unwrap()
+                    .parent()
+                    .unwrap()
+                    .parent()
+                    .unwrap(),
+            )
+            .unwrap();
+            let context = work_feature::ports::RequirementWriterContext {
+                canonical_project_root: root.canonicalize().unwrap(),
+                requirement_id: "example".parse().unwrap(),
+            };
+            work_feature::ports::with_runtime_writer(&LocalWriterLock,&context,work_model::runtime::LockClass::Execution,
+                |owner|execute_scoped_with_fault(&root,&repo.join("../skills/work"),&[],prepared["request_path"].as_str().unwrap(),approved,Some(owner),&mut |position,stage| {
+                    if position==1 && stage==crate::transaction_storage::JournalRuntimeStage::JournalInitialized {
+                        Err(fail("injected_item_fault","injected"))
+                    } else {Ok(())}
+                })).unwrap()
+        };
         assert_eq!(result["status"], "incomplete");
         assert_eq!(result["items"][0]["status"], "published");
         assert_eq!(result["items"][1]["status"], "failed");
@@ -1586,13 +2078,128 @@ mod tests {
             )
             .is_err()
         );
+        {
+            let execution = "outputs/work/executions/example";
+            let published_before = paths
+                .iter()
+                .map(|path| fs::read(root.join(path)).unwrap())
+                .collect::<Vec<_>>();
+            let unknown = item_journal(execution, approved, 998);
+            let unknown_path = root.join(&unknown);
+            fs::create_dir_all(unknown_path.parent().unwrap()).unwrap();
+            let known = item_journal(execution, approved, 0);
+            fs::write(&unknown_path, fs::read(root.join(&known)).unwrap()).unwrap();
+            let unknown_marker =
+                work_operations::derivation::publication::completion_marker_path(&unknown);
+            let known_marker =
+                work_operations::derivation::publication::completion_marker_path(&known);
+            fs::write(
+                root.join(&unknown_marker),
+                fs::read(root.join(&known_marker)).unwrap(),
+            )
+            .unwrap();
+            let rejected = recover(
+                &root,
+                &repo.join("../skills/work"),
+                &[],
+                prepared["request_path"].as_str().unwrap(),
+                approved,
+            )
+            .unwrap();
+            assert_eq!(rejected["status"], "incomplete");
+            assert!(
+                rejected["items"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|item| item["status"] == "failed")
+            );
+            for (position, path) in paths.iter().enumerate() {
+                assert_eq!(
+                    fs::read(root.join(path)).unwrap(),
+                    published_before[position]
+                );
+            }
+            fs::remove_file(&unknown_path).unwrap();
+            fs::remove_file(root.join(&unknown_marker)).unwrap();
+            fs::remove_dir(unknown_path.parent().unwrap()).unwrap();
+            let pending_raw = fs::read(&journal_path).unwrap();
+            fs::write(&journal_path, b"foreign partial journal").unwrap();
+            let rejected = recover(
+                &root,
+                &repo.join("../skills/work"),
+                &[],
+                prepared["request_path"].as_str().unwrap(),
+                approved,
+            )
+            .unwrap();
+            assert_eq!(rejected["status"], "incomplete");
+            assert!(
+                rejected["items"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|item| item["status"] == "failed")
+            );
+            for (position, path) in paths.iter().enumerate() {
+                assert_eq!(
+                    fs::read(root.join(path)).unwrap(),
+                    published_before[position]
+                );
+            }
+            assert_eq!(fs::read(&journal_path).unwrap(), b"foreign partial journal");
+            fs::write(&journal_path, pending_raw).unwrap();
+            let recovered = recover(
+                &root,
+                &repo.join("../skills/work"),
+                &[],
+                prepared["request_path"].as_str().unwrap(),
+                approved,
+            )
+            .unwrap();
+            assert_eq!(recovered["status"], "completed", "{recovered}");
+            for position in [0, 2] {
+                assert_eq!(
+                    fs::read(root.join(paths[position])).unwrap(),
+                    published_before[position]
+                );
+            }
+            let context = work_feature::ports::RequirementWriterContext {
+                canonical_project_root: root.canonicalize().unwrap(),
+                requirement_id: "example".parse().unwrap(),
+            };
+            assert!(
+                crate::execution::storage::LocalExecutionStorage {
+                    project_root: root.clone()
+                }
+                .retained_requirement_inventory(&context, execution)
+                .unwrap()
+                .is_empty()
+            );
+            let final_raw = paths
+                .iter()
+                .map(|path| fs::read(root.join(path)).unwrap())
+                .collect::<Vec<_>>();
+            let again = recover(
+                &root,
+                &repo.join("../skills/work"),
+                &[],
+                prepared["request_path"].as_str().unwrap(),
+                approved,
+            )
+            .unwrap();
+            assert_eq!(again["status"], "completed");
+            for (position, path) in paths.iter().enumerate() {
+                assert_eq!(fs::read(root.join(path)).unwrap(), final_raw[position]);
+            }
+        }
     }
 
     #[test]
     fn prepared_journal_recovers_without_rebuilding_candidate() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo.join(
-            "crates/work-infrastructure/fixtures/specification-update/outputs/work/tasks/example/index.json",
+            "crates/work-infrastructure/fixtures/cases/specification/update/collection-summary/project/outputs/work/tasks/example/index.json",
         );
         let root = std::env::temp_dir().join(format!(
             "work-artifact-interrupted-{}-{}",
@@ -1624,11 +2231,20 @@ mod tests {
             &before,
             &candidate,
             &BTreeMap::new(),
+            "outputs/work/executions/example",
         )
         .unwrap();
         let journal = item_journal("outputs/work/executions/example", approved, 0);
         fs::create_dir_all(root.join("outputs/work/executions/example")).unwrap();
-        write_journal(&root, &journal, &transaction).unwrap();
+        {
+            let context = retained_artifact_context(&root, &request).unwrap();
+            let failure=work_feature::ports::with_runtime_writer(&LocalWriterLock,&context,work_model::runtime::LockClass::Execution,
+                |owner|crate::specification::storage::publish_retained_journal_with_owner(
+                    &crate::specification::storage::RetainedJournalRuntimeInput {context:&context,execution:"outputs/work/executions/example",relative:&journal,prepared_journal:&transaction,recover:false},owner,||Ok(()),|stage| {
+                        if stage==crate::transaction_storage::JournalRuntimeStage::JournalInitialized {Err(fail("injected_item_fault","injected"))} else {Ok(())}
+                    })).unwrap_err();
+            assert_eq!(failure.reason_code, "injected_item_fault");
+        }
         assert_eq!(fs::read(&source).unwrap(), before);
         let source_evidence =
             work_feature::task::source::evidence_paths(&reviewed_content(path)).unwrap();
@@ -1673,7 +2289,7 @@ mod tests {
     #[test]
     fn missing_item_and_broken_execution_binding_route_to_reconstruction() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-update");
+        let fixture = repo.join("crates/work-infrastructure/fixtures/cases/specification/update/collection-summary/project");
         let root = std::env::temp_dir().join(format!(
             "work-artifact-relations-{}-{}",
             std::process::id(),
@@ -1719,8 +2335,10 @@ mod tests {
                 .reason_code,
             "migration_reconstruction_required"
         );
-        let invalid_journal =
-            root.join("outputs/work/executions/example/.work-spec-update-invalid.json");
+        let invalid_journal = {
+            root.join("outputs/work/executions/example/journals/specification-update/SPEC-UPDATE-INVALID/journal.json")
+        };
+        fs::create_dir_all(invalid_journal.parent().unwrap()).unwrap();
         fs::write(&invalid_journal, b"{").unwrap();
         let with_transaction = analyze(&root, "example", &[]).unwrap();
         assert!(
@@ -1735,7 +2353,7 @@ mod tests {
     #[test]
     fn task_only_and_execute_only_keep_other_artifacts_unchanged() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-update");
+        let fixture = repo.join("crates/work-infrastructure/fixtures/cases/specification/update/collection-summary/project");
         let paths = [
             "outputs/work/tasks/example/index.json",
             "outputs/work/tasks/example/tasks/TASK-001.json",

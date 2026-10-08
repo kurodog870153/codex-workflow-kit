@@ -134,3 +134,12 @@ macOS／Windows installer 從空的 prepared 目錄建立 current base、本次�
 3. Revise 發布完整 Source／TASK／Execution 候選，Source replacement 先確認整體需求、主驗收及逐 TASK 影響。衍生規則重新推導受影響／下游狀態與驗收，原 Source、Attempt、Correction 與交易歷史只驗證及保留。
 4. Migration analyze 比較原始 raw evidence 與目前契約。Semantic prepare 嚴格接收已審查 sources 與語意決策，保留有效 snapshot 或明確核准無 Source provenance；只產生 Task index/items 與 Execution candidates，不把歷史證據當可寫目標。
 5. Preview approval 綁定全部 candidates、sources、relationships 及 applicable history。Apply／recover 在同一 writer lock 邊界重驗，verify 核對 canonical journal、marker、installed bytes 與完整指紋鏈；跨檔案逐步發布可復原，不宣稱檔案系統全組原子性。Reconciliation ledger 與 nested migration 使用同一完整核准集合。
+
+## 執行產物與復原邊界
+
+1. Model 定義 full owner／manifest／inventory 的型別；Operations 擁有 runtime/staging、journal／marker、receipt 和分組 workspace 的純路徑、身分與指紋規則。Infrastructure 驗證 canonical project root、實體路徑、link／reparse／hard-link alias 與同 filesystem，並實作 exclusive allocation、替換、回讀、復原及清理；CLI 不自行拼派生路徑。
+2. 需求鎖固定於 `outputs/work/runtime/locks/<requirement-id>/`。Source、Discussion、Execution 的 nonce／owner 不混用；臨界區回傳前明確 release。沒有 lock 不足以證明舊 binary 已停止，未知 owner 不能按 PID／age 自動清理。Execution index 的業務 lock 保持原契約。
+3. 交易暫存固定於 `outputs/work/runtime/staging/<requirement-id>/<operation>/<transaction-id>/`；完整 manifest 綁原始 Root／需求／Source／正式 targets／全部 prepared bytes。Execute 七類與 Specification 六類共用完整 inventory。復原先驗證完整原始集合與實際發布圖，再寫入；已提交待清理及完整清理重入不再次發布或執行 CMD，cleanup 保留 manifest 到最後。
+4. 正式 `journals/` 與 SHA completion marker 永久保留，nested Migration items／reconcile 共用完整核准集合。History 保留不可變 Attempt／Correction／receipt 及按既定政策完成的 journal／marker；排除本筆發布證據須核對 full approval 和整個 sealed batch，不按 prefix 猜測。Source completion marker 與 Session current 提交點不改。
+5. Workspace allocator 以時鐘／random suffix 與 exclusive create 分配 `outputs/work/transactions/<requirement-id|pending>/<workflow-id>/<transaction-id>/` 及四組 returned paths。Host 保存 exact inputs、編號 requests／responses／envelopes，不覆寫。正式 discovery 排除 runtime／transactions 的 transport JSON，仍可找到自訂正式 TASK root。
+6. 舊 layout 以 Migration analyze 的完整 raw inventory／映射診斷；offline-layout 語意決策綁停止全部 writer 的部署證據、pending／命令效果及逐檔 archive mapping。沿用 existing prepare／preview／apply／recover／verify；不解析 historical DTO、不偽造 current history、不放寬 normal writer gate。不可驗證 immutable history 或效果不明時拒絕。

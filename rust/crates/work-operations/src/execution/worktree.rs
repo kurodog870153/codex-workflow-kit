@@ -8,6 +8,21 @@ fn within(path: &str, directory: &str) -> bool {
     path == directory || path.starts_with(&format!("{directory}/"))
 }
 
+/// Runtime bookkeeping is excluded only when every path in the Git record is managed runtime.
+/// A rename crossing the boundary remains part of the reviewed business worktree.
+pub fn runtime_worktree_records(records: &[Value]) -> Vec<Value> {
+    records
+        .iter()
+        .filter(|record| {
+            let path = record["path"].as_str().unwrap_or("");
+            !std::iter::once(path)
+                .chain(record["original_path"].as_str())
+                .all(|path| within(path, "outputs/work/runtime"))
+        })
+        .cloned()
+        .collect()
+}
+
 fn paths(task: &Value) -> Vec<&str> {
     task["files"]
         .as_array()
@@ -92,6 +107,41 @@ pub fn inspect_records(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn runtime_records_preserve_cross_boundary_renames_and_similar_paths() {
+        let mut records = vec![
+            json!({"path":"outputs/work/runtime/locks/example/execution.lock"}),
+            json!({"path":"outputs/work/runtime/staging/new","original_path":"outputs/work/runtime/staging/old"}),
+            json!({"path":"src.txt","original_path":"outputs/work/runtime/staging/old"}),
+            json!({"path":"outputs/work/runtime/staging/new","original_path":"src.txt"}),
+            json!({"path":"outputs/work/runtime-foreign/entry"}),
+            json!({"path":""}),
+        ];
+        for record in &mut records {
+            record["index_status"] = json!("?");
+            record["worktree_status"] = json!("?");
+        }
+        let filtered = runtime_worktree_records(&records);
+        assert_eq!(filtered, records[2..]);
+        let before = inspect_records(&filtered, "execution", "TASK-001", &json!({}), &[]);
+        let mut locked = filtered.clone();
+        locked.push(records[0].clone());
+        assert_eq!(
+            inspect_records(
+                &runtime_worktree_records(&locked),
+                "execution",
+                "TASK-001",
+                &json!({}),
+                &[]
+            ),
+            before
+        );
+        assert_ne!(
+            inspect_records(&locked, "execution", "TASK-001", &json!({}), &[])["snapshot_sha256"],
+            before["snapshot_sha256"]
+        );
+    }
 
     #[test]
     fn snapshot_excludes_only_changes_fully_inside_execution_dir() {

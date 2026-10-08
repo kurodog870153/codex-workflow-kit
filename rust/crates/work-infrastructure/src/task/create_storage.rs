@@ -253,7 +253,80 @@ impl TaskCreationRepository for LocalTaskCreation {
     }
 }
 
+/// Candidate writer scope validates the complete candidate before lock allocation,
+/// then repeats the existing full creation validation under the requirement lock.
+pub fn create_task_artifacts_with_runtime(
+    project_root: &Path,
+    skill_root: &Path,
+    skill_configs: &[SkillRootConfig],
+    request: CreateTaskRequest<'_>,
+) -> Result<Value, WorkError> {
+    let work = LocalHierarchyCatalog {
+        skill_root: skill_root.to_path_buf(),
+    };
+    let skills = LocalSkillCatalog {
+        roots: skill_configs.to_vec(),
+    };
+    let paths = LocalArtifactPaths {
+        project_root: project_root.to_path_buf(),
+    };
+    let roots = skill_configs
+        .iter()
+        .map(|root| SkillRoot {
+            scope: root.scope.clone(),
+            locator: root.locator.clone(),
+        })
+        .collect::<Vec<_>>();
+    let prepared = work_feature::task::create::prepare_task_create(
+        &work,
+        &skills,
+        &paths,
+        &roots,
+        work_feature::task::create::TaskCreateInput {
+            raw: request.raw,
+            index_path: request.task_path,
+            source_root: request.source_root,
+            execution_dir: request.execution_dir,
+        },
+    )?;
+    let context = work_feature::ports::RequirementWriterContext {
+        canonical_project_root: project_root.canonicalize().map_err(|_| {
+            failure(
+                "task_create_project_root",
+                "The project root could not be resolved.",
+                json!({}),
+            )
+        })?,
+        requirement_id: prepared.validation["requirement_id"]
+            .as_str()
+            .and_then(|id| id.parse().ok())
+            .ok_or_else(|| {
+                failure(
+                    "task_create_requirement",
+                    "The verified requirement is invalid.",
+                    json!({}),
+                )
+            })?,
+    };
+    crate::writer_lock::require_no_legacy_locks(&context, Some(request.execution_dir))?;
+    work_feature::ports::with_runtime_writer(
+        &crate::writer_lock::LocalWriterLock,
+        &context,
+        work_model::runtime::LockClass::Execution,
+        |_| create_task_artifacts_scoped(project_root, skill_root, skill_configs, request),
+    )
+}
+
 pub fn create_task_artifacts(
+    project_root: &Path,
+    skill_root: &Path,
+    skill_configs: &[SkillRootConfig],
+    request: CreateTaskRequest<'_>,
+) -> Result<Value, WorkError> {
+    create_task_artifacts_with_runtime(project_root, skill_root, skill_configs, request)
+}
+
+fn create_task_artifacts_scoped(
     project_root: &Path,
     skill_root: &Path,
     skill_configs: &[SkillRootConfig],
@@ -291,4 +364,109 @@ pub fn create_task_artifacts(
             recovery: request.recovery,
         },
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use work_feature::ports::{RuntimeWriterGuard, RuntimeWriterLock};
+
+    #[test]
+    fn runtime_create_validates_candidate_then_releases_every_publication_result() {
+        let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+        let fixture =
+            repo.join("crates/work-infrastructure/fixtures/shared/task-diagnostics-project");
+        let root = std::env::temp_dir().join(format!(
+            "work-create-runtime-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&root).unwrap();
+        let root = root.canonicalize().unwrap();
+        crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
+        fs::write(root.join("src.txt"), b"source\n").unwrap();
+        let task_path = "outputs/work/tasks/example/index.json";
+        let execution_dir = "outputs/work/executions/example";
+        let mut projection: Value =
+            serde_json::from_slice(&fs::read(fixture.join(task_path)).unwrap()).unwrap();
+        let tasks = projection["tasks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| {
+                serde_json::from_slice::<Value>(
+                    &fs::read(
+                        fixture
+                            .join("outputs/work/tasks/example")
+                            .join(row["path"].as_str().unwrap()),
+                    )
+                    .unwrap(),
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        projection["schema"] = json!("work-task-collection-projection");
+        projection["tasks"] = json!(tasks);
+        let raw = serde_json::to_vec(&projection).unwrap();
+        let request = |recovery| CreateTaskRequest {
+            raw: &raw,
+            task_path,
+            source_root: "outputs/work/sources/example",
+            execution_dir,
+            recovery,
+        };
+        let context = work_feature::ports::RequirementWriterContext {
+            canonical_project_root: root.clone(),
+            requirement_id: "example".parse().unwrap(),
+        };
+        let lock = crate::writer_lock::LocalWriterLock;
+        let held = lock
+            .acquire_runtime(&context, work_model::runtime::LockClass::Execution)
+            .unwrap();
+        assert!(
+            create_task_artifacts_with_runtime(
+                &root,
+                &repo.join("../skills/work"),
+                &[],
+                request(false)
+            )
+            .is_err()
+        );
+        assert!(!root.join(task_path).exists());
+        held.release().unwrap();
+        let created = create_task_artifacts_with_runtime(
+            &root,
+            &repo.join("../skills/work"),
+            &[],
+            request(false),
+        )
+        .unwrap();
+        assert_eq!(created["status"], "created");
+        let before = fs::read(root.join(task_path)).unwrap();
+        assert!(
+            create_task_artifacts_with_runtime(
+                &root,
+                &repo.join("../skills/work"),
+                &[],
+                request(false)
+            )
+            .is_err()
+        );
+        lock.require_runtime_idle(&context, work_model::runtime::LockClass::Execution)
+            .unwrap();
+        let recovered = create_task_artifacts_with_runtime(
+            &root,
+            &repo.join("../skills/work"),
+            &[],
+            request(true),
+        )
+        .unwrap();
+        assert_eq!(recovered["status"], "already_completed");
+        assert_eq!(fs::read(root.join(task_path)).unwrap(), before);
+        lock.require_runtime_idle(&context, work_model::runtime::LockClass::Execution)
+            .unwrap();
+    }
 }

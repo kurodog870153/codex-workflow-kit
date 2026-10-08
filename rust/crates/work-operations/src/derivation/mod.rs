@@ -3,6 +3,7 @@
 pub mod fingerprint;
 pub mod graph;
 pub mod identity;
+pub mod legacy_layout;
 pub mod publication;
 pub mod snapshot;
 pub mod transaction;

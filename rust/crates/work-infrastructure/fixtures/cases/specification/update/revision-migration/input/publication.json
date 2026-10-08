@@ -1,0 +1,38 @@
+{
+  "completion_marker": "outputs/work/executions/example/journals/specification-migration/4DEC1920BE07/committed.sha256",
+  "documents": [
+    "outputs/work/executions/example/index.json",
+    "outputs/work/tasks/example/index.json",
+    "outputs/work/tasks/example/tasks/TASK-001.json"
+  ],
+  "fingerprint": "4dec1920be071f8c7d87d54545ce710a658d1fe5cea9485d7d1257b968057ed3",
+  "journal": "outputs/work/executions/example/journals/specification-migration/4DEC1920BE07/journal.json",
+  "publication_status": "published",
+  "relationship_results": [
+    {
+      "name": "candidate_set",
+      "status": "passed"
+    },
+    {
+      "name": "artifact_paths",
+      "status": "passed"
+    },
+    {
+      "name": "execution_binding",
+      "status": "passed"
+    }
+  ],
+  "schema": "work-spec-migration-publication",
+  "status": "updated",
+  "transaction_approval_sha256": "d0350ee0bbae1481386ac4016a319e2af6e8fd4ff80e945f27c15998dff8b8c5",
+  "validator_results": [
+    {
+      "name": "task_collection",
+      "status": "passed"
+    },
+    {
+      "name": "execution_index",
+      "status": "passed"
+    }
+  ]
+}

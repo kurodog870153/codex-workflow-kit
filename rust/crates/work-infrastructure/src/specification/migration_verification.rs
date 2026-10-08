@@ -8,7 +8,7 @@ use work_feature::error::{ExitCode, WorkError};
 use work_feature::ports::ArtifactStore;
 use work_feature::specification::migration_publication::publication_paths;
 use work_operations::derivation::fingerprint;
-use work_operations::derivation::publication::{completion_marker, completion_marker_path};
+use work_operations::derivation::publication::completion_marker;
 use work_operations::derivation::snapshot::decode_snapshot;
 use work_operations::execution::index::render_execution_index;
 use work_operations::specification::transaction::{render_transaction, validate_transaction};
@@ -23,6 +23,38 @@ fn fail(code: &str, message: &str) -> WorkError {
 }
 
 pub fn verify_published_transaction(
+    root: &Path,
+    journal_relative: &str,
+    expected_request: Option<&Value>,
+) -> Result<Value, WorkError> {
+    verify_published_transaction_with_layout(root, journal_relative, expected_request)
+}
+
+pub fn verify_published_retained_transaction(
+    root: &Path,
+    execution: &str,
+    journal_relative: &str,
+    expected_request: Option<&Value>,
+) -> Result<Value, WorkError> {
+    crate::specification::storage::read_retained_journal(root, execution, journal_relative)
+        .map_err(retained_verification_error)?;
+    verify_published_transaction_with_layout(root, journal_relative, expected_request)
+}
+
+fn retained_verification_error(problem: WorkError) -> WorkError {
+    if problem.reason_code == "journal_commit_evidence" {
+        WorkError::new(
+            problem.exit_code,
+            "migration_verify_marker_mismatch",
+            "The published marker differs from the approved journal.",
+            problem.details,
+        )
+    } else {
+        problem
+    }
+}
+
+fn verify_published_transaction_with_layout(
     root: &Path,
     journal_relative: &str,
     expected_request: Option<&Value>,
@@ -53,6 +85,18 @@ pub fn verify_published_transaction(
             "The Migration result journal is not canonical.",
         ));
     }
+    {
+        let execution = journal["metadata"]["artifacts"]["execution"]
+            .as_str()
+            .ok_or_else(|| {
+                fail(
+                    "journal_layout_metadata",
+                    "The journal must identify its execution scope.",
+                )
+            })?;
+        crate::specification::storage::read_retained_journal(root, execution, journal_relative)
+            .map_err(retained_verification_error)?;
+    }
     if expected_request.is_some_and(|expected| journal["metadata"]["request"] != *expected) {
         return Err(fail(
             "migration_verify_request_mismatch",
@@ -66,7 +110,16 @@ pub fn verify_published_transaction(
             "The Migration result has not been fully published.",
         ));
     }
-    let marker_path = storage_path(root, &completion_marker_path(journal_relative))?;
+    let marker_relative = {
+        work_operations::derivation::publication::retained_journal_marker(journal_relative)
+            .map_err(|_| {
+                fail(
+                    "journal_layout_identity",
+                    "The retained journal path is invalid.",
+                )
+            })?
+    };
+    let marker_path = storage_path(root, &marker_relative)?;
     if !marker_path.is_file() || LocalFiles.read_raw(&marker_path)? != completion_marker(&raw) {
         return Err(fail(
             "migration_verify_marker_mismatch",
@@ -296,7 +349,7 @@ mod tests {
         let history_path = "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json";
         let history_raw = fs::read(
             Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("fixtures/handoff-closed/stopped")
+                .join("fixtures/cases/execution/handoff/closed-stopped/project")
                 .join(history_path),
         )
         .unwrap();
@@ -306,8 +359,8 @@ mod tests {
         let transaction = TransactionDeriver::derive(TransactionInput {
             kind: TransactionKind::Migration,
             order: PublicationOrder::Flat,
-            request: json!({}),
-            artifacts: json!({}),
+            request: json!({"migration":{},"preview_fingerprint":"a".repeat(64)}),
+            artifacts: json!({"execution":"outputs/work/executions/example"}),
             affected_task_ids: vec![],
             history: BTreeMap::from([(history_path.into(), history_raw)]),
             source: BTreeMap::from([("artifact.json".into(), b"original".to_vec())]),
@@ -315,21 +368,29 @@ mod tests {
         })
         .unwrap()
         .journal;
-        crate::specification::storage::write_journal(&root, "result.json", &transaction).unwrap();
-        crate::specification::storage::publish_journal(&root, "result.json", "result.json.done")
-            .unwrap();
-        assert!(verify_published_transaction(&root, "result.json", None).is_ok());
-        let journal = fs::read(root.join("result.json")).unwrap();
-        let marker = fs::read(root.join("result.json.done")).unwrap();
+        let relative = work_operations::derivation::publication::journal_path(
+            "outputs/work/executions/example",
+            work_operations::derivation::publication::JournalKind::SpecificationMigration(
+                &"a".repeat(64),
+            ),
+        );
+        let marker_relative =
+            work_operations::derivation::publication::completion_marker_path(&relative);
+        fs::create_dir_all(root.join(&relative).parent().unwrap()).unwrap();
+        crate::specification::storage::write_journal(&root, &relative, &transaction).unwrap();
+        crate::specification::storage::publish_journal(&root, &relative, &marker_relative).unwrap();
+        assert!(verify_published_transaction(&root, &relative, None).is_ok());
+        let journal = fs::read(root.join(&relative)).unwrap();
+        let marker = fs::read(root.join(&marker_relative)).unwrap();
         fs::write(root.join(history_path), b"history drift").unwrap();
         assert_eq!(
-            verify_published_transaction(&root, "result.json", None)
+            verify_published_transaction(&root, &relative, None)
                 .unwrap_err()
                 .reason_code,
             "migration_verify_history_mismatch"
         );
-        assert_eq!(fs::read(root.join("result.json")).unwrap(), journal);
-        assert_eq!(fs::read(root.join("result.json.done")).unwrap(), marker);
+        assert_eq!(fs::read(root.join(&relative)).unwrap(), journal);
+        assert_eq!(fs::read(root.join(&marker_relative)).unwrap(), marker);
         assert_eq!(fs::read(root.join("artifact.json")).unwrap(), b"reviewed");
         assert_eq!(fs::read(root.join(history_path)).unwrap(), b"history drift");
     }
@@ -337,9 +398,9 @@ mod tests {
     #[test]
     fn semantic_verification_reads_reviewed_custom_task_and_snapshot_routes() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-update");
+        let fixture = repo.join("crates/work-infrastructure/fixtures/cases/specification/update/collection-summary/project");
         let root = test_root("custom");
-        let mut request: Value = serde_json::from_slice(&fs::read(repo.join("crates/work-infrastructure/fixtures/specification-migration/reconstruction/semantic-request.json")).unwrap()).unwrap();
+        let mut request: Value = serde_json::from_slice(&fs::read(repo.join("crates/work-infrastructure/fixtures/cases/specification/migration/reconstruction/input/semantic-request.json")).unwrap()).unwrap();
         let index: Value = serde_json::from_slice(
             &fs::read(fixture.join("outputs/work/tasks/example/index.json")).unwrap(),
         )

@@ -8,7 +8,34 @@ use std::{fs, path::PathBuf};
 use serde_json::Value;
 use serde_json::json;
 use work_flow::error::ExitCode;
-use work_infrastructure::writer_lock::{LocalWriterLock, WriterLock};
+
+fn seed_journal_recovery_fixture(
+    root: &Path,
+    execution: &str,
+    relative: &str,
+    journal: &Value,
+) -> bool {
+    let staged = work_infrastructure::fixture_support::derive_fixture_journal_staging(
+        root, "example", execution, relative, journal,
+    )
+    .unwrap();
+    fs::create_dir_all(root.join(relative).parent().unwrap()).unwrap();
+    if let Some(staged) = staged {
+        work_infrastructure::transaction_storage::prepare_runtime_transaction(
+            &work_infrastructure::files::LocalFiles,
+            root,
+            &staged.manifest,
+            &staged.payloads,
+        )
+        .unwrap();
+        fs::write(root.join(relative), staged.prepared_journal).unwrap();
+        true
+    } else {
+        work_infrastructure::specification::storage::write_journal(root, relative, journal)
+            .unwrap();
+        false
+    }
+}
 
 fn executable() -> &'static str {
     static EXECUTABLE: OnceLock<String> = OnceLock::new();
@@ -68,6 +95,372 @@ fn run(arguments: &[String]) -> Output {
         .args(arguments)
         .output()
         .expect("launch work")
+}
+
+#[test]
+fn installed_execution_staging_family_completes_all_seven_publications() {
+    use work_infrastructure::fixture_support::{
+        build_initial_execution_index, render_execution_index, render_task_index,
+    };
+    let repo = PathBuf::from(project_root());
+    let fixture =
+        repo.join("rust/crates/work-infrastructure/fixtures/shared/task-diagnostics-project");
+    let root = std::env::temp_dir().join(format!(
+        "work-seven-execute-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let task_path = "outputs/work/tasks/example/index.json";
+    let execution_dir = "custom executions/example";
+    for relative in [task_path, "outputs/work/tasks/example/tasks/TASK-001.json"] {
+        let target = root.join(relative);
+        fs::create_dir_all(target.parent().unwrap()).unwrap();
+        fs::copy(fixture.join(relative), target).unwrap();
+    }
+    work_infrastructure::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
+    fs::write(root.join("src.txt"), b"source\n").unwrap();
+    let initialized = Command::new("git")
+        .args(["init", "--quiet"])
+        .current_dir(&root)
+        .output()
+        .unwrap();
+    assert!(
+        initialized.status.success(),
+        "{}",
+        String::from_utf8_lossy(&initialized.stderr)
+    );
+    let mut task_index: Value =
+        serde_json::from_slice(&fs::read(root.join(task_path)).unwrap()).unwrap();
+    task_index["artifacts"]["execution"] = json!(execution_dir);
+    fs::write(
+        root.join(task_path),
+        render_task_index(&task_index).unwrap(),
+    )
+    .unwrap();
+    let collection = work_flow::task::validate_collection(
+        &work_infrastructure::hierarchy_catalog::LocalHierarchyCatalog {
+            skill_root: repo.join("skills/work"),
+        },
+        &work_infrastructure::skill_catalog::LocalSkillCatalog { roots: vec![] },
+        &work_infrastructure::artifact_paths::LocalArtifactPaths {
+            project_root: root.clone(),
+        },
+        &work_infrastructure::task::storage::LocalTaskStorage {
+            project_root: root.clone(),
+        },
+        &[],
+        task_path,
+    )
+    .unwrap();
+    let index_path = root.join(format!("{execution_dir}/index.json"));
+    fs::create_dir_all(index_path.parent().unwrap()).unwrap();
+    fs::write(
+        &index_path,
+        render_execution_index(
+            &build_initial_execution_index(&collection["collection_contract"], &collection)
+                .unwrap(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let input = root.join("input.json");
+    let invoke = |command: &str, value: Option<&Value>, extra: &[&str], success: bool| {
+        let original = value.map(|value| serde_json::to_vec(value).unwrap());
+        if let Some(raw) = &original {
+            fs::write(&input, raw).unwrap();
+        }
+        let mut args = vec![
+            "--project-root",
+            root.to_str().unwrap(),
+            "--verbose",
+            "execute",
+            command,
+            "--user-config-root",
+            root.to_str().unwrap(),
+            "--task-path",
+            task_path,
+            "--execution-dir",
+            execution_dir,
+            "--task-id",
+            "TASK-001",
+        ];
+        if value.is_some() {
+            args.extend(["--input-file", input.to_str().unwrap()]);
+        }
+        args.extend_from_slice(extra);
+        let output = Command::new(installed_executable())
+            .args(args)
+            .output()
+            .unwrap();
+        let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(output.status.success(), success, "{command}: {response}");
+        if let Some(raw) = original {
+            assert_eq!(fs::read(&input).unwrap(), raw);
+        }
+        assert!(
+            !root
+                .join("outputs/work/runtime/locks/example/execution.lock")
+                .exists()
+        );
+        let staging = root.join("outputs/work/runtime/staging/example");
+        if staging.exists() {
+            for operation in fs::read_dir(staging).unwrap() {
+                assert!(
+                    fs::read_dir(operation.unwrap().path())
+                        .unwrap()
+                        .next()
+                        .is_none()
+                );
+            }
+        }
+        for entry in fs::read_dir(index_path.parent().unwrap()).unwrap() {
+            assert!(
+                !entry
+                    .unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".work-")
+            );
+        }
+        response
+    };
+    let replacement = json!({"mode":"argv","argv":["python3","--version"]});
+    let choice = json!({"command_positions":[1],"validation_positions":[1],"modifiable_files":[],
+        "external_operation_positions":[],"allowed_deviations":[{"anchor_kind":"command","anchor_position":1,
+        "action":{"kind":"replace_command","replacement":replacement}}],"authorization_evidence":"Approved exact scope","carried_records":[]});
+    let prepared = invoke("attempt-start-prepare", Some(&choice), &[], true);
+    invoke(
+        "attempt-start",
+        Some(&prepared["data"]["request"]),
+        &[],
+        true,
+    );
+    invoke("record-begin", None, &["--record-id", "CMD-001"], true);
+    invoke(
+        "command-correction",
+        Some(
+            &json!({"schema":"work-command-correction-request","actual_command":replacement,"reason":"Equivalent approved executable"}),
+        ),
+        &[],
+        true,
+    );
+    let semantic = json!({"gap":"Original executable unavailable","action":{"kind":"replace_command","replacement":replacement},
+        "modifiable_files":[],"impact":{"summary":"Equivalent existing command","requirement_changed":false,"scope_changed":false,
+        "acceptance_criteria_changed":false,"deliverables_changed":false,"safety_boundary_changed":false,"external_side_effect_boundary_changed":false},
+        "side_effects":["Run equivalent existing command"]});
+    let deviation = invoke("deviation-prepare-semantic", Some(&semantic), &[], true);
+    invoke(
+        "deviation-record",
+        Some(&deviation["data"]["proposal"]),
+        &[
+            "--approved-sha256",
+            deviation["data"]["preview_sha256"].as_str().unwrap(),
+            "--authorization-evidence",
+            "Approved replacement",
+        ],
+        true,
+    );
+    invoke(
+        "record-finish",
+        Some(
+            &json!({"schema":"work-record-finish-request","record":{"exit_code":0,"result":"Actual command result"}}),
+        ),
+        &[],
+        true,
+    );
+    invoke("record-begin", None, &["--record-id", "VAL-001"], true);
+    invoke(
+        "record-finish",
+        Some(
+            &json!({"schema":"work-record-finish-request","record":{"outcome":"passed","evidence":"Actual validation passed"}}),
+        ),
+        &[],
+        true,
+    );
+    invoke(
+        "attempt-close",
+        Some(&json!({"schema":"work-attempt-close-request","status":"completed"})),
+        &[],
+        true,
+    );
+    let attempt_path = root.join(format!("{execution_dir}/TASK-001/ATTEMPT-001/attempt.json"));
+    let closed = fs::read(&attempt_path).unwrap();
+    invoke(
+        "correction-create",
+        Some(
+            &json!({"schema":"work-correction-create-request","target_attempt_id":"ATTEMPT-001","field":"records[0].result",
+        "correct_value":"Corrected recorded evidence","reason":"Approved fact correction","invalidates_completion":true}),
+        ),
+        &[],
+        true,
+    );
+    assert_eq!(fs::read(attempt_path).unwrap(), closed);
+    let final_index: Value = serde_json::from_slice(&fs::read(&index_path).unwrap()).unwrap();
+    assert_eq!(final_index["tasks"][0]["status"], "pending_retry");
+    assert!(final_index.get("lock").is_none());
+    let rejected = invoke(
+        "recover",
+        Some(
+            &json!({"schema":"work-execution-recovery-request","transaction":"record_begin",
+        "attempt_id":"ATTEMPT-001","transaction_files":[".work-record-begin-TASK-001-ATTEMPT-001-CMD-001.tmp"]}),
+        ),
+        &[],
+        false,
+    );
+    assert_eq!(rejected["reason_code"], "execution_recovery_invalid_fields");
+}
+
+#[test]
+fn enabled_family_rejects_execution_writer_without_verified_context() {
+    let root = std::env::temp_dir().join(format!(
+        "work-legacy-execution-refusal-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(root.join("custom execution")).unwrap();
+    let index = root.join("custom execution/index.json");
+    fs::write(&index, b"preserved evidence").unwrap();
+    let storage = work_infrastructure::execution::storage::LocalExecutionStorage {
+        project_root: root.clone(),
+    };
+    let error = storage
+        .run_prepared_command(
+            "custom execution",
+            &"0".repeat(64),
+            || panic!("an unbound writer must never recheck or execute a command"),
+            &work_infrastructure::process::LocalCommandRunner,
+        )
+        .unwrap_err();
+    assert_eq!(error.reason_code, "execution_writer_context_required");
+    assert_eq!(fs::read(index).unwrap(), b"preserved evidence");
+    assert!(
+        !root
+            .join("custom execution/.work-state-writer.lock")
+            .exists()
+    );
+    assert!(!root.join("outputs/work/runtime").exists());
+}
+
+#[test]
+fn workspace_transport_retains_binary_inputs_and_exclusive_cli_steps() {
+    use std::io::Write;
+    let root = std::env::temp_dir().join(format!(
+        "work-transport-{}-{} 專案",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&root).unwrap();
+    let allocate = |requirement: Option<&str>| {
+        let mut args = vec![
+            "--project-root".to_owned(),
+            root.to_string_lossy().into_owned(),
+            "--verbose".to_owned(),
+            "workspace".to_owned(),
+            "create".to_owned(),
+            "--workflow-id".to_owned(),
+            "invocation".to_owned(),
+        ];
+        if let Some(id) = requirement {
+            args.extend(["--requirement-id".to_owned(), id.to_owned()]);
+        }
+        let output = run(&args);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        serde_json::from_slice::<Value>(&output.stdout).unwrap()["data"].clone()
+    };
+    let pending = allocate(None);
+    assert!(
+        pending["path"]
+            .as_str()
+            .unwrap()
+            .starts_with("outputs/work/transactions/pending/invocation/")
+    );
+    let paths = &pending["paths"];
+    for kind in ["inputs", "requests", "responses", "envelopes"] {
+        assert!(root.join(paths[kind].as_str().unwrap()).is_dir());
+    }
+    let save = |path: &Path, bytes: &[u8]| {
+        fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
+            .unwrap()
+            .write_all(bytes)
+            .unwrap();
+        assert_eq!(
+            fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(path)
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::AlreadyExists
+        );
+        assert_eq!(fs::read(path).unwrap(), bytes);
+    };
+    let attachment = root
+        .join(paths["inputs"].as_str().unwrap())
+        .join("原始 輸入.pdf");
+    let binary = b"%PDF-1.7\r\n\0\xff original";
+    save(&attachment, binary);
+    let input = root
+        .join(paths["requests"].as_str().unwrap())
+        .join("001-invocation-confirm.json");
+    let raw = serde_json::to_vec(&json!({"mode":"task","request":"原始需求", "confirmation":{"mode":"task","request":"原始需求","confirmed":true,"evidence":"Approved exact request."}})).unwrap();
+    save(&input, &raw);
+    for step in 1..=2 {
+        let output = run(&[
+            "--project-root".into(),
+            root.to_string_lossy().into_owned(),
+            "--verbose".into(),
+            "invocation".into(),
+            "confirm".into(),
+            "--input-file".into(),
+            input.to_string_lossy().into_owned(),
+        ]);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(response["data"]["request"], "原始需求");
+        save(
+            &root
+                .join(paths["responses"].as_str().unwrap())
+                .join(format!("{step:03}-invocation-confirm.json")),
+            &output.stdout,
+        );
+    }
+    save(
+        &root
+            .join(paths["envelopes"].as_str().unwrap())
+            .join("003-task-coordinator.json"),
+        br#"{"role":"task-coordinator","evidence":"retained input"}"#,
+    );
+    let known = allocate(Some("example"));
+    assert_ne!(known["path"], pending["path"]);
+    assert!(
+        known["path"]
+            .as_str()
+            .unwrap()
+            .starts_with("outputs/work/transactions/example/invocation/")
+    );
+    assert_eq!(fs::read(&attachment).unwrap(), binary);
+    assert_eq!(fs::read(&input).unwrap(), raw);
+    assert!(!root.join(".work").exists());
 }
 
 #[test]
@@ -294,10 +687,10 @@ fn artifact_render_data_round_trips_without_cli_envelope() {
         ("handoff", "work-handoff", None),
     ] {
         let fixture_root = PathBuf::from(project_root())
-            .join("rust/crates/work-infrastructure/fixtures/handoff-closed/stopped");
+            .join("rust/crates/work-infrastructure/fixtures/cases/execution/handoff/closed-stopped/project");
         let example: Value = if command == "handoff" {
             serde_json::from_slice(
-                &fs::read(fixture_root.join("execute_to_task-expected.json")).unwrap(),
+                &fs::read(fixture_root.join("../expected/execute-to-task-result.json")).unwrap(),
             )
             .unwrap()
         } else {
@@ -752,7 +1145,7 @@ fn specification_recover_dispatches_to_specification_validation() {
 #[test]
 fn migration_preview_uses_public_mode_and_rejects_task_entry() {
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../work-infrastructure/fixtures/specification-migration");
+        .join("../work-infrastructure/fixtures/shared/specification-migration-project");
     let project = std::env::temp_dir().join(format!(
         "work-semantic-migration-cli-{}-{}",
         std::process::id(),
@@ -772,7 +1165,10 @@ fn migration_preview_uses_public_mode_and_rejects_task_entry() {
         fs::copy(fixture.join(relative), destination).unwrap();
     }
     let project_arg = project.to_string_lossy().into_owned();
-    let request_arg = fixture.join("request.json").to_string_lossy().into_owned();
+    let request_arg = fixture
+        .join("../../cases/specification/migration/valid/input/request.json")
+        .to_string_lossy()
+        .into_owned();
     let arguments = [
         "--project-root",
         project_arg.as_str(),
@@ -803,9 +1199,18 @@ fn migration_preview_uses_public_mode_and_rejects_task_entry() {
     );
     let original_plan = fs::read(project.join("outputs/work/plans/example.json")).unwrap();
     for (fixture_name, status) in [
-        ("incomplete-candidate-set-request.json", Some("blocked")),
-        ("invalid-execution-binding-request.json", Some("blocked")),
-        ("invalid-plan-request.json", None),
+        (
+            "../../cases/specification/migration/incomplete-candidate-set/input/request.json",
+            Some("blocked"),
+        ),
+        (
+            "../../cases/specification/migration/invalid-execution-binding/input/request.json",
+            Some("blocked"),
+        ),
+        (
+            "../../cases/specification/migration/invalid-plan/input/request.json",
+            None,
+        ),
     ] {
         let mut negative = arguments.to_vec();
         negative[5] = fixture.join(fixture_name).to_string_lossy().into_owned();
@@ -835,10 +1240,14 @@ fn migration_preview_uses_public_mode_and_rejects_task_entry() {
 fn migration_public_lifecycle_handles_revision_and_reconstruction() {
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../work-infrastructure/fixtures");
     for (name, relative, has_execution) in [
-        ("revision", "specification-update/revision-migration", true),
+        (
+            "revision",
+            "cases/specification/update/revision-migration/project",
+            true,
+        ),
         (
             "reconstruction",
-            "specification-migration/reconstruction",
+            "cases/specification/migration/reconstruction/project",
             false,
         ),
     ] {
@@ -869,7 +1278,7 @@ fn migration_public_lifecycle_handles_revision_and_reconstruction() {
         }
         let project_arg = project.to_string_lossy().into_owned();
         let semantic_arg = fixture
-            .join("semantic-request.json")
+            .join("../input/semantic-request.json")
             .to_string_lossy()
             .into_owned();
         let prepared_path = project.join("migration-request.json");
@@ -1190,7 +1599,8 @@ fn handoff_build_output_validates_across_installed_processes() {
         &repo.join("skills/work/references"),
         &skill.join("references"),
     );
-    let fixture = repo.join("rust/crates/work-infrastructure/fixtures/task-diagnostics");
+    let fixture =
+        repo.join("rust/crates/work-infrastructure/fixtures/shared/task-diagnostics-project");
     let project = base.join("project");
     let task_path = "outputs/work/tasks/example/index.json";
     for relative in [task_path, "outputs/work/tasks/example/tasks/TASK-001.json"] {
@@ -1254,7 +1664,7 @@ fn handoff_build_output_validates_across_installed_processes() {
         let destination = project.join(relative);
         fs::create_dir_all(destination.parent().unwrap()).unwrap();
         fs::copy(
-            repo.join("rust/crates/work-infrastructure/fixtures/task-diagnostics")
+            repo.join("rust/crates/work-infrastructure/fixtures/shared/task-diagnostics-project")
                 .join(relative),
             &destination,
         )
@@ -1376,8 +1786,9 @@ fn handoff_build_output_validates_across_installed_processes() {
     assert_eq!(fs::read(&custom_index_file).unwrap(), custom_index_raw);
 
     let closed_project = base.join("closed-project");
-    let closed_fixture =
-        repo.join("rust/crates/work-infrastructure/fixtures/handoff-closed/stopped");
+    let closed_fixture = repo.join(
+        "rust/crates/work-infrastructure/fixtures/cases/execution/handoff/closed-stopped/project",
+    );
     for relative in [
         task_path,
         "outputs/work/tasks/example/tasks/TASK-001.json",
@@ -1539,9 +1950,9 @@ fn task_delegation_uses_fixed_source_without_plan_and_rejects_legacy_context() {
     ));
     for role in ["task-coordinator", "task-skill"] {
         let fixture = repo.join(if role == "task-skill" {
-            "rust/crates/work-infrastructure/fixtures/delegation-role/task-skill"
+            "rust/crates/work-infrastructure/fixtures/cases/delegation/role/task-skill/project"
         } else {
-            "rust/crates/work-infrastructure/fixtures/task-diagnostics"
+            "rust/crates/work-infrastructure/fixtures/shared/task-diagnostics-project"
         });
         let project = base.join(role);
         copy_tree(
@@ -1682,8 +2093,9 @@ fn specification_task_boundary_continuation_across_installed_processes() {
     use work_infrastructure::task::storage::LocalTaskStorage;
 
     let repo = PathBuf::from(project_root());
-    let fixture =
-        repo.join("rust/crates/work-infrastructure/fixtures/specification-update/task-summary");
+    let fixture = repo.join(
+        "rust/crates/work-infrastructure/fixtures/cases/specification/update/task-summary/project",
+    );
     for drift in [false, true] {
         let base = std::env::temp_dir().join(format!(
             "work-spec-continuation-t25-{}-{}-{drift}",
@@ -1872,8 +2284,9 @@ fn specification_task_boundary_continuation_across_installed_processes() {
                 assert_eq!(rejected["reason_code"], "spec_verify_record_mismatch");
             }
 
-            let discussion_fixture =
-                repo.join("rust/crates/work-infrastructure/fixtures/discussion-assembly");
+            let discussion_fixture = repo.join(
+                "rust/crates/work-infrastructure/fixtures/cases/discussion/assembly/valid/input",
+            );
             let session = work_infrastructure::fixture_support::prepare_discussion_fixture(
                 &discussion_fixture,
                 &project,
@@ -2166,7 +2579,8 @@ fn workflow_uses_fixed_source_then_task_without_plan_and_rejects_plan_paths() {
     ));
     fs::create_dir_all(&project).unwrap();
     let repo = PathBuf::from(project_root());
-    let fixture = repo.join("rust/crates/work-infrastructure/fixtures/task-diagnostics");
+    let fixture =
+        repo.join("rust/crates/work-infrastructure/fixtures/shared/task-diagnostics-project");
     let run = |command: &str, extra: &[&str]| {
         Command::new(installed_executable())
             .args([
@@ -2215,7 +2629,7 @@ fn workflow_uses_fixed_source_then_task_without_plan_and_rejects_plan_paths() {
     assert_eq!(available["data"]["command"], "discussion init");
     assert!(available["data"]["arguments"].get("plan_path").is_none());
     let discussion_fixture =
-        repo.join("rust/crates/work-infrastructure/fixtures/discussion-assembly");
+        repo.join("rust/crates/work-infrastructure/fixtures/cases/discussion/assembly/valid/input");
     let mut session = work_infrastructure::fixture_support::prepare_discussion_fixture(
         &discussion_fixture,
         &project,
@@ -2246,8 +2660,23 @@ fn workflow_uses_fixed_source_then_task_without_plan_and_rejects_plan_paths() {
         .output()
         .unwrap();
     assert!(initialized.status.success());
-    // An unrelated unfinished newer capture must never replace the saved Source.
-    fs::create_dir_all(project.join("outputs/work/sources/example/.capture-SRC-002")).unwrap();
+    // Legacy capture evidence must not replace the saved Source or bypass the new gate.
+    let legacy_capture = project.join("outputs/work/sources/example/.capture-SRC-002");
+    fs::create_dir_all(&legacy_capture).unwrap();
+    {
+        let before =
+            fs::read(project.join("outputs/work/discussions/example/session.json")).unwrap();
+        let rejected = run("status", &[]);
+        assert_eq!(rejected.status.code(), Some(5));
+        let rejected: Value = serde_json::from_slice(&rejected.stdout).unwrap();
+        assert_eq!(rejected["reason_code"], "legacy_source_capture_present");
+        assert_eq!(
+            fs::read(project.join("outputs/work/discussions/example/session.json")).unwrap(),
+            before
+        );
+        // Only this test's known empty directory is removed, with no live legacy actor.
+        fs::remove_dir(&legacy_capture).unwrap();
+    }
     let resumed = run("status", &[]);
     assert!(
         resumed.status.success(),
@@ -2323,8 +2752,20 @@ fn installed_instruction_recovery_uses_only_existing_current_journal() {
             source: BTreeMap::from([("source.txt".into(),b"immutable source".to_vec()),("target.json".into(),b"before".to_vec())]),
             candidate: BTreeMap::from([("source.txt".into(),b"immutable source".to_vec()),("target.json".into(),b"after".to_vec())]),
         }).unwrap();
-        let journal = format!("execution/.work-{prefix}-AAAAAAAAAAAA.json");
-        fs::write(root.join(&journal), raw).unwrap();
+        let journal = work_infrastructure::fixture_support::fixture_journal_path(
+            "execution",
+            if prefix == "source-refresh" {
+                work_infrastructure::fixture_support::JournalKind::SourceRefresh(&preview)
+            } else {
+                work_infrastructure::fixture_support::JournalKind::InstructionMigration(&preview)
+            },
+        );
+        seed_journal_recovery_fixture(
+            &root,
+            "execution",
+            &journal,
+            &serde_json::from_slice(&raw).unwrap(),
+        );
         let invoke = |status| {
             let output = Command::new(installed_executable())
                 .args([
@@ -2362,7 +2803,7 @@ fn installed_instruction_recovery_uses_only_existing_current_journal() {
 #[test]
 fn installed_spec_preview_rejects_unconfirmed_context_and_plan_candidates() {
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../work-infrastructure/fixtures/specification-update/item-goal");
+        .join("../work-infrastructure/fixtures/cases/specification/update/item-goal/project");
     let root = std::env::temp_dir().join(format!(
         "work-spec-preview-task-cli-{}-{}",
         std::process::id(),
@@ -2400,7 +2841,7 @@ fn installed_spec_preview_rejects_unconfirmed_context_and_plan_candidates() {
     };
     let request_path = root.join("request.json");
     let request: Value =
-        serde_json::from_slice(&fs::read(fixture.join("request.json")).unwrap()).unwrap();
+        serde_json::from_slice(&fs::read(fixture.join("../input/request.json")).unwrap()).unwrap();
     let preview = |candidate: &Value, status| {
         fs::write(&request_path, serde_json::to_vec(candidate).unwrap()).unwrap();
         invoke(
@@ -2454,7 +2895,7 @@ fn installed_spec_preview_rejects_unconfirmed_context_and_plan_candidates() {
 #[test]
 fn installed_spec_recover_checks_all_approved_evidence_before_writes() {
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../work-infrastructure/fixtures/specification-update/item-goal");
+        .join("../work-infrastructure/fixtures/cases/specification/update/item-goal/project");
     let root = std::env::temp_dir().join(format!(
         "work-spec-recover-task-cli-{}-{}",
         std::process::id(),
@@ -2491,7 +2932,7 @@ fn installed_spec_recover_checks_all_approved_evidence_before_writes() {
         serde_json::from_slice::<Value>(&output.stdout).unwrap()
     };
     let request_path = root.join("request.json");
-    let request = fs::read(fixture.join("request.json")).unwrap();
+    let request = fs::read(fixture.join("../input/request.json")).unwrap();
     fs::write(&request_path, &request).unwrap();
     let preview = invoke(
         &[
@@ -2514,12 +2955,18 @@ fn installed_spec_recover_checks_all_approved_evidence_before_writes() {
     .unwrap();
     journal["published_count"] = json!(1);
     journal["state"] = json!("publishing");
-    let journal_path = format!(
-        "outputs/work/executions/example/.work-spec-update-{}.json",
-        journal["transaction_id"].as_str().unwrap()
+    let journal_path = work_infrastructure::fixture_support::fixture_journal_path(
+        "outputs/work/executions/example",
+        work_infrastructure::fixture_support::JournalKind::SpecificationUpdate(
+            journal["transaction_id"].as_str().unwrap(),
+        ),
     );
-    work_infrastructure::specification::storage::write_journal(&root, &journal_path, &journal)
-        .unwrap();
+    seed_journal_recovery_fixture(
+        &root,
+        "outputs/work/executions/example",
+        &journal_path,
+        &journal,
+    );
     let remaining = journal["files"]
         .as_array()
         .unwrap()
@@ -2583,7 +3030,7 @@ fn installed_spec_recover_checks_all_approved_evidence_before_writes() {
 #[test]
 fn installed_artifact_editor_uses_fixed_source_and_task_only_requests() {
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../work-infrastructure/fixtures/specification-update/item-goal");
+        .join("../work-infrastructure/fixtures/cases/specification/update/item-goal/project");
     let root = std::env::temp_dir().join(format!(
         "work-artifact-editor-task-cli-{}-{}",
         std::process::id(),
@@ -2695,7 +3142,7 @@ fn installed_artifact_editor_uses_fixed_source_and_task_only_requests() {
 #[test]
 fn installed_execute_delegation_requires_formal_task_without_plan() {
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../work-infrastructure/fixtures/task-diagnostics");
+        .join("../work-infrastructure/fixtures/shared/task-diagnostics-project");
     let root = std::env::temp_dir().join(format!(
         "work-execute-delegation-task-cli-{}-{}",
         std::process::id(),
@@ -2824,7 +3271,7 @@ fn installed_execute_delegation_requires_formal_task_without_plan() {
 #[test]
 fn installed_execute_preflight_uses_only_formal_task_and_rejects_drift() {
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../work-infrastructure/fixtures/task-diagnostics");
+        .join("../work-infrastructure/fixtures/shared/task-diagnostics-project");
     let root = std::env::temp_dir().join(format!(
         "work-execute-preflight-task-cli-{}-{}",
         std::process::id(),
@@ -2944,7 +3391,7 @@ fn installed_execute_preflight_uses_only_formal_task_and_rejects_drift() {
 #[test]
 fn installed_attempt_render_preserves_derived_acceptance_evidence_and_history() {
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join(
-        "../work-infrastructure/fixtures/specification-reconciliation/real-flow/with-migration",
+        "../work-infrastructure/fixtures/cases/specification/reconciliation/with-migration/project",
     );
     let task: Value = serde_json::from_slice(
         &fs::read(fixture.join("outputs/work/tasks/example/tasks/TASK-001.json")).unwrap(),
@@ -3104,7 +3551,7 @@ fn migration_prepare_requires_complete_reviewed_candidates_and_exact_raw_evidenc
             .as_nanos()
     ));
     let fixture = PathBuf::from(project_root())
-        .join("rust/crates/work-infrastructure/fixtures/specification-update");
+        .join("rust/crates/work-infrastructure/fixtures/cases/specification/update/collection-summary/project");
     let task_path = "outputs/work/tasks/example/index.json";
     for path in [
         task_path,
@@ -3210,11 +3657,12 @@ fn migration_prepare_requires_complete_reviewed_candidates_and_exact_raw_evidenc
 
 #[test]
 fn reconciliation_public_commands_complete_both_approved_paths_and_recover() {
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../work-infrastructure/fixtures/specification-reconciliation/real-flow");
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join(
+        "../work-infrastructure/fixtures/cases/specification/reconciliation/real-flow/project",
+    );
     for migration in [false, true] {
         let fixture = if migration {
-            fixture.join("with-migration")
+            fixture.join("../../with-migration/project")
         } else {
             fixture.clone()
         };
@@ -3227,11 +3675,13 @@ fn reconciliation_public_commands_complete_both_approved_paths_and_recover() {
                 .as_nanos()
         ));
         fs::create_dir_all(&root).unwrap();
-        let semantic: Value =
-            serde_json::from_slice(&fs::read(fixture.join("semantic-request.json")).unwrap())
-                .unwrap();
+        let semantic: Value = serde_json::from_slice(
+            &fs::read(fixture.join("../input/semantic-request.json")).unwrap(),
+        )
+        .unwrap();
         let reference: Value =
-            serde_json::from_slice(&fs::read(fixture.join("request.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../input/request.json")).unwrap())
+                .unwrap();
         let attempt = reference["attempt_path"].as_str().unwrap();
         let attempt_raw = fs::read(fixture.join(attempt)).unwrap();
         let mut originals = std::collections::BTreeMap::new();
@@ -3315,13 +3765,17 @@ fn reconciliation_public_commands_complete_both_approved_paths_and_recover() {
         fs::write(recovery.join("src.txt"), b"source\n").unwrap();
         journal["state"] = json!("prepared");
         journal["published_count"] = json!(0);
-        work_infrastructure::specification::storage::write_journal(
+        let staged = seed_journal_recovery_fixture(
             &recovery,
+            "outputs/work/executions/example",
             journal_path,
             &journal,
-        )
-        .unwrap();
-        let last = journal["files"].as_array().unwrap().last().unwrap();
+        );
+        let last = if staged {
+            journal["files"].as_array().unwrap().first().unwrap()
+        } else {
+            journal["files"].as_array().unwrap().last().unwrap()
+        };
         let path = last["path"].as_str().unwrap();
         fs::create_dir_all(recovery.join(path).parent().unwrap()).unwrap();
         fs::write(
@@ -3479,8 +3933,13 @@ mod discussion_process_cases {
         ));
         fs::create_dir(&root).unwrap();
         let repo = PathBuf::from(project_root());
-        let fixture = repo.join("rust/crates/work-infrastructure/fixtures/discussion-assembly");
-        work_infrastructure::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
+        let fixture = repo
+            .join("rust/crates/work-infrastructure/fixtures/cases/discussion/assembly/valid/input");
+        work_infrastructure::fixture_support::copy_fixture_sources(
+            &fixture.join("../project"),
+            &root,
+        )
+        .unwrap();
         let mut session = work_infrastructure::fixture_support::prepare_discussion_fixture(
             &fixture,
             &root,
@@ -4284,20 +4743,29 @@ mod discussion_process_cases {
             json!({"action":"update_continuation","current_task_id":null}),
         );
         let directory = root.join("outputs/work/discussions/example");
-        let guard = LocalWriterLock
-            .acquire(&directory.join(".work-state-writer.lock"))
+        let check_rejected = || {
+            let rejected = invoke(
+                &root,
+                "discussion",
+                "update",
+                json!({"kind":"update","operation":operation}),
+                7,
+            );
+            assert_eq!(rejected["data"]["saved"], false);
+            assert_eq!(current(&root)["revision"], 1);
+            assert!(!directory.join("history/2").exists());
+        };
+        {
+            work_infrastructure::discussion::storage::LocalDiscussionStorage {
+                project_root: root.clone(),
+                files: work_infrastructure::files::LocalFiles,
+            }
+            .with_runtime_session_writer(&session, |_| {
+                check_rejected();
+                Ok(())
+            })
             .unwrap();
-        let rejected = invoke(
-            &root,
-            "discussion",
-            "update",
-            json!({"kind":"update","operation":operation}),
-            7,
-        );
-        assert_eq!(rejected["data"]["saved"], false);
-        assert_eq!(current(&root)["revision"], 1);
-        assert!(!directory.join("history/2").exists());
-        drop(guard);
+        }
         let recovered = invoke(
             &root,
             "discussion",

@@ -239,7 +239,8 @@ mod tests {
     #[test]
     fn execution_workflow_states_match_current_contract_transitions() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/workflow-execution");
+        let fixture =
+            repo.join("crates/work-infrastructure/fixtures/cases/execution/workflow-state");
         for name in [
             "pending",
             "in-progress",
@@ -250,11 +251,11 @@ mod tests {
             "reconciled",
         ] {
             let input: Value = serde_json::from_slice(
-                &fs::read(fixture.join(format!("{name}-input.json"))).unwrap(),
+                &fs::read(fixture.join(format!("{name}/input/state.json"))).unwrap(),
             )
             .unwrap();
             let expected: Value = serde_json::from_slice(
-                &fs::read(fixture.join(format!("{name}-expected.json"))).unwrap(),
+                &fs::read(fixture.join(format!("{name}/expected/result.json"))).unwrap(),
             )
             .unwrap();
             let mut session = RoutingSourceSession::new(repo.join("../skills/work"));

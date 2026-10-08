@@ -4,12 +4,12 @@ Codex Workflow Kit 透過 `$work` 協助你規劃需求、拆分任務並執行�
 
 ## 功能
 
-1. 使用 task、revise、migration、execute 四種模式，從原始需求規劃並驗證工作。
-2. Task 先捕捉一次不可變 Source，獨立推薦並確認工作類型與外部技能；你可以接受、調整或選擇基本能力。
-3. Task 保存需求層與子任務驗收，規劃相依、步驟及 VAL，預覽後以核准指紋建立正式 TASK collection 與 Execution index。
-4. Execute 只使用指定 TASK 的指令與技能，先驗證來源、工作區與授權，再保存不可改寫的 Attempt／Correction 證據。
-5. Revise 透過 Specification 流程修訂有效的 Source／TASK／Execution 集合，審查整體及下游影響，核准後發布或復原同一交易。
-6. Migration 診斷既有不相容或損壞文件，比較原始 bytes 與目前契約，保留歷史證據，經核准後重建並驗證完整 Task／Execution 綁定；必要時可明確核准無 Source 的 migration provenance。
+1. 整理原始需求，確認工作類型、需要的技能與驗收條件。
+2. 將需求拆分為可執行的任務，安排相依關係與驗證步驟。
+3. 在正式建立或修訂任務前，提供預覽供你審查與核准。
+4. 依授權執行指定任務，保存執行結果與驗證紀錄。
+5. 保存討論進度，方便稍後接續規劃。
+6. 分析不相容或損壞的既有工作資料，保留原始紀錄並協助遷移。
 
 ## 使用方式
 
@@ -17,10 +17,12 @@ Codex Workflow Kit 透過 `$work` 協助你規劃需求、拆分任務並執行�
 $work <mode> -- <request>
 ```
 
-1. `task`：捕捉需求 Source、確認技能與驗收，規劃並建立第一版 TASK collection。
-2. `revise`：修訂已驗證的正式規格與相關 Execution 狀態。
-3. `migration`：診斷並遷移或重建不相容的既有證據。
-4. `execute`：在驗證與授權後執行指定正式 TASK。
+在 Codex 對話中輸入以下指令，選擇適合目前工作的模式：
+
+1. `task`：從新需求開始，確認驗收條件並建立任務。
+2. `revise`：修改已建立的需求或任務，檢查對後續工作的影響。
+3. `migration`：分析不相容或損壞的既有工作資料，審查遷移方案。
+4. `execute`：在驗證與授權後執行指定任務。
 
 ```text
 $work task -- 建立一個包含 UI、frontend 與 backend 的網站
@@ -29,36 +31,46 @@ $work migration -- 分析 example 的既有文件，重建損壞的 Task 與 Exe
 $work execute -- 執行 example 的正式 TASK-001
 ```
 
-一般流程是 Source → Task → Revise（需要修改正式規格時）→ Execute。Task 只捕捉一次原始需求；後續討論、進度及草稿沿用同一 Source 和已確認選擇。第一版正式集合經 preview／apply 建立，既有有效規格使用 Revise；無法建立可信基線時，先使用 Migration analyze。中斷只能由該領域的 recover 恢復同一核准集合，不能手寫 JSON 或改寫歷史。
+建議先用 `task` 規劃，審查並核准任務後再用 `execute` 執行。需求改變時使用 `revise`；舊資料無法正常使用時，先用 `migration` 分析。
 
-公開契約只接受目前的無版本 ID，例如 work-task-index、work-task-item 與 work-execution-index；不提供舊 ID alias、雙讀或歷史 DTO。指令或選擇的 fingerprint drift 仍會阻止正式操作；有效集合的明確修訂使用 Revise，不相容或損毀的原始證據交由 Migration 分析，再經語意審查建立 current candidate。Migration 保留原始 bytes，不自動解析或升級舊格式。
+規劃時會保存原始需求，後續討論沿用同一份紀錄。Work 會請你提供並確認需求編號，例如 `example`，用來區分不同需求的資料。
 
-一般對話也可以收到 Work 使用建議。只有你確認精確模式與需求後，才會透過 confirmed 入口啟動；系統保留 implicit_confirmed 證據，不偽造明示指令。啟動 Work 本身不授權檔案寫入或執行。
+Work 也可能在一般對話中建議適合的模式，經你確認模式與需求後才啟動。啟動 Work 本身不代表授權寫入檔案或執行任務；請在審查範圍與操作內容後給予授權。
 
 ### 保存討論進度
 
-1. 先授權需求編號、專案根目錄與 Session 保存範圍；每次局部更新及提問前保存問題後回讀已提交版本。
-2. 已確認事項、未決方案、問題與續談位置，以及同一 Source 與選擇 context 都會保留。
-3. 用下列指令恢復；恢復目前已提交的 Session、決策狀態與顯示選項映射；保存授權不代表正式發布或 Execute 授權。
+1. 確認需求編號、專案位置及討論進度的保存範圍。
+2. Work 會保存已確認事項、待決定的方案、問題與續談位置。
+3. 用下列指令接續已保存的討論；將 `example` 換成你的需求編號。保存討論的授權不代表授權建立正式任務或執行工作。
 
 ```text
 $work task -- resume example
 ```
 
-## 文件位置
+## 工作資料與中斷處理
 
-1. Source：`outputs/work/sources/<requirement-id>/SRC-NNN/`，包含 manifest、完成標記與精確原始內容。 File capture metadata 的 `source` 必須包含 `kind: file`、原始 `path` 及 host 提供的 `media_type`（如 `application/pdf`；僅 type/subtype，不含參數），原樣保存且不從副檔名猜測；capture time 保存於 `captured_at`。
-2. 正式 TASK：`outputs/work/tasks/<requirement-id>/index.json` 與 `tasks/TASK-NNN.json`，保存主驗收及各 TASK 子驗收。
-3. Execution：`outputs/work/executions/<requirement-id>/`，保存 index、不可變 Attempt／Correction 及衍生交易紀錄。
-4. DiscussionSession：`outputs/work/discussions/<requirement-id>/session.json`，不可變版本位於 `history/<revision>/session.json`。目前 Session 是唯一提交點；討論直接生成完整 TASK 預覽，核准綁定 Session、Source、目標路徑與精確 bytes。
+工作資料保存在專案的 `outputs/work/` 下，依需求編號分類：
+
+1. `sources/<requirement-id>/`：原始需求與附件。
+2. `tasks/<requirement-id>/`：正式任務及驗收條件。
+3. `executions/<requirement-id>/`：執行結果、修正與驗證紀錄。
+4. `discussions/<requirement-id>/`：目前討論進度與歷史版本。
+5. `transactions/`：各次操作的輸入、請求與回應，包含尚未確認需求編號的操作。
+6. `runtime/`：執行期間的鎖定與暫存資料，由 Work 管理。
+
+備份時請保留完整的工作資料。原始需求、討論歷史與執行紀錄會持續保存；專案的 Git ignore 預設排除 `transactions/`，若要備份操作輸入與回應，請一併保存該目錄。
+
+操作中斷時，請提供需求編號與錯誤訊息，讓 Work 檢查並透過對應流程復原。不要手動修改工作紀錄或刪除鎖定檔；部分執行證據可能表示命令已經啟動，需要先確認結果，才能決定後續處理。
+
+舊版工作資料若遭到拒絕，請使用 `migration` 分析，依審查結果保留原始資料並進行遷移。
 
 ## 必要環境
 
-1. Windows 或 macOS；本 Issue 不提供 Linux 安裝器或正式相容性保證。
+1. Windows 或 macOS；目前提供這兩個平台的安裝器。
 2. 已安裝 Rust 與 Cargo 1.85 或更新版本，以及本機可用的 linker 與 SDK。macOS 需要 Xcode Command Line Tools；Windows 需要對應 MSVC 或 GNU Rust 目標的建置工具。
 3. 首次編譯需要可取得 `rust/Cargo.lock` 指定的 crate；Cargo 可下載未快取的 crate。
 
-安裝器會在 `rust/` 目錄從原始碼執行 `cargo build --release --locked -p work-cli`，不安裝工具鏈或永久修改 PATH。macOS 安裝器在目前 PATH 找不到 Rust 時，會尋找使用者目錄與常見 Homebrew 位置的 Rust 工具鏈；Windows 安裝器則會尋找 `CARGO_HOME` 與使用者目錄中的 Cargo 工具鏈。因此可直接點擊 `.command` 或 `.bat` 執行。
+安裝器會從原始碼編譯 Work，請先準備好 Rust 與必要的建置工具。安裝器不會替你安裝工具鏈或永久修改 PATH。macOS 與 Windows 安裝器皆可直接點擊執行。
 
 ## 安裝
 
@@ -95,8 +107,6 @@ os-scripts/mac/install-work.command
 chmod +x os-scripts/mac/*.command
 ```
 
-macOS 安裝器由空的 prepared 目錄建立本次 current base、選取的 instruction 與 binary，驗證後整組替換。未選分支、自加檔案與舊版 Python 檔案不保留於 active installation；完整舊檔案保留於畫面顯示的 recovery directory 下 previous/。準備或備份失敗不改舊安裝；發布失敗會嘗試還原，還原失敗時舊檔案仍保留於 previous/。
-
 ### Windows
 
 執行：
@@ -105,9 +115,18 @@ macOS 安裝器由空的 prepared 目錄建立本次 current base、選取的 in
 os-scripts\windows\install-work.bat
 ```
 
-Windows 同樣由空的 prepared 目錄建立 current base、選取的 instruction 與 binary，核對 binary bytes 及啟動結果後整組替換。未選分支、自加檔案與舊版 Python 檔案只保留於 recovery directory 的 previous/；準備失敗不改 active installation，發布失敗會嘗試還原。Windows 本輪驗收採腳本靜態檢查，尚未執行 Windows 動態測試。
+### 更新既有安裝
 
-安裝器會在寫入前檢查必要的 workflow、subagent、Cargo manifest 與所選 instruction，並完成本機編譯及 `--help` 啟動檢查。編譯失敗不會改動已安裝的 binary。安裝位置的入口是 `<skill-root>/scripts/work`（macOS）或 `<skill-root>\scripts\work.exe`（Windows）；從不同工作目錄使用時，以已解析的 skill root 組成完整路徑，不依賴 PATH。準備失敗不會改動 active installation；發布階段保留 previous 與回復分支。
+重新執行安裝器即可更新，並重新選擇需要的工作類型。安裝器會先編譯與檢查新版本，再替換既有安裝；準備或編譯失敗時，舊安裝保持不變。
+
+更新會替換整個 Work skill 目錄。未選取的工作類型、自行加入的檔案及舊版檔案不會保留在新安裝中；完整舊檔案會保存於畫面顯示的復原目錄 `previous/`。替換失敗時，安裝器會嘗試還原，請保留復原目錄直到確認新版本可用。
+
+## 進一步閱讀
+
+1. [Work 流程與操作指引](skills/work/references/instruction-loading.md)。
+2. [既有資料診斷與遷移指引](skills/work/references/instruction-loading/artifact-migration.md)。
+3. [Rust 架構與執行產物管理](docs/work/rust/architecture.md)。
+4. [工作指引架構](docs/work/instruction/architecture.md)。
 
 ## 清理本機 Codex 資料
 

@@ -6,7 +6,7 @@ use std::path::Path;
 
 use serde_json::{Value, json};
 use work_feature::error::{ExitCode, WorkError};
-use work_feature::ports::{ArtifactStore, WriterLock};
+use work_feature::ports::ArtifactStore;
 use work_feature::specification::migration_publication::{
     publication_paths, require_approved_preview,
 };
@@ -17,9 +17,9 @@ use work_operations::specification::transaction::{render_transaction, validate_t
 use crate::files::LocalFiles;
 use crate::skill_catalog::SkillRootConfig;
 use crate::specification::migration::preview_migration;
-use crate::specification::storage::{
-    execution_history_bytes, publish_journal, require_no_spec_update, storage_path, write_journal,
-};
+use crate::specification::storage::{execution_history_bytes, storage_path};
+#[cfg(test)]
+use crate::specification::storage::{publish_journal, write_journal};
 use crate::writer_lock::LocalWriterLock;
 
 fn fail(reason: &str, message: &str) -> WorkError {
@@ -46,9 +46,12 @@ impl MigrationTransactionRepository for LocalMigrationTransaction<'_> {
 }
 
 struct RecoveryBaseline<'a> {
-    root: &'a Path,
     sources: BTreeMap<String, Vec<u8>>,
     additional: &'a BTreeMap<String, Vec<u8>>,
+    journal_path: &'a str,
+    prepared: &'a Value,
+    runtime_context: work_feature::ports::RequirementWriterContext,
+    runtime_owner: Option<&'a work_model::runtime::RuntimeOwner>,
 }
 impl MigrationTransactionRepository for RecoveryBaseline<'_> {
     fn read(&self, relative: &str) -> Result<Vec<u8>, WorkError> {
@@ -63,7 +66,18 @@ impl MigrationTransactionRepository for RecoveryBaseline<'_> {
         Ok(self.sources.contains_key(relative))
     }
     fn history_bytes(&self, execution: &str) -> Result<BTreeMap<String, Vec<u8>>, WorkError> {
-        let mut history = execution_history_bytes(self.root, execution)?;
+        let mut history = {
+            crate::specification::storage::retained_journal_history_with_owner(
+                &crate::specification::storage::RetainedJournalRuntimeInput {
+                    context: &self.runtime_context,
+                    execution,
+                    relative: self.journal_path,
+                    prepared_journal: self.prepared,
+                    recover: true,
+                },
+                self.runtime_owner.expect("verified native scope"),
+            )?
+        };
         for (path, after) in self.additional {
             if let Some(current) = history.remove(path) {
                 if &current != after && self.sources.get(path) != Some(&current) {
@@ -83,6 +97,7 @@ impl MigrationTransactionRepository for RecoveryBaseline<'_> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn verify_recovery_candidates(
     root: &Path,
     skill_root: &Path,
@@ -91,6 +106,7 @@ fn verify_recovery_candidates(
     approved: &str,
     journal: &Value,
     additional: &BTreeMap<String, Vec<u8>>,
+    runtime_owner: Option<&work_model::runtime::RuntimeOwner>,
 ) -> Result<(), WorkError> {
     let mut sources = BTreeMap::new();
     for file in journal["files"]
@@ -116,11 +132,18 @@ fn verify_recovery_candidates(
         Some(&sources),
     )?;
     require_approved_preview(&preview, approved)?;
+    let paths = publication_paths(request, approved)?;
+    let mut prepared = journal.clone();
+    prepared["state"] = json!("prepared");
+    prepared["published_count"] = json!(0);
     let mut expected = prepare_transaction(
         &RecoveryBaseline {
-            root,
             sources,
             additional,
+            journal_path: &paths.journal,
+            prepared: &prepared,
+            runtime_context: migration_runtime_context(root, request)?,
+            runtime_owner,
         },
         request,
         &preview,
@@ -179,6 +202,95 @@ pub fn publish_migration(
     )
 }
 
+fn migration_runtime_context(
+    root: &Path,
+    request: &Value,
+) -> Result<work_feature::ports::RequirementWriterContext, WorkError> {
+    let _: work_model::specification::SpecMigrationPreviewRequest =
+        serde_json::from_value(request.clone()).map_err(|_| {
+            fail(
+                "invalid_contract_value",
+                "The migration request is invalid.",
+            )
+        })?;
+    let indexes = request["candidates"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|row| row["kind"] == "task_index")
+        .collect::<Vec<_>>();
+    if indexes.len() != 1 {
+        return Err(fail(
+            "migration_candidate_set_incomplete",
+            "One approved TASK candidate is required.",
+        ));
+    }
+    let index = &indexes[0]["content"];
+    let requirement = index["requirement_id"].as_str().ok_or_else(|| {
+        fail(
+            "migration_requirement",
+            "The approved TASK requirement is required.",
+        )
+    })?;
+    work_operations::task::source::validate_formal_context(index, requirement).map_err(
+        |issue| {
+            WorkError::new(
+                ExitCode::ArtifactIntegrity,
+                issue.reason_code,
+                issue.message,
+                issue.details,
+            )
+        },
+    )?;
+    let context = work_feature::ports::RequirementWriterContext {
+        canonical_project_root: root.canonicalize().map_err(|_| {
+            fail(
+                "migration_project_root",
+                "The project root could not be resolved.",
+            )
+        })?,
+        requirement_id: requirement.parse().map_err(|_| {
+            fail(
+                "migration_requirement",
+                "The approved TASK requirement is invalid.",
+            )
+        })?,
+    };
+    Ok(context)
+}
+
+/// Candidate complete migration entry with an explicitly released requirement writer.
+pub fn publish_migration_with_runtime(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[SkillRootConfig],
+    request: &Value,
+    operation: &str,
+    approved_sha256: &str,
+) -> Result<Value, WorkError> {
+    let context = migration_runtime_context(root, request)?;
+    let execution = publication_paths(request, approved_sha256)?.execution;
+    crate::writer_lock::require_no_legacy_locks(&context, Some(&execution))?;
+    work_feature::ports::with_runtime_writer(
+        &LocalWriterLock,
+        &context,
+        work_model::runtime::LockClass::Execution,
+        |owner| {
+            publish_migration_scoped(
+                root,
+                skill_root,
+                configs,
+                request,
+                operation,
+                approved_sha256,
+                &BTreeMap::new(),
+                || Ok(()),
+                Some(owner),
+            )
+        },
+    )
+}
+
 pub fn publish_migration_with_additional(
     root: &Path,
     skill_root: &Path,
@@ -211,10 +323,56 @@ pub(super) fn publish_migration_with_guard(
     additional: &BTreeMap<String, Vec<u8>>,
     guard: impl FnOnce() -> Result<(), WorkError>,
 ) -> Result<Value, WorkError> {
+    {
+        let context = migration_runtime_context(root, request)?;
+        let execution = publication_paths(request, approved_sha256)?.execution;
+        crate::writer_lock::require_no_legacy_locks(&context, Some(&execution))?;
+        work_feature::ports::with_runtime_writer(
+            &LocalWriterLock,
+            &context,
+            work_model::runtime::LockClass::Execution,
+            |owner| {
+                publish_migration_scoped(
+                    root,
+                    skill_root,
+                    configs,
+                    request,
+                    operation,
+                    approved_sha256,
+                    additional,
+                    guard,
+                    Some(owner),
+                )
+            },
+        )
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn publish_migration_scoped(
+    root: &Path,
+    skill_root: &Path,
+    configs: &[SkillRootConfig],
+    request: &Value,
+    operation: &str,
+    approved_sha256: &str,
+    additional: &BTreeMap<String, Vec<u8>>,
+    guard: impl FnOnce() -> Result<(), WorkError>,
+    runtime_owner: Option<&work_model::runtime::RuntimeOwner>,
+) -> Result<Value, WorkError> {
     let paths = publication_paths(request, approved_sha256)?;
     let execution = paths.execution.as_str();
     let journal_path = paths.journal;
     let marker_path = paths.marker;
+    let retained_context = {
+        runtime_owner.ok_or_else(|| {
+            fail(
+                "journal_owner_identity",
+                "Retained migration requires the current Native owner.",
+            )
+        })?;
+        Some(migration_runtime_context(root, request)?)
+    };
     let (preview, transaction) = match operation {
         "apply" => {
             let preview = preview_migration(root, skill_root, configs, request)?;
@@ -224,7 +382,22 @@ pub(super) fn publish_migration_with_guard(
             (preview, transaction)
         }
         "recover" => {
-            let raw = LocalFiles.read_raw(&storage_path(root, &journal_path)?)?;
+            let raw = {
+                let context = retained_context.as_ref().expect("current retained context");
+
+                let original =
+                    crate::specification::storage::retained_journal_original_for_recovery(
+                        context,
+                        execution,
+                        &journal_path,
+                    )?;
+                render_transaction(&original).map_err(|_| {
+                    fail(
+                        "migration_recovery_request_changed",
+                        "Frozen journal evidence is invalid.",
+                    )
+                })?
+            };
             let journal = parse_json_contract(&raw)
                 .map_err(|_| fail("invalid_json_contract", "The migration journal is invalid."))?;
             validate_transaction(&journal).map_err(|issue| {
@@ -253,6 +426,7 @@ pub(super) fn publish_migration_with_guard(
                 approved_sha256,
                 &journal,
                 additional,
+                runtime_owner,
             )?;
             (json!({"fingerprint":approved_sha256}), journal)
         }
@@ -270,11 +444,6 @@ pub(super) fn publish_migration_with_guard(
             "The migration execution directory cannot be created.",
         )
     })?;
-    let ignored = (operation == "recover").then_some(journal_path.as_str());
-    require_no_spec_update(root, execution, ignored)?;
-    let writer = storage_path(root, &format!("{execution}/.work-state-writer.lock"))?;
-    let _guard = LocalWriterLock.acquire(&writer)?;
-    require_no_spec_update(root, execution, ignored)?;
     if operation == "recover" {
         verify_recovery_candidates(
             root,
@@ -284,6 +453,7 @@ pub(super) fn publish_migration_with_guard(
             approved_sha256,
             &transaction,
             additional,
+            runtime_owner,
         )?;
     } else {
         let fresh_preview = preview_migration(root, skill_root, configs, request)?;
@@ -298,17 +468,25 @@ pub(super) fn publish_migration_with_guard(
         }
     }
     guard()?;
-    if operation == "apply" {
-        write_journal(root, &journal_path, &transaction)?;
-    }
-    let publication = publish_journal(root, &journal_path, &marker_path).map_err(|_| {
-        WorkError::new(
-            ExitCode::IoFailure,
-            "migration_interrupted",
-            "Preserve the migration transaction and obtain recovery authorization.",
-            json!({"recovery_required":true,"record":journal_path}),
-        )
-    })?;
+    let publication = {
+        let context = retained_context.as_ref().expect("current retained context");
+
+        let mut prepared = transaction.clone();
+        prepared["state"] = json!("prepared");
+        prepared["published_count"] = json!(0);
+        crate::specification::storage::publish_retained_journal_with_owner(
+            &crate::specification::storage::RetainedJournalRuntimeInput {
+                context,
+                execution,
+                relative: &journal_path,
+                prepared_journal: &prepared,
+                recover: operation == "recover",
+            },
+            runtime_owner.expect("verified native scope"),
+            || Ok(()),
+            |_| Ok(()),
+        )?
+    };
     let source_sha = transaction["metadata"]["source_sha256"]
         .as_object()
         .ok_or_else(|| {
@@ -346,9 +524,25 @@ pub(super) fn publish_migration_with_guard(
         }
     }
     let mut post_request = request.clone();
-    post_request["sources"] = Value::Array(request["candidates"].as_array().into_iter().flatten()
-        .map(|row| json!({"path":row["path"],"raw_sha256":candidate_sha[row["path"].as_str().unwrap()]}))
-        .collect());
+    let mut post_sources: BTreeMap<String, Value> = request["sources"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|row| {
+            (
+                row["path"].as_str().expect("validated source").to_owned(),
+                row.clone(),
+            )
+        })
+        .collect();
+    for row in request["candidates"].as_array().into_iter().flatten() {
+        let path = row["path"].as_str().expect("validated candidate");
+        post_sources.insert(
+            path.to_owned(),
+            json!({"path":path,"raw_sha256":candidate_sha[path]}),
+        );
+    }
+    post_request["sources"] = json!(post_sources.into_values().collect::<Vec<_>>());
     let validated = preview_migration(root, skill_root, configs, &post_request)?;
     if validated["writable_ready"] != true {
         return Err(fail(
@@ -356,6 +550,19 @@ pub(super) fn publish_migration_with_guard(
             "Installed migration artifacts failed current validation.",
         ));
     }
+    let installed_documents = request["candidates"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|row| {
+            row["path"]
+                .as_str()
+                .expect("validated candidate")
+                .to_owned()
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
     Ok(work_model::specification::verified::<
         work_model::specification::SpecMigrationPublication,
     >(json!({"schema":"work-spec-migration-publication",
@@ -363,7 +570,7 @@ pub(super) fn publish_migration_with_guard(
         "fingerprint":preview["fingerprint"],
         "transaction_approval_sha256":transaction["approval_sha256"],
         "journal":journal_path,"completion_marker":marker_path,
-        "documents":validated["documents"],"publication_status":publication["status"],
+        "documents":installed_documents,"publication_status":publication["status"],
         "validator_results":validated["validator_results"],
         "relationship_results":validated["relationship_results"]})))
 }
@@ -377,7 +584,7 @@ mod tests {
     fn reconstruction_publication_matches_current_contract_journal_and_response() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture =
-            repo.join("crates/work-infrastructure/fixtures/specification-migration/reconstruction");
+            repo.join("crates/work-infrastructure/fixtures/cases/specification/migration/reconstruction/project");
         let root = std::env::temp_dir().join(format!(
             "work-reconstruction-publication-{}-{}",
             std::process::id(),
@@ -396,17 +603,56 @@ mod tests {
             fs::copy(fixture.join(relative), destination).unwrap();
         }
         let request: Value =
-            serde_json::from_slice(&fs::read(fixture.join("request.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../input/request.json")).unwrap())
+                .unwrap();
         let preview: Value =
-            serde_json::from_slice(&fs::read(fixture.join("expected.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../expected/result.json")).unwrap())
+                .unwrap();
         let transaction = migration_transaction(&root, &request, &preview).unwrap();
         let expected_journal: Value =
-            serde_json::from_slice(&fs::read(fixture.join("journal.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../input/journal.json")).unwrap())
+                .unwrap();
         assert_eq!(
             transaction["approval_sha256"],
             expected_journal["approval_sha256"]
         );
-        let result = publish_migration(
+        let context = work_feature::ports::RequirementWriterContext {
+            canonical_project_root: root.canonicalize().unwrap(),
+            requirement_id: "example".parse().unwrap(),
+        };
+        {
+            use work_feature::ports::{RuntimeWriterGuard, RuntimeWriterLock};
+            let held = LocalWriterLock
+                .acquire_runtime(&context, work_model::runtime::LockClass::Execution)
+                .unwrap();
+            assert!(
+                publish_migration_with_runtime(
+                    &root,
+                    &repo.join("../skills/work"),
+                    &[],
+                    &request,
+                    "apply",
+                    preview["fingerprint"].as_str().unwrap()
+                )
+                .is_err()
+            );
+            held.release().unwrap();
+            assert!(
+                publish_migration_with_runtime(
+                    &root,
+                    &repo.join("../skills/work"),
+                    &[],
+                    &request,
+                    "apply",
+                    &"0".repeat(64)
+                )
+                .is_err()
+            );
+            LocalWriterLock
+                .require_runtime_idle(&context, work_model::runtime::LockClass::Execution)
+                .unwrap();
+        }
+        let result = publish_migration_with_runtime(
             &root,
             &repo.join("../skills/work"),
             &[],
@@ -415,11 +661,20 @@ mod tests {
             preview["fingerprint"].as_str().unwrap(),
         )
         .unwrap();
-        let expected: Value =
-            serde_json::from_slice(&fs::read(fixture.join("publication.json")).unwrap()).unwrap();
+        let mut expected: Value =
+            serde_json::from_slice(&fs::read(fixture.join("../input/publication.json")).unwrap())
+                .unwrap();
+        {
+            expected["journal"] = json!(
+                "outputs/work/executions/example/journals/specification-migration/8F642D325E44/journal.json"
+            );
+            expected["completion_marker"] = json!(
+                "outputs/work/executions/example/journals/specification-migration/8F642D325E44/committed.sha256"
+            );
+        }
         assert_eq!(result, expected);
         let installed = fs::read(root.join(result["journal"].as_str().unwrap())).unwrap();
-        let reference = fs::read(fixture.join("journal.json")).unwrap();
+        let reference = fs::read(fixture.join("../input/journal.json")).unwrap();
         let difference = String::from_utf8(installed.clone())
             .unwrap()
             .lines()
@@ -431,7 +686,7 @@ mod tests {
             installed == reference,
             "journal first difference: {difference:?}"
         );
-        let recovered = publish_migration(
+        let recovered = publish_migration_with_runtime(
             &root,
             &repo.join("../skills/work"),
             &[],
@@ -450,12 +705,13 @@ mod tests {
 
         let fixture = Path::new(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/work-infrastructure/fixtures/specification-migration/reconstruction"
+            "/../../crates/work-infrastructure/fixtures/cases/specification/migration/reconstruction/project"
         ));
-        let final_raw = fs::read(fixture.join("journal.json")).unwrap();
+        let final_raw = fs::read(fixture.join("../input/journal.json")).unwrap();
         let final_journal: Value = serde_json::from_slice(&final_raw).unwrap();
         let publication: Value =
-            serde_json::from_slice(&fs::read(fixture.join("publication.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../input/publication.json")).unwrap())
+                .unwrap();
         let journal_path = publication["journal"].as_str().unwrap();
         let marker_path = publication["completion_marker"].as_str().unwrap();
         let files = final_journal["files"].as_array().unwrap();
@@ -515,9 +771,10 @@ mod tests {
     fn recovery_rejects_self_consistent_journal_with_unapproved_candidate_bytes() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture =
-            repo.join("crates/work-infrastructure/fixtures/specification-migration/reconstruction");
+            repo.join("crates/work-infrastructure/fixtures/cases/specification/migration/reconstruction/project");
         let request: Value =
-            serde_json::from_slice(&fs::read(fixture.join("request.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../input/request.json")).unwrap())
+                .unwrap();
         let root = std::env::temp_dir().join(format!(
             "work-migration-forged-{}-{}",
             std::process::id(),
@@ -561,6 +818,7 @@ mod tests {
         );
         validate_transaction(&forged).unwrap();
         fs::create_dir_all(root.join(&paths.execution)).unwrap();
+        fs::create_dir_all(root.join(&paths.journal).parent().unwrap()).unwrap();
         write_journal(&root, &paths.journal, &forged).unwrap();
         let journal_before = fs::read(root.join(&paths.journal)).unwrap();
         assert_eq!(
@@ -579,6 +837,27 @@ mod tests {
             render_transaction(&transaction).unwrap(),
         )
         .unwrap();
+        {
+            use work_operations::derivation::{publication, transaction::*};
+            let canonical = root.canonicalize().unwrap();
+            let requirement = "example".parse().unwrap();
+            let frozen = build_journal_staging(JournalStagingInput {
+                canonical_root: canonical.to_str().unwrap(),
+                requirement: &requirement,
+                execution_dir: &paths.execution,
+                journal_path: &paths.journal,
+                kind: publication::JournalKind::SpecificationMigration(approved),
+                journal: &transaction,
+            })
+            .unwrap();
+            crate::transaction_storage::prepare_runtime_transaction(
+                &LocalFiles,
+                &canonical,
+                &frozen.manifest,
+                &frozen.payloads,
+            )
+            .unwrap();
+        }
         assert_eq!(
             publish_migration(&root, &skill, &[], &request, "recover", approved).unwrap()["publication_status"],
             "published"

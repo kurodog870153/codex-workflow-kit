@@ -447,7 +447,7 @@ mod tests {
     fn semantic_reconstruction_matches_current_contract_candidate_and_preview() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture =
-            repo.join("crates/work-infrastructure/fixtures/specification-migration/reconstruction");
+            repo.join("crates/work-infrastructure/fixtures/cases/specification/migration/reconstruction/project");
         let root = std::env::temp_dir().join(format!(
             "work-reconstruction-{}-{}",
             std::process::id(),
@@ -465,15 +465,17 @@ mod tests {
             fs::create_dir_all(destination.parent().unwrap()).unwrap();
             fs::copy(fixture.join(relative), destination).unwrap();
         }
-        let request = fs::read(fixture.join("semantic-request.json")).unwrap();
+        let request = fs::read(fixture.join("../input/semantic-request.json")).unwrap();
         let expected: Value =
-            serde_json::from_slice(&fs::read(fixture.join("request.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../input/request.json")).unwrap())
+                .unwrap();
         let actual =
             prepare_reconstruction_request(&root, &repo.join("../skills/work"), &[], &request)
                 .unwrap();
         assert_eq!(actual, expected);
         let expected_preview: Value =
-            serde_json::from_slice(&fs::read(fixture.join("expected.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(fixture.join("../expected/result.json")).unwrap())
+                .unwrap();
         assert_eq!(
             preview_migration(&root, &repo.join("../skills/work"), &[], &actual).unwrap(),
             expected_preview
@@ -482,7 +484,7 @@ mod tests {
     #[test]
     fn reconstruction_preserves_verified_snapshot_and_requires_all_reviewed_sources() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let fixture = repo.join("crates/work-infrastructure/fixtures/specification-update");
+        let fixture = repo.join("crates/work-infrastructure/fixtures/cases/specification/update/collection-summary/project");
         let root = std::env::temp_dir().join(format!(
             "work-reconstruction-snapshot-{}-{}",
             std::process::id(),
@@ -491,7 +493,7 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let mut request: Value = serde_json::from_slice(&fs::read(repo.join("crates/work-infrastructure/fixtures/specification-migration/reconstruction/semantic-request.json")).unwrap()).unwrap();
+        let mut request: Value = serde_json::from_slice(&fs::read(repo.join("crates/work-infrastructure/fixtures/cases/specification/migration/reconstruction/input/semantic-request.json")).unwrap()).unwrap();
         let index: Value = serde_json::from_slice(
             &fs::read(fixture.join("outputs/work/tasks/example/index.json")).unwrap(),
         )
