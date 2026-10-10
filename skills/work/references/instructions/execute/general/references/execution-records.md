@@ -9,6 +9,12 @@ metadata:
 
 # Execution 紀錄參考指令
 
+## 專案檔案發布邊界
+
+1. [強制] 宣告檔案變更的 Task 在已授權 workspace staging 準備完整最終 bytes，以 `execute file-prepare → file-apply` 統一發布，步驟見 [完整檔案發布及還原](../../../../workflows/execute/publish-project-files.md)。不得直接修改正式 targets，或以 Git status 代替完整內容前置證據。
+2. [強制] CLI 未提供可強制隔離任意程序的能力；檔案變更 Task 的 CMD、automated VAL 與 local/external OP 在 reservation／process preparation 被拒絕。使用授權 staging 準備及 manual VAL，或返回規劃確認可驗證效果邊界；不可用 argv 名稱推測安全。
+3. [強制] 完整且回讀驗證的發布加上既有驗收才可完成；部分／未知／已還原交易不能完成或啟動下游。中斷保留完整前後證據，`file-recovery-prepare → file-restore` 經新授權還原原始 bytes、存在狀態與支援權限，額外修改時整組停止。原有 execution record recover 維持向前恢復。
+
 ## 1. 路徑、TASK 與指紋
 
 1. [強制] Execute 只使用正式 TASK 或完整交接所確定的需求編號與 TASK／Execution 明確路徑與 Task-owned 固定 Source binding，並於每次讀寫前套用共用 instruction-loading 的完整需求成品路徑安全檢查；不得由單一路徑推測、替換或重新決定。

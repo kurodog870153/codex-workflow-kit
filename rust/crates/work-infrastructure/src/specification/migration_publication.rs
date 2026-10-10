@@ -628,7 +628,10 @@ mod tests {
             assert!(
                 publish_migration_with_runtime(
                     &root,
-                    &repo.join("../skills/work"),
+                    &crate::fixture_support::historical_task_skill_root(
+                        &repo.join("../skills/work")
+                    )
+                    .unwrap(),
                     &[],
                     &request,
                     "apply",
@@ -640,7 +643,10 @@ mod tests {
             assert!(
                 publish_migration_with_runtime(
                     &root,
-                    &repo.join("../skills/work"),
+                    &crate::fixture_support::historical_task_skill_root(
+                        &repo.join("../skills/work")
+                    )
+                    .unwrap(),
                     &[],
                     &request,
                     "apply",
@@ -654,7 +660,8 @@ mod tests {
         }
         let result = publish_migration_with_runtime(
             &root,
-            &repo.join("../skills/work"),
+            &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap(),
             &[],
             &request,
             "apply",
@@ -688,7 +695,8 @@ mod tests {
         );
         let recovered = publish_migration_with_runtime(
             &root,
-            &repo.join("../skills/work"),
+            &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap(),
             &[],
             &request,
             "recover",
@@ -791,7 +799,9 @@ mod tests {
             fs::write(root.join(path), &raw).unwrap();
             original.insert(path.to_owned(), raw);
         }
-        let skill = repo.join("../skills/work");
+        let skill =
+            crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap();
         let preview = preview_migration(&root, &skill, &[], &request).unwrap();
         let approved = preview["fingerprint"].as_str().unwrap();
         let transaction = migration_transaction(&root, &request, &preview).unwrap();

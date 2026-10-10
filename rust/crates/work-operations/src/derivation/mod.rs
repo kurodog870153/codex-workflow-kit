@@ -1,5 +1,6 @@
 //! Shared rules for values derived from Work artifacts and evidence.
 
+pub mod file_transaction;
 pub mod fingerprint;
 pub mod graph;
 pub mod identity;

@@ -2,6 +2,7 @@
 
 pub mod command_publication;
 pub mod document;
+pub mod file_transaction;
 pub mod recovery;
 
 use std::collections::{HashMap, HashSet};
@@ -92,6 +93,23 @@ pub trait ExecutionWorktreeRepository {
 }
 
 pub trait CommandPrepareRepository {
+    /// Bind executor settings to the exact receipt, replacing caller declarations.
+    fn execution_settings(&self, settings: &Value, _receipt: &str) -> Result<Value, WorkError> {
+        let mut settings = settings.clone();
+        if let Some(object) = settings.as_object_mut() {
+            object.remove("work_isolation");
+        }
+        Ok(settings)
+    }
+    /// Assess the effective Task and exact invocation, including corrections.
+    fn effect_boundary(
+        &self,
+        _task: &Value,
+        _record_id: &str,
+        _actual: &Value,
+    ) -> work_model::execution::VerifiedEffectBoundary {
+        work_model::execution::VerifiedEffectBoundary::Unknown
+    }
     fn check_ready(&self, execution_dir: &str, require_idle: bool) -> Result<(), WorkError>;
     fn runtime_os(&self) -> &'static str;
     fn read_source(&self, relative_path: &str) -> Result<Vec<u8>, WorkError>;
@@ -236,6 +254,15 @@ fn prepare_command_context(
         })?
         .directory
     };
+    let settings = repository.execution_settings(settings, &receipt)?;
+    let actual = json!({"command":selected.command,"execution":settings,
+        "working_directory":cwd,"invocation":invocation});
+    work_operations::execution::file_transaction::require_record_boundary(
+        &effective,
+        &selected.base_record_id,
+        repository.effect_boundary(&effective, &selected.base_record_id, &actual),
+    )
+    .map_err(rule)?;
     if repository.receipt_exists(&receipt)? {
         return Err(error(
             ExitCode::WorkflowState,
@@ -279,7 +306,7 @@ fn prepare_command_context(
             attempt_id: &selected.attempt_id,
             record_id: &selected.record_id,
             working_directory: &cwd,
-            execution: settings,
+            execution: &settings,
             invocation: &invocation,
             sources: &Value::Object(source_hashes),
         },
@@ -2243,6 +2270,13 @@ pub trait AttemptCloseRepository {
 }
 
 pub trait RecordBeginRepository {
+    fn effect_boundary(
+        &self,
+        _task: &Value,
+        _record_id: &str,
+    ) -> work_model::execution::VerifiedEffectBoundary {
+        work_model::execution::VerifiedEffectBoundary::Unknown
+    }
     fn publish_record_begin(
         &self,
         publication: &RecordBeginPublication<'_>,
@@ -2486,6 +2520,13 @@ pub fn begin_record_from_context(
         task_id,
         base_record_id,
         authorization_evidence,
+    )
+    .map_err(rule)?;
+    let effective = effective_task(task, attempt).map_err(rule)?;
+    work_operations::execution::file_transaction::require_record_boundary(
+        &effective,
+        base_record_id,
+        repository.effect_boundary(&effective, base_record_id),
     )
     .map_err(rule)?;
     let index_after = render_execution_index(&candidate).map_err(|_| {
@@ -3641,6 +3682,8 @@ mod tests {
         sources: HashMap<String, Vec<u8>>,
         receipt: bool,
         idle_checks: RefCell<Vec<bool>>,
+        boundary_requests: RefCell<Vec<Value>>,
+        refuse_corrected: bool,
     }
 
     #[derive(Default)]
@@ -3657,6 +3700,20 @@ mod tests {
     }
 
     impl CommandPrepareRepository for FakeCommandPrepare {
+        fn effect_boundary(
+            &self,
+            _: &Value,
+            _: &str,
+            actual: &Value,
+        ) -> work_model::execution::VerifiedEffectBoundary {
+            self.boundary_requests.borrow_mut().push(actual.clone());
+            if self.refuse_corrected && actual["command"]["argv"] == json!(["printf", "corrected"])
+            {
+                return work_model::execution::VerifiedEffectBoundary::Unknown;
+            }
+            // This fake returns data only; it cannot launch a process or mutate project files.
+            work_model::execution::VerifiedEffectBoundary::ReadOnly
+        }
         fn check_ready(&self, _execution_dir: &str, require_idle: bool) -> Result<(), WorkError> {
             self.idle_checks.borrow_mut().push(require_idle);
             Ok(())
@@ -3762,6 +3819,8 @@ mod tests {
             sources,
             receipt: false,
             idle_checks: RefCell::new(Vec::new()),
+            boundary_requests: RefCell::new(Vec::new()),
+            refuse_corrected: false,
         };
         let selected = json!({"selected_paths":[],"resolved_paths":[],
             "instructions_sha256":"e".repeat(64)});
@@ -3834,6 +3893,40 @@ mod tests {
             corrected_index["lock"]["command_correction"]["actual_command"],
             replacement
         );
+        repository
+            .sources
+            .insert("execution/index.json".into(), corrected_raw.clone());
+        {
+            let corrected_context = || {
+                let mut context = make_context();
+                context.lifecycle.index = &corrected_index;
+                context.lifecycle.index_raw = corrected_raw;
+                context
+            };
+            let preview =
+                prepare_command_from_context(&repository, corrected_context(), &request).unwrap();
+            assert_eq!(
+                preview["invocation"]["argv"],
+                json!(["printf", "corrected"])
+            );
+            let boundaries = repository.boundary_requests.borrow();
+            let actual = boundaries.last().unwrap();
+            assert_eq!(actual["command"], replacement);
+            assert_eq!(actual["execution"], collection["execution_defaults"]);
+            assert_eq!(actual["working_directory"], "/project");
+            drop(boundaries);
+            repository.refuse_corrected = true;
+            assert_eq!(
+                prepare_command_from_context(&repository, corrected_context(), &request)
+                    .unwrap_err()
+                    .reason_code,
+                "file_transaction_effect_boundary_unverified"
+            );
+        }
+        repository.refuse_corrected = false;
+        repository
+            .sources
+            .insert("execution/index.json".into(), index_raw.clone());
         repository.receipt = true;
         assert_eq!(
             prepare_command_from_context(&repository, make_context(), &request)
@@ -4042,6 +4135,14 @@ mod tests {
     }
 
     impl RecordBeginRepository for FakeRecordBegin {
+        fn effect_boundary(
+            &self,
+            _: &Value,
+            _: &str,
+        ) -> work_model::execution::VerifiedEffectBoundary {
+            // The fake only captures the reservation in a RefCell, with no project effects.
+            work_model::execution::VerifiedEffectBoundary::ReadOnly
+        }
         fn publish_record_begin(
             &self,
             publication: &RecordBeginPublication<'_>,

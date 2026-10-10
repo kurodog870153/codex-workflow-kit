@@ -4,10 +4,34 @@ pub mod acceptance;
 pub mod attempt;
 pub mod correction;
 pub mod deviation;
+pub mod file_transaction;
+pub mod file_transaction_contracts;
 pub mod index;
 pub mod recovery;
 pub mod request;
 pub mod response;
+
+/// Internal capability issued by a trusted executor, never by Task JSON or argv.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VerifiedEffectBoundary {
+    Unknown,
+    ReadOnly,
+    /// Enforced isolation must also cover external effects, not just a temp directory.
+    Isolated,
+}
+
+/// Executor-produced policy stored inside the preview's execution environment.
+/// Neither a Task declaration nor this DTO alone grants execution authority.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CommandIsolation {
+    pub backend: String,
+    pub read_only_project_root: String,
+    /// Physical read view; Windows executes relative paths in a private snapshot.
+    pub read_only_project_view: String,
+    pub writable_directory: String,
+    pub network_access: bool,
+}
 
 #[cfg(test)]
 mod tests {

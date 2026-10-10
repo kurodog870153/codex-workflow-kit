@@ -677,7 +677,9 @@ mod tests {
         use work_operations::specification::transaction::render_transaction;
         let root = temporary_root("retained-journal");
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let skill_root = repo.join("../skills/work");
+        let skill_root =
+            crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap();
         let request = WorkflowStateRequest {
             project_root: &root,
             skill_root: &skill_root,
@@ -762,8 +764,10 @@ mod tests {
     #[test]
     fn execution_staging_workflow_diagnoses_legacy_tmp_before_assuming_empty_new_namespace() {
         let root = temporary_root("legacy-execution-staging");
-        let skill_root =
-            PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
+        let skill_root = crate::fixture_support::historical_task_skill_root(&PathBuf::from(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"),
+        ))
+        .unwrap();
         let execution = root.join("outputs/work/executions/example");
         fs::create_dir_all(&execution).unwrap();
         let old = execution.join(".work-record-finish-unknown.tmp");
@@ -794,7 +798,9 @@ mod tests {
             repo.join("crates/work-infrastructure/fixtures/shared/task-diagnostics-project");
         for formal in [false, true] {
             let root = temporary_root("execution-staging");
-            let skill_root = repo.join("../skills/work");
+            let skill_root =
+                crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap();
             let task_path = "outputs/work/tasks/example/index.json";
             if formal {
                 for relative in [task_path, "outputs/work/tasks/example/tasks/TASK-001.json"] {
@@ -865,7 +871,9 @@ mod tests {
         let source_root = default_artifact_paths(&requirement).source;
         for published in [false, true] {
             let root = temporary_root("staging-source-only");
-            let skill_root = repo.join("../skills/work");
+            let skill_root =
+                crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap();
             let request = WorkflowStateRequest {
                 project_root: &root,
                 skill_root: &skill_root,
@@ -972,7 +980,9 @@ mod tests {
     fn workflow_state_reads_missing_and_source_only_project_without_writes() {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let root = temporary_root("state");
-        let skill_root = repo.join("../skills/work");
+        let skill_root =
+            crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap();
         let request = WorkflowStateRequest {
             project_root: &root,
             skill_root: &skill_root,
@@ -1041,7 +1051,10 @@ mod tests {
         .unwrap();
         let result = workflow_state(&WorkflowStateRequest {
             project_root: &root,
-            skill_root: &repo.join("../skills/work"),
+            skill_root: &crate::fixture_support::historical_task_skill_root(
+                &repo.join("../skills/work"),
+            )
+            .unwrap(),
             skill_configs: &[],
             requirement_id: "example",
             task_path: Some(relative),
@@ -1089,7 +1102,10 @@ mod tests {
         }
         let request = WorkflowStateRequest {
             project_root: &root,
-            skill_root: &repo.join("../skills/work"),
+            skill_root: &crate::fixture_support::historical_task_skill_root(
+                &repo.join("../skills/work"),
+            )
+            .unwrap(),
             skill_configs: &[],
             requirement_id: "example",
             task_path: Some(relative),
@@ -1124,7 +1140,9 @@ mod tests {
             fs::copy(fixture.join(relative), destination).unwrap();
         }
         fs::write(root.join("src.txt"), b"original\n").unwrap();
-        let skill_root = repo.join("../skills/work");
+        let skill_root =
+            crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap();
         let request = WorkflowStateRequest {
             project_root: &root,
             skill_root: &skill_root,
@@ -1159,7 +1177,9 @@ mod tests {
             crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         }
         fs::write(root.join("src.txt"), b"original\n").unwrap();
-        let skill_root = repo.join("../skills/work");
+        let skill_root =
+            crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap();
         let request = WorkflowStateRequest {
             project_root: &root,
             skill_root: &skill_root,

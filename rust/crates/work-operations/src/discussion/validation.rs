@@ -305,6 +305,105 @@ pub fn ready_to_generate(session: &DiscussionSession) -> Result<()> {
                 return Err(DiscussionIssue("discussion_planning_needs_review"));
             }
         }
+        validate_granularity(session, t)?;
+    }
+    Ok(())
+}
+
+pub fn validate_granularity(session: &DiscussionSession, task: &DiscussionTask) -> Result<()> {
+    let Nullable::Value(review) = &task.review else {
+        return Err(DiscussionIssue("task_granularity_review_required"));
+    };
+    let Some(g) = &review.granularity else {
+        return Err(DiscussionIssue("task_granularity_review_required"));
+    };
+    if g.outcome.trim().is_empty() || g.evidence.trim().is_empty() || !g.transaction_feasible {
+        return Err(DiscussionIssue("task_granularity_unsafe"));
+    }
+    match g.split_decision {
+        SplitDecision::SplitRequired => return Err(DiscussionIssue("task_split_required")),
+        SplitDecision::NeedsConfirmation => {
+            return Err(DiscussionIssue("task_granularity_needs_confirmation"));
+        }
+        SplitDecision::Indivisible if g.indivisibility_reason.trim().is_empty() => {
+            return Err(DiscussionIssue("task_indivisibility_evidence_required"));
+        }
+        _ => {}
+    }
+    if review.needs_review
+        || g.planning_sha256 != fingerprint::discussion_planning(session, &task.id)
+    {
+        return Err(DiscussionIssue("task_granularity_review_stale"));
+    }
+    validate_outcome_consistency(task, g)?;
+    Ok(())
+}
+
+fn validate_outcome_consistency(
+    task: &DiscussionTask,
+    review: &work_model::discussion::GranularityReview,
+) -> Result<()> {
+    let Some(semantic) = &review.semantic else {
+        return Err(DiscussionIssue("task_outcome_review_required"));
+    };
+    let outcomes = &semantic.outcomes;
+    if outcomes.is_empty() || outcomes.iter().any(|o| o.needs_confirmation) {
+        return Err(DiscussionIssue("task_granularity_needs_confirmation"));
+    }
+    if outcomes.len() > 1
+        && (review.split_decision == SplitDecision::SingleOutcome
+            || outcomes.iter().any(|o| o.independently_acceptable))
+    {
+        return Err(DiscussionIssue("task_split_required"));
+    }
+    let mut ids = BTreeSet::new();
+    let mut acceptance = BTreeSet::new();
+    let mut files = BTreeSet::new();
+    let mut scope = BTreeSet::new();
+    for outcome in outcomes {
+        if outcome.id.trim().is_empty()
+            || !ids.insert(outcome.id.as_str())
+            || outcome.statement.trim().is_empty()
+            || outcome.evidence.trim().is_empty()
+            || outcome.acceptance_ids.is_empty()
+            || outcome.scope.is_empty()
+        {
+            return Err(DiscussionIssue("task_outcome_review_inconsistent"));
+        }
+        for id in &outcome.acceptance_ids {
+            if !acceptance.insert(id.as_str()) {
+                return Err(DiscussionIssue("task_outcome_review_inconsistent"));
+            }
+        }
+        files.extend(outcome.file_keys.iter().map(String::as_str));
+        scope.extend(outcome.scope.iter().map(String::as_str));
+    }
+    if acceptance
+        != task
+            .acceptance_criteria
+            .iter()
+            .map(|a| a.id.as_str())
+            .collect()
+        || files != task.files.iter().map(|f| f.key.as_str()).collect()
+        || scope != task.scope.iter().map(String::as_str).collect()
+        || review.outcome != task.goal
+    {
+        return Err(DiscussionIssue("task_outcome_review_inconsistent"));
+    }
+    if outcomes.len() == 1 && outcomes[0].statement != task.goal {
+        return Err(DiscussionIssue("task_outcome_review_inconsistent"));
+    }
+    if review.split_decision == SplitDecision::Indivisible
+        && (semantic
+            .coupled_outcome_ids
+            .iter()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>()
+            != ids
+            || semantic.coupled_outcome_ids.len() != ids.len()
+            || semantic.separation_consequence.trim().is_empty())
+    {
+        return Err(DiscussionIssue("task_indivisibility_evidence_required"));
     }
     Ok(())
 }

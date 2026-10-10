@@ -69,7 +69,7 @@ pub fn records() -> BTreeMap<String, ContractRecord> {
                 "revision" | "next_task_number" | "next_decision_number" => json!({"minimum":1}),
                 "authorization" => json!({"bounded_requirement":true,"canonical_project_root":true,"exact_directory":"outputs/work/discussions/<requirement-id>","evidence_required":true,"publication_authorized":false,"execute_authorized":false}),
                 "decisions" => json!({"statuses":["pending","confirmed","deferred","blocked","needs_review","withdrawn"],"stable_id":"D001","unknown_fields":"reject"}),
-                "tasks" => json!({"stable_id":"TASK-001","domain_records":true,"task_candidate":"forbidden"}),
+                "tasks" => json!({"stable_id":"TASK-001","domain_records":true,"task_candidate":"forbidden","review":{"granularity_required_for_publication":true,"split_decisions":["single_outcome","indivisible","split_required","needs_confirmation"],"planning_sha256":"context, relevant decisions and upstream plans excluding reviews","semantic":{"required_for_publication":true,"outcomes":"explicit statement, acceptance_ids, file_keys, scope, independently_acceptable, needs_confirmation and evidence","indivisible":"coupled_outcome_ids and concrete separation_consequence","natural_language_truth":"reviewed authority; deterministic validator checks complete mappings and rejects multiple independent outcomes"}}}),
                 "continuation" => json!({"required_nullable":["current_task_id","question"],"question_mapping_saved_before_asking":true}),
                 "commit" => json!({"immutable_revision":true,"sole_commit_point":"current session.json","required_nullable":["previous_sha256"],"content_sha256":"excludes only itself"}),
                 _ => json!({}),

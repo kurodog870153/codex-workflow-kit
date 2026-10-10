@@ -165,6 +165,7 @@ pub mod candidate;
 pub mod changes;
 pub mod collection;
 pub mod create;
+pub mod file_dependencies;
 pub mod index;
 pub mod item;
 pub mod ordering;

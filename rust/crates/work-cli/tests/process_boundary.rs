@@ -86,6 +86,7 @@ fn installed_executable() -> &'static PathBuf {
             &PathBuf::from(project_root()).join("skills/work/references"),
             &skill.join("references"),
         );
+        work_infrastructure::fixture_support::restore_historical_task_instructions(&skill).unwrap();
         binary
     })
 }
@@ -95,6 +96,200 @@ fn run(arguments: &[String]) -> Output {
         .args(arguments)
         .output()
         .expect("launch work")
+}
+
+#[cfg(any(target_os = "macos", windows))]
+#[test]
+fn public_native_command_preview_binds_isolation_and_preserves_receipts_and_project_bytes() {
+    use work_infrastructure::fixture_support::{
+        build_initial_execution_index, raw_sha256, render_execution_index, render_task_index,
+        render_task_item,
+    };
+    for allowed in [true, false] {
+        let root = std::env::temp_dir().join(format!(
+            "work-native-command-{}-{}-{allowed}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let fixture = PathBuf::from(project_root())
+            .join("rust/crates/work-infrastructure/fixtures/shared/task-diagnostics-project");
+        let task_path = "outputs/work/tasks/example/index.json";
+        let execution_dir = "outputs/work/executions/example";
+        work_infrastructure::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
+        let item_path = root.join("outputs/work/tasks/example/tasks/TASK-001.json");
+        fs::create_dir_all(item_path.parent().unwrap()).unwrap();
+        let mut item: Value = serde_json::from_slice(
+            &fs::read(fixture.join("outputs/work/tasks/example/tasks/TASK-001.json")).unwrap(),
+        )
+        .unwrap();
+        let mut index: Value =
+            serde_json::from_slice(&fs::read(fixture.join(task_path)).unwrap()).unwrap();
+        item.as_object_mut().unwrap().remove("files");
+        item["steps"].as_array_mut().unwrap().remove(0);
+        item["steps"][0]["id"] = json!("STEP-001");
+        item["goal"] = json!(
+            "Generate a candidate in authorized staging with the original project unchanged."
+        );
+        item["validations"][0] = json!({"id":"VAL-001","kind":"manual","confirmer":"Reviewer",
+            "criteria":"Review the candidate and original bytes","acceptance_ids":item["validations"][0]["acceptance_ids"]});
+        #[cfg(target_os = "macos")]
+        let argv = if allowed {
+            json!([
+                "/bin/sh",
+                "-c",
+                "cat original; printf candidate > \"$WORK_STAGING_DIR/after\""
+            ])
+        } else {
+            json!(["/bin/sh", "-c", "printf changed > original"])
+        };
+        #[cfg(windows)]
+        let argv = if allowed {
+            json!([
+                std::env::var("COMSPEC").unwrap(),
+                "/d",
+                "/c",
+                "echo candidate>\"%WORK_STAGING_DIR%\\after\""
+            ])
+        } else {
+            json!([
+                std::env::var("COMSPEC").unwrap(),
+                "/d",
+                "/c",
+                "echo changed>original"
+            ])
+        };
+        item["commands"][0] = json!({"id":"CMD-001","mode":"argv","argv":argv});
+        index["execution_defaults"]["os"] = json!(std::env::consts::OS);
+        let bytes = render_task_item(&item).unwrap();
+        index["tasks"][0]["canonical_sha256"] = json!(raw_sha256(&bytes));
+        fs::write(&item_path, bytes).unwrap();
+        fs::write(root.join(task_path), render_task_index(&index).unwrap()).unwrap();
+        fs::write(root.join("original"), b"before").unwrap();
+        assert!(
+            Command::new("git")
+                .args(["init", "--quiet"])
+                .current_dir(&root)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let collection = work_flow::task::validate_collection(
+            &work_infrastructure::hierarchy_catalog::LocalHierarchyCatalog {
+                skill_root: installed_executable()
+                    .parent()
+                    .unwrap()
+                    .parent()
+                    .unwrap()
+                    .to_path_buf(),
+            },
+            &work_infrastructure::skill_catalog::LocalSkillCatalog { roots: vec![] },
+            &work_infrastructure::artifact_paths::LocalArtifactPaths {
+                project_root: root.clone(),
+            },
+            &work_infrastructure::task::storage::LocalTaskStorage {
+                project_root: root.clone(),
+            },
+            &[],
+            task_path,
+        )
+        .unwrap();
+        let execution = root.join(execution_dir);
+        fs::create_dir_all(&execution).unwrap();
+        fs::write(
+            execution.join("index.json"),
+            render_execution_index(
+                &build_initial_execution_index(&collection["collection_contract"], &collection)
+                    .unwrap(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let invoke =
+            |command: &str, input: Option<&Value>, approval: Option<&str>| -> (bool, Value) {
+                let mut args = vec![
+                    "--project-root".into(),
+                    root.to_string_lossy().into_owned(),
+                    "--verbose".into(),
+                    "execute".into(),
+                    command.into(),
+                    "--user-config-root".into(),
+                    root.to_string_lossy().into_owned(),
+                    "--task-path".into(),
+                    task_path.into(),
+                    "--execution-dir".into(),
+                    execution_dir.into(),
+                    "--task-id".into(),
+                    "TASK-001".into(),
+                ];
+                if let Some(input) = input {
+                    let path = root.join("request.json");
+                    fs::write(&path, serde_json::to_vec(input).unwrap()).unwrap();
+                    args.extend(["--input-file".into(), path.to_string_lossy().into_owned()]);
+                }
+                if command == "record-begin" {
+                    args.extend(["--record-id".into(), "CMD-001".into()]);
+                }
+                if let Some(approval) = approval {
+                    args.extend(["--approved-sha256".into(), approval.into()]);
+                }
+                let output = run(&args);
+                (
+                    output.status.success(),
+                    serde_json::from_slice(&output.stdout).unwrap(),
+                )
+            };
+        let choice = json!({"command_positions":[1],"validation_positions":[1],"modifiable_files":[],
+            "external_operation_positions":[],"allowed_deviations":[],"authorization_evidence":"Approve native isolation and exact candidate scope","carried_records":[]});
+        let (ok, prepared) = invoke("attempt-start-prepare", Some(&choice), None);
+        assert!(ok, "{prepared}");
+        let (ok, started) = invoke("attempt-start", Some(&prepared["data"]["request"]), None);
+        assert!(ok, "{started}");
+        let (ok, reservation) = invoke("record-begin", None, None);
+        assert!(ok, "{reservation}");
+        let request = json!({"schema":"work-command-run-request","timeout_seconds":3});
+        let before = fs::read(execution.join("index.json")).unwrap();
+        let (ok, prepared) = invoke("command-prepare", Some(&request), None);
+        assert!(ok, "{prepared}");
+        let preview = &prepared["data"];
+        let policy = &preview["execution"]["work_isolation"];
+        assert_eq!(policy["network_access"], false);
+        assert!(policy["read_only_project_view"].as_str().is_some());
+        let staging = PathBuf::from(policy["writable_directory"].as_str().unwrap());
+        assert!(!staging.exists(), "preparation must not create the sandbox");
+        assert_eq!(fs::read(execution.join("index.json")).unwrap(), before);
+        let (ok, stale) = invoke("command-run", Some(&request), Some(&"0".repeat(64)));
+        assert!(!ok, "{stale}");
+        assert!(!staging.exists());
+        let (ok, result) = invoke(
+            "command-run",
+            Some(&request),
+            preview["approved_sha256"].as_str(),
+        );
+        assert_eq!(ok, allowed, "{result}");
+        if allowed {
+            assert!(
+                fs::read(staging.join("after"))
+                    .unwrap()
+                    .starts_with(b"candidate")
+            );
+        } else {
+            assert_eq!(result["reason_code"], "command_run_failed");
+        }
+        assert_eq!(fs::read(root.join("original")).unwrap(), b"before");
+        let receipt = root.join(preview["receipt_dir"].as_str().unwrap());
+        assert!(receipt.join("started.json").is_file());
+        assert!(receipt.join("finished.json").is_file());
+        let (ok, repeated) = invoke(
+            "command-run",
+            Some(&request),
+            preview["approved_sha256"].as_str(),
+        );
+        assert!(!ok, "{repeated}");
+        assert_eq!(fs::read(root.join("original")).unwrap(), b"before");
+    }
 }
 
 #[test]
@@ -135,6 +330,22 @@ fn installed_execution_staging_family_completes_all_seven_publications() {
     let mut task_index: Value =
         serde_json::from_slice(&fs::read(root.join(task_path)).unwrap()).unwrap();
     task_index["artifacts"]["execution"] = json!(execution_dir);
+    // An unverified shell record stays blocked even on a host with argv isolation.
+    // Historical reservations remain recoverable and manual acceptance stays safe.
+    let item_path = root.join("outputs/work/tasks/example/tasks/TASK-001.json");
+    let mut item: Value = serde_json::from_slice(&fs::read(&item_path).unwrap()).unwrap();
+    item.as_object_mut().unwrap().remove("files");
+    item["commands"][0] = json!({"id":"CMD-001","mode":"shell","script":"python --version"});
+    item["goal"] = json!("Record and validate an authorized fileless command.");
+    item["steps"].as_array_mut().unwrap().remove(0);
+    item["steps"][0]["id"] = json!("STEP-001");
+    item["validations"][0] = json!({"id":"VAL-001","kind":"manual",
+        "confirmer":"Reviewer","criteria":"Review the recorded result",
+        "acceptance_ids":item["validations"][0]["acceptance_ids"].clone()});
+    let item_raw = work_infrastructure::fixture_support::render_task_item(&item).unwrap();
+    task_index["tasks"][0]["canonical_sha256"] =
+        json!(work_infrastructure::fixture_support::raw_sha256(&item_raw));
+    fs::write(item_path, item_raw).unwrap();
     fs::write(
         root.join(task_path),
         render_task_index(&task_index).unwrap(),
@@ -142,7 +353,12 @@ fn installed_execution_staging_family_completes_all_seven_publications() {
     .unwrap();
     let collection = work_flow::task::validate_collection(
         &work_infrastructure::hierarchy_catalog::LocalHierarchyCatalog {
-            skill_root: repo.join("skills/work"),
+            skill_root: installed_executable()
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .to_path_buf(),
         },
         &work_infrastructure::skill_catalog::LocalSkillCatalog { roots: vec![] },
         &work_infrastructure::artifact_paths::LocalArtifactPaths {
@@ -227,7 +443,7 @@ fn installed_execution_staging_family_completes_all_seven_publications() {
         }
         response
     };
-    let replacement = json!({"mode":"argv","argv":["python3","--version"]});
+    let replacement = json!({"mode":"shell","script":"python3 --version"});
     let choice = json!({"command_positions":[1],"validation_positions":[1],"modifiable_files":[],
         "external_operation_positions":[],"allowed_deviations":[{"anchor_kind":"command","anchor_position":1,
         "action":{"kind":"replace_command","replacement":replacement}}],"authorization_evidence":"Approved exact scope","carried_records":[]});
@@ -238,7 +454,25 @@ fn installed_execution_staging_family_completes_all_seven_publications() {
         &[],
         true,
     );
-    invoke("record-begin", None, &["--record-id", "CMD-001"], true);
+    let before = fs::read(&index_path).unwrap();
+    let rejected = invoke("record-begin", None, &["--record-id", "CMD-001"], false);
+    assert_eq!(
+        rejected["reason_code"],
+        "file_transaction_effect_boundary_unverified"
+    );
+    assert_eq!(fs::read(&index_path).unwrap(), before);
+    // Seed a historical reservation using the same pure candidate derivation.
+    // This does not grant the native executor a capability or launch a command.
+    let attempt: Value = serde_json::from_slice(
+        &fs::read(root.join(format!("{execution_dir}/TASK-001/ATTEMPT-001/attempt.json"))).unwrap(),
+    )
+    .unwrap();
+    let index: Value = serde_json::from_slice(&before).unwrap();
+    let reserved = work_infrastructure::fixture_support::historical_record_reservation(
+        &item, &attempt, &index, "TASK-001", "CMD-001",
+    )
+    .unwrap();
+    fs::write(&index_path, render_execution_index(&reserved).unwrap()).unwrap();
     invoke(
         "command-correction",
         Some(
@@ -1002,7 +1236,7 @@ fn every_public_leaf_has_frozen_help_at_process_boundary() {
         .expect("command manifest");
     let mut count = 0;
     check_help(&manifest["root"], &mut Vec::new(), &mut count);
-    assert_eq!(count, 82);
+    assert_eq!(count, 86);
 }
 
 #[test]
@@ -1024,7 +1258,7 @@ fn public_command_tree_matches_frozen_baseline() {
     let mut commands = Vec::new();
     collect(&manifest["root"], &mut Vec::new(), &mut commands);
     commands.sort();
-    assert_eq!(commands.len(), 82);
+    assert_eq!(commands.len(), 86);
     assert_eq!(
         commands
             .iter()
@@ -1106,6 +1340,13 @@ fn public_command_tree_matches_frozen_baseline() {
                 && command != "invocation confirm"
                 && command != "specification reconciliation-recover"
                 && command != "instructions recover"
+                && ![
+                    "execute file-prepare",
+                    "execute file-apply",
+                    "execute file-recovery-prepare",
+                    "execute file-restore",
+                ]
+                .contains(&command.as_str())
         })
         .collect::<Vec<_>>();
     assert_eq!(legacy.len(), 70);
@@ -1599,6 +1840,7 @@ fn handoff_build_output_validates_across_installed_processes() {
         &repo.join("skills/work/references"),
         &skill.join("references"),
     );
+    work_infrastructure::fixture_support::restore_historical_task_instructions(&skill).unwrap();
     let fixture =
         repo.join("rust/crates/work-infrastructure/fixtures/shared/task-diagnostics-project");
     let project = base.join("project");
@@ -2122,7 +2364,12 @@ fn specification_task_boundary_continuation_across_installed_processes() {
         let index_path = project.join("outputs/work/tasks/example/index.json");
         let index: Value = serde_json::from_slice(&fs::read(&index_path).unwrap()).unwrap();
         fs::write(&index_path, render_task_index(&index).unwrap()).unwrap();
-        let skill = repo.join("skills/work");
+        let skill = installed_executable()
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_path_buf();
         let collection = validate_collection(
             &LocalHierarchyCatalog {
                 skill_root: skill.clone(),
@@ -2358,7 +2605,7 @@ fn every_public_command_help_returns_one_json_response() {
         serde_json::from_str(include_str!("../src/parser/commands.json")).unwrap();
     let mut count = 0;
     check(&manifest["root"], &mut Vec::new(), &mut count);
-    assert_eq!(count, 102);
+    assert_eq!(count, 106);
 }
 
 #[test]
@@ -2633,7 +2880,7 @@ fn workflow_uses_fixed_source_then_task_without_plan_and_rejects_plan_paths() {
     let mut session = work_infrastructure::fixture_support::prepare_discussion_fixture(
         &discussion_fixture,
         &project,
-        &repo.join("skills/work"),
+        installed_executable().parent().unwrap().parent().unwrap(),
     )
     .unwrap();
     if let work_model::common::Nullable::Value(source) = &mut session.context.confirmed_source {
@@ -2642,6 +2889,7 @@ fn workflow_uses_fixed_source_then_task_without_plan_and_rejects_plan_paths() {
         )
         .unwrap();
     }
+    work_infrastructure::fixture_support::review_discussion_fixture(&mut session);
     session.commit.content_sha256 =
         work_infrastructure::fixture_support::discussion_sha256(&session);
     let input = project.join("init-session.json");
@@ -3943,7 +4191,7 @@ mod discussion_process_cases {
         let mut session = work_infrastructure::fixture_support::prepare_discussion_fixture(
             &fixture,
             &root,
-            &repo.join("skills/work"),
+            installed_executable().parent().unwrap().parent().unwrap(),
         )
         .unwrap();
         session.authorization.allowed_actions = vec![
@@ -4168,6 +4416,7 @@ mod discussion_process_cases {
         if let Nullable::Value(r) = &mut session.tasks[0].review {
             r.decision_versions.insert("D001".into(), 1);
         }
+        work_infrastructure::fixture_support::review_discussion_fixture(&mut session);
         let unrelated = serde_json::to_value(&session.tasks[3]).unwrap();
         session.commit.content_sha256 =
             work_infrastructure::fixture_support::discussion_sha256(&session);
@@ -4220,6 +4469,8 @@ mod discussion_process_cases {
             if i == 1 {
                 task["review"]["decision_versions"]["D001"] = json!(1);
             }
+            task["review"]["granularity"]["planning_sha256"] =
+                current(&root)["planning_sha256"][task["id"].as_str().unwrap()].clone();
             let op = local(
                 &current(&root),
                 &format!("review-{i}"),
@@ -4260,6 +4511,7 @@ mod discussion_process_cases {
         if let Nullable::Value(review) = &mut session.tasks[0].review {
             review.decision_versions.insert("D001".into(), 1);
         }
+        work_infrastructure::fixture_support::review_discussion_fixture(&mut session);
         session.commit.content_sha256 =
             work_infrastructure::fixture_support::discussion_sha256(&session);
         invoke(
@@ -4355,6 +4607,8 @@ mod discussion_process_cases {
         task["review"]["needs_review"] = json!(false);
         task["review"]["semantic_consistency_evidence"] =
             json!("Reviewed steps and acceptance after withdrawing the obsolete format constraint");
+        task["review"]["granularity"]["planning_sha256"] =
+            current(&root)["planning_sha256"]["TASK-001"].clone();
         let op = local(
             &current(&root),
             "review-withdrawal",

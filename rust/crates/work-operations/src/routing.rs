@@ -81,6 +81,7 @@ where
         "skill_load",
         "safety_rejection",
         "file_failure",
+        "project_files",
     ];
     for event in &events {
         if !known_events.contains(event) {

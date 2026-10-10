@@ -197,6 +197,10 @@
     ]
   },
   "events": {
+    "project_files": [
+      "work.shared.transaction-workspace",
+      "work.workflow.execute.publish-project-files"
+    ],
     "attempt_close": [
       "work.workflow.execute.use-the-canonical-attempt-contract",
       "work.workflow.execute.close-one-attempt"
@@ -274,6 +278,10 @@
   },
   "modes": {},
   "sources": {
+    "work.workflow.execute.publish-project-files": [
+      "references/workflows/execute/publish-project-files.md",
+      247
+    ],
     "work.instruction-loading": [
       "references/instruction-loading.md",
       0

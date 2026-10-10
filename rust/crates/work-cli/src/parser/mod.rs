@@ -196,7 +196,7 @@ mod tests {
 
     #[test]
     fn command_manifest_keeps_all_current_contract_public_leaves() {
-        assert_eq!(leaves(&manifest().root), 82);
+        assert_eq!(leaves(&manifest().root), 86);
         command(&manifest().root).debug_assert();
     }
 

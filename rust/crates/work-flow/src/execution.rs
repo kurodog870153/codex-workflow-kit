@@ -1,5 +1,14 @@
 //! Execution command flows.
 
+pub fn run_file_transaction(
+    repository: &impl work_feature::execution::file_transaction::FileTransactionRepository,
+    context: &ExecutionWriterContext,
+    operation: &str,
+    request: &serde_json::Value,
+) -> Result<serde_json::Value, WorkError> {
+    work_feature::execution::file_transaction::run(repository, context, operation, request)
+}
+
 use serde_json::{Value, json};
 use work_feature::artifact_paths::ArtifactPathRepository;
 use work_feature::error::{ExitCode, WorkError};

@@ -492,6 +492,8 @@ mod tests {
                 decision_versions: BTreeMap::new(),
                 semantic_consistency_evidence: "Reviewed".into(),
                 needs_review: false,
+                granularity: None,
+                file_independence: vec![],
             }),
         }
     }
@@ -911,5 +913,189 @@ mod tests {
         assert!(
             matches!(&rereviewed.tasks[1].review,Nullable::Value(review) if review.needs_review)
         );
+    }
+
+    #[test]
+    fn granularity_review_rejects_unsafe_split_uncertain_and_stale_plans() {
+        use super::super::validation::validate_granularity;
+        let mut s = session(&[]);
+        s.tasks = vec![
+            task(1, vec![], vec![]),
+            task(2, vec![], vec!["TASK-001".into()]),
+        ];
+        s.next_task_number = 3;
+        s.tasks[1].acceptance_criteria = vec![work_model::task::source::TaskAcceptance {
+            id: "TASK-002-ACCEPTANCE-001".into(),
+            criterion: "Deliver result".into(),
+        }];
+        assert_eq!(
+            validate_granularity(&s, &s.tasks[1]).unwrap_err().0,
+            "task_granularity_review_required"
+        );
+        let binding = fingerprint::discussion_planning(&s, "TASK-002");
+        let Nullable::Value(review) = &mut s.tasks[1].review else {
+            unreachable!()
+        };
+        review.granularity = Some(GranularityReview {
+            outcome: "Deliver".into(),
+            split_decision: SplitDecision::SingleOutcome,
+            indivisibility_reason: String::new(),
+            transaction_feasible: true,
+            evidence: "Reviewed outcomes and recovery".into(),
+            planning_sha256: binding,
+            semantic: Some(OutcomeConsistencyReview {
+                outcomes: vec![ReviewedOutcome {
+                    id: "OUTCOME-001".into(),
+                    statement: "Deliver".into(),
+                    acceptance_ids: vec!["TASK-002-ACCEPTANCE-001".into()],
+                    file_keys: vec![],
+                    scope: vec!["Scope".into()],
+                    independently_acceptable: true,
+                    needs_confirmation: false,
+                    evidence: "Reviewed explicit mapping".into(),
+                }],
+                coupled_outcome_ids: vec!["OUTCOME-001".into()],
+                separation_consequence: "Splitting loses the verified result".into(),
+            }),
+        });
+        assert!(validate_granularity(&s, &s.tasks[1]).is_ok());
+        for (split, reason, expected) in [
+            (SplitDecision::SplitRequired, "", "task_split_required"),
+            (
+                SplitDecision::NeedsConfirmation,
+                "",
+                "task_granularity_needs_confirmation",
+            ),
+            (
+                SplitDecision::Indivisible,
+                "",
+                "task_indivisibility_evidence_required",
+            ),
+        ] {
+            let mut changed = s.clone();
+            let Nullable::Value(review) = &mut changed.tasks[1].review else {
+                unreachable!()
+            };
+            let g = review.granularity.as_mut().unwrap();
+            g.split_decision = split;
+            g.indivisibility_reason = reason.into();
+            assert_eq!(
+                validate_granularity(&changed, &changed.tasks[1])
+                    .unwrap_err()
+                    .0,
+                expected
+            );
+        }
+        let mut indivisible = s.clone();
+        let Nullable::Value(review) = &mut indivisible.tasks[1].review else {
+            unreachable!()
+        };
+        let g = review.granularity.as_mut().unwrap();
+        g.split_decision = SplitDecision::Indivisible;
+        g.indivisibility_reason = "Interface and consumer must publish together".into();
+        assert!(validate_granularity(&indivisible, &indivisible.tasks[1]).is_ok());
+        let mut multi = s.clone();
+        multi.tasks[1]
+            .acceptance_criteria
+            .push(work_model::task::source::TaskAcceptance {
+                id: "TASK-002-ACCEPTANCE-002".into(),
+                criterion: "Independent result".into(),
+            });
+        let binding = fingerprint::discussion_planning(&multi, "TASK-002");
+        let Nullable::Value(review) = &mut multi.tasks[1].review else {
+            unreachable!()
+        };
+        let g = review.granularity.as_mut().unwrap();
+        g.planning_sha256 = binding;
+        let semantic = g.semantic.as_mut().unwrap();
+        let mut second = semantic.outcomes[0].clone();
+        second.id = "OUTCOME-002".into();
+        second.statement = "Independent deliverable".into();
+        second.acceptance_ids = vec!["TASK-002-ACCEPTANCE-002".into()];
+        semantic.outcomes.push(second);
+        assert_eq!(
+            validate_granularity(&multi, &multi.tasks[1]).unwrap_err().0,
+            "task_split_required"
+        );
+        let Nullable::Value(review) = &mut multi.tasks[1].review else {
+            unreachable!()
+        };
+        let g = review.granularity.as_mut().unwrap();
+        g.split_decision = SplitDecision::Indivisible;
+        g.indivisibility_reason = "Interface and consumer require the same publication".into();
+        // An indivisible label cannot override independently acceptable outcomes.
+        assert_eq!(
+            validate_granularity(&multi, &multi.tasks[1]).unwrap_err().0,
+            "task_split_required"
+        );
+        let Nullable::Value(review) = &mut multi.tasks[1].review else {
+            unreachable!()
+        };
+        let semantic = review
+            .granularity
+            .as_mut()
+            .unwrap()
+            .semantic
+            .as_mut()
+            .unwrap();
+        for outcome in &mut semantic.outcomes {
+            outcome.independently_acceptable = false;
+        }
+        semantic.coupled_outcome_ids.push("OUTCOME-002".into());
+        assert!(validate_granularity(&multi, &multi.tasks[1]).is_ok());
+        for case in 0..4 {
+            let mut wrong = s.clone();
+            let Nullable::Value(review) = &mut wrong.tasks[1].review else {
+                unreachable!()
+            };
+            let semantic = review
+                .granularity
+                .as_mut()
+                .unwrap()
+                .semantic
+                .as_mut()
+                .unwrap();
+            match case {
+                0 => semantic.outcomes[0].acceptance_ids.clear(),
+                1 => semantic.outcomes[0].file_keys.push("undeclared".into()),
+                2 => semantic.outcomes[0].scope = vec!["unrelated".into()],
+                _ => semantic.outcomes[0].needs_confirmation = true,
+            }
+            assert_eq!(
+                validate_granularity(&wrong, &wrong.tasks[1]).unwrap_err().0,
+                if case == 3 {
+                    "task_granularity_needs_confirmation"
+                } else {
+                    "task_outcome_review_inconsistent"
+                }
+            );
+        }
+        let mut unsafe_plan = s.clone();
+        let Nullable::Value(review) = &mut unsafe_plan.tasks[1].review else {
+            unreachable!()
+        };
+        review.granularity.as_mut().unwrap().transaction_feasible = false;
+        assert_eq!(
+            validate_granularity(&unsafe_plan, &unsafe_plan.tasks[1])
+                .unwrap_err()
+                .0,
+            "task_granularity_unsafe"
+        );
+        for which in 0..3 {
+            let mut drift = s.clone();
+            match which {
+                0 => drift.tasks[0].goal.push_str(" changed"),
+                1 => drift.tasks[1].scope.push("changed".into()),
+                _ => drift.context.constraints.push("changed".into()),
+            }
+            assert_eq!(
+                validate_granularity(&drift, &drift.tasks[1]).unwrap_err().0,
+                "task_granularity_review_stale"
+            );
+        }
+        seal(&mut s);
+        let before = serde_json::to_vec(&s).unwrap();
+        assert!(validate_granularity(&s, &s.tasks[1]).is_ok());
+        assert_eq!(serde_json::to_vec(&s).unwrap(), before);
     }
 }

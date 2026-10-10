@@ -1837,7 +1837,9 @@ mod tests {
         let item_path = root.join("outputs/work/tasks/example/tasks/TASK-001.json");
         let source_path = root.join("outputs/work/sources/example/SRC-001/source.txt");
         let original_source = fs::read(&source_path).unwrap();
-        let skill = repo.join("../skills/work");
+        let skill =
+            crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap();
         let collection = load_collection_with_file_state(
             &LocalHierarchyCatalog {
                 skill_root: skill.clone(),
@@ -2028,7 +2030,12 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let skill = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
+        let fixture_skill = crate::fixture_support::historical_task_skill_root(Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../skills/work"
+        )))
+        .unwrap();
+        let skill = fixture_skill.as_path();
         for operation in [
             SpecOperation::Validate,
             SpecOperation::Apply,
@@ -2084,7 +2091,12 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let skill = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
+        let fixture_skill = crate::fixture_support::historical_task_skill_root(Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../skills/work"
+        )))
+        .unwrap();
+        let skill = fixture_skill.as_path();
         for edits in [json!([]), json!({})] {
             let raw = serde_json::to_vec(&json!({"schema":"work-spec-prepare-request",
                 "requirement_id":"example","reason":"Review","edits":edits}))
@@ -2115,7 +2127,12 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let skill = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
+        let fixture_skill = crate::fixture_support::historical_task_skill_root(Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../skills/work"
+        )))
+        .unwrap();
+        let skill = fixture_skill.as_path();
         let raw = serde_json::to_vec(&json!({"schema":"work-spec-verification-request",
             "requirement_id":"example","artifacts":{"plan":"p"},
             "record_id":"SPEC-UPDATE-ABCDEF012345"}))
@@ -2235,7 +2252,8 @@ mod tests {
         let prepare = |request: &Value| {
             prepare_simple_update(
                 &root,
-                &repo.join("../skills/work"),
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
                 &[],
                 SpecificationPrepareInput {
                     raw: &serde_json::to_vec(request).unwrap(),
@@ -2313,7 +2331,8 @@ mod tests {
         assert!(
             update_from_project(
                 &root,
-                &repo.join("../skills/work"),
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
                 &[],
                 SpecificationProjectRequest {
                     raw: &serde_json::to_vec(&first["request"]).unwrap(),
@@ -2353,7 +2372,9 @@ mod tests {
         let index_path = "outputs/work/tasks/example/index.json";
         let original = fs::read(root.join(index_path)).unwrap();
         let index: Value = serde_json::from_slice(&original).unwrap();
-        let current_skill = repo.join("../skills/work");
+        let current_skill =
+            crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap();
         fn copy_tree(source: &Path, target: &Path) {
             fs::create_dir_all(target).unwrap();
             for entry in fs::read_dir(source).unwrap() {
@@ -2547,7 +2568,8 @@ mod tests {
         .unwrap();
         let prepared = prepare_simple_update(
             &root,
-            &repo.join("../skills/work"),
+            &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap(),
             &[],
             SpecificationPrepareInput {
                 raw: &semantic,
@@ -2663,7 +2685,8 @@ mod tests {
             }
             let error = prepare_simple_update(
                 &root,
-                &repo.join("../skills/work"),
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
                 &[],
                 SpecificationPrepareInput {
                     raw: &semantic,
@@ -2716,7 +2739,8 @@ mod tests {
         .unwrap();
         let prepared = prepare_simple_update(
             &root,
-            &repo.join("../skills/work"),
+            &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap(),
             &[],
             SpecificationPrepareInput {
                 raw: &semantic,
@@ -2770,7 +2794,9 @@ mod tests {
         let expected: Value =
             serde_json::from_slice(&fs::read(fixture.join("../expected/result.json")).unwrap())
                 .unwrap();
-        let skill = repo.join("../skills/work");
+        let skill =
+            crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap();
         let semantic = fs::read(fixture.join("../input/semantic-request.json")).unwrap();
         let expected_request: Value = serde_json::from_slice(&request).unwrap();
         let date = expected_request["task_index"]["changes"]
@@ -2930,7 +2956,9 @@ mod tests {
                 .unwrap()["date"]
                 .as_str()
                 .unwrap();
-            let skill = repo.join("../skills/work");
+            let skill =
+                crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap();
             let prepared = prepare_simple_update(
                 &root,
                 &skill,
@@ -3026,7 +3054,9 @@ mod tests {
             repo.join("crates/work-infrastructure/fixtures/cases/specification/update/item-goal/input/semantic-request.json"),
         )
         .unwrap();
-        let skill = repo.join("../skills/work");
+        let skill =
+            crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap();
         let prepared = prepare_simple_update(
             &root,
             &skill,

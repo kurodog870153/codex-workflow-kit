@@ -28,7 +28,7 @@ metadata:
 ## 3. 輸入、檔案與步驟
 
 1. [強制] `inputs[]` 使用 `id`、`kind`、`source`、`precondition`；kind 為 `task_output`、`project_state`、`user_provided` 或 `external`，不得保存機密值。
-2. [強制] `task_output.source` 使用 `<TASK-ID>/<FILE-ID>`，來源 TASK 必須為直接相依。`project_state.source` 是 normalized project-relative path；其他 source 只保存非機密識別或描述。
+2. [強制] `task_output.source` 使用 `<TASK-ID>/<FILE-ID>`，來源 TASK 必須在完整 DAG 祖先中，不為傳遞相依另加冗餘 direct edge；semantic candidate 的 dependency_position 仍依既有直接相依位置解析。`project_state.source` 是 normalized project-relative path；其他 source 只保存非機密識別或描述。
 3. [強制] `files[]` 的 action 為 `create`、`modify` 或 `move`；前兩者使用 `path`，move 使用 `source` 與 `destination`，不支援 delete。跨 TASK 檔案衝突須明確驗證相依。
 4. [強制] `risks[]` 保存 `condition`、`impact`、`mitigation`。`steps[]` 保存 `id`、`action`、非空 `references`，陣列順序就是執行順序；每個 FILE、CMD、OP、VAL 都須被 STEP 引用。
 
@@ -62,3 +62,9 @@ metadata:
 
 1. [強制] 使用 `<work-cli> contract describe work-task-index`、`work-task-item`、`work-task-collection-fingerprint` 查詢欄位、canonical 順序、constraints、nested references 與有效例子。
 2. [強制] Source、Execution、Specification、Migration 與 Reconciliation 使用各自 registered CLI contracts；以實際 contract descriptions 與 validator 為結構權威，不複製維護完整 JSON 模板。
+
+## 8. 最小成果與共用檔案審查
+
+1. [強制] 每個 Task 產生單一可驗證成果；獨立成果須拆分，不可分割的多檔成果保存理由與交易可行性，不以檔案數、行數或步驟數切分。
+2. [強制] 新正式化須保存有效 `review.granularity`，包含 outcome、split_decision、indivisibility_reason、transaction_feasible、evidence 與 CLI 目前 planning_sha256。缺漏、過期、split_required、needs_confirmation 或不可安全完成者阻擋正式化；有疑問逐項確認。
+3. [強制] 相同路徑不自動產生相依；同檔 modify/modify 未排序時須有綁定兩個 Task、path、actions、planning_sha256 與 confirmed evidence 的 file_independence 審查。其他寫入／讀取衝突要求有效祖先順序；正式 Validator 使用固定 trace 的不可變 Session history，不以最新 Session 覆蓋。

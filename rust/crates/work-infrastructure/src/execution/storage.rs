@@ -1068,6 +1068,9 @@ impl LocalExecutionStorage {
         }
         let after =
             parse_json_contract(publication.attempt_after).map_err(|_| transaction_conflict())?;
+        if after["status"] == "completed" {
+            super::file_transaction_storage::require_retained_publication(context, attempt_id)?;
+        }
         self.run_execution_staging_scoped(context, &plan, true, &LocalFiles, |_| Ok(()))?;
         Ok(work_model::execution::response::verified::<
             work_model::execution::response::ExecutionRecoveryResponse,
@@ -1886,6 +1889,14 @@ impl LocalExecutionStorage {
             let path = crate::files::resolve_runtime_path(root, &relative)?;
             if !path.is_dir() {
                 return Err(runtime_scan_error("runtime_inventory_foreign", &relative));
+            }
+            if operation == "project-files" {
+                super::file_transaction_storage::check_retained(
+                    root,
+                    requirement.as_str(),
+                    execution,
+                )?;
+                continue;
             }
             if !matches!(
                 operation,
@@ -5016,11 +5027,17 @@ impl RuntimeExecutionStorage<'_> {
         P: ArtifactPathRepository + SourceSnapshotReader,
         T: TaskCollectionRepository,
     {
+        let runner =
+            crate::process::isolation::IsolatedCommandRunner::new(self.context.writer().clone());
         self.run_prepared_command(
             input.execution_dir,
             approved_sha256,
-            || recheck_command_from_project(sources, self, input),
-            &LocalCommandRunner,
+            || {
+                let (preview, evidence) = recheck_command_from_project(sources, self, input)?;
+                runner.bind(&preview)?;
+                Ok((preview, evidence))
+            },
+            &runner,
         )
     }
 }
@@ -5143,6 +5160,13 @@ impl CommandCorrectionRepository for RuntimeExecutionStorage<'_> {
 }
 
 impl RecordBeginRepository for RuntimeExecutionStorage<'_> {
+    fn effect_boundary(
+        &self,
+        task: &Value,
+        record: &str,
+    ) -> work_model::execution::VerifiedEffectBoundary {
+        crate::process::isolation::record_boundary(task, record)
+    }
     fn publish_record_begin(
         &self,
         publication: &RecordBeginPublication<'_>,
@@ -5195,6 +5219,23 @@ impl AttemptCloseRepository for RuntimeExecutionStorage<'_> {
     ) -> Result<(), WorkError> {
         self.write(publication.execution_dir, || {
             self.check_index(publication.index_before)?;
+            let completed: serde_json::Value = serde_json::from_slice(publication.attempt_after)
+                .map_err(|_| transaction_conflict())?;
+            if completed["status"] == "completed"
+                && self.context.task_context().contract["tasks"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .any(|t| {
+                        t["id"] == publication.task_id
+                            && t["files"].as_array().is_some_and(|f| !f.is_empty())
+                    })
+            {
+                super::file_transaction_storage::require_published(
+                    self.context,
+                    publication.attempt_id,
+                )?;
+            }
             {
                 let plan = self
                     .storage
@@ -5265,6 +5306,20 @@ impl ExecutionWorktreeRepository for RuntimeExecutionStorage<'_> {
 }
 
 impl CommandPrepareRepository for RuntimeExecutionStorage<'_> {
+    fn execution_settings(&self, settings: &Value, receipt: &str) -> Result<Value, WorkError> {
+        let policy = crate::process::isolation::policy(self.context.writer(), receipt)?;
+        let mut settings = settings.clone();
+        settings["work_isolation"] = json!(policy);
+        Ok(settings)
+    }
+    fn effect_boundary(
+        &self,
+        _task: &Value,
+        _record: &str,
+        actual: &Value,
+    ) -> work_model::execution::VerifiedEffectBoundary {
+        crate::process::isolation::invocation_boundary(self.context.writer(), actual)
+    }
     fn check_ready(&self, execution_dir: &str, require_idle: bool) -> Result<(), WorkError> {
         if execution_dir != self.context.target().execution_dir {
             return Err(WorkError::new(
@@ -5460,6 +5515,13 @@ impl CommandCorrectionRepository for RuntimeExecutionSession<'_> {
 }
 
 impl RecordBeginRepository for RuntimeExecutionSession<'_> {
+    fn effect_boundary(
+        &self,
+        task: &Value,
+        record: &str,
+    ) -> work_model::execution::VerifiedEffectBoundary {
+        crate::process::isolation::record_boundary(task, record)
+    }
     fn publish_record_begin(
         &self,
         publication: &RecordBeginPublication<'_>,
@@ -5523,6 +5585,22 @@ impl ExecutionWorktreeRepository for RuntimeExecutionSession<'_> {
 }
 
 impl CommandPrepareRepository for RuntimeExecutionSession<'_> {
+    fn execution_settings(&self, settings: &Value, receipt: &str) -> Result<Value, WorkError> {
+        self.with_context(|adapter| adapter.execution_settings(settings, receipt))
+    }
+    fn effect_boundary(
+        &self,
+        task: &Value,
+        record: &str,
+        actual: &Value,
+    ) -> work_model::execution::VerifiedEffectBoundary {
+        self.with_context(|adapter| {
+            Ok(CommandPrepareRepository::effect_boundary(
+                adapter, task, record, actual,
+            ))
+        })
+        .unwrap_or(work_model::execution::VerifiedEffectBoundary::Unknown)
+    }
     fn check_ready(&self, execution_dir: &str, require_idle: bool) -> Result<(), WorkError> {
         self.storage.check_ready(execution_dir, false)?;
         self.with_context(|adapter| adapter.check_ready(execution_dir, require_idle))
@@ -6440,6 +6518,8 @@ fn collect_runtime_inventory_files(
                     work_model::runtime::RuntimePhase::Publishing => 1,
                     work_model::runtime::RuntimePhase::PublishedVerified => 2,
                     work_model::runtime::RuntimePhase::Cleaning => 3,
+                    work_model::runtime::RuntimePhase::Restoring => 4,
+                    work_model::runtime::RuntimePhase::Restored => 5,
                 };
                 if identity != next
                     || next.published_count < manifest.published_count
@@ -6520,7 +6600,10 @@ mod tests {
             let (storage, writer, _) = receipt_candidate_case();
             let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
             let instructions = crate::hierarchy_catalog::LocalHierarchyCatalog {
-                skill_root: repo.join("../skills/work"),
+                skill_root: crate::fixture_support::historical_task_skill_root(
+                    &repo.join("../skills/work"),
+                )
+                .unwrap(),
             };
             let skills = crate::skill_catalog::LocalSkillCatalog { roots: vec![] };
             let paths = crate::artifact_paths::LocalArtifactPaths {
@@ -6707,7 +6790,10 @@ mod tests {
         let (storage, writer, _) = receipt_candidate_case_with_downstream(downstream);
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let instructions = crate::hierarchy_catalog::LocalHierarchyCatalog {
-            skill_root: repo.join("../skills/work"),
+            skill_root: crate::fixture_support::historical_task_skill_root(
+                &repo.join("../skills/work"),
+            )
+            .unwrap(),
         };
         let skills = crate::skill_catalog::LocalSkillCatalog { roots: vec![] };
         let paths = crate::artifact_paths::LocalArtifactPaths {
@@ -7129,7 +7215,7 @@ mod tests {
                 })
                 .collect();
             let proposal = json!({"schema":"work-execution-deviation-proposal","task_id":"TASK-001","attempt_id":"ATTEMPT-001",
-                "anchor_record_id":"CMD-001","task_basis":["CMD-001","STEP-002"],"gap":"Executable unavailable.",
+                "anchor_record_id":"CMD-001","task_basis":["CMD-001","STEP-001"],"gap":"Executable unavailable.",
                 "action":{"kind":"replace_command","record_id":"CMD-001","replacement":{"mode":"argv","argv":["python3","--version"]}},
                 "impact":{"summary":"Equivalent approved executable.","requirement_changed":false,"scope_changed":false,"acceptance_criteria_changed":false,
                     "deliverables_changed":false,"safety_boundary_changed":false,"external_side_effect_boundary_changed":false},"modifiable_files":[],"side_effects":["Runs equivalent existing command."]});
@@ -7362,12 +7448,140 @@ mod tests {
     }
 
     #[test]
+    fn completed_close_recovery_refuses_project_file_drift_and_preserves_record_evidence() {
+        use work_feature::execution::file_transaction::FileTransactionRepository;
+        let root = std::env::temp_dir().join(format!(
+            "work-close-project-files-{}-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
+            NEXT_TEST_ROOT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&root).unwrap();
+        let root = root.canonicalize().unwrap();
+        let skill = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"));
+        let context = crate::fixture_support::file_transaction_fixture(&root, &skill).unwrap();
+        let files = super::super::file_transaction_storage::LocalFileTransactions::for_project(
+            root.clone(),
+            skill,
+        );
+        let staged = ["b-moved.txt", "c-existing.txt", "d-new.txt"]
+            .into_iter()
+            .map(|p| {
+                (
+                    p.to_owned(),
+                    format!("outputs/work/transactions/example/file-test/staging/{p}"),
+                )
+            })
+            .collect();
+        let preview = work_feature::execution::file_transaction::prepare(
+            &files,
+            &context,
+            "ATTEMPT-001",
+            &staged,
+        )
+        .unwrap();
+        files
+            .apply(&context, &preview, "Approve complete native publication")
+            .unwrap();
+        let storage = LocalExecutionStorage {
+            project_root: root.clone(),
+        };
+        let execution = context.target().execution_dir;
+        let index_path = format!("{execution}/index.json");
+        let attempt_path = format!("{execution}/TASK-001/ATTEMPT-001/attempt.json");
+        let index = parse_json_contract(&fs::read(root.join(&index_path)).unwrap()).unwrap();
+        let attempt = parse_json_contract(&fs::read(root.join(&attempt_path)).unwrap()).unwrap();
+        let task = &context.task_context().contract["tasks"][0];
+        let (reserved, _, _) = work_operations::execution::record_begin_candidate(
+            task, &attempt, &index, "TASK-001", "VAL-001", None,
+        )
+        .unwrap();
+        let finish = json!({"schema":"work-record-finish-request","record":{"outcome":"passed","evidence":"Verified complete project-file outcome"}});
+        let accepted = work_operations::execution::record_finish::build_record_finish_candidates(
+            task, &attempt, &reserved, "TASK-001", &finish,
+        )
+        .unwrap();
+        let before_index = crate::fixture_support::render_execution_index(&accepted.index).unwrap();
+        let before_attempt =
+            work_operations::execution::attempt::render_attempt(&accepted.attempt).unwrap();
+        fs::write(root.join(&index_path), &before_index).unwrap();
+        fs::write(root.join(&attempt_path), &before_attempt).unwrap();
+        let (closed, index) = work_operations::execution::attempt_close::build_close_candidates(
+            task,
+            &accepted.index,
+            &accepted.attempt,
+            &json!({"schema":"work-attempt-close-request","status":"completed"}),
+            &crate::clock_workspace::local_timestamp(),
+        )
+        .unwrap();
+        let after_attempt = work_operations::execution::attempt::render_attempt(&closed).unwrap();
+        let after_index = crate::fixture_support::render_execution_index(&index).unwrap();
+        let publication = AttemptClosePublication {
+            execution_dir: execution,
+            task_id: "TASK-001",
+            attempt_id: "ATTEMPT-001",
+            index_before: &before_index,
+            index_after: &after_index,
+            attempt_before: &before_attempt,
+            attempt_after: &after_attempt,
+        };
+        let plan = storage
+            .attempt_close_staging_plan(&context, &publication)
+            .unwrap();
+        storage
+            .with_runtime_execution_writer(&context, |_| {
+                storage.run_execution_staging_scoped(&context, &plan, false, &LocalFiles, |stage| {
+                    if stage == RuntimeExecutionStage::StepWritten(0) {
+                        Err(runtime_scan_error("injected_close", execution))
+                    } else {
+                        Ok(())
+                    }
+                })
+            })
+            .unwrap_err();
+        let request = reviewed_staging_request(&storage, &context, "attempt_close");
+        let retained_index = fs::read(root.join(&index_path)).unwrap();
+        let retained_attempt = fs::read(root.join(&attempt_path)).unwrap();
+        let target = root.join("c-existing.txt");
+        let published = fs::read(&target).unwrap();
+        fs::write(&target, b"external actor changed output").unwrap();
+        let failure = storage
+            .with_runtime_execution_writer(&context, |_| {
+                storage.recover_attempt_close_staging_scoped(&context, &request)
+            })
+            .unwrap_err();
+        assert_eq!(failure.reason_code, "file_transaction_target_drift");
+        assert_eq!(fs::read(root.join(&index_path)).unwrap(), retained_index);
+        assert_eq!(
+            fs::read(root.join(&attempt_path)).unwrap(),
+            retained_attempt
+        );
+        assert_eq!(fs::read(&target).unwrap(), b"external actor changed output");
+        // Only this synthetic actor restores its own bytes, then the original record
+        // transaction may complete forward after its retained publication is reverified.
+        fs::write(&target, published).unwrap();
+        storage
+            .with_runtime_execution_writer(&context, |_| {
+                storage.recover_attempt_close_staging_scoped(&context, &request)
+            })
+            .unwrap();
+        assert_eq!(fs::read(root.join(index_path)).unwrap(), after_index);
+        assert_eq!(fs::read(root.join(attempt_path)).unwrap(), after_attempt);
+    }
+
+    #[test]
     fn readonly_inventory_context_preserves_handoff_without_execution_file_preflight() {
-        let (storage, writer, _) = receipt_candidate_case();
+        let (storage, writer, _) = receipt_case(false, true);
         fs::remove_file(storage.project_root.join("src.txt")).unwrap();
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let instructions = crate::hierarchy_catalog::LocalHierarchyCatalog {
-            skill_root: repo.join("../skills/work"),
+            skill_root: crate::fixture_support::historical_task_skill_root(
+                &repo.join("../skills/work"),
+            )
+            .unwrap(),
         };
         let skills = crate::skill_catalog::LocalSkillCatalog { roots: vec![] };
         let paths = crate::artifact_paths::LocalArtifactPaths {
@@ -7383,11 +7597,14 @@ mod tests {
             task_repository: &tasks,
             skill_roots: &[],
         };
+        work_feature::execution::load_execution_writer_context(&sources, writer.target()).unwrap();
         let failure =
-            work_feature::execution::load_execution_writer_context(&sources, writer.target())
-                .err()
-                .unwrap();
-        assert_eq!(failure.reason_code, "file_modify_target_missing");
+            prepare_execute_preflight_from_project(&sources, &storage, writer.target(), &[])
+                .unwrap_err();
+        assert_eq!(
+            failure.reason_code,
+            "execute_preflight_modify_target_missing"
+        );
         let reader = work_feature::execution::load_execution_inventory_context(
             &sources,
             work_feature::execution::ExecutionInventoryTarget {
@@ -8448,7 +8665,10 @@ mod tests {
         let (storage, writer, _) = receipt_candidate_case();
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let instructions = crate::hierarchy_catalog::LocalHierarchyCatalog {
-            skill_root: repo.join("../skills/work"),
+            skill_root: crate::fixture_support::historical_task_skill_root(
+                &repo.join("../skills/work"),
+            )
+            .unwrap(),
         };
         let skills = crate::skill_catalog::LocalSkillCatalog { roots: vec![] };
         let paths = crate::artifact_paths::LocalArtifactPaths {
@@ -8842,6 +9062,17 @@ mod tests {
         work_feature::execution::ExecutionWriterContext,
         Value,
     ) {
+        receipt_case(downstream, false)
+    }
+
+    fn receipt_case(
+        downstream: bool,
+        file_changing: bool,
+    ) -> (
+        LocalExecutionStorage,
+        work_feature::execution::ExecutionWriterContext,
+        Value,
+    ) {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture =
             repo.join("crates/work-infrastructure/fixtures/shared/task-diagnostics-project");
@@ -8857,6 +9088,19 @@ mod tests {
         let mut index: Value =
             serde_json::from_slice(&fs::read(root.join(task_path)).unwrap()).unwrap();
         index["artifacts"]["execution"] = json!(execution);
+        if !file_changing {
+            // Legacy execution-record tests use fileless commands. Managed file publication
+            // and the rejection of unisolated file-changing commands have separate tests.
+            let item_path = root.join("outputs/work/tasks/example/tasks/TASK-001.json");
+            let mut item: Value = serde_json::from_slice(&fs::read(&item_path).unwrap()).unwrap();
+            item.as_object_mut().unwrap().remove("files");
+            item["goal"] = json!("Record and validate an authorized fileless command.");
+            item["steps"].as_array_mut().unwrap().remove(0);
+            item["steps"][0]["id"] = json!("STEP-001");
+            let raw = crate::fixture_support::render_task_item(&item).unwrap();
+            index["tasks"][0]["canonical_sha256"] = json!(crate::fixture_support::raw_sha256(&raw));
+            fs::write(item_path, raw).unwrap();
+        }
         if downstream {
             let item_path = "outputs/work/tasks/example/tasks/TASK-001.json";
             let original = fs::read(root.join(item_path)).unwrap();
@@ -8904,7 +9148,10 @@ mod tests {
         .unwrap();
         fs::write(root.join("src.txt"), b"source\n").unwrap();
         let instructions = crate::hierarchy_catalog::LocalHierarchyCatalog {
-            skill_root: repo.join("../skills/work"),
+            skill_root: crate::fixture_support::historical_task_skill_root(
+                &repo.join("../skills/work"),
+            )
+            .unwrap(),
         };
         let skills = crate::skill_catalog::LocalSkillCatalog { roots: vec![] };
         let paths = crate::artifact_paths::LocalArtifactPaths {
@@ -9376,7 +9623,10 @@ mod tests {
             }
             fs::write(root.join("src.txt"), b"source\n").unwrap();
             let instructions = crate::hierarchy_catalog::LocalHierarchyCatalog {
-                skill_root: repo.join("../skills/work"),
+                skill_root: crate::fixture_support::historical_task_skill_root(
+                    &repo.join("../skills/work"),
+                )
+                .unwrap(),
             };
             let skills = crate::skill_catalog::LocalSkillCatalog { roots: vec![] };
             let paths = crate::artifact_paths::LocalArtifactPaths {
@@ -9522,7 +9772,10 @@ mod tests {
         .unwrap();
         fs::write(root.join("src.txt"), b"source\n").unwrap();
         let instructions = crate::hierarchy_catalog::LocalHierarchyCatalog {
-            skill_root: repo.join("../skills/work"),
+            skill_root: crate::fixture_support::historical_task_skill_root(
+                &repo.join("../skills/work"),
+            )
+            .unwrap(),
         };
         let skills = crate::skill_catalog::LocalSkillCatalog { roots: vec![] };
         let paths = crate::artifact_paths::LocalArtifactPaths {

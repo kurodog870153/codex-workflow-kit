@@ -422,7 +422,9 @@ mod tests {
             sources.push(json!({"path":destination,"raw_sha256":fingerprint::raw(&raw)}));
         }
         request["sources"] = json!(sources);
-        let skill = repo.join("../skills/work");
+        let skill =
+            crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap();
         let candidate = crate::specification::reconstruction::prepare_reconstruction_request(
             &root,
             &skill,

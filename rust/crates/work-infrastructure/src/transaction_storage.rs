@@ -25,6 +25,7 @@ fn runtime_operation(
 ) -> Result<work_operations::derivation::publication::RuntimeOperation, WorkError> {
     use work_operations::derivation::publication::RuntimeOperation as O;
     Ok(match name {
+        "project-files" => O::ProjectFiles,
         "attempt-start" => O::AttemptStart,
         "record-begin" => O::RecordBegin,
         "command-correction" => O::CommandCorrection,
@@ -189,6 +190,8 @@ pub fn update_runtime_progress(
         P::Publishing => 1,
         P::PublishedVerified => 2,
         P::Cleaning => 3,
+        P::Restoring => 4,
+        P::Restored => 5,
     };
     let current = read_runtime_manifest(store, root, expected)?;
     if published_count < current.published_count || rank(phase) < rank(current.phase) {

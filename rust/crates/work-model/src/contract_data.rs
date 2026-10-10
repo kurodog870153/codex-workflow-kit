@@ -498,7 +498,10 @@ pub fn registry() -> ContractRegistrySnapshot {
     insert_source_snapshot(&mut items);
     insert_source_responses(&mut items);
     insert_discussion_trace_fields(&mut items);
-    for (id, record) in crate::discussion::contracts::records() {
+    for (id, record) in crate::discussion::contracts::records()
+        .into_iter()
+        .chain(crate::execution::file_transaction_contracts::records())
+    {
         catalog.contracts.push(ContractCatalogEntry {
             id: id.clone(),
             kind: record.description.kind,

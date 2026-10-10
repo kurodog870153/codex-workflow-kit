@@ -1,4 +1,5 @@
 //! Pure execution identity, sequencing, and state transitions.
+pub mod file_transaction;
 
 use std::collections::{HashMap, HashSet};
 

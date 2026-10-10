@@ -258,7 +258,10 @@ mod tests {
                 &fs::read(fixture.join(format!("{name}/expected/result.json"))).unwrap(),
             )
             .unwrap();
-            let mut session = RoutingSourceSession::new(repo.join("../skills/work"));
+            let mut session = RoutingSourceSession::new(
+                crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
+            );
             let actual = execution_state(
                 &mut session,
                 input["requirement_id"].as_str().unwrap(),

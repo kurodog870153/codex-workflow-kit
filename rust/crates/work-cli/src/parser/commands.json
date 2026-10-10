@@ -2363,10 +2363,330 @@
       },
       {
         "name": "execute",
-        "help": "usage: work execute [-h]\n                       {preflight,worktree,attempt-start,attempt-start-prepare,recover-attempt-start,record-begin,command-correction,record-finish,attempt-close,correction-create,recover,recovery-prepare,command-prepare,deviation-prepare-semantic,deviation-record,command-run} ...\n\npositional arguments:\n  {preflight,worktree,attempt-start,attempt-start-prepare,recover-attempt-start,record-begin,command-correction,record-finish,attempt-close,correction-create,recover,recovery-prepare,command-prepare,deviation-prepare-semantic,deviation-record,command-run}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n",
+        "help": "usage: work execute [-h]\n                       {preflight,worktree,attempt-start,attempt-start-prepare,recover-attempt-start,record-begin,command-correction,record-finish,attempt-close,correction-create,recover,recovery-prepare,command-prepare,deviation-prepare-semantic,deviation-record,command-run,file-prepare,file-apply,file-recovery-prepare,file-restore} ...\n\npositional arguments:\n  {preflight,worktree,attempt-start,attempt-start-prepare,recover-attempt-start,record-begin,command-correction,record-finish,attempt-close,correction-create,recover,recovery-prepare,command-prepare,deviation-prepare-semantic,deviation-record,command-run,file-prepare,file-apply,file-recovery-prepare,file-restore}\n\noptions:\n  -h, --help            Return command help in a JSON response.\n",
         "arguments": [],
         "exclusive_groups": [],
         "children": [
+          {
+            "name": "file-prepare",
+            "help": "usage: work execute file-prepare [-h] --user-config-root USER_CONFIG_ROOT --task-path TASK_PATH --execution-dir EXECUTION_DIR --task-id TASK_ID [--skill-root SKILL_ROOT] --input-file INPUT_FILE\n",
+            "arguments": [
+              {
+                "name": "user_config_root",
+                "flags": [
+                  "--user-config-root"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "task_path",
+                "flags": [
+                  "--task-path"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "execution_dir",
+                "flags": [
+                  "--execution-dir"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "task_id",
+                "flags": [
+                  "--task-id"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "skill_root",
+                "flags": [
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "input_file",
+                "flags": [
+                  "--input-file"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
+            ],
+            "exclusive_groups": [],
+            "children": []
+          },
+          {
+            "name": "file-apply",
+            "help": "usage: work execute file-apply [-h] --user-config-root USER_CONFIG_ROOT --task-path TASK_PATH --execution-dir EXECUTION_DIR --task-id TASK_ID [--skill-root SKILL_ROOT] --input-file INPUT_FILE\n",
+            "arguments": [
+              {
+                "name": "user_config_root",
+                "flags": [
+                  "--user-config-root"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "task_path",
+                "flags": [
+                  "--task-path"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "execution_dir",
+                "flags": [
+                  "--execution-dir"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "task_id",
+                "flags": [
+                  "--task-id"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "skill_root",
+                "flags": [
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "input_file",
+                "flags": [
+                  "--input-file"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
+            ],
+            "exclusive_groups": [],
+            "children": []
+          },
+          {
+            "name": "file-recovery-prepare",
+            "help": "usage: work execute file-recovery-prepare [-h] --user-config-root USER_CONFIG_ROOT --task-path TASK_PATH --execution-dir EXECUTION_DIR --task-id TASK_ID [--skill-root SKILL_ROOT] --input-file INPUT_FILE\n",
+            "arguments": [
+              {
+                "name": "user_config_root",
+                "flags": [
+                  "--user-config-root"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "task_path",
+                "flags": [
+                  "--task-path"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "execution_dir",
+                "flags": [
+                  "--execution-dir"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "task_id",
+                "flags": [
+                  "--task-id"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "skill_root",
+                "flags": [
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "input_file",
+                "flags": [
+                  "--input-file"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
+            ],
+            "exclusive_groups": [],
+            "children": []
+          },
+          {
+            "name": "file-restore",
+            "help": "usage: work execute file-restore [-h] --user-config-root USER_CONFIG_ROOT --task-path TASK_PATH --execution-dir EXECUTION_DIR --task-id TASK_ID [--skill-root SKILL_ROOT] --input-file INPUT_FILE\n",
+            "arguments": [
+              {
+                "name": "user_config_root",
+                "flags": [
+                  "--user-config-root"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "task_path",
+                "flags": [
+                  "--task-path"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "execution_dir",
+                "flags": [
+                  "--execution-dir"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "task_id",
+                "flags": [
+                  "--task-id"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "skill_root",
+                "flags": [
+                  "--skill-root"
+                ],
+                "required": false,
+                "nargs": null,
+                "append": true,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              },
+              {
+                "name": "input_file",
+                "flags": [
+                  "--input-file"
+                ],
+                "required": true,
+                "nargs": null,
+                "append": false,
+                "boolean": false,
+                "choices": null,
+                "help": null
+              }
+            ],
+            "exclusive_groups": [],
+            "children": []
+          },
           {
             "name": "preflight",
             "help": "usage: work execute preflight [-h] --user-config-root USER_CONFIG_ROOT\n                                 --task-path TASK_PATH\n                                 --execution-dir EXECUTION_DIR\n                                 --task-id TASK_ID [--skill-root SKILL_ROOT]\n                                 [--confirmed-input CONFIRMED_INPUT]\n\noptions:\n  -h, --help            Return command help in a JSON response.\n  --user-config-root USER_CONFIG_ROOT\n  --task-path TASK_PATH\n  --execution-dir EXECUTION_DIR\n  --task-id TASK_ID\n  --skill-root SKILL_ROOT\n  --confirmed-input CONFIRMED_INPUT\n",

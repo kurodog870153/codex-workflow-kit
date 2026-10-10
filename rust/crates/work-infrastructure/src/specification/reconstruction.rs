@@ -469,15 +469,27 @@ mod tests {
         let expected: Value =
             serde_json::from_slice(&fs::read(fixture.join("../input/request.json")).unwrap())
                 .unwrap();
-        let actual =
-            prepare_reconstruction_request(&root, &repo.join("../skills/work"), &[], &request)
-                .unwrap();
+        let actual = prepare_reconstruction_request(
+            &root,
+            &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap(),
+            &[],
+            &request,
+        )
+        .unwrap();
         assert_eq!(actual, expected);
         let expected_preview: Value =
             serde_json::from_slice(&fs::read(fixture.join("../expected/result.json")).unwrap())
                 .unwrap();
         assert_eq!(
-            preview_migration(&root, &repo.join("../skills/work"), &[], &actual).unwrap(),
+            preview_migration(
+                &root,
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
+                &[],
+                &actual
+            )
+            .unwrap(),
             expected_preview
         );
     }
@@ -518,7 +530,8 @@ mod tests {
         request["sources"] = json!(sources);
         let prepared = prepare_reconstruction_request(
             &root,
-            &repo.join("../skills/work"),
+            &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap(),
             &[],
             &serde_json::to_vec(&request).unwrap(),
         )
@@ -538,7 +551,14 @@ mod tests {
                 .all(|row| row["kind"] != "plan")
         );
         assert_eq!(
-            preview_migration(&root, &repo.join("../skills/work"), &[], &prepared).unwrap()["status"],
+            preview_migration(
+                &root,
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
+                &[],
+                &prepared
+            )
+            .unwrap()["status"],
             "ready"
         );
         let mut incomplete = request.clone();
@@ -549,7 +569,8 @@ mod tests {
         assert_eq!(
             prepare_reconstruction_request(
                 &root,
-                &repo.join("../skills/work"),
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
                 &[],
                 &serde_json::to_vec(&incomplete).unwrap()
             )

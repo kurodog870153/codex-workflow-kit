@@ -1669,7 +1669,9 @@ mod tests {
         let skipped = prepare_request(&root, &analysis, &skip).unwrap();
         assert_eq!(skipped["executable"], false);
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let skill_root = repo.join("../skills/work");
+        let skill_root =
+            crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap();
         assert_eq!(
             execute(
                 &root,
@@ -1926,7 +1928,8 @@ mod tests {
         assert_eq!(
             preview(
                 &root,
-                &repo.join("../skills/work"),
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
                 &[],
                 request_path,
                 approved
@@ -1938,7 +1941,8 @@ mod tests {
         assert_eq!(
             execute(
                 &root,
-                &repo.join("../skills/work"),
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
                 &[],
                 request_path,
                 approved
@@ -1950,7 +1954,8 @@ mod tests {
         fs::write(&plan_path, plan_bytes).unwrap();
         let result = execute(
             &root,
-            &repo.join("../skills/work"),
+            &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap(),
             &[],
             request_path,
             approved,
@@ -2024,7 +2029,10 @@ mod tests {
             assert!(
                 execute(
                     &root,
-                    &repo.join("../skills/work"),
+                    &crate::fixture_support::historical_task_skill_root(
+                        &repo.join("../skills/work")
+                    )
+                    .unwrap(),
                     &[],
                     prepared["request_path"].as_str().unwrap(),
                     approved
@@ -2054,7 +2062,7 @@ mod tests {
                 requirement_id: "example".parse().unwrap(),
             };
             work_feature::ports::with_runtime_writer(&LocalWriterLock,&context,work_model::runtime::LockClass::Execution,
-                |owner|execute_scoped_with_fault(&root,&repo.join("../skills/work"),&[],prepared["request_path"].as_str().unwrap(),approved,Some(owner),&mut |position,stage| {
+                |owner|execute_scoped_with_fault(&root,&crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work")).unwrap(),&[],prepared["request_path"].as_str().unwrap(),approved,Some(owner),&mut |position,stage| {
                     if position==1 && stage==crate::transaction_storage::JournalRuntimeStage::JournalInitialized {
                         Err(fail("injected_item_fault","injected"))
                     } else {Ok(())}
@@ -2071,7 +2079,8 @@ mod tests {
         assert!(
             crate::specification::migration_reconciliation_publication::validate_expected(
                 &root,
-                &repo.join("../skills/work"),
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
                 &[],
                 "example",
                 &BTreeMap::new(),
@@ -2100,7 +2109,8 @@ mod tests {
             .unwrap();
             let rejected = recover(
                 &root,
-                &repo.join("../skills/work"),
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
                 &[],
                 prepared["request_path"].as_str().unwrap(),
                 approved,
@@ -2127,7 +2137,8 @@ mod tests {
             fs::write(&journal_path, b"foreign partial journal").unwrap();
             let rejected = recover(
                 &root,
-                &repo.join("../skills/work"),
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
                 &[],
                 prepared["request_path"].as_str().unwrap(),
                 approved,
@@ -2151,7 +2162,8 @@ mod tests {
             fs::write(&journal_path, pending_raw).unwrap();
             let recovered = recover(
                 &root,
-                &repo.join("../skills/work"),
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
                 &[],
                 prepared["request_path"].as_str().unwrap(),
                 approved,
@@ -2182,7 +2194,8 @@ mod tests {
                 .collect::<Vec<_>>();
             let again = recover(
                 &root,
-                &repo.join("../skills/work"),
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
                 &[],
                 prepared["request_path"].as_str().unwrap(),
                 approved,
@@ -2261,7 +2274,8 @@ mod tests {
         assert_eq!(
             recover(
                 &root,
-                &repo.join("../skills/work"),
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
                 &[],
                 prepared["request_path"].as_str().unwrap(),
                 approved,
@@ -2276,7 +2290,8 @@ mod tests {
         fs::write(&evidence_path, original_evidence).unwrap();
         let recovered = recover(
             &root,
-            &repo.join("../skills/work"),
+            &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap(),
             &[],
             prepared["request_path"].as_str().unwrap(),
             approved,
@@ -2400,7 +2415,8 @@ mod tests {
             let prepared = prepare_request(&root, &analysis, &choices).unwrap();
             let result = execute(
                 &root,
-                &repo.join("../skills/work"),
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
                 &[],
                 prepared["request_path"].as_str().unwrap(),
                 prepared["request_sha256"].as_str().unwrap(),

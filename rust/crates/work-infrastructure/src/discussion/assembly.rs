@@ -616,6 +616,7 @@ mod recovery_tests {
         if let work_model::common::Nullable::Value(review) = &mut session.tasks[0].review {
             review.decision_versions.insert("D008".into(), 2);
         }
+        crate::fixture_support::review_discussion_fixture(&mut session);
         session.commit.content_sha256 = fingerprint::discussion_session(&session);
         let prepared = adapter.candidate(&session, &metadata).unwrap();
         assert_eq!(

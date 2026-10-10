@@ -200,7 +200,10 @@ where
         &cached,
         skill_roots,
         index_path,
-        true,
+        // Current execution may already have created or moved files. Initial collection
+        // lifecycle belongs to formalization; Execute preflight checks this Task's current
+        // lifecycle, and ongoing publication/closure checks preserved transaction evidence.
+        false,
     )?;
     let index_raw = cached.read_task_file(index_path)?;
     if fingerprint::raw(&index_raw) != validated["task_index_sha256"] {
@@ -707,6 +710,48 @@ where
         serde_json::to_value(semantic_projection(typed_index, items, input.index_path))
             .expect("TASK projection serializes");
     let semantics = validate_task_semantics(&projection).map_err(domain)?;
+    let conflicts =
+        work_operations::task::file_dependencies::conflicts(&projection).map_err(domain)?;
+    let review_session = if !conflicts.is_empty() && index.get("discussion").is_some() {
+        let trace: work_model::task::discussion_trace::DiscussionTrace =
+            serde_json::from_value(index["discussion"].clone()).map_err(|_| {
+                domain(TaskIssue {
+                    reason_code: "invalid_discussion_trace",
+                    message: "Invalid Discussion review trace.",
+                    details: json!({}),
+                })
+            })?;
+        let relative = format!(
+            "outputs/work/discussions/{}/history/{}/session.json",
+            index["requirement_id"].as_str().expect("requirement"),
+            trace.revision
+        );
+        let session: work_model::discussion::DiscussionSession =
+            serde_json::from_slice(&paths.read_raw(&relative)?).map_err(|_| {
+                error(
+                    ExitCode::ArtifactIntegrity,
+                    "task_file_review_history_invalid",
+                    "Immutable review evidence cannot be decoded.",
+                    json!({}),
+                )
+            })?;
+        if session.commit.content_sha256 != trace.content_sha256
+            || session.revision != trace.revision
+            || session.requirement_id != index["requirement_id"].as_str().expect("requirement")
+        {
+            return Err(error(
+                ExitCode::ArtifactIntegrity,
+                "task_file_review_binding_mismatch",
+                "Review history must match the fixed trace.",
+                json!({}),
+            ));
+        }
+        Some(session)
+    } else {
+        None
+    };
+    work_operations::task::file_dependencies::validate(&projection, review_session.as_ref())
+        .map_err(domain)?;
     if policy.file_state {
         let mut existence = BTreeMap::new();
         for task in projection["tasks"].as_array().expect("validated TASKs") {

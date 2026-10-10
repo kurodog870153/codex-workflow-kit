@@ -305,6 +305,8 @@ pub fn execution_control_candidates(
         P::Publishing => 1,
         P::PublishedVerified => 2,
         P::Cleaning => 3,
+        P::Restoring => 4,
+        P::Restored => 5,
     };
     let mut candidates = Vec::new();
     for phase in [

@@ -8,6 +8,8 @@ use std::time::{Duration, Instant};
 
 use work_feature::ports::{CommandOutcome, CommandRequest, CommandRunner, CommandStatus};
 
+pub(crate) mod isolation;
+
 const TAIL_BYTES: usize = 4096;
 
 pub struct ProcessCapture {

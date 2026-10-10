@@ -299,7 +299,10 @@ mod tests {
         let storage = LocalDelegationStorage {
             project_root: repo
                 .join("crates/work-infrastructure/fixtures/shared/task-diagnostics-project"),
-            skill_root: repo.join("../skills/work"),
+            skill_root: crate::fixture_support::historical_task_skill_root(
+                &repo.join("../skills/work"),
+            )
+            .unwrap(),
             skill_configs: vec![],
         };
         let index: Value = serde_json::from_slice(
@@ -343,7 +346,10 @@ mod tests {
         let storage = LocalDelegationStorage {
             project_root: repo
                 .join("crates/work-infrastructure/fixtures/shared/task-diagnostics-project"),
-            skill_root: repo.join("../skills/work"),
+            skill_root: crate::fixture_support::historical_task_skill_root(
+                &repo.join("../skills/work"),
+            )
+            .unwrap(),
             skill_configs: vec![],
         };
         let envelope = storage
@@ -423,7 +429,10 @@ mod tests {
         repository.initialize(&session, false).unwrap();
         let storage = LocalDelegationStorage {
             project_root: root.clone(),
-            skill_root: repo.join("../skills/work"),
+            skill_root: crate::fixture_support::historical_task_skill_root(
+                &repo.join("../skills/work"),
+            )
+            .unwrap(),
             skill_configs: vec![],
         };
         let request = json!({"schema":"work-delegation-build-request","role":"task-coordinator","request":"resume example"});
@@ -473,7 +482,10 @@ mod tests {
             project_root: repo.join(
                 "crates/work-infrastructure/fixtures/cases/delegation/role/legacy-plan/project",
             ),
-            skill_root: repo.join("../skills/work"),
+            skill_root: crate::fixture_support::historical_task_skill_root(
+                &repo.join("../skills/work"),
+            )
+            .unwrap(),
             skill_configs: vec![],
         };
         let request = json!({"schema":"work-delegation-build-request","role":"artifact-editor","mode":"execute","request":"Revise confirmed artifact.","source_plan_path":"outputs/work/plans/example.json","confirmed_request":{"reason":"Reviewed"},"decisions":["Confirmed revision"],"affected_task_ids":["TASK-001"],"continuation_point":"Return to Execute"});
@@ -503,7 +515,10 @@ mod tests {
         let storage = LocalDelegationStorage {
             project_root: repo
                 .join("crates/work-infrastructure/fixtures/shared/task-diagnostics-project"),
-            skill_root: repo.join("../skills/work"),
+            skill_root: crate::fixture_support::historical_task_skill_root(
+                &repo.join("../skills/work"),
+            )
+            .unwrap(),
             skill_configs: vec![],
         };
         let envelope = storage
@@ -550,7 +565,7 @@ mod tests {
         let storage = LocalDelegationStorage {
             project_root: repo
                 .join("crates/work-infrastructure/fixtures/cases/delegation/role/task-skill/project"),
-            skill_root: repo.join("../skills/work"),
+            skill_root: crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work")).unwrap(),
             skill_configs: vec![SkillRootConfig {
                 scope: "repo".into(),
                 locator: "delegation-fixture".into(),
@@ -590,7 +605,10 @@ mod tests {
             project_root: repo.join(
                 "crates/work-infrastructure/fixtures/historical/delegation/progress-saver/project",
             ),
-            skill_root: repo.join("../skills/work"),
+            skill_root: crate::fixture_support::historical_task_skill_root(
+                &repo.join("../skills/work"),
+            )
+            .unwrap(),
             skill_configs: vec![],
         };
         let path = storage
@@ -656,7 +674,10 @@ mod tests {
         ] {
             let storage = LocalDelegationStorage {
                 project_root: repo.join(relative),
-                skill_root: repo.join("../skills/work"),
+                skill_root: crate::fixture_support::historical_task_skill_root(
+                    &repo.join("../skills/work"),
+                )
+                .unwrap(),
                 skill_configs: vec![],
             };
             if role == "plan" {
@@ -715,7 +736,10 @@ mod tests {
         ] {
             let storage = LocalDelegationStorage {
                 project_root: repo.join(relative),
-                skill_root: repo.join("../skills/work"),
+                skill_root: crate::fixture_support::historical_task_skill_root(
+                    &repo.join("../skills/work"),
+                )
+                .unwrap(),
                 skill_configs: vec![],
             };
             if role == "plan" {
@@ -768,7 +792,10 @@ mod tests {
         ] {
             let storage = LocalDelegationStorage {
                 project_root: repo.join(relative),
-                skill_root: repo.join("../skills/work"),
+                skill_root: crate::fixture_support::historical_task_skill_root(
+                    &repo.join("../skills/work"),
+                )
+                .unwrap(),
                 skill_configs: vec![],
             };
             if role == "plan" {

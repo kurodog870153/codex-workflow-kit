@@ -285,7 +285,10 @@ mod tests {
         crate::fixture_support::copy_fixture_sources(&fixture, &root).unwrap();
         fs::write(root.join("src.txt"), b"original\n").unwrap();
         let work = LocalHierarchyCatalog {
-            skill_root: repo.join("../skills/work"),
+            skill_root: crate::fixture_support::historical_task_skill_root(
+                &repo.join("../skills/work"),
+            )
+            .unwrap(),
         };
         let skills = LocalSkillCatalog { roots: vec![] };
         let paths = crate::artifact_paths::LocalArtifactPaths {
@@ -557,7 +560,10 @@ mod tests {
             .mutate(&root, &["init".into(), "-q".into()])
             .unwrap();
         let work = LocalHierarchyCatalog {
-            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
+            skill_root: crate::fixture_support::historical_task_skill_root(&PathBuf::from(
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"),
+            ))
+            .unwrap(),
         };
         let skills = LocalSkillCatalog { roots: vec![] };
         let paths = crate::artifact_paths::LocalArtifactPaths {
@@ -1334,19 +1340,50 @@ mod tests {
             load_context: &load_command_context,
         };
         let command_lock_before = fs::read(&command_lock).ok();
-        let preview = prepare_command_from_project(&sources, &command_storage, input).unwrap();
+        // A repository without a trusted executor still cannot self-grant a boundary.
+        let rejected =
+            prepare_command_from_project(&sources, &execution_storage, input).unwrap_err();
+        assert_eq!(
+            rejected.reason_code,
+            "file_transaction_effect_boundary_unverified"
+        );
+        let approval_rejection = if cfg!(any(target_os = "macos", windows)) {
+            let isolated = prepare_command_from_project(&sources, &command_storage, input).unwrap();
+            let policy = &isolated["execution"]["work_isolation"];
+            assert_eq!(policy["network_access"], false);
+            assert_eq!(
+                policy["read_only_project_root"],
+                root.canonicalize().unwrap().to_string_lossy().as_ref()
+            );
+            assert!(policy["read_only_project_view"].as_str().is_some());
+            assert!(!std::path::Path::new(policy["writable_directory"].as_str().unwrap()).exists());
+            "command_run_approval_changed"
+        } else {
+            assert_eq!(
+                prepare_command_from_project(&sources, &command_storage, input)
+                    .unwrap_err()
+                    .reason_code,
+                "file_transaction_effect_boundary_unverified"
+            );
+            "file_transaction_effect_boundary_unverified"
+        };
         assert_eq!(
             fs::read(&execution_index_file).unwrap(),
             command_index_before
         );
         assert_eq!(fs::read(&attempt_path).unwrap(), command_attempt_before);
         assert_eq!(fs::read(&command_lock).ok(), command_lock_before);
-        let approved = preview["approved_sha256"].as_str().unwrap();
-        let command_result = command_storage
-            .run_command_from_project(&sources, input, approved)
-            .unwrap();
-        assert_eq!(command_result["stdout_tail"], "verified");
-        assert_eq!(command_result["record_finish_required"], true);
+        // A fabricated preview hash or repeated request cannot grant a capability.
+        let approved = "a".repeat(64);
+        let rejected = command_storage
+            .run_command_from_project(&sources, input, &approved)
+            .unwrap_err();
+        assert_eq!(rejected.reason_code, approval_rejection);
+        assert!(
+            !root
+                .join(format!("{execution_dir}/TASK-001/ATTEMPT-001/receipts"))
+                .exists()
+        );
         assert_eq!(
             fs::read(&execution_index_file).unwrap(),
             command_index_before
@@ -1354,10 +1391,10 @@ mod tests {
         assert_eq!(fs::read(&attempt_path).unwrap(), command_attempt_before);
         assert_eq!(
             command_storage
-                .run_command_from_project(&sources, input, approved)
+                .run_command_from_project(&sources, input, &approved)
                 .unwrap_err()
                 .reason_code,
-            "command_run_already_started"
+            approval_rejection
         );
         let index_before_correction = fs::read(&execution_index_file).unwrap();
         let rejected_correction = record_command_correction_from_project(

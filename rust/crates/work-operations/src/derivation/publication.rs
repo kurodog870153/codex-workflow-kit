@@ -4,6 +4,7 @@ use crate::derivation::fingerprint;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeOperation {
+    ProjectFiles,
     AttemptStart,
     RecordBegin,
     CommandCorrection,
@@ -22,6 +23,7 @@ pub enum RuntimeOperation {
 impl RuntimeOperation {
     pub fn as_str(self) -> &'static str {
         match self {
+            Self::ProjectFiles => "project-files",
             Self::AttemptStart => "attempt-start",
             Self::RecordBegin => "record-begin",
             Self::CommandCorrection => "command-correction",
@@ -41,6 +43,7 @@ impl RuntimeOperation {
     /// Execute inventories are complete fixed sets; journal targets are numbered separately.
     pub fn prepared_files(self) -> &'static [&'static str] {
         match self {
+            Self::ProjectFiles => &["candidate.json"],
             Self::AttemptStart => &["index.locked.json.tmp", "index.started.json.tmp"],
             Self::RecordBegin | Self::CommandCorrection => &["index.json.tmp"],
             Self::RecordFinish | Self::AttemptClose => &["attempt.json.tmp", "index.json.tmp"],

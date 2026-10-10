@@ -11,6 +11,8 @@ pub enum RuntimePhase {
     Publishing,
     PublishedVerified,
     Cleaning,
+    Restoring,
+    Restored,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -120,7 +122,8 @@ impl RuntimeManifest {
     pub fn validate_shape(&self) -> Result<(), &'static str> {
         let operation = matches!(
             self.operation.as_str(),
-            "attempt-start"
+            "project-files"
+                | "attempt-start"
                 | "record-begin"
                 | "command-correction"
                 | "record-finish"
@@ -149,6 +152,8 @@ impl RuntimeManifest {
             || self.inventory.is_empty()
             || self.published_count > self.targets.len()
             || (self.phase == RuntimePhase::Prepared && self.published_count != 0)
+            || (matches!(self.phase, RuntimePhase::Restoring | RuntimePhase::Restored)
+                && self.operation != "project-files")
             || (matches!(
                 self.phase,
                 RuntimePhase::PublishedVerified | RuntimePhase::Cleaning

@@ -82,7 +82,7 @@ mod tests {
 
     #[test]
     fn frozen_catalog_keeps_public_descriptions_and_scaffolds() {
-        assert_eq!(list()["contracts"].as_array().unwrap().len(), 96);
+        assert_eq!(list()["contracts"].as_array().unwrap().len(), 100);
         assert_eq!(
             describe("work-discussion-request").unwrap()["kind"],
             "semantic_request"

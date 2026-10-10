@@ -20,7 +20,8 @@ pub fn runtime_transaction_identity(
 ) -> Result<String, TransactionIssue> {
     let valid_operation = matches!(
         operation,
-        "attempt-start"
+        "project-files"
+            | "attempt-start"
             | "record-begin"
             | "command-correction"
             | "record-finish"

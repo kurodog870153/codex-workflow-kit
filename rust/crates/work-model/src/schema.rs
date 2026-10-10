@@ -4,6 +4,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PublicSchema {
+    #[serde(rename = "work-file-transaction-request")]
+    WorkFileTransactionRequest,
+    #[serde(rename = "work-file-transaction-preview")]
+    WorkFileTransactionPreview,
+    #[serde(rename = "work-file-recovery-preview")]
+    WorkFileRecoveryPreview,
+    #[serde(rename = "work-file-transaction-result")]
+    WorkFileTransactionResult,
     #[serde(rename = "work-discussion-session")]
     WorkDiscussionSession,
     #[serde(rename = "work-discussion-request")]
@@ -200,7 +208,11 @@ pub enum PublicSchema {
 }
 
 impl PublicSchema {
-    pub const ALL: [Self; 96] = [
+    pub const ALL: [Self; 100] = [
+        Self::WorkFileTransactionRequest,
+        Self::WorkFileTransactionPreview,
+        Self::WorkFileRecoveryPreview,
+        Self::WorkFileTransactionResult,
         Self::WorkDiscussionSession,
         Self::WorkDiscussionRequest,
         Self::WorkDiscussionResult,
@@ -301,6 +313,10 @@ impl PublicSchema {
 
     pub const fn as_str(self) -> &'static str {
         match self {
+            Self::WorkFileTransactionRequest => "work-file-transaction-request",
+            Self::WorkFileTransactionPreview => "work-file-transaction-preview",
+            Self::WorkFileRecoveryPreview => "work-file-recovery-preview",
+            Self::WorkFileTransactionResult => "work-file-transaction-result",
             Self::WorkDiscussionSession => "work-discussion-session",
             Self::WorkDiscussionRequest => "work-discussion-request",
             Self::WorkDiscussionResult => "work-discussion-result",

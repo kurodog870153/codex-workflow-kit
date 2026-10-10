@@ -50,6 +50,7 @@ pub struct DiscussionView {
     pub current_task_position: Option<usize>,
     pub revision: u64,
     pub content_sha256: String,
+    pub planning_sha256: std::collections::BTreeMap<String, String>,
     pub progress: DecisionProgress,
     pub continuation: Continuation,
     pub pending_decision_ids: Vec<String>,
@@ -104,6 +105,8 @@ pub fn view(session: &DiscussionSession) -> Result<DiscussionView> {
         current_task_position: session.tasks.iter().position(|t| session.continuation.current_task_id == Nullable::Value(t.id.clone())).map(|n|n+1),
         revision: session.revision,
         content_sha256: session.commit.content_sha256.clone(),
+        planning_sha256: session.tasks.iter().map(|t| (t.id.clone(),
+            crate::derivation::fingerprint::discussion_planning(session, &t.id))).collect(),
         progress: progress(session),
         continuation: session.continuation.clone(),
         pending_decision_ids: session

@@ -429,7 +429,8 @@ mod tests {
         assert!(
             create_task_artifacts_with_runtime(
                 &root,
-                &repo.join("../skills/work"),
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
                 &[],
                 request(false)
             )
@@ -439,7 +440,8 @@ mod tests {
         held.release().unwrap();
         let created = create_task_artifacts_with_runtime(
             &root,
-            &repo.join("../skills/work"),
+            &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap(),
             &[],
             request(false),
         )
@@ -449,7 +451,8 @@ mod tests {
         assert!(
             create_task_artifacts_with_runtime(
                 &root,
-                &repo.join("../skills/work"),
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
                 &[],
                 request(false)
             )
@@ -459,7 +462,8 @@ mod tests {
             .unwrap();
         let recovered = create_task_artifacts_with_runtime(
             &root,
-            &repo.join("../skills/work"),
+            &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap(),
             &[],
             request(true),
         )

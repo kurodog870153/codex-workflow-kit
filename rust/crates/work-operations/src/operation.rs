@@ -109,12 +109,22 @@ pub fn routing_identity(
             route.role = delegated_role.unwrap_or("main").into();
         }
         "execute" => {
+            if matches!(
+                operation,
+                "file-prepare" | "file-apply" | "file-recovery-prepare" | "file-restore"
+            ) {
+                route.formal_events.push("project_files");
+            }
             if matches!(operation, "preflight" | "worktree") {
                 route.next_action = "select_task_for_execution";
             }
             let event = match operation {
                 "attempt-start" => Some("attempt_start"),
-                "recover-attempt-start" | "recover" | "recovery-prepare" => Some("recovery"),
+                "recover-attempt-start"
+                | "recover"
+                | "recovery-prepare"
+                | "file-recovery-prepare"
+                | "file-restore" => Some("recovery"),
                 "attempt-close" => Some("attempt_close"),
                 "correction-create" => Some("correction"),
                 "command-correction" => Some("command_correction"),
@@ -142,7 +152,7 @@ mod tests {
             ("task", 4),
             ("specification", 9),
             ("migration", 6),
-            ("execute", 16),
+            ("execute", 20),
             ("delegation", 2),
             ("discussion", 8),
             ("handoff", 7),

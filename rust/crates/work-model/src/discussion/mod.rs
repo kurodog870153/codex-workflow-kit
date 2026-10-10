@@ -147,6 +147,64 @@ pub struct PlanningReview {
     pub decision_versions: BTreeMap<String, u64>,
     pub semantic_consistency_evidence: String,
     pub needs_review: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub granularity: Option<GranularityReview>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub file_independence: Vec<FileIndependenceReview>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FileIndependenceReview {
+    pub task_ids: [String; 2],
+    pub path: String,
+    pub actions: [String; 2],
+    pub planning_sha256: [String; 2],
+    pub confirmed: bool,
+    pub evidence: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SplitDecision {
+    SingleOutcome,
+    Indivisible,
+    SplitRequired,
+    NeedsConfirmation,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GranularityReview {
+    pub outcome: String,
+    pub split_decision: SplitDecision,
+    pub indivisibility_reason: String,
+    pub transaction_feasible: bool,
+    pub evidence: String,
+    pub planning_sha256: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub semantic: Option<OutcomeConsistencyReview>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OutcomeConsistencyReview {
+    pub outcomes: Vec<ReviewedOutcome>,
+    pub coupled_outcome_ids: Vec<String>,
+    pub separation_consequence: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewedOutcome {
+    pub id: String,
+    pub statement: String,
+    pub acceptance_ids: Vec<String>,
+    pub file_keys: Vec<String>,
+    pub scope: Vec<String>,
+    pub independently_acceptable: bool,
+    pub needs_confirmation: bool,
+    pub evidence: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

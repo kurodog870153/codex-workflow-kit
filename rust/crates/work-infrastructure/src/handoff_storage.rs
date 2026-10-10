@@ -630,7 +630,10 @@ mod tests {
         fs::write(root.join("src.txt"), b"original\n").unwrap();
         let storage = LocalHandoffStorage {
             project_root: root.clone(),
-            skill_root: repo.join("../skills/work"),
+            skill_root: crate::fixture_support::historical_task_skill_root(
+                &repo.join("../skills/work"),
+            )
+            .unwrap(),
             skill_configs: vec![],
         };
         let other = root.join("outputs/work/runtime/staging/other/unknown/bad");
@@ -686,7 +689,10 @@ mod tests {
         }
         let storage = LocalHandoffStorage {
             project_root: root.clone(),
-            skill_root: repo.join("../skills/work"),
+            skill_root: crate::fixture_support::historical_task_skill_root(
+                &repo.join("../skills/work"),
+            )
+            .unwrap(),
             skill_configs: vec![],
         };
         let request = json!({"summary":"Start execution."});
@@ -820,9 +826,11 @@ mod tests {
     #[test]
     fn closed_attempt_returns_match_current_contract_stopped_and_blocked() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let historical_skill =
-            crate::fixture_support::historical_execute_skill_root(&repo.join("../skills/work"))
-                .unwrap();
+        let historical_skill = crate::fixture_support::historical_execute_skill_root(
+            &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap(),
+        )
+        .unwrap();
         let request = json!({"summary":"調整已確認範圍",
             "confirmed_approach":"保留既有介面", "requested_changes":["新增驗收條件"],
             "preserve":["既有功能"],"affected_ids":["ACCEPTANCE-001","TASK-001"],
@@ -839,7 +847,10 @@ mod tests {
             };
             let current = LocalHandoffStorage {
                 project_root: fixture.clone(),
-                skill_root: repo.join("../skills/work"),
+                skill_root: crate::fixture_support::historical_task_skill_root(
+                    &repo.join("../skills/work"),
+                )
+                .unwrap(),
                 skill_configs: vec![],
             };
             let attempt_path =
@@ -1025,7 +1036,10 @@ mod tests {
                 env!("CARGO_MANIFEST_DIR"),
                 "/../../crates/work-infrastructure/fixtures/shared/task-diagnostics-project"
             )),
-            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
+            skill_root: crate::fixture_support::historical_task_skill_root(&PathBuf::from(
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"),
+            ))
+            .unwrap(),
             skill_configs: vec![],
         };
         let task_path = "outputs/work/tasks/example/index.json";
@@ -1160,7 +1174,10 @@ mod tests {
                 env!("CARGO_MANIFEST_DIR"),
                 "/../../crates/work-infrastructure/fixtures/shared/task-diagnostics-project"
             )),
-            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
+            skill_root: crate::fixture_support::historical_task_skill_root(&PathBuf::from(
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"),
+            ))
+            .unwrap(),
             skill_configs: vec![],
         };
         let task_path = "outputs/work/tasks/example/index.json";
@@ -1235,7 +1252,10 @@ mod tests {
                 env!("CARGO_MANIFEST_DIR"),
                 "/../../crates/work-infrastructure/fixtures/shared/task-diagnostics-project"
             )),
-            skill_root: PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work")),
+            skill_root: crate::fixture_support::historical_task_skill_root(&PathBuf::from(
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../../../skills/work"),
+            ))
+            .unwrap(),
             skill_configs: vec![],
         };
         let task_path = "outputs/work/tasks/example/index.json";
@@ -1430,7 +1450,10 @@ mod tests {
             }
             let storage = LocalHandoffStorage {
                 project_root: root,
-                skill_root: repo.join("../skills/work"),
+                skill_root: crate::fixture_support::historical_task_skill_root(
+                    &repo.join("../skills/work"),
+                )
+                .unwrap(),
                 skill_configs: vec![],
             };
             let result =
@@ -1490,7 +1513,10 @@ mod tests {
         }
         let storage = LocalHandoffStorage {
             project_root: root.clone(),
-            skill_root: repo.join("../skills/work"),
+            skill_root: crate::fixture_support::historical_task_skill_root(
+                &repo.join("../skills/work"),
+            )
+            .unwrap(),
             skill_configs: vec![],
         };
         let execute_request = json!({"summary":"Start execution."});
@@ -1590,9 +1616,11 @@ mod tests {
     #[test]
     fn closed_return_requires_completed_specification_transaction() {
         let repo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let historical_skill =
-            crate::fixture_support::historical_execute_skill_root(&repo.join("../skills/work"))
-                .unwrap();
+        let historical_skill = crate::fixture_support::historical_execute_skill_root(
+            &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap(),
+        )
+        .unwrap();
         let fixture = repo.join(
             "crates/work-infrastructure/fixtures/cases/execution/handoff/closed-stopped/project",
         );
@@ -1853,7 +1881,10 @@ mod tests {
             repo.join("crates/work-infrastructure/fixtures/shared/task-diagnostics-project");
         let storage = LocalHandoffStorage {
             project_root: fixture.clone(),
-            skill_root: repo.join("../skills/work"),
+            skill_root: crate::fixture_support::historical_task_skill_root(
+                &repo.join("../skills/work"),
+            )
+            .unwrap(),
             skill_configs: vec![],
         };
         let path = "outputs/work/tasks/example/index.json";

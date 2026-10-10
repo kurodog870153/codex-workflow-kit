@@ -87,6 +87,13 @@ pub fn task_records(session: &DiscussionSession) -> Result<Vec<Value>> {
         }
         record["traceability"] = json!({"acceptance_ids":task.acceptance_ids});
         record["acceptance_criteria"] = json!(task.acceptance_criteria);
+        if let Nullable::Value(selection) = &task.instruction_selection {
+            record["instruction_selection"] = json!({
+                "selected_paths": selection.selected_paths,
+                "references": selection.references,
+                "instructions_sha256": task.instructions_sha256,
+            });
+        }
         records.push(record);
     }
     Ok(records)

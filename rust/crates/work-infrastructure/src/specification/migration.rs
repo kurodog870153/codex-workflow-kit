@@ -546,7 +546,14 @@ mod tests {
             .unwrap(),
         )
         .unwrap();
-        let actual = preview_migration(&root, &repo.join("../skills/work"), &[], &request).unwrap();
+        let actual = preview_migration(
+            &root,
+            &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap(),
+            &[],
+            &request,
+        )
+        .unwrap();
         assert_eq!(actual, expected);
         let unresolved: Value = serde_json::from_slice(
             &fs::read(
@@ -563,13 +570,26 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            preview_migration(&root, &repo.join("../skills/work"), &[], &unresolved).unwrap(),
+            preview_migration(
+                &root,
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
+                &[],
+                &unresolved
+            )
+            .unwrap(),
             blocked
         );
         let mut resolved = unresolved.clone();
         resolved["semantic_decisions"][0]["resolution"] = json!("Use the confirmed v1 meaning.");
-        let resolved_preview =
-            preview_migration(&root, &repo.join("../skills/work"), &[], &resolved).unwrap();
+        let resolved_preview = preview_migration(
+            &root,
+            &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap(),
+            &[],
+            &resolved,
+        )
+        .unwrap();
         assert_eq!(resolved_preview["status"], "ready");
         assert_ne!(resolved_preview["fingerprint"], blocked["fingerprint"]);
         let mut mismatched = request.clone();
@@ -580,8 +600,14 @@ mod tests {
             .find(|row| row["kind"] == "task_index")
             .unwrap();
         task_candidate["content"]["artifacts"]["task"] = json!("wrong/index.json");
-        let mismatch =
-            preview_migration(&root, &repo.join("../skills/work"), &[], &mismatched).unwrap();
+        let mismatch = preview_migration(
+            &root,
+            &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap(),
+            &[],
+            &mismatched,
+        )
+        .unwrap();
         assert_eq!(mismatch["status"], "blocked");
         assert_eq!(mismatch["writable_ready"], false);
         assert!(
@@ -606,8 +632,14 @@ mod tests {
                 .unwrap(),
             )
             .unwrap();
-            let actual =
-                preview_migration(&root, &repo.join("../skills/work"), &[], &request).unwrap();
+            let actual = preview_migration(
+                &root,
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
+                &[],
+                &request,
+            )
+            .unwrap();
             assert_eq!(actual, expected, "variant {variant}");
         }
         let legacy_candidate: Value = serde_json::from_slice(
@@ -618,9 +650,15 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            preview_migration(&root, &repo.join("../skills/work"), &[], &legacy_candidate)
-                .unwrap_err()
-                .reason_code,
+            preview_migration(
+                &root,
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
+                &[],
+                &legacy_candidate
+            )
+            .unwrap_err()
+            .reason_code,
             "invalid_contract_value"
         );
         let mut legacy = request.clone();
@@ -639,8 +677,14 @@ mod tests {
                 (relative.clone(), fs::read(root.join(relative)).unwrap())
             })
             .collect::<BTreeMap<_, _>>();
-        let legacy_preview =
-            preview_migration(&root, &repo.join("../skills/work"), &[], &legacy).unwrap();
+        let legacy_preview = preview_migration(
+            &root,
+            &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap(),
+            &[],
+            &legacy,
+        )
+        .unwrap();
         assert_eq!(legacy_preview["status"], "ready");
         assert_eq!(legacy_preview["writable_ready"], true);
         for (relative, bytes) in before {
@@ -689,7 +733,8 @@ mod tests {
             .unwrap();
         let actual = prepare_revision_request(
             &root,
-            &repo.join("../skills/work"),
+            &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap(),
             &[],
             &fs::read(fixture.join("../input/semantic-request.json")).unwrap(),
             date,
@@ -705,7 +750,8 @@ mod tests {
         assert_eq!(
             prepare_revision_request(
                 &root,
-                &repo.join("../skills/work"),
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
                 &[],
                 &serde_json::to_vec(&redirected).unwrap(),
                 date,
@@ -722,16 +768,23 @@ mod tests {
             .find(|row| row["kind"] == "task_index")
             .unwrap()["task_id"] = json!("TASK-001");
         assert_eq!(
-            preview_migration(&root, &repo.join("../skills/work"), &[], &forged_identity)
-                .unwrap_err()
-                .reason_code,
+            preview_migration(
+                &root,
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
+                &[],
+                &forged_identity
+            )
+            .unwrap_err()
+            .reason_code,
             "invalid_contract_value"
         );
         let revision = json!({"schema":"work-spec-prepare-request",
             "requirement_id":semantic["requirement_id"],"reason":semantic["reason"],"edits":semantic["edits"]});
         let prepared = prepare_simple_update(
             &root,
-            &repo.join("../skills/work"),
+            &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap(),
             &[],
             SpecificationPrepareInput {
                 raw: &serde_json::to_vec(&revision).unwrap(),
@@ -746,7 +799,14 @@ mod tests {
         let preview = preview_revision_from_prepared(&root, &actual, &prepared).unwrap();
         assert_eq!(preview, expected_preview);
         assert_eq!(
-            preview_migration(&root, &repo.join("../skills/work"), &[], &actual).unwrap(),
+            preview_migration(
+                &root,
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
+                &[],
+                &actual
+            )
+            .unwrap(),
             expected_preview
         );
         let plan_source = root.join("outputs/work/tasks/example/index.json");
@@ -755,7 +815,8 @@ mod tests {
         assert_eq!(
             publish_migration(
                 &root,
-                &repo.join("../skills/work"),
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
                 &[],
                 &actual,
                 "apply",
@@ -776,7 +837,8 @@ mod tests {
         assert_eq!(journal, published);
         let result = publish_migration(
             &root,
-            &repo.join("../skills/work"),
+            &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap(),
             &[],
             &actual,
             "apply",
@@ -810,7 +872,8 @@ mod tests {
         );
         let recovered = publish_migration(
             &root,
-            &repo.join("../skills/work"),
+            &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap(),
             &[],
             &actual,
             "recover",
@@ -889,7 +952,8 @@ mod tests {
         assert_eq!(
             publish_migration(
                 &root,
-                &repo.join("../skills/work"),
+                &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                    .unwrap(),
                 &[],
                 &changed,
                 "recover",
@@ -901,7 +965,8 @@ mod tests {
         );
         let result = publish_migration(
             &root,
-            &repo.join("../skills/work"),
+            &crate::fixture_support::historical_task_skill_root(&repo.join("../skills/work"))
+                .unwrap(),
             &[],
             &request,
             "recover",

@@ -101,6 +101,74 @@ pub fn discussion_operation(value: &Value) -> String {
     structured(value).expect("JSON serializes")
 }
 
+/// Bind semantic review to current context, decisions and all transitive upstream plans.
+/// Review fields are excluded so that re-review does not recursively change the binding.
+pub fn discussion_planning(
+    session: &work_model::discussion::DiscussionSession,
+    task_id: &str,
+) -> String {
+    use std::collections::BTreeSet;
+    let mut ids = BTreeSet::from([task_id.to_owned()]);
+    loop {
+        let before = ids.len();
+        for task in &session.tasks {
+            if ids.contains(&task.id) {
+                ids.extend(task.dependencies.iter().cloned());
+            }
+        }
+        if before == ids.len() {
+            break;
+        }
+    }
+    let mut tasks: Vec<_> = session
+        .tasks
+        .iter()
+        .filter(|t| ids.contains(&t.id))
+        .cloned()
+        .collect();
+    tasks.sort_by(|a, b| a.id.cmp(&b.id));
+    for task in &mut tasks {
+        task.review = work_model::common::Nullable::Null;
+    }
+    let mut decisions: Vec<_> = session
+        .decisions
+        .iter()
+        .filter(|d| {
+            d.task_ids.iter().any(|id| ids.contains(id))
+                || tasks.iter().any(|t| t.decision_ids.contains(&d.id))
+                || tasks
+                    .iter()
+                    .flat_map(|t| &t.steps)
+                    .flat_map(|s| &s.references)
+                    .any(|r| {
+                        r.kind == work_model::task::candidate::CandidateReferenceKind::Decisions
+                            && (r.key == d.id || r.key == d.id.to_ascii_lowercase())
+                    })
+        })
+        .collect();
+    loop {
+        let ids: std::collections::BTreeSet<_> = decisions
+            .iter()
+            .flat_map(|d| d.dependencies.iter())
+            .collect();
+        let next: Vec<_> = session
+            .decisions
+            .iter()
+            .filter(|d| ids.contains(&d.id) && !decisions.iter().any(|old| old.id == d.id))
+            .collect();
+        if next.is_empty() {
+            break;
+        }
+        decisions.extend(next);
+    }
+    decisions.sort_by(|a, b| a.id.cmp(&b.id));
+    structured(
+        &json!({"requirement_id":session.requirement_id,"context":session.context,
+        "tasks":tasks,"decisions":decisions}),
+    )
+    .expect("review binding serializes")
+}
+
 pub fn discussion_approval(session_sha256: &str, approval_bytes: &[u8]) -> String {
     let mut bytes = b"WORK-DISCUSSION-PUBLICATION-V1\n".to_vec();
     bytes.extend_from_slice(session_sha256.as_bytes());

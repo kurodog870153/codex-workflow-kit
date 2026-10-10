@@ -1,5 +1,7 @@
 # Recover one execution transaction
 
+Project-file transactions use the separate publish-project-files.md: `file-recovery-prepare` inventories the full original/actual set, and freshly authorized `file-restore` restores the pre-transaction state. This does not change the forward direction of the record recovery below, and never reruns a CMD/OP.
+
 
 1. Use `<work-cli> execute recover --input-file "<request-path>"` only after record-begin, command-correction, record-finish, attempt-close, or Correction reports `recovery_required: true` and the user separately authorizes recovery of the observed state. Attempt-start continues to use `recover-attempt-start`.
 2. First use the read-only `<work-cli> execute recovery-prepare --input-file "<preparation-path>"` with the normal explicit TASK/execution paths, TASK ID and roots. Its input has exactly `schema: "work-execution-recovery-prepare-request"`, the confirmed `transaction` (`record_begin`, `command_correction`, `record_finish`, `attempt_close` or `correction`) and `attempt_id`. It inventories the complete sorted `.work-*.tmp` set, checks formal identities and preserved canonical documents, and returns `data.request` in the existing `work-execution-recovery-request` format plus lock, status and raw file fingerprints. Save only `data.request` for authorized recovery. No writer mutex file, target, journal or lock is created or modified.

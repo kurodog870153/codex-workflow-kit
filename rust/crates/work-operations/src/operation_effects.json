@@ -4,6 +4,10 @@
     "validate": "read_only"
   },
   "execute": {
+    "file-prepare": "read_only",
+    "file-apply": "write",
+    "file-recovery-prepare": "read_only",
+    "file-restore": "write",
     "attempt-close": "write",
     "attempt-start": "write",
     "attempt-start-prepare": "read_only",
