@@ -1879,8 +1879,7 @@ mod tests {
             fs::read(fixture.join(fixture_journal_path(&fixture, &publication))).unwrap()
         );
     }
-    #[test]
-    fn migration_recovery_preserves_one_approved_set_at_each_write_boundary() {
+    fn migration_recovery_preserves_one_approved_set_at_each_write_boundary(shard: usize) {
         let repo = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         let fixture = repo.join("crates/work-infrastructure/fixtures/cases/specification/reconciliation/with-migration/project");
         let request: Value =
@@ -1906,6 +1905,9 @@ mod tests {
         let attempt_raw = fs::read(fixture.join(attempt_path)).unwrap();
         let approval = preview["fingerprint"].as_str().unwrap();
         for count in 0..=files.len() {
+            if count % 5 != shard {
+                continue;
+            }
             let root = std::env::temp_dir().join(format!(
                 "work-reconcile-set-{count}-{}-{}",
                 std::process::id(),
@@ -1990,6 +1992,31 @@ mod tests {
                 "already_published"
             );
         }
+    }
+
+    #[test]
+    fn migration_recovery_write_boundaries_0() {
+        migration_recovery_preserves_one_approved_set_at_each_write_boundary(0);
+    }
+
+    #[test]
+    fn migration_recovery_write_boundaries_1() {
+        migration_recovery_preserves_one_approved_set_at_each_write_boundary(1);
+    }
+
+    #[test]
+    fn migration_recovery_write_boundaries_2() {
+        migration_recovery_preserves_one_approved_set_at_each_write_boundary(2);
+    }
+
+    #[test]
+    fn migration_recovery_write_boundaries_3() {
+        migration_recovery_preserves_one_approved_set_at_each_write_boundary(3);
+    }
+
+    #[test]
+    fn migration_recovery_write_boundaries_4() {
+        migration_recovery_preserves_one_approved_set_at_each_write_boundary(4);
     }
 
     #[test]

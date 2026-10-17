@@ -9,6 +9,9 @@ jobs:
   rust-windows:
     name: rust-windows (${{ matrix.target }})
     runs-on: windows-latest
+    permissions:
+      contents: read
+      actions: read
     strategy:
       fail-fast: false
       matrix:
@@ -23,6 +26,8 @@ jobs:
         working-directory: rust
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
         env:
           GIT_CONFIG_COUNT: "1"
           GIT_CONFIG_KEY_0: core.autocrlf
@@ -52,6 +57,8 @@ jobs:
               throw "Checkout changed batch line endings for ${path}: $entry"
             }
           }
+      - name: Test CI performance reporter
+        run: python -m unittest discover -s ../.github/scripts -p test_ci_perf.py
       - name: Set up Rust 1.85 toolchain
         run: |
           rustup toolchain install 1.85.0
@@ -72,6 +79,10 @@ jobs:
             & $gcc --version
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest@0.9.148
+          fallback: none
       - name: Record runner environment
         run: |
           "Runner: $env:RUNNER_OS / $env:RUNNER_ARCH" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
@@ -89,8 +100,40 @@ jobs:
         run: cargo check --workspace --all-targets --locked --target $env:WORK_RUST_TARGET
       - name: Check Rust lints
         run: cargo clippy --workspace --all-targets --all-features --locked --target $env:WORK_RUST_TARGET -- -D warnings
-      - name: Test Rust workspace
-        run: cargo test --workspace --locked --target $env:WORK_RUST_TARGET
+      - name: Compile Rust tests
+        id: test_compile
+        continue-on-error: true
+        run: python ../.github/scripts/ci_perf.py measure --directory .ci-perf --phase compile -- cargo test --workspace --locked --no-run --target $env:WORK_RUST_TARGET
+      - name: Run Rust unit and integration tests
+        if: steps.test_compile.outcome == 'success'
+        continue-on-error: true
+        run: python ../.github/scripts/ci_perf.py measure --directory .ci-perf --phase test -- cargo nextest run --workspace --locked --profile ci --no-fail-fast --target $env:WORK_RUST_TARGET
+      - name: Run Rust doc tests
+        if: steps.test_compile.outcome == 'success'
+        continue-on-error: true
+        run: python ../.github/scripts/ci_perf.py measure --directory .ci-perf --phase doc -- cargo test --workspace --locked --doc --target $env:WORK_RUST_TARGET
+      - name: Report Rust performance
+        if: always()
+        run: python ../.github/scripts/ci_perf.py report --directory .ci-perf --junit target/nextest/ci/junit.xml --output .ci-perf/performance.json --platform windows --target $env:WORK_RUST_TARGET
+      - name: Upload Rust performance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-perf-${{ matrix.target }}
+          path: |
+            rust/.ci-perf/
+            rust/target/nextest/ci/junit.xml
+          retention-days: 90
+          if-no-files-found: warn
+      - name: Compare with main history
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python ../.github/scripts/ci_perf.py compare --report .ci-perf/performance.json --workflow work-rust-windows.yml --artifact rust-perf-$env:WORK_RUST_TARGET
+      - name: Enforce Rust test results
+        if: always()
+        run: python ../.github/scripts/ci_perf.py enforce --directory .ci-perf --junit target/nextest/ci/junit.xml
       - name: Build Work release binary
         run: cargo build --release --locked -p work-cli --target $env:WORK_RUST_TARGET
       - name: Smoke test Rust binary

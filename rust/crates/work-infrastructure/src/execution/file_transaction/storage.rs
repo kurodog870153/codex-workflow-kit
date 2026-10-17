@@ -2599,9 +2599,11 @@ mod tests {
             );
         }
     }
-    #[test]
-    fn every_publication_boundary_restores_and_every_restore_boundary_reenters() {
+    fn every_publication_boundary_restores_and_every_restore_boundary_reenters(shard: usize) {
         for publish_fault in 0..=4 {
+            if publish_fault != shard {
+                continue;
+            }
             for restore_fault in 0..=4 {
                 let (store, context, staged) = setup();
                 let preview = prepare(&store, &context, "ATTEMPT-001", &staged).unwrap();
@@ -2673,6 +2675,31 @@ mod tests {
                 assert_original(&store);
             }
         }
+    }
+
+    #[test]
+    fn publication_and_restore_boundaries_0() {
+        every_publication_boundary_restores_and_every_restore_boundary_reenters(0);
+    }
+
+    #[test]
+    fn publication_and_restore_boundaries_1() {
+        every_publication_boundary_restores_and_every_restore_boundary_reenters(1);
+    }
+
+    #[test]
+    fn publication_and_restore_boundaries_2() {
+        every_publication_boundary_restores_and_every_restore_boundary_reenters(2);
+    }
+
+    #[test]
+    fn publication_and_restore_boundaries_3() {
+        every_publication_boundary_restores_and_every_restore_boundary_reenters(3);
+    }
+
+    #[test]
+    fn publication_and_restore_boundaries_4() {
+        every_publication_boundary_restores_and_every_restore_boundary_reenters(4);
     }
     #[test]
     fn stale_approval_foreign_inventory_and_external_changes_never_overwrite_targets() {

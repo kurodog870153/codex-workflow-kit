@@ -1179,8 +1179,7 @@ mod tests {
         (context, prepared)
     }
 
-    #[test]
-    fn journal_runtime_all_six_kinds_recover_each_boundary_without_rewriting_history() {
+    fn journal_runtime_all_six_kinds_recover_each_boundary_without_rewriting_history(shard: usize) {
         use JournalRuntimeStage as S;
         let mut boundaries = vec![
             S::Prepared,
@@ -1198,6 +1197,9 @@ mod tests {
             ]);
         }
         for kind in 0..6 {
+            if kind != shard {
+                continue;
+            }
             for boundary in &boundaries {
                 let (context, prepared) = journal_runtime_case(kind);
                 let root = &context.canonical_project_root;
@@ -1268,6 +1270,36 @@ mod tests {
                 assert_eq!(already["status"], "already_published");
             }
         }
+    }
+
+    #[test]
+    fn journal_runtime_boundaries_0() {
+        journal_runtime_all_six_kinds_recover_each_boundary_without_rewriting_history(0);
+    }
+
+    #[test]
+    fn journal_runtime_boundaries_1() {
+        journal_runtime_all_six_kinds_recover_each_boundary_without_rewriting_history(1);
+    }
+
+    #[test]
+    fn journal_runtime_boundaries_2() {
+        journal_runtime_all_six_kinds_recover_each_boundary_without_rewriting_history(2);
+    }
+
+    #[test]
+    fn journal_runtime_boundaries_3() {
+        journal_runtime_all_six_kinds_recover_each_boundary_without_rewriting_history(3);
+    }
+
+    #[test]
+    fn journal_runtime_boundaries_4() {
+        journal_runtime_all_six_kinds_recover_each_boundary_without_rewriting_history(4);
+    }
+
+    #[test]
+    fn journal_runtime_boundaries_5() {
+        journal_runtime_all_six_kinds_recover_each_boundary_without_rewriting_history(5);
     }
 
     struct ImmutableJournalTargetStore {
