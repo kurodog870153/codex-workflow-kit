@@ -43,3 +43,5 @@ nextest 固定為 0.9.148，CI 安裝步驟使用預編譯工具並另跑 doc te
 ## 首次推送的 Windows CI 診斷
 
 [Run 39067405714](https://github.com/kurodog870153/codex-workflow-kit/actions/runs/39067405714)（`b0d94bb`）的 MSVC 與 GNU 均完成 fmt、check、clippy 和測試編譯；nextest 開始後，量測腳本將 Unicode 輸出轉送至 cp1252 主控台時拋出 `UnicodeEncodeError`，未寫入 test 階段紀錄與 JUnit。MSVC 的 doc tests 通過 1 項；GNU 的 doc 階段亦因相同輸出編碼問題而缺少結果。兩個 job 最終由 enforce 步驟判為失敗，release build 和 smoke test 未執行。Artifact 上傳也略過隱藏的 `.ci-perf` 目錄。修正加入 cp1252 回歸測試、讓主控台不支援的字元以 escape 形式顯示，並明確上傳隱藏的量測檔；三平台遠端結果仍須下一次 Run 驗證。
+
+[Run 39068088466](https://github.com/kurodog870153/codex-workflow-kit/actions/runs/39068088466)（`87c5fac`）的 Windows 兩個 job 在回歸測試步驟失敗。原因是測試所啟動的子 Python 行程也採用 cp1252，在產生中文字輸出前即以退出碼 1 結束；量測腳本的轉送行為尚未被測到。測試子行程改以 Python UTF-8 模式產生樣本，外層測試主控台仍維持 cp1252 模擬。此 Run 的後續 Rust 步驟未執行，不能作為修正效果的驗收證據。

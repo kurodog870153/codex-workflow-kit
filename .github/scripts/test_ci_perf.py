@@ -16,8 +16,8 @@ class PerformanceReportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             console_bytes = io.BytesIO()
             console = io.TextIOWrapper(console_bytes, encoding="cp1252")
-            args = SimpleNamespace(directory=directory, phase="test", command=[sys.executable, "-c", "print('測試通過')"])
-            with patch.object(sys, "stdout", console):
+            args = SimpleNamespace(directory=directory, phase="test", command=[sys.executable, "-X", "utf8", "-c", "print('測試通過')"])
+            with patch.dict("os.environ", {"PYTHONIOENCODING": "utf-8"}), patch.object(sys, "stdout", console):
                 self.assertEqual(ci_perf.measure(args), 0)
             self.assertIn("測試通過", (Path(directory) / "test.log").read_text(encoding="utf-8"))
             self.assertIn(b"\\u6e2c", console_bytes.getvalue())
