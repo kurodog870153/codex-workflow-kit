@@ -125,6 +125,7 @@ jobs:
             rust/target/nextest/ci/junit.xml
           retention-days: 90
           if-no-files-found: warn
+          include-hidden-files: true
       - name: Compare with main history
         if: always() && github.event_name == 'pull_request'
         continue-on-error: true

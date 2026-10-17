@@ -39,3 +39,7 @@
 修改後完整 Cargo 測試與 nextest 均通過；nextest 有 939 項通過、1 項原有 ignored，另有 1 項 doc test 通過。報告程式讀取本機 JUnit 與三階段退出碼，產生 940 筆（含 ignored）逐測試資料；`test_execution_seconds` 為 172.380s，狀態 `passed`。`cargo check --workspace --all-targets --locked`、`cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`、`cargo fmt --all -- --check` 均通過。
 
 nextest 固定為 0.9.148，CI 安裝步驟使用預編譯工具並另跑 doc tests。這次本機比較僅有各一筆，不含下載／安裝成本；官方發行檔約 16.7 MB，GitHub-hosted runner 的安裝時間及 Windows 淨效益尚待新 workflow 的三平台 Run 驗證。`cargo test --no-run` 與 nextest 在同一次 Run 共用 Cargo test profile 產物；既有 fmt、check、clippy、release build、smoke test 均留在 workflow 中。三平台 CI 的最終效益不能用本機單次數值推論。
+
+## 首次推送的 Windows CI 診斷
+
+[Run 39067405714](https://github.com/kurodog870153/codex-workflow-kit/actions/runs/39067405714)（`b0d94bb`）的 MSVC 與 GNU 均完成 fmt、check、clippy 和測試編譯；nextest 開始後，量測腳本將 Unicode 輸出轉送至 cp1252 主控台時拋出 `UnicodeEncodeError`，未寫入 test 階段紀錄與 JUnit。MSVC 的 doc tests 通過 1 項；GNU 的 doc 階段亦因相同輸出編碼問題而缺少結果。兩個 job 最終由 enforce 步驟判為失敗，release build 和 smoke test 未執行。Artifact 上傳也略過隱藏的 `.ci-perf` 目錄。修正加入 cp1252 回歸測試、讓主控台不支援的字元以 escape 形式顯示，並明確上傳隱藏的量測檔；三平台遠端結果仍須下一次 Run 驗證。

@@ -1,5 +1,7 @@
 import json
+import io
 from pathlib import Path
+import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -10,6 +12,17 @@ import ci_perf
 
 
 class PerformanceReportTests(unittest.TestCase):
+    def test_measure_preserves_unicode_log_when_console_is_cp1252(self):
+        with tempfile.TemporaryDirectory() as directory:
+            console_bytes = io.BytesIO()
+            console = io.TextIOWrapper(console_bytes, encoding="cp1252")
+            args = SimpleNamespace(directory=directory, phase="test", command=[sys.executable, "-c", "print('測試通過')"])
+            with patch.object(sys, "stdout", console):
+                self.assertEqual(ci_perf.measure(args), 0)
+            self.assertIn("測試通過", (Path(directory) / "test.log").read_text(encoding="utf-8"))
+            self.assertIn(b"\\u6e2c", console_bytes.getvalue())
+            self.assertEqual(json.loads((Path(directory) / "test.json").read_text(encoding="utf-8"))["exit_code"], 0)
+
     def test_complete_report_requires_nextest_and_doc_results(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

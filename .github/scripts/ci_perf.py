@@ -56,11 +56,13 @@ def measure(args):
                 bufsize=1,
             )
             assert process.stdout is not None
-            for line in process.stdout:
-                log.write(line)
-                log.flush()
-                sys.stdout.write(line)
-                sys.stdout.flush()
+            with process.stdout:
+                for line in process.stdout:
+                    log.write(line)
+                    log.flush()
+                    console_encoding = sys.stdout.encoding or "utf-8"
+                    sys.stdout.write(line.encode(console_encoding, errors="backslashreplace").decode(console_encoding))
+                    sys.stdout.flush()
             code = process.wait()
         except OSError as error:
             message = f"Could not start {command[0]}: {error}\n"
