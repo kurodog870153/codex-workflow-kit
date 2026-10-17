@@ -1,0 +1,182 @@
+{
+  "description": {
+    "caller_constructible": true,
+    "canonical_order": [
+      "schema",
+      "requirement_id",
+      "task_position",
+      "attempt_position",
+      "choice",
+      "deviation_positions",
+      "reason",
+      "edits",
+      "semantic_decisions"
+    ],
+    "example": {
+      "attempt_position": 1,
+      "choice": "all",
+      "edits": [
+        {
+          "after": "Reviewed goal",
+          "field": "goal",
+          "target": {
+            "artifact": "task_item",
+            "task_id": "TASK-001"
+          }
+        }
+      ],
+      "reason": "Approved deviation",
+      "requirement_id": "example",
+      "schema": "work-spec-reconciliation-prepare-request",
+      "semantic_decisions": [],
+      "task_position": 1
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "requirement_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "task_position",
+        "reference": null,
+        "required": true,
+        "type": "integer"
+      },
+      {
+        "constraints": {},
+        "name": "attempt_position",
+        "reference": null,
+        "required": true,
+        "type": "integer"
+      },
+      {
+        "constraints": {},
+        "name": "choice",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "deviation_positions",
+        "reference": null,
+        "required": false,
+        "type": "array<integer>"
+      },
+      {
+        "constraints": {},
+        "name": "reason",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "edits",
+        "reference": null,
+        "required": false,
+        "type": "array<object>"
+      },
+      {
+        "constraints": {},
+        "name": "semantic_decisions",
+        "reference": null,
+        "required": false,
+        "type": "array<object<any>>"
+      }
+    ],
+    "id": "work-spec-reconciliation-prepare-request",
+    "kind": "semantic_request",
+    "optional": [
+      "deviation_positions",
+      "reason",
+      "edits",
+      "semantic_decisions"
+    ],
+    "required": [
+      "schema",
+      "requirement_id",
+      "task_position",
+      "attempt_position",
+      "choice"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold": {
+    "canonical_order": [
+      "schema",
+      "requirement_id",
+      "task_position",
+      "attempt_position",
+      "choice",
+      "deviation_positions",
+      "reason",
+      "edits",
+      "semantic_decisions"
+    ],
+    "example": {
+      "attempt_position": 1,
+      "choice": "all",
+      "edits": [
+        {
+          "after": "Reviewed goal",
+          "field": "goal",
+          "target": {
+            "artifact": "task_item",
+            "task_id": "TASK-001"
+          }
+        }
+      ],
+      "reason": "Approved deviation",
+      "requirement_id": "example",
+      "schema": "work-spec-reconciliation-prepare-request",
+      "semantic_decisions": [],
+      "task_position": 1
+    },
+    "id": "work-spec-reconciliation-prepare-request",
+    "scaffold": {
+      "attempt_position": null,
+      "choice": "all",
+      "deviation_positions": [],
+      "edits": [
+        {
+          "after": null,
+          "field": null,
+          "operation": "add_task",
+          "semantic_after": null,
+          "target": {
+            "artifact": "task_index",
+            "task_id": null
+          },
+          "task": {
+            "candidate": {},
+            "dependency_positions": [],
+            "goal": null,
+            "references": [],
+            "selected_paths": [],
+            "skill_id": null,
+            "title": null
+          },
+          "task_position": null
+        }
+      ],
+      "reason": null,
+      "requirement_id": null,
+      "schema": "work-spec-reconciliation-prepare-request",
+      "semantic_decisions": [],
+      "task_position": null
+    },
+    "schema": "work-contract-scaffold"
+  }
+}

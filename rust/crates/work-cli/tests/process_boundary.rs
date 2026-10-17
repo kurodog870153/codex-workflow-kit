@@ -355,7 +355,11 @@ fn public_host_command_preserves_actual_receipts_reports_and_carried_provenance(
                 fs::read(execution.join("index.json")).unwrap(),
                 index_before_val
             );
-            fs::write(root.join("tool-output/report.json"), b"{\"passed\":false}").unwrap();
+            fs::write(
+                root.join("tool-output/report.json"),
+                include_bytes!("../fixtures/process/report-failed.json"),
+            )
+            .unwrap();
             let (ok, accepted) = invoke("record-finish", Some(&passed), None);
             assert!(ok, "{accepted}");
             let attempt: Value = serde_json::from_slice(&fs::read(&attempt_path).unwrap()).unwrap();
@@ -1209,7 +1213,7 @@ fn workspace_transport_retains_binary_inputs_and_exclusive_cli_steps() {
         &root
             .join(paths["envelopes"].as_str().unwrap())
             .join("003-task-coordinator.json"),
-        br#"{"role":"task-coordinator","evidence":"retained input"}"#,
+        include_bytes!("../fixtures/process/task-coordinator-envelope.json"),
     );
     let known = allocate(Some("example"));
     assert_ne!(known["path"], pending["path"]);
@@ -1307,7 +1311,7 @@ fn invocation_confirmation_is_bound_read_only_and_cannot_forge_explicit_origin()
         assert!(!invoke().status.success(), "{case}");
         assert_eq!(fs::read(&input).unwrap(), raw);
     }
-    let duplicate = br#"{"mode":"task","mode":"execute","request":"Request","confirmation":{"mode":"execute","request":"Request","confirmed":true,"evidence":"Approved"}}"#;
+    let duplicate = include_bytes!("../fixtures/process/duplicate-mode.json.invalid");
     fs::write(&input, duplicate).unwrap();
     assert!(!invoke().status.success());
     assert_eq!(fs::read(&input).unwrap(), duplicate);
@@ -2387,7 +2391,11 @@ fn handoff_build_output_validates_across_installed_processes() {
     work_infrastructure::fixture_support::copy_fixture_sources(&fixture, &project).unwrap();
     let original = fs::read(project.join(task_path)).unwrap();
     let request = base.join("request.json");
-    fs::write(&request, r#"{"summary":"Start execution."}"#).unwrap();
+    fs::write(
+        &request,
+        include_str!("../fixtures/process/handoff-request.json"),
+    )
+    .unwrap();
     let built = Command::new(&installed)
         .args([
             "--project-root",
@@ -3201,10 +3209,24 @@ fn source_capture_requires_bound_approval_and_preserves_all_host_payloads() {
     let metadata_path = base.join("metadata.json");
     let payload_path = base.join("payload.bin");
     let cases = [
-        (json!({"kind":"file","path":"original.pdf","media_type":"Application/PDF"}), "source.pdf", b"%PDF-1.7\r\n\xff\x00\xef\xbb\xbf".to_vec(), None),
-        (json!({"kind":"user_text"}), "source.txt", "\u{feff}  原樣\r\n尾端 \n".as_bytes().to_vec(), None),
-        (json!({"kind":"github_issue","repository":"owner/repo","number":68,"url":"https://github.com/owner/repo/issues/68"}),
-            "source.json", br#"{ "title":"Issue", "body":"https://example.com/raw", "comments":[{"body":"first"},{"body":"second"}] }"#.to_vec(), Some(2)),
+        (
+            json!({"kind":"file","path":"original.pdf","media_type":"Application/PDF"}),
+            "source.pdf",
+            b"%PDF-1.7\r\n\xff\x00\xef\xbb\xbf".to_vec(),
+            None,
+        ),
+        (
+            json!({"kind":"user_text"}),
+            "source.txt",
+            "\u{feff}  原樣\r\n尾端 \n".as_bytes().to_vec(),
+            None,
+        ),
+        (
+            json!({"kind":"github_issue","repository":"owner/repo","number":68,"url":"https://github.com/owner/repo/issues/68"}),
+            "source.json",
+            include_bytes!("../fixtures/process/github-issue-source.json").to_vec(),
+            Some(2),
+        ),
     ];
     for (index, (source, content_path, bytes, comment_count)) in cases.into_iter().enumerate() {
         let mut metadata = json!({"requirement_id":"example","captured_at":"2026-10-03T00:00:00Z","source":source,"content_path":content_path});
@@ -4279,22 +4301,25 @@ fn migration_analysis_preserves_opaque_evidence_and_rejects_plan_selection() {
     fs::create_dir_all(&root).unwrap();
     let payloads = [
         ("legacy.pdf", b"%PDF-1.7\r\n\xff\x00".as_slice()),
-        ("broken.json", b"{invalid".as_slice()),
+        (
+            "broken.json",
+            include_bytes!("../fixtures/process/invalid-json.json.invalid").as_slice(),
+        ),
         (
             "old-task.json",
-            b"{\"schema\":\"work-task-index/v1\"}".as_slice(),
+            include_bytes!("../fixtures/process/legacy-task-index.json").as_slice(),
         ),
         (
             "unsupported.json",
-            b"{\"schema\":\"unsupported/v99\"}".as_slice(),
+            include_bytes!("../fixtures/process/unsupported-schema.json").as_slice(),
         ),
         (
             "unknown-field.json",
-            b"{\"schema\":\"work-task-index\",\"unknown\":true}".as_slice(),
+            include_bytes!("../fixtures/process/unknown-task-field.json").as_slice(),
         ),
         (
             "old-plan.json",
-            b"{\"schema\":\"work-plan/v0\",\"unrecognized\":true}".as_slice(),
+            include_bytes!("../fixtures/process/legacy-plan.json").as_slice(),
         ),
     ];
     let mut args = vec![

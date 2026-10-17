@@ -358,7 +358,7 @@ fn fixture_staging_preserves_evidence_and_rejects_partial_derivation() {
         ("current.json".into(), b"old current".to_vec()),
         (
             "history.json".into(),
-            b"{\"schema\":\"unsupported\"}\r\n".to_vec(),
+            include_bytes!("../fixtures/derivation/unsupported-schema.json").to_vec(),
         ),
         ("payload.bin".into(), vec![0, 255, 13, 10]),
         (

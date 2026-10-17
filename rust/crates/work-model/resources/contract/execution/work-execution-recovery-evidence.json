@@ -1,0 +1,45 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "raw_sha256",
+      "size_bytes"
+    ],
+    "example": {
+      "raw_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "size_bytes": 1
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "raw_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "size_bytes",
+        "reference": null,
+        "required": true,
+        "type": "integer"
+      }
+    ],
+    "id": "work-execution-recovery-evidence",
+    "kind": "artifact",
+    "optional": [],
+    "required": [
+      "raw_sha256",
+      "size_bytes"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-execution-recovery-evidence",
+      "kind": "artifact"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

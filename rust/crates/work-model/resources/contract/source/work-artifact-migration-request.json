@@ -1,0 +1,76 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "requirement_id",
+      "analysis_fingerprint",
+      "decisions"
+    ],
+    "example": {
+      "analysis_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+      "decisions": [],
+      "requirement_id": "example",
+      "schema": "work-artifact-migration-request"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "requirement_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "analysis_fingerprint",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {
+          "active_kinds": [
+            "source",
+            "task_index",
+            "task_item",
+            "execution_index"
+          ],
+          "candidate_required_for_replacement": true,
+          "legacy_schema_conversion": false,
+          "source_bytes_required": true,
+          "source_fingerprint_required": true
+        },
+        "name": "decisions",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      }
+    ],
+    "id": "work-artifact-migration-request",
+    "kind": "generated_request",
+    "optional": [],
+    "required": [
+      "schema",
+      "requirement_id",
+      "analysis_fingerprint",
+      "decisions"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-artifact-migration-request",
+      "kind": "generated_request"
+    },
+    "message": "Generated requests cannot be scaffolded as caller input.",
+    "reason_code": "generated_request_not_caller_constructible"
+  }
+}

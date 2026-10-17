@@ -1,0 +1,161 @@
+{
+  "description": {
+    "caller_constructible": true,
+    "canonical_order": [
+      "command_positions",
+      "validation_positions",
+      "modifiable_files",
+      "external_operation_positions",
+      "allowed_deviations",
+      "authorization_evidence",
+      "carried_records",
+      "scope"
+    ],
+    "example": {
+      "allowed_deviations": [],
+      "authorization_evidence": "User approved this exact scope.",
+      "carried_records": [],
+      "command_positions": [],
+      "external_operation_positions": [],
+      "modifiable_files": [],
+      "validation_positions": []
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "command_positions",
+        "reference": null,
+        "required": true,
+        "type": "array<integer>"
+      },
+      {
+        "constraints": {},
+        "name": "validation_positions",
+        "reference": null,
+        "required": true,
+        "type": "array<integer>"
+      },
+      {
+        "constraints": {},
+        "name": "modifiable_files",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "external_operation_positions",
+        "reference": null,
+        "required": true,
+        "type": "array<integer>"
+      },
+      {
+        "constraints": {},
+        "name": "allowed_deviations",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      },
+      {
+        "constraints": {},
+        "name": "authorization_evidence",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "carried_records",
+        "reference": null,
+        "required": false,
+        "type": "array<object>"
+      },
+      {
+        "constraints": {
+          "adjustments": [
+            "command_adjustment",
+            "validation_adjustment",
+            "additional_files",
+            "retry"
+          ],
+          "modification_types": [
+            "create",
+            "modify",
+            "move"
+          ],
+          "optional": [
+            "exact_files",
+            "rollback_on_write_failure"
+          ],
+          "required": [
+            "project_root",
+            "requirement_id",
+            "goal",
+            "module_paths",
+            "modification_types",
+            "risk_boundary",
+            "validation_scope",
+            "task_ids",
+            "adjustments",
+            "revoked_reason"
+          ],
+          "semantic_review": "AI reviews goal, risk and validation bounds; Work validates declared structural boundaries",
+          "without_scope": "Explicit exact operation and file lists remain restrictive",
+          "rollback_on_write_failure": "Only a known failed write in the active invocation may restore its own verified frontier; absence or false grants no automatic restoration"
+        },
+        "name": "scope",
+        "reference": null,
+        "required": false,
+        "type": "null | object"
+      }
+    ],
+    "id": "work-attempt-start-prepare-request",
+    "kind": "semantic_request",
+    "optional": [
+      "carried_records",
+      "scope"
+    ],
+    "required": [
+      "command_positions",
+      "validation_positions",
+      "modifiable_files",
+      "external_operation_positions",
+      "allowed_deviations",
+      "authorization_evidence"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold": {
+    "canonical_order": [
+      "command_positions",
+      "validation_positions",
+      "modifiable_files",
+      "external_operation_positions",
+      "allowed_deviations",
+      "authorization_evidence",
+      "carried_records",
+      "scope"
+    ],
+    "example": {
+      "allowed_deviations": [],
+      "authorization_evidence": "User approved this exact scope.",
+      "carried_records": [],
+      "command_positions": [],
+      "external_operation_positions": [],
+      "modifiable_files": [],
+      "validation_positions": []
+    },
+    "id": "work-attempt-start-prepare-request",
+    "scaffold": {
+      "allowed_deviations": [],
+      "authorization_evidence": null,
+      "carried_records": [],
+      "command_positions": [],
+      "external_operation_positions": [],
+      "modifiable_files": [],
+      "scope": null,
+      "validation_positions": []
+    },
+    "schema": "work-contract-scaffold"
+  }
+}

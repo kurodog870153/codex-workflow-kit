@@ -1,0 +1,1090 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "request",
+      "preview",
+      "output_file",
+      "transport",
+      "next_step"
+    ],
+    "example": {
+      "next_step": {
+        "command": "specification preview",
+        "input": "request"
+      },
+      "output_file": null,
+      "preview": {
+        "affected_task_ids": [
+          "TASK-001"
+        ],
+        "approved_sha256": "3e120495e3682281eddc39809d98520271e2c03956118645d3b8c07dccd0f03d",
+        "artifacts": {
+          "execution": "outputs/work/executions/example",
+          "source": "outputs/work/sources/example",
+          "task": "outputs/work/tasks/example/index.json"
+        },
+        "candidate": {
+          "task_index": {
+            "acceptance_criteria": [
+              {
+                "criterion": "The result is observable.",
+                "id": "ACCEPTANCE-001"
+              }
+            ],
+            "artifacts": {
+              "execution": "outputs/work/executions/example",
+              "source": "outputs/work/sources/example",
+              "task": "outputs/work/tasks/example/index.json"
+            },
+            "changes": [
+              {
+                "affected_ids": [
+                  "TASK-001"
+                ],
+                "date": "2026-09-26",
+                "edits": [
+                  {
+                    "after": "Task summary. revised",
+                    "artifact": "task_index",
+                    "before": "Task summary.",
+                    "operation": "replace",
+                    "path": "/summary"
+                  }
+                ],
+                "id": "TASK-CHANGE-001",
+                "reason": "Confirmed collection revision",
+                "spec_id": "TASK-SPEC-002"
+              }
+            ],
+            "execution_defaults": {
+              "os": "windows",
+              "shell": "powershell",
+              "working_directory": "."
+            },
+            "hierarchy_selection": {
+              "catalog_sha256": "3e51eaedbc128afd999c796bd337d9471c15411d3e66677383e6fd188e90f390",
+              "decision": "general_only",
+              "entries": [],
+              "schema": "work-hierarchy-selection",
+              "selected_paths": [],
+              "selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569"
+            },
+            "instruction_selection": {
+              "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+              "references": [
+                "task.general.task-records"
+              ],
+              "sources": [
+                {
+                  "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
+                  "kind": "workflow",
+                  "logical_name": "work.instruction-loading"
+                },
+                {
+                  "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
+                  "kind": "workflow",
+                  "logical_name": "work.workflow.task"
+                },
+                {
+                  "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
+                  "kind": "instruction",
+                  "logical_name": "task.general"
+                },
+                {
+                  "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
+                  "kind": "reference",
+                  "logical_name": "task.general.task-records"
+                }
+              ]
+            },
+            "readiness": {
+              "spec_id": "TASK-SPEC-002",
+              "status": "passed"
+            },
+            "requirement_id": "example",
+            "schema": "work-task-index",
+            "skill_selection": {
+              "decision": "base_only",
+              "schema": "work-skill-selection",
+              "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
+              "skills": []
+            },
+            "source": {
+              "kind": "snapshot",
+              "manifest": {
+                "captured_at": "2026-10-03T00:00:00Z",
+                "content": {
+                  "path": "source.txt",
+                  "sha256": "c0025641ad55f45e002ef3307cbe976060548cd4f3a0f068f1bf4d614ea7a9a8",
+                  "size": 753
+                },
+                "requirement_id": "example",
+                "schema": "work-source-snapshot",
+                "source": {
+                  "kind": "user_text"
+                },
+                "source_id": "SRC-001"
+              }
+            },
+            "spec_id": "TASK-SPEC-002",
+            "status": "confirmed",
+            "summary": "Task summary. revised",
+            "tasks": [
+              {
+                "canonical_sha256": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77",
+                "id": "TASK-001",
+                "path": "tasks/TASK-001.json"
+              }
+            ],
+            "title": "Example TASK"
+          },
+          "task_items": {
+            "TASK-001": {
+              "acceptance_criteria": [
+                {
+                  "criterion": "Exit code is zero.",
+                  "id": "TASK-001-ACCEPTANCE-001"
+                }
+              ],
+              "commands": [
+                {
+                  "argv": [
+                    "python",
+                    "--version"
+                  ],
+                  "id": "CMD-001",
+                  "mode": "argv"
+                }
+              ],
+              "files": [
+                {
+                  "action": "modify",
+                  "id": "FILE-001",
+                  "path": "src.txt"
+                }
+              ],
+              "goal": "Modify the source and validate it.",
+              "id": "TASK-001",
+              "instruction_selection": {
+                "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+                "references": [
+                  "task.general.task-records"
+                ],
+                "resolved_paths": [
+                  "general"
+                ],
+                "selected_paths": [],
+                "sources": [
+                  {
+                    "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
+                    "kind": "workflow",
+                    "logical_name": "work.instruction-loading"
+                  },
+                  {
+                    "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
+                    "kind": "workflow",
+                    "logical_name": "work.workflow.task"
+                  },
+                  {
+                    "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
+                    "kind": "instruction",
+                    "logical_name": "task.general"
+                  },
+                  {
+                    "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
+                    "kind": "reference",
+                    "logical_name": "task.general.task-records"
+                  }
+                ]
+              },
+              "schema": "work-task-item",
+              "skill_id": null,
+              "steps": [
+                {
+                  "action": "Modify the source.",
+                  "id": "STEP-001",
+                  "references": [
+                    "FILE-001"
+                  ]
+                },
+                {
+                  "action": "Run validation.",
+                  "id": "STEP-002",
+                  "references": [
+                    "CMD-001",
+                    "VAL-001"
+                  ]
+                }
+              ],
+              "title": "Modify source",
+              "traceability": {
+                "acceptance_ids": [
+                  "ACCEPTANCE-001"
+                ]
+              },
+              "validations": [
+                {
+                  "acceptance_ids": [
+                    "ACCEPTANCE-001",
+                    "TASK-001-ACCEPTANCE-001"
+                  ],
+                  "command_ids": [
+                    "CMD-001"
+                  ],
+                  "id": "VAL-001",
+                  "kind": "automated",
+                  "pass_condition": "Exit code is zero."
+                }
+              ]
+            }
+          }
+        },
+        "changed_fields": [
+          "/task_index/summary"
+        ],
+        "diff": [
+          "--- outputs/work/tasks/example/index.json:source\n+++ outputs/work/tasks/example/index.json:candidate\n@@ -1,10 +1,10 @@\n {\n   \"schema\": \"work-task-index\",\n   \"requirement_id\": \"example\",\n-  \"spec_id\": \"TASK-SPEC-001\",\n+  \"spec_id\": \"TASK-SPEC-002\",\n   \"status\": \"confirmed\",\n   \"title\": \"Example TASK\",\n-  \"summary\": \"Task summary.\",\n+  \"summary\": \"Task summary. revised\",\n   \"artifacts\": {\n     \"source\": \"outputs/work/sources/example\",\n     \"task\": \"outputs/work/tasks/example/index.json\",\n@@ -87,8 +87,28 @@\n       \"canonical_sha256\": \"d542ac56a8a4cb06f90588d52db94d95de1a1604107595ad76b0be6de574f2b4\"\n     }\n   ],\n+  \"changes\": [\n+    {\n+      \"id\": \"TASK-CHANGE-001\",\n+      \"spec_id\": \"TASK-SPEC-002\",\n+      \"date\": \"2026-09-26\",\n+      \"reason\": \"Confirmed collection revision\",\n+      \"affected_ids\": [\n+        \"TASK-001\"\n+      ],\n+      \"edits\": [\n+        {\n+          \"artifact\": \"task_index\",\n+          \"operation\": \"replace\",\n+          \"path\": \"/summary\",\n+          \"before\": \"Task summary.\",\n+          \"after\": \"Task summary. revised\"\n+        }\n+      ]\n+    }\n+  ],\n   \"readiness\": {\n     \"status\": \"passed\",\n-    \"spec_id\": \"TASK-SPEC-001\"\n+    \"spec_id\": \"TASK-SPEC-002\"\n   }\n }\n",
+          "--- outputs/work/executions/example/index.json:source\n+++ outputs/work/executions/example/index.json:candidate\n@@ -2,9 +2,9 @@\n   \"schema\": \"work-execution-index\",\n   \"requirement_id\": \"example\",\n   \"title\": \"Execution\",\n-  \"task_spec_id\": \"TASK-SPEC-001\",\n-  \"task_collection_sha256\": \"52e6c7a4c010a9fda164bd8f74b7d599d3f25abb722f45538f0cf6332514ebf9\",\n-  \"task_index_sha256\": \"f5d329176df85f6e49cb0891018135637be647f3ce9fdc56317a07c2a82b289c\",\n+  \"task_spec_id\": \"TASK-SPEC-002\",\n+  \"task_collection_sha256\": \"e6b687fb8e53d138f7ba753c1bf8fc85da0a0ed3bef7a5563f669966fa615564\",\n+  \"task_index_sha256\": \"77b8c291c64b910ca796663a5a0b1b3bbe8cd936934c3c854c2e016f53d0a4b2\",\n   \"task_instructions_sha256\": \"193eb50742d2f60fd3cebc917c87ac62dcd23ba07d3be9507faf9dafb02351e9\",\n   \"hierarchy_selection_sha256\": \"e414b645a4d6130e750feddd17d31ea656c20c48a057f68eeda7ed6d636edb59\",\n   \"skill_selection_sha256\": \"a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959\",\n"
+        ],
+        "file_readiness": "requires_execute_preflight",
+        "lifecycle_impact": [
+          {
+            "after": "pending",
+            "before": "pending",
+            "reason_after": null,
+            "reason_before": null,
+            "task_id": "TASK-001"
+          }
+        ],
+        "next_step": {
+          "approved_sha256": "3e120495e3682281eddc39809d98520271e2c03956118645d3b8c07dccd0f03d",
+          "command": "specification apply",
+          "input": "same_request"
+        },
+        "record_id": "SPEC-UPDATE-3E120495E368",
+        "requirement_id": "example",
+        "schema": "work-spec-update",
+        "status": "valid",
+        "transaction": {
+          "approval_sha256": "3e120495e3682281eddc39809d98520271e2c03956118645d3b8c07dccd0f03d",
+          "files": [
+            {
+              "after": {
+                "base64": "ewogICJzY2hlbWEiOiAid29yay10YXNrLWluZGV4L3YxIiwKICAicmVxdWlyZW1lbnRfaWQiOiAiZXhhbXBsZSIsCiAgInNwZWNfaWQiOiAiVEFTSy1TUEVDLTAwMiIsCiAgInN0YXR1cyI6ICJjb25maXJtZWQiLAogICJ0aXRsZSI6ICJFeGFtcGxlIFRBU0siLAogICJzdW1tYXJ5IjogIlRhc2sgc3VtbWFyeS4gcmV2aXNlZCIsCiAgImFydGlmYWN0cyI6IHsKICAgICJzb3VyY2UiOiAib3V0cHV0cy93b3JrL3NvdXJjZXMvZXhhbXBsZSIsCiAgICAidGFzayI6ICJvdXRwdXRzL3dvcmsvdGFza3MvZXhhbXBsZS9pbmRleC5qc29uIiwKICAgICJleGVjdXRpb24iOiAib3V0cHV0cy93b3JrL2V4ZWN1dGlvbnMvZXhhbXBsZSIKICB9LAogICJzb3VyY2UiOiB7CiAgICAia2luZCI6ICJzbmFwc2hvdCIsCiAgICAibWFuaWZlc3QiOiB7CiAgICAgICJzY2hlbWEiOiAid29yay1zb3VyY2Utc25hcHNob3QvdjEiLAogICAgICAicmVxdWlyZW1lbnRfaWQiOiAiZXhhbXBsZSIsCiAgICAgICJzb3VyY2VfaWQiOiAiU1JDLTAwMSIsCiAgICAgICJjYXB0dXJlZF9hdCI6ICIyMDI2LTEwLTAzVDAwOjAwOjAwWiIsCiAgICAgICJzb3VyY2UiOiB7CiAgICAgICAgImtpbmQiOiAidXNlcl90ZXh0IgogICAgICB9LAogICAgICAiY29udGVudCI6IHsKICAgICAgICAicGF0aCI6ICJzb3VyY2UudHh0IiwKICAgICAgICAic2hhMjU2IjogImMwMDI1NjQxYWQ1NWY0NWUwMDJlZjMzMDdjYmU5NzYwNjA1NDhjZDRmM2EwZjA2OGYxYmY0ZDYxNGVhN2E5YTgiLAogICAgICAgICJzaXplIjogNzUzCiAgICAgIH0KICAgIH0KICB9LAogICJoaWVyYXJjaHlfc2VsZWN0aW9uIjogewogICAgInNjaGVtYSI6ICJ3b3JrLWhpZXJhcmNoeS1zZWxlY3Rpb24vdjEiLAogICAgImRlY2lzaW9uIjogImdlbmVyYWxfb25seSIsCiAgICAic2VsZWN0ZWRfcGF0aHMiOiBbXSwKICAgICJlbnRyaWVzIjogW10sCiAgICAiY2F0YWxvZ19zaGEyNTYiOiAiNzQ5NzdmZjQxZGFlOTI1ZDc2MDM3YzYwZmNiYjZlNWM2ZDk1MGFmNzM0MTYzMDhkNWUyMWNhM2I5NmVmNWQ1NCIsCiAgICAic2VsZWN0aW9uX3NoYTI1NiI6ICJlNDE0YjY0NWE0ZDYxMzBlNzUwZmVkZGQxN2QzMWVhNjU2YzIwYzQ4YTA1N2Y2OGVlZGE3ZWQ2ZDYzNmVkYjU5IgogIH0sCiAgInNraWxsX3NlbGVjdGlvbiI6IHsKICAgICJzY2hlbWEiOiAid29yay1za2lsbC1zZWxlY3Rpb24vdjEiLAogICAgImRlY2lzaW9uIjogImJhc2Vfb25seSIsCiAgICAic2tpbGxzIjogW10sCiAgICAic2VsZWN0aW9uX3NoYTI1NiI6ICJhMDkzNTdlZjlmMjJjNDNkY2ExNmI0ODlkYTYxYjI4NzgzOGJmNjQ5NjNhNTk1NmJmNTJhZTAzMjdlMDRhOTU5IgogIH0sCiAgImFjY2VwdGFuY2VfY3JpdGVyaWEiOiBbCiAgICB7CiAgICAgICJpZCI6ICJBQ0NFUFRBTkNFLTAwMSIsCiAgICAgICJjcml0ZXJpb24iOiAiVGhlIHJlc3VsdCBpcyBvYnNlcnZhYmxlLiIKICAgIH0KICBdLAogICJpbnN0cnVjdGlvbl9zZWxlY3Rpb24iOiB7CiAgICAic291cmNlcyI6IFsKICAgICAgewogICAgICAgICJraW5kIjogIndvcmtmbG93IiwKICAgICAgICAibG9naWNhbF9uYW1lIjogIndvcmsuaW5zdHJ1Y3Rpb24tbG9hZGluZyIsCiAgICAgICAgImNhbm9uaWNhbF9zaGEyNTYiOiAiMGJmNTE2MjJlYmZhM2EzM2UyZmIzZmZkYzliMmZjMTUzOTg0YTRiYWFjMzVhNWM2YWI3MjAzZjE4NjMzOWU1NCIKICAgICAgfSwKICAgICAgewogICAgICAgICJraW5kIjogIndvcmtmbG93IiwKICAgICAgICAibG9naWNhbF9uYW1lIjogIndvcmsud29ya2Zsb3cudGFzayIsCiAgICAgICAgImNhbm9uaWNhbF9zaGEyNTYiOiAiMzJmNjVkZWY4MDhjYTA5ZTUzY2E1NjQ5YTM0Yzg0MzRkMGRlZmYwZThiOGNiMjNmMmYzZDBhMzkwODk5MzJkYiIKICAgICAgfSwKICAgICAgewogICAgICAgICJraW5kIjogImluc3RydWN0aW9uIiwKICAgICAgICAibG9naWNhbF9uYW1lIjogInRhc2suZ2VuZXJhbCIsCiAgICAgICAgImNhbm9uaWNhbF9zaGEyNTYiOiAiZjY5YzI2OWZhNGNmZjM0YmZlZjFlZmY2YmE4ZTYyNjA2MTZjOGI0ODgwYTg3ZmNhZDFiZWM5OGViYTVmNTJhMyIKICAgICAgfSwKICAgICAgewogICAgICAgICJraW5kIjogInJlZmVyZW5jZSIsCiAgICAgICAgImxvZ2ljYWxfbmFtZSI6ICJ0YXNrLmdlbmVyYWwudGFzay1yZWNvcmRzIiwKICAgICAgICAiY2Fub25pY2FsX3NoYTI1NiI6ICI2Mjc1YzMwM2FjMDU1M2Y4ZmQ3ZGY4YzBiYjU5YjYyM2Y5NDMxNDMzYWM0MmI0NjNkNTdmZjE1YzQwZjRkOGI4IgogICAgICB9CiAgICBdLAogICAgInJlZmVyZW5jZXMiOiBbCiAgICAgICJ0YXNrLmdlbmVyYWwudGFzay1yZWNvcmRzIgogICAgXSwKICAgICJpbnN0cnVjdGlvbnNfc2hhMjU2IjogIjE5M2ViNTA3NDJkMmY2MGZkM2NlYmM5MTdjODdhYzYyZGNkMjNiYTA3ZDNiZTk1MDdmYWY5ZGFmYjAyMzUxZTkiCiAgfSwKICAiZXhlY3V0aW9uX2RlZmF1bHRzIjogewogICAgIndvcmtpbmdfZGlyZWN0b3J5IjogIi4iLAogICAgIm9zIjogIndpbmRvd3MiLAogICAgInNoZWxsIjogInBvd2Vyc2hlbGwiCiAgfSwKICAidGFza3MiOiBbCiAgICB7CiAgICAgICJpZCI6ICJUQVNLLTAwMSIsCiAgICAgICJwYXRoIjogInRhc2tzL1RBU0stMDAxLmpzb24iLAogICAgICAiY2Fub25pY2FsX3NoYTI1NiI6ICJkNTQyYWM1NmE4YTRjYjA2ZjkwNTg4ZDUyZGI5NGQ5NWRlMWExNjA0MTA3NTk1YWQ3NmIwYmU2ZGU1NzRmMmI0IgogICAgfQogIF0sCiAgImNoYW5nZXMiOiBbCiAgICB7CiAgICAgICJpZCI6ICJUQVNLLUNIQU5HRS0wMDEiLAogICAgICAic3BlY19pZCI6ICJUQVNLLVNQRUMtMDAyIiwKICAgICAgImRhdGUiOiAiMjAyNi0wOS0yNiIsCiAgICAgICJyZWFzb24iOiAiQ29uZmlybWVkIGNvbGxlY3Rpb24gcmV2aXNpb24iLAogICAgICAiYWZmZWN0ZWRfaWRzIjogWwogICAgICAgICJUQVNLLTAwMSIKICAgICAgXSwKICAgICAgImVkaXRzIjogWwogICAgICAgIHsKICAgICAgICAgICJhcnRpZmFjdCI6ICJ0YXNrX2luZGV4IiwKICAgICAgICAgICJvcGVyYXRpb24iOiAicmVwbGFjZSIsCiAgICAgICAgICAicGF0aCI6ICIvc3VtbWFyeSIsCiAgICAgICAgICAiYmVmb3JlIjogIlRhc2sgc3VtbWFyeS4iLAogICAgICAgICAgImFmdGVyIjogIlRhc2sgc3VtbWFyeS4gcmV2aXNlZCIKICAgICAgICB9CiAgICAgIF0KICAgIH0KICBdLAogICJyZWFkaW5lc3MiOiB7CiAgICAic3RhdHVzIjogInBhc3NlZCIsCiAgICAic3BlY19pZCI6ICJUQVNLLVNQRUMtMDAyIgogIH0KfQo=",
+                "raw_sha256": "77b8c291c64b910ca796663a5a0b1b3bbe8cd936934c3c854c2e016f53d0a4b2"
+              },
+              "before": {
+                "base64": "ewogICJzY2hlbWEiOiAid29yay10YXNrLWluZGV4L3YxIiwKICAicmVxdWlyZW1lbnRfaWQiOiAiZXhhbXBsZSIsCiAgInNwZWNfaWQiOiAiVEFTSy1TUEVDLTAwMSIsCiAgInN0YXR1cyI6ICJjb25maXJtZWQiLAogICJ0aXRsZSI6ICJFeGFtcGxlIFRBU0siLAogICJzdW1tYXJ5IjogIlRhc2sgc3VtbWFyeS4iLAogICJhcnRpZmFjdHMiOiB7CiAgICAic291cmNlIjogIm91dHB1dHMvd29yay9zb3VyY2VzL2V4YW1wbGUiLAogICAgInRhc2siOiAib3V0cHV0cy93b3JrL3Rhc2tzL2V4YW1wbGUvaW5kZXguanNvbiIsCiAgICAiZXhlY3V0aW9uIjogIm91dHB1dHMvd29yay9leGVjdXRpb25zL2V4YW1wbGUiCiAgfSwKICAic291cmNlIjogewogICAgImtpbmQiOiAic25hcHNob3QiLAogICAgIm1hbmlmZXN0IjogewogICAgICAic2NoZW1hIjogIndvcmstc291cmNlLXNuYXBzaG90L3YxIiwKICAgICAgInJlcXVpcmVtZW50X2lkIjogImV4YW1wbGUiLAogICAgICAic291cmNlX2lkIjogIlNSQy0wMDEiLAogICAgICAiY2FwdHVyZWRfYXQiOiAiMjAyNi0xMC0wM1QwMDowMDowMFoiLAogICAgICAic291cmNlIjogewogICAgICAgICJraW5kIjogInVzZXJfdGV4dCIKICAgICAgfSwKICAgICAgImNvbnRlbnQiOiB7CiAgICAgICAgInBhdGgiOiAic291cmNlLnR4dCIsCiAgICAgICAgInNoYTI1NiI6ICJjMDAyNTY0MWFkNTVmNDVlMDAyZWYzMzA3Y2JlOTc2MDYwNTQ4Y2Q0ZjNhMGYwNjhmMWJmNGQ2MTRlYTdhOWE4IiwKICAgICAgICAic2l6ZSI6IDc1MwogICAgICB9CiAgICB9CiAgfSwKICAiaGllcmFyY2h5X3NlbGVjdGlvbiI6IHsKICAgICJzY2hlbWEiOiAid29yay1oaWVyYXJjaHktc2VsZWN0aW9uL3YxIiwKICAgICJkZWNpc2lvbiI6ICJnZW5lcmFsX29ubHkiLAogICAgInNlbGVjdGVkX3BhdGhzIjogW10sCiAgICAiZW50cmllcyI6IFtdLAogICAgImNhdGFsb2dfc2hhMjU2IjogIjc0OTc3ZmY0MWRhZTkyNWQ3NjAzN2M2MGZjYmI2ZTVjNmQ5NTBhZjczNDE2MzA4ZDVlMjFjYTNiOTZlZjVkNTQiLAogICAgInNlbGVjdGlvbl9zaGEyNTYiOiAiZTQxNGI2NDVhNGQ2MTMwZTc1MGZlZGRkMTdkMzFlYTY1NmMyMGM0OGEwNTdmNjhlZWRhN2VkNmQ2MzZlZGI1OSIKICB9LAogICJza2lsbF9zZWxlY3Rpb24iOiB7CiAgICAic2NoZW1hIjogIndvcmstc2tpbGwtc2VsZWN0aW9uL3YxIiwKICAgICJkZWNpc2lvbiI6ICJiYXNlX29ubHkiLAogICAgInNraWxscyI6IFtdLAogICAgInNlbGVjdGlvbl9zaGEyNTYiOiAiYTA5MzU3ZWY5ZjIyYzQzZGNhMTZiNDg5ZGE2MWIyODc4MzhiZjY0OTYzYTU5NTZiZjUyYWUwMzI3ZTA0YTk1OSIKICB9LAogICJhY2NlcHRhbmNlX2NyaXRlcmlhIjogWwogICAgewogICAgICAiaWQiOiAiQUNDRVBUQU5DRS0wMDEiLAogICAgICAiY3JpdGVyaW9uIjogIlRoZSByZXN1bHQgaXMgb2JzZXJ2YWJsZS4iCiAgICB9CiAgXSwKICAiaW5zdHJ1Y3Rpb25fc2VsZWN0aW9uIjogewogICAgInNvdXJjZXMiOiBbCiAgICAgIHsKICAgICAgICAia2luZCI6ICJ3b3JrZmxvdyIsCiAgICAgICAgImxvZ2ljYWxfbmFtZSI6ICJ3b3JrLmluc3RydWN0aW9uLWxvYWRpbmciLAogICAgICAgICJjYW5vbmljYWxfc2hhMjU2IjogIjBiZjUxNjIyZWJmYTNhMzNlMmZiM2ZmZGM5YjJmYzE1Mzk4NGE0YmFhYzM1YTVjNmFiNzIwM2YxODYzMzllNTQiCiAgICAgIH0sCiAgICAgIHsKICAgICAgICAia2luZCI6ICJ3b3JrZmxvdyIsCiAgICAgICAgImxvZ2ljYWxfbmFtZSI6ICJ3b3JrLndvcmtmbG93LnRhc2siLAogICAgICAgICJjYW5vbmljYWxfc2hhMjU2IjogIjMyZjY1ZGVmODA4Y2EwOWU1M2NhNTY0OWEzNGM4NDM0ZDBkZWZmMGU4YjhjYjIzZjJmM2QwYTM5MDg5OTMyZGIiCiAgICAgIH0sCiAgICAgIHsKICAgICAgICAia2luZCI6ICJpbnN0cnVjdGlvbiIsCiAgICAgICAgImxvZ2ljYWxfbmFtZSI6ICJ0YXNrLmdlbmVyYWwiLAogICAgICAgICJjYW5vbmljYWxfc2hhMjU2IjogImY2OWMyNjlmYTRjZmYzNGJmZWYxZWZmNmJhOGU2MjYwNjE2YzhiNDg4MGE4N2ZjYWQxYmVjOThlYmE1ZjUyYTMiCiAgICAgIH0sCiAgICAgIHsKICAgICAgICAia2luZCI6ICJyZWZlcmVuY2UiLAogICAgICAgICJsb2dpY2FsX25hbWUiOiAidGFzay5nZW5lcmFsLnRhc2stcmVjb3JkcyIsCiAgICAgICAgImNhbm9uaWNhbF9zaGEyNTYiOiAiNjI3NWMzMDNhYzA1NTNmOGZkN2RmOGMwYmI1OWI2MjNmOTQzMTQzM2FjNDJiNDYzZDU3ZmYxNWM0MGY0ZDhiOCIKICAgICAgfQogICAgXSwKICAgICJyZWZlcmVuY2VzIjogWwogICAgICAidGFzay5nZW5lcmFsLnRhc2stcmVjb3JkcyIKICAgIF0sCiAgICAiaW5zdHJ1Y3Rpb25zX3NoYTI1NiI6ICIxOTNlYjUwNzQyZDJmNjBmZDNjZWJjOTE3Yzg3YWM2MmRjZDIzYmEwN2QzYmU5NTA3ZmFmOWRhZmIwMjM1MWU5IgogIH0sCiAgImV4ZWN1dGlvbl9kZWZhdWx0cyI6IHsKICAgICJ3b3JraW5nX2RpcmVjdG9yeSI6ICIuIiwKICAgICJvcyI6ICJ3aW5kb3dzIiwKICAgICJzaGVsbCI6ICJwb3dlcnNoZWxsIgogIH0sCiAgInRhc2tzIjogWwogICAgewogICAgICAiaWQiOiAiVEFTSy0wMDEiLAogICAgICAicGF0aCI6ICJ0YXNrcy9UQVNLLTAwMS5qc29uIiwKICAgICAgImNhbm9uaWNhbF9zaGEyNTYiOiAiZDU0MmFjNTZhOGE0Y2IwNmY5MDU4OGQ1MmRiOTRkOTVkZTFhMTYwNDEwNzU5NWFkNzZiMGJlNmRlNTc0ZjJiNCIKICAgIH0KICBdLAogICJyZWFkaW5lc3MiOiB7CiAgICAic3RhdHVzIjogInBhc3NlZCIsCiAgICAic3BlY19pZCI6ICJUQVNLLVNQRUMtMDAxIgogIH0KfQo=",
+                "raw_sha256": "c514f4cebc7539b4d54832711869aa958bd50cdee89259fa806e0be52edf3161"
+              },
+              "operation": "replace",
+              "path": "outputs/work/tasks/example/index.json",
+              "phase": 30
+            },
+            {
+              "after": {
+                "base64": "ewogICJzY2hlbWEiOiAid29yay1leGVjdXRpb24taW5kZXgvdjEiLAogICJyZXF1aXJlbWVudF9pZCI6ICJleGFtcGxlIiwKICAidGl0bGUiOiAiRXhlY3V0aW9uIiwKICAidGFza19zcGVjX2lkIjogIlRBU0stU1BFQy0wMDIiLAogICJ0YXNrX2NvbGxlY3Rpb25fc2hhMjU2IjogImU2YjY4N2ZiOGU1M2QxMzhmN2JhNzUzYzFiZjhmYzg1ZGEwYTBlZDNiZWY3YTU1NjNmNjY5OTY2ZmE2MTU1NjQiLAogICJ0YXNrX2luZGV4X3NoYTI1NiI6ICI3N2I4YzI5MWM2NGI5MTBjYTc5NjY2M2E1YTBiMWIzYmJlOGNkOTM2OTM0YzNjODU0YzJlMDE2ZjUzZDBhNGIyIiwKICAidGFza19pbnN0cnVjdGlvbnNfc2hhMjU2IjogIjE5M2ViNTA3NDJkMmY2MGZkM2NlYmM5MTdjODdhYzYyZGNkMjNiYTA3ZDNiZTk1MDdmYWY5ZGFmYjAyMzUxZTkiLAogICJoaWVyYXJjaHlfc2VsZWN0aW9uX3NoYTI1NiI6ICJlNDE0YjY0NWE0ZDYxMzBlNzUwZmVkZGQxN2QzMWVhNjU2YzIwYzQ4YTA1N2Y2OGVlZGE3ZWQ2ZDYzNmVkYjU5IiwKICAic2tpbGxfc2VsZWN0aW9uX3NoYTI1NiI6ICJhMDkzNTdlZjlmMjJjNDNkY2ExNmI0ODlkYTYxYjI4NzgzOGJmNjQ5NjNhNTk1NmJmNTJhZTAzMjdlMDRhOTU5IiwKICAib3ZlcmFsbF9zdGF0dXMiOiAicGVuZGluZyIsCiAgImFjY2VwdGFuY2VfcmVzdWx0cyI6IFsKICAgIHsKICAgICAgImlkIjogIkFDQ0VQVEFOQ0UtMDAxIiwKICAgICAgInN0YXR1cyI6ICJwZW5kaW5nIiwKICAgICAgImV2aWRlbmNlIjogW10KICAgIH0KICBdLAogICJ0YXNrcyI6IFsKICAgIHsKICAgICAgImlkIjogIlRBU0stMDAxIiwKICAgICAgInN0YXR1cyI6ICJwZW5kaW5nIiwKICAgICAgInNraWxsX2lkIjogbnVsbCwKICAgICAgInRhc2tfaXRlbV9zaGEyNTYiOiAiZDU0MmFjNTZhOGE0Y2IwNmY5MDU4OGQ1MmRiOTRkOTVkZTFhMTYwNDEwNzU5NWFkNzZiMGJlNmRlNTc0ZjJiNCIsCiAgICAgICJpbnN0cnVjdGlvbnNfc2hhMjU2IjogIjE5M2ViNTA3NDJkMmY2MGZkM2NlYmM5MTdjODdhYzYyZGNkMjNiYTA3ZDNiZTk1MDdmYWY5ZGFmYjAyMzUxZTkiLAogICAgICAiYWNjZXB0YW5jZV9yZXN1bHRzIjogWwogICAgICAgIHsKICAgICAgICAgICJpZCI6ICJBQ0NFUFRBTkNFLTAwMSIsCiAgICAgICAgICAic3RhdHVzIjogInBlbmRpbmciLAogICAgICAgICAgImV2aWRlbmNlIjogW10KICAgICAgICB9LAogICAgICAgIHsKICAgICAgICAgICJpZCI6ICJUQVNLLTAwMS1BQ0NFUFRBTkNFLTAwMSIsCiAgICAgICAgICAic3RhdHVzIjogInBlbmRpbmciLAogICAgICAgICAgImV2aWRlbmNlIjogW10KICAgICAgICB9CiAgICAgIF0KICAgIH0KICBdCn0K",
+                "raw_sha256": "51adbf0995a65d609edbd2de60f39fd2386da71900facd54714610579275a0b7"
+              },
+              "before": {
+                "base64": "ewogICJzY2hlbWEiOiAid29yay1leGVjdXRpb24taW5kZXgvdjEiLAogICJyZXF1aXJlbWVudF9pZCI6ICJleGFtcGxlIiwKICAidGl0bGUiOiAiRXhlY3V0aW9uIiwKICAidGFza19zcGVjX2lkIjogIlRBU0stU1BFQy0wMDEiLAogICJ0YXNrX2NvbGxlY3Rpb25fc2hhMjU2IjogIjUyZTZjN2E0YzAxMGE5ZmRhMTY0YmQ4Zjc0YjdkNTk5ZDNmMjVhYmI3MjJmNDU1MzhmMGNmNjMzMjUxNGViZjkiLAogICJ0YXNrX2luZGV4X3NoYTI1NiI6ICJmNWQzMjkxNzZkZjg1ZjZlNDljYjA4OTEwMTgxMzU2MzdiZTY0N2YzY2U5ZmRjNTYzMTdhMDdjMmE4MmIyODljIiwKICAidGFza19pbnN0cnVjdGlvbnNfc2hhMjU2IjogIjE5M2ViNTA3NDJkMmY2MGZkM2NlYmM5MTdjODdhYzYyZGNkMjNiYTA3ZDNiZTk1MDdmYWY5ZGFmYjAyMzUxZTkiLAogICJoaWVyYXJjaHlfc2VsZWN0aW9uX3NoYTI1NiI6ICJlNDE0YjY0NWE0ZDYxMzBlNzUwZmVkZGQxN2QzMWVhNjU2YzIwYzQ4YTA1N2Y2OGVlZGE3ZWQ2ZDYzNmVkYjU5IiwKICAic2tpbGxfc2VsZWN0aW9uX3NoYTI1NiI6ICJhMDkzNTdlZjlmMjJjNDNkY2ExNmI0ODlkYTYxYjI4NzgzOGJmNjQ5NjNhNTk1NmJmNTJhZTAzMjdlMDRhOTU5IiwKICAib3ZlcmFsbF9zdGF0dXMiOiAicGVuZGluZyIsCiAgImFjY2VwdGFuY2VfcmVzdWx0cyI6IFsKICAgIHsKICAgICAgImlkIjogIkFDQ0VQVEFOQ0UtMDAxIiwKICAgICAgInN0YXR1cyI6ICJwZW5kaW5nIiwKICAgICAgImV2aWRlbmNlIjogW10KICAgIH0KICBdLAogICJ0YXNrcyI6IFsKICAgIHsKICAgICAgImlkIjogIlRBU0stMDAxIiwKICAgICAgInN0YXR1cyI6ICJwZW5kaW5nIiwKICAgICAgInNraWxsX2lkIjogbnVsbCwKICAgICAgInRhc2tfaXRlbV9zaGEyNTYiOiAiZDU0MmFjNTZhOGE0Y2IwNmY5MDU4OGQ1MmRiOTRkOTVkZTFhMTYwNDEwNzU5NWFkNzZiMGJlNmRlNTc0ZjJiNCIsCiAgICAgICJpbnN0cnVjdGlvbnNfc2hhMjU2IjogIjE5M2ViNTA3NDJkMmY2MGZkM2NlYmM5MTdjODdhYzYyZGNkMjNiYTA3ZDNiZTk1MDdmYWY5ZGFmYjAyMzUxZTkiLAogICAgICAiYWNjZXB0YW5jZV9yZXN1bHRzIjogWwogICAgICAgIHsKICAgICAgICAgICJpZCI6ICJBQ0NFUFRBTkNFLTAwMSIsCiAgICAgICAgICAic3RhdHVzIjogInBlbmRpbmciLAogICAgICAgICAgImV2aWRlbmNlIjogW10KICAgICAgICB9LAogICAgICAgIHsKICAgICAgICAgICJpZCI6ICJUQVNLLTAwMS1BQ0NFUFRBTkNFLTAwMSIsCiAgICAgICAgICAic3RhdHVzIjogInBlbmRpbmciLAogICAgICAgICAgImV2aWRlbmNlIjogW10KICAgICAgICB9CiAgICAgIF0KICAgIH0KICBdCn0K",
+                "raw_sha256": "90f453ce1e747525290f52a99d00fa21e15c754de1f3771855382ffc0d5a74af"
+              },
+              "operation": "replace",
+              "path": "outputs/work/executions/example/index.json",
+              "phase": 40
+            }
+          ],
+          "metadata": {
+            "affected_task_ids": [
+              "TASK-001"
+            ],
+            "artifacts": {
+              "execution": "outputs/work/executions/example",
+              "source": "outputs/work/sources/example",
+              "task": "outputs/work/tasks/example/index.json"
+            },
+            "candidate_sha256": {
+              "outputs/work/executions/example/index.json": "51adbf0995a65d609edbd2de60f39fd2386da71900facd54714610579275a0b7",
+              "outputs/work/sources/example/SRC-001/manifest.json": "d4dccc5fccd534c4169945de5de03787455254992d7fe334ea794ce74c7e8e30",
+              "outputs/work/sources/example/SRC-001/manifest.json.done": "1fb5d0015b0b3b4c6c3c10582c97137748935d242301f732c2bf1d3a1e83002b",
+              "outputs/work/sources/example/SRC-001/source.txt": "c0025641ad55f45e002ef3307cbe976060548cd4f3a0f068f1bf4d614ea7a9a8",
+              "outputs/work/tasks/example/index.json": "77b8c291c64b910ca796663a5a0b1b3bbe8cd936934c3c854c2e016f53d0a4b2",
+              "outputs/work/tasks/example/tasks/TASK-001.json": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77"
+            },
+            "history_sha256": {},
+            "request": {
+              "expected": {
+                "execution_index_sha256": "90f453ce1e747525290f52a99d00fa21e15c754de1f3771855382ffc0d5a74af",
+                "source_sha256": "2da42c71cf7ba14844e784d6f81ba13b1b77aede84408b829d573e3e36f8647a",
+                "task_index_sha256": "c514f4cebc7539b4d54832711869aa958bd50cdee89259fa806e0be52edf3161",
+                "task_item_sha256": {
+                  "TASK-001": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77"
+                }
+              },
+              "reason": "Confirmed collection revision",
+              "schema": "work-spec-update-request",
+              "task_index": {
+                "acceptance_criteria": [
+                  {
+                    "criterion": "The result is observable.",
+                    "id": "ACCEPTANCE-001"
+                  }
+                ],
+                "artifacts": {
+                  "execution": "outputs/work/executions/example",
+                  "source": "outputs/work/sources/example",
+                  "task": "outputs/work/tasks/example/index.json"
+                },
+                "changes": [
+                  {
+                    "affected_ids": [
+                      "TASK-001"
+                    ],
+                    "date": "2026-09-26",
+                    "edits": [
+                      {
+                        "after": "Task summary. revised",
+                        "artifact": "task_index",
+                        "before": "Task summary.",
+                        "operation": "replace",
+                        "path": "/summary"
+                      }
+                    ],
+                    "id": "TASK-CHANGE-001",
+                    "reason": "Confirmed collection revision",
+                    "spec_id": "TASK-SPEC-002"
+                  }
+                ],
+                "execution_defaults": {
+                  "os": "windows",
+                  "shell": "powershell",
+                  "working_directory": "."
+                },
+                "hierarchy_selection": {
+                  "catalog_sha256": "3e51eaedbc128afd999c796bd337d9471c15411d3e66677383e6fd188e90f390",
+                  "decision": "general_only",
+                  "entries": [],
+                  "schema": "work-hierarchy-selection",
+                  "selected_paths": [],
+                  "selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569"
+                },
+                "instruction_selection": {
+                  "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+                  "references": [
+                    "task.general.task-records"
+                  ],
+                  "sources": [
+                    {
+                      "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
+                      "kind": "workflow",
+                      "logical_name": "work.instruction-loading"
+                    },
+                    {
+                      "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
+                      "kind": "workflow",
+                      "logical_name": "work.workflow.task"
+                    },
+                    {
+                      "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
+                      "kind": "instruction",
+                      "logical_name": "task.general"
+                    },
+                    {
+                      "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
+                      "kind": "reference",
+                      "logical_name": "task.general.task-records"
+                    }
+                  ]
+                },
+                "readiness": {
+                  "spec_id": "TASK-SPEC-002",
+                  "status": "passed"
+                },
+                "requirement_id": "example",
+                "schema": "work-task-index",
+                "skill_selection": {
+                  "decision": "base_only",
+                  "schema": "work-skill-selection",
+                  "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
+                  "skills": []
+                },
+                "source": {
+                  "kind": "snapshot",
+                  "manifest": {
+                    "captured_at": "2026-10-03T00:00:00Z",
+                    "content": {
+                      "path": "source.txt",
+                      "sha256": "c0025641ad55f45e002ef3307cbe976060548cd4f3a0f068f1bf4d614ea7a9a8",
+                      "size": 753
+                    },
+                    "requirement_id": "example",
+                    "schema": "work-source-snapshot",
+                    "source": {
+                      "kind": "user_text"
+                    },
+                    "source_id": "SRC-001"
+                  }
+                },
+                "spec_id": "TASK-SPEC-002",
+                "status": "confirmed",
+                "summary": "Task summary. revised",
+                "tasks": [
+                  {
+                    "canonical_sha256": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77",
+                    "id": "TASK-001",
+                    "path": "tasks/TASK-001.json"
+                  }
+                ],
+                "title": "Example TASK"
+              },
+              "task_items": {
+                "TASK-001": {
+                  "acceptance_criteria": [
+                    {
+                      "criterion": "Exit code is zero.",
+                      "id": "TASK-001-ACCEPTANCE-001"
+                    }
+                  ],
+                  "commands": [
+                    {
+                      "argv": [
+                        "python",
+                        "--version"
+                      ],
+                      "id": "CMD-001",
+                      "mode": "argv"
+                    }
+                  ],
+                  "files": [
+                    {
+                      "action": "modify",
+                      "id": "FILE-001",
+                      "path": "src.txt"
+                    }
+                  ],
+                  "goal": "Modify the source and validate it.",
+                  "id": "TASK-001",
+                  "instruction_selection": {
+                    "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+                    "references": [
+                      "task.general.task-records"
+                    ],
+                    "resolved_paths": [
+                      "general"
+                    ],
+                    "selected_paths": [],
+                    "sources": [
+                      {
+                        "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
+                        "kind": "workflow",
+                        "logical_name": "work.instruction-loading"
+                      },
+                      {
+                        "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
+                        "kind": "workflow",
+                        "logical_name": "work.workflow.task"
+                      },
+                      {
+                        "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
+                        "kind": "instruction",
+                        "logical_name": "task.general"
+                      },
+                      {
+                        "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
+                        "kind": "reference",
+                        "logical_name": "task.general.task-records"
+                      }
+                    ]
+                  },
+                  "schema": "work-task-item",
+                  "skill_id": null,
+                  "steps": [
+                    {
+                      "action": "Modify the source.",
+                      "id": "STEP-001",
+                      "references": [
+                        "FILE-001"
+                      ]
+                    },
+                    {
+                      "action": "Run validation.",
+                      "id": "STEP-002",
+                      "references": [
+                        "CMD-001",
+                        "VAL-001"
+                      ]
+                    }
+                  ],
+                  "title": "Modify source",
+                  "traceability": {
+                    "acceptance_ids": [
+                      "ACCEPTANCE-001"
+                    ]
+                  },
+                  "validations": [
+                    {
+                      "acceptance_ids": [
+                        "ACCEPTANCE-001",
+                        "TASK-001-ACCEPTANCE-001"
+                      ],
+                      "command_ids": [
+                        "CMD-001"
+                      ],
+                      "id": "VAL-001",
+                      "kind": "automated",
+                      "pass_condition": "Exit code is zero."
+                    }
+                  ]
+                }
+              }
+            },
+            "source_sha256": {
+              "outputs/work/executions/example/index.json": "90f453ce1e747525290f52a99d00fa21e15c754de1f3771855382ffc0d5a74af",
+              "outputs/work/sources/example/SRC-001/manifest.json": "d4dccc5fccd534c4169945de5de03787455254992d7fe334ea794ce74c7e8e30",
+              "outputs/work/sources/example/SRC-001/manifest.json.done": "1fb5d0015b0b3b4c6c3c10582c97137748935d242301f732c2bf1d3a1e83002b",
+              "outputs/work/sources/example/SRC-001/source.txt": "c0025641ad55f45e002ef3307cbe976060548cd4f3a0f068f1bf4d614ea7a9a8",
+              "outputs/work/tasks/example/index.json": "c514f4cebc7539b4d54832711869aa958bd50cdee89259fa806e0be52edf3161",
+              "outputs/work/tasks/example/tasks/TASK-001.json": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77"
+            }
+          },
+          "published_count": 0,
+          "schema": "work-spec-transaction",
+          "state": "prepared",
+          "transaction_id": "SPEC-UPDATE-3E120495E368"
+        },
+        "validation": {
+          "execution_index": "valid",
+          "history": "validated",
+          "task_collection": {
+            "collection_contract": {
+              "acceptance_criteria": [
+                {
+                  "criterion": "The result is observable.",
+                  "id": "ACCEPTANCE-001"
+                }
+              ],
+              "artifacts": {
+                "execution": "outputs/work/executions/example",
+                "source": "outputs/work/sources/example",
+                "task": "outputs/work/tasks/example/index.json"
+              },
+              "changes": [
+                {
+                  "affected_ids": [
+                    "TASK-001"
+                  ],
+                  "date": "2026-09-26",
+                  "edits": [
+                    {
+                      "after": "Task summary. revised",
+                      "before": "Task summary.",
+                      "operation": "replace",
+                      "path": "/summary"
+                    }
+                  ],
+                  "id": "TASK-CHANGE-001",
+                  "reason": "Confirmed collection revision",
+                  "spec_id": "TASK-SPEC-002"
+                }
+              ],
+              "execution_defaults": {
+                "os": "windows",
+                "shell": "powershell",
+                "working_directory": "."
+              },
+              "hierarchy_selection": {
+                "catalog_sha256": "3e51eaedbc128afd999c796bd337d9471c15411d3e66677383e6fd188e90f390",
+                "decision": "general_only",
+                "entries": [],
+                "schema": "work-hierarchy-selection",
+                "selected_paths": [],
+                "selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569"
+              },
+              "instruction_selection": {
+                "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+                "references": [
+                  "task.general.task-records"
+                ],
+                "sources": [
+                  {
+                    "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
+                    "kind": "workflow",
+                    "logical_name": "work.instruction-loading"
+                  },
+                  {
+                    "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
+                    "kind": "workflow",
+                    "logical_name": "work.workflow.task"
+                  },
+                  {
+                    "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
+                    "kind": "instruction",
+                    "logical_name": "task.general"
+                  },
+                  {
+                    "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
+                    "kind": "reference",
+                    "logical_name": "task.general.task-records"
+                  }
+                ]
+              },
+              "readiness": {
+                "spec_id": "TASK-SPEC-002",
+                "status": "passed"
+              },
+              "requirement_id": "example",
+              "schema": "work-task-collection-projection",
+              "skill_selection": {
+                "decision": "base_only",
+                "schema": "work-skill-selection",
+                "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
+                "skills": []
+              },
+              "source": {
+                "kind": "snapshot",
+                "manifest": {
+                  "captured_at": "2026-10-03T00:00:00Z",
+                  "content": {
+                    "path": "source.txt",
+                    "sha256": "c0025641ad55f45e002ef3307cbe976060548cd4f3a0f068f1bf4d614ea7a9a8",
+                    "size": 753
+                  },
+                  "requirement_id": "example",
+                  "schema": "work-source-snapshot",
+                  "source": {
+                    "kind": "user_text"
+                  },
+                  "source_id": "SRC-001"
+                }
+              },
+              "spec_id": "TASK-SPEC-002",
+              "status": "confirmed",
+              "summary": "Task summary. revised",
+              "tasks": [
+                {
+                  "acceptance_criteria": [
+                    {
+                      "criterion": "Exit code is zero.",
+                      "id": "TASK-001-ACCEPTANCE-001"
+                    }
+                  ],
+                  "commands": [
+                    {
+                      "argv": [
+                        "python",
+                        "--version"
+                      ],
+                      "id": "CMD-001",
+                      "mode": "argv"
+                    }
+                  ],
+                  "files": [
+                    {
+                      "action": "modify",
+                      "id": "FILE-001",
+                      "path": "src.txt"
+                    }
+                  ],
+                  "goal": "Modify the source and validate it.",
+                  "id": "TASK-001",
+                  "instruction_selection": {
+                    "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+                    "references": [
+                      "task.general.task-records"
+                    ],
+                    "resolved_paths": [
+                      "general"
+                    ],
+                    "selected_paths": [],
+                    "sources": [
+                      {
+                        "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
+                        "kind": "workflow",
+                        "logical_name": "work.instruction-loading"
+                      },
+                      {
+                        "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
+                        "kind": "workflow",
+                        "logical_name": "work.workflow.task"
+                      },
+                      {
+                        "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
+                        "kind": "instruction",
+                        "logical_name": "task.general"
+                      },
+                      {
+                        "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
+                        "kind": "reference",
+                        "logical_name": "task.general.task-records"
+                      }
+                    ]
+                  },
+                  "skill_id": null,
+                  "steps": [
+                    {
+                      "action": "Modify the source.",
+                      "id": "STEP-001",
+                      "references": [
+                        "FILE-001"
+                      ]
+                    },
+                    {
+                      "action": "Run validation.",
+                      "id": "STEP-002",
+                      "references": [
+                        "CMD-001",
+                        "VAL-001"
+                      ]
+                    }
+                  ],
+                  "title": "Modify source",
+                  "traceability": {
+                    "acceptance_ids": [
+                      "ACCEPTANCE-001"
+                    ]
+                  },
+                  "validations": [
+                    {
+                      "acceptance_ids": [
+                        "ACCEPTANCE-001",
+                        "TASK-001-ACCEPTANCE-001"
+                      ],
+                      "command_ids": [
+                        "CMD-001"
+                      ],
+                      "id": "VAL-001",
+                      "kind": "automated",
+                      "pass_condition": "Exit code is zero."
+                    }
+                  ]
+                }
+              ],
+              "title": "Example TASK"
+            },
+            "hierarchy_selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569",
+            "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+            "requirement_id": "example",
+            "schema": "work-task-collection-validation",
+            "skill_selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
+            "source_sha256": "2da42c71cf7ba14844e784d6f81ba13b1b77aede84408b829d573e3e36f8647a",
+            "spec_id": "TASK-SPEC-002",
+            "task_collection_sha256": "e6b687fb8e53d138f7ba753c1bf8fc85da0a0ed3bef7a5563f669966fa615564",
+            "task_count": 1,
+            "task_ids": [
+              "TASK-001"
+            ],
+            "task_index_sha256": "77b8c291c64b910ca796663a5a0b1b3bbe8cd936934c3c854c2e016f53d0a4b2",
+            "task_instructions_sha256": {
+              "TASK-001": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16"
+            },
+            "task_item_sha256": {
+              "TASK-001": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77"
+            },
+            "task_skill_ids": {
+              "TASK-001": null
+            }
+          }
+        }
+      },
+      "request": {
+        "expected": {
+          "execution_index_sha256": "90f453ce1e747525290f52a99d00fa21e15c754de1f3771855382ffc0d5a74af",
+          "source_sha256": "2da42c71cf7ba14844e784d6f81ba13b1b77aede84408b829d573e3e36f8647a",
+          "task_index_sha256": "c514f4cebc7539b4d54832711869aa958bd50cdee89259fa806e0be52edf3161",
+          "task_item_sha256": {
+            "TASK-001": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77"
+          }
+        },
+        "reason": "Confirmed collection revision",
+        "schema": "work-spec-update-request",
+        "task_index": {
+          "acceptance_criteria": [
+            {
+              "criterion": "The result is observable.",
+              "id": "ACCEPTANCE-001"
+            }
+          ],
+          "artifacts": {
+            "execution": "outputs/work/executions/example",
+            "source": "outputs/work/sources/example",
+            "task": "outputs/work/tasks/example/index.json"
+          },
+          "changes": [
+            {
+              "affected_ids": [
+                "TASK-001"
+              ],
+              "date": "2026-09-26",
+              "edits": [
+                {
+                  "after": "Task summary. revised",
+                  "artifact": "task_index",
+                  "before": "Task summary.",
+                  "operation": "replace",
+                  "path": "/summary"
+                }
+              ],
+              "id": "TASK-CHANGE-001",
+              "reason": "Confirmed collection revision",
+              "spec_id": "TASK-SPEC-002"
+            }
+          ],
+          "execution_defaults": {
+            "os": "windows",
+            "shell": "powershell",
+            "working_directory": "."
+          },
+          "hierarchy_selection": {
+            "catalog_sha256": "3e51eaedbc128afd999c796bd337d9471c15411d3e66677383e6fd188e90f390",
+            "decision": "general_only",
+            "entries": [],
+            "schema": "work-hierarchy-selection",
+            "selected_paths": [],
+            "selection_sha256": "05f1a15666761b47026c26fdb75a69ee43623ec30a5c094887b3287bf2abc569"
+          },
+          "instruction_selection": {
+            "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+            "references": [
+              "task.general.task-records"
+            ],
+            "sources": [
+              {
+                "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
+                "kind": "workflow",
+                "logical_name": "work.instruction-loading"
+              },
+              {
+                "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
+                "kind": "workflow",
+                "logical_name": "work.workflow.task"
+              },
+              {
+                "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
+                "kind": "instruction",
+                "logical_name": "task.general"
+              },
+              {
+                "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
+                "kind": "reference",
+                "logical_name": "task.general.task-records"
+              }
+            ]
+          },
+          "readiness": {
+            "spec_id": "TASK-SPEC-002",
+            "status": "passed"
+          },
+          "requirement_id": "example",
+          "schema": "work-task-index",
+          "skill_selection": {
+            "decision": "base_only",
+            "schema": "work-skill-selection",
+            "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
+            "skills": []
+          },
+          "source": {
+            "kind": "snapshot",
+            "manifest": {
+              "captured_at": "2026-10-03T00:00:00Z",
+              "content": {
+                "path": "source.txt",
+                "sha256": "c0025641ad55f45e002ef3307cbe976060548cd4f3a0f068f1bf4d614ea7a9a8",
+                "size": 753
+              },
+              "requirement_id": "example",
+              "schema": "work-source-snapshot",
+              "source": {
+                "kind": "user_text"
+              },
+              "source_id": "SRC-001"
+            }
+          },
+          "spec_id": "TASK-SPEC-002",
+          "status": "confirmed",
+          "summary": "Task summary. revised",
+          "tasks": [
+            {
+              "canonical_sha256": "dcc15c039c4de3aac229cd5e1364d5dc9fb67ed24767bbef660656dfc2506e77",
+              "id": "TASK-001",
+              "path": "tasks/TASK-001.json"
+            }
+          ],
+          "title": "Example TASK"
+        },
+        "task_items": {
+          "TASK-001": {
+            "acceptance_criteria": [
+              {
+                "criterion": "Exit code is zero.",
+                "id": "TASK-001-ACCEPTANCE-001"
+              }
+            ],
+            "commands": [
+              {
+                "argv": [
+                  "python",
+                  "--version"
+                ],
+                "id": "CMD-001",
+                "mode": "argv"
+              }
+            ],
+            "files": [
+              {
+                "action": "modify",
+                "id": "FILE-001",
+                "path": "src.txt"
+              }
+            ],
+            "goal": "Modify the source and validate it.",
+            "id": "TASK-001",
+            "instruction_selection": {
+              "instructions_sha256": "99ac2eeb38d4458d7c063bcc2bcc3cfcb151ffb7366d3cf646b36d033dfcce16",
+              "references": [
+                "task.general.task-records"
+              ],
+              "resolved_paths": [
+                "general"
+              ],
+              "selected_paths": [],
+              "sources": [
+                {
+                  "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
+                  "kind": "workflow",
+                  "logical_name": "work.instruction-loading"
+                },
+                {
+                  "canonical_sha256": "542b20701804034db19b27e57e56dfdf4737c03aa067b3f70972ca7cc8815b83",
+                  "kind": "workflow",
+                  "logical_name": "work.workflow.task"
+                },
+                {
+                  "canonical_sha256": "56a8da195e1299c0fbb3b0418070cb932d8699fde3dbf6cbe747b7a52c5a64c0",
+                  "kind": "instruction",
+                  "logical_name": "task.general"
+                },
+                {
+                  "canonical_sha256": "c7a0a78f9bf943ee51df68fbf070cf83a4fee3b9fdbb8815daf596df757bb593",
+                  "kind": "reference",
+                  "logical_name": "task.general.task-records"
+                }
+              ]
+            },
+            "schema": "work-task-item",
+            "skill_id": null,
+            "steps": [
+              {
+                "action": "Modify the source.",
+                "id": "STEP-001",
+                "references": [
+                  "FILE-001"
+                ]
+              },
+              {
+                "action": "Run validation.",
+                "id": "STEP-002",
+                "references": [
+                  "CMD-001",
+                  "VAL-001"
+                ]
+              }
+            ],
+            "title": "Modify source",
+            "traceability": {
+              "acceptance_ids": [
+                "ACCEPTANCE-001"
+              ]
+            },
+            "validations": [
+              {
+                "acceptance_ids": [
+                  "ACCEPTANCE-001",
+                  "TASK-001-ACCEPTANCE-001"
+                ],
+                "command_ids": [
+                  "CMD-001"
+                ],
+                "id": "VAL-001",
+                "kind": "automated",
+                "pass_condition": "Exit code is zero."
+              }
+            ]
+          }
+        }
+      },
+      "schema": "work-spec-prepare",
+      "transport": {
+        "output_file": null,
+        "request_field": "request",
+        "request_schema": "work-spec-update-request"
+      }
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "request",
+        "reference": "work-spec-update-request",
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "preview",
+        "reference": "work-spec-update",
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "output_file",
+        "reference": null,
+        "required": true,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "transport",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "next_step",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      }
+    ],
+    "id": "work-spec-prepare",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "request",
+      "preview",
+      "output_file",
+      "transport",
+      "next_step"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-spec-prepare",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

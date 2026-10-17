@@ -1,0 +1,105 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "status",
+      "role",
+      "mode",
+      "scope",
+      "source_validation",
+      "sender_authentication",
+      "grants_authorization"
+    ],
+    "example": {
+      "grants_authorization": false,
+      "mode": "task",
+      "role": "task-coordinator",
+      "schema": "work-delegation-validation",
+      "scope": "role_context",
+      "sender_authentication": "not_checked",
+      "source_validation": "not_checked",
+      "status": "valid"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "role",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "mode",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "scope",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "source_validation",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "sender_authentication",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "grants_authorization",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      }
+    ],
+    "id": "work-delegation-validation",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "status",
+      "role",
+      "mode",
+      "scope",
+      "source_validation",
+      "sender_authentication",
+      "grants_authorization"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-delegation-validation",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

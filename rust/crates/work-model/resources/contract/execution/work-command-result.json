@@ -1,0 +1,209 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "approved_sha256",
+      "record_id",
+      "status",
+      "exit_code",
+      "stdout_tail",
+      "stdout_truncated",
+      "stderr_tail",
+      "stderr_truncated",
+      "receipt_dir",
+      "record_finish_required",
+      "record_finish_request",
+      "diagnostic",
+      "timing",
+      "signal",
+      "captures"
+    ],
+    "example": {
+      "approved_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "exit_code": 0,
+      "record_id": "CMD-001",
+      "schema": "work-command-result",
+      "status": "exited",
+      "stderr_tail": "",
+      "stderr_truncated": false,
+      "stdout_tail": "",
+      "stdout_truncated": false
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "approved_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "record_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {
+          "enum": [
+            "exited",
+            "timed_out",
+            "launch_failed",
+            "interrupted",
+            "unknown"
+          ]
+        },
+        "name": "status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "exit_code",
+        "reference": null,
+        "required": true,
+        "type": "integer | null"
+      },
+      {
+        "constraints": {},
+        "name": "stdout_tail",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "stdout_truncated",
+        "reference": null,
+        "required": true,
+        "type": "boolean"
+      },
+      {
+        "constraints": {},
+        "name": "stderr_tail",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "stderr_truncated",
+        "reference": null,
+        "required": true,
+        "type": "boolean"
+      },
+      {
+        "constraints": {},
+        "name": "receipt_dir",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "record_finish_required",
+        "reference": null,
+        "required": false,
+        "type": "boolean | null"
+      },
+      {
+        "constraints": {},
+        "name": "record_finish_request",
+        "reference": null,
+        "required": false,
+        "type": "null | object<any>"
+      },
+      {
+        "constraints": {},
+        "name": "diagnostic",
+        "reference": null,
+        "required": false,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "timing",
+        "reference": null,
+        "required": false,
+        "type": "object"
+      },
+      {
+        "constraints": {
+          "actual_only": true,
+          "numeric_exit_absent": true
+        },
+        "name": "signal",
+        "reference": null,
+        "required": false,
+        "type": "integer"
+      },
+      {
+        "constraints": {
+          "artifact_fields": [
+            "file",
+            "size_bytes",
+            "sha256",
+            "complete"
+          ],
+          "limits": {
+            "report_bytes": 16777216,
+            "report_total_bytes": 67108864,
+            "stream_bytes": 16777216
+          },
+          "producer_only": true,
+          "reports": "normal report paths with available evidence copy or unavailable reason",
+          "streams": [
+            "stdout",
+            "stderr"
+          ],
+          "unknown": "missing, truncated, read-failed or over-limit evidence is not complete"
+        },
+        "name": "captures",
+        "reference": null,
+        "required": false,
+        "type": "object"
+      }
+    ],
+    "id": "work-command-result",
+    "kind": "response",
+    "optional": [
+      "receipt_dir",
+      "record_finish_required",
+      "record_finish_request",
+      "diagnostic",
+      "timing",
+      "signal",
+      "captures"
+    ],
+    "required": [
+      "schema",
+      "approved_sha256",
+      "record_id",
+      "status",
+      "exit_code",
+      "stdout_tail",
+      "stdout_truncated",
+      "stderr_tail",
+      "stderr_truncated"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-command-result",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

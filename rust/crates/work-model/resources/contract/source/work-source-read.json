@@ -1,0 +1,68 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "manifest",
+      "bytes"
+    ],
+    "example": {
+      "bytes": [],
+      "manifest": {
+        "captured_at": "2026-10-03T00:00:00Z",
+        "content": {
+          "path": "source.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0
+        },
+        "requirement_id": "example",
+        "schema": "work-source-snapshot",
+        "source": {
+          "kind": "user_text"
+        },
+        "source_id": "SRC-001"
+      },
+      "schema": "work-source-read"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "manifest",
+        "reference": "work-source-snapshot",
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "bytes",
+        "reference": null,
+        "required": true,
+        "type": "array<integer>"
+      }
+    ],
+    "id": "work-source-read",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "manifest",
+      "bytes"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-source-read",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

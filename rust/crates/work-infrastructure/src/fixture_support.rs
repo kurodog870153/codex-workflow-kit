@@ -120,7 +120,20 @@ pub fn source_confirmation(previous: &Value, source: &Value) -> Value {
     };
     let old = ids(&previous["source"]);
     let new = ids(source);
-    let reviews: serde_json::Map<String,Value> = previous["tasks"].as_array().unwrap().iter().map(|task|(task["id"].as_str().unwrap().to_owned(),serde_json::json!({"outcome_decisions":"Reviewed the complete Source outcome.","technical_decisions":"Reviewed technical decisions against the complete Source.","boundary":"Reviewed the Task boundary and dependencies.","acceptance":"Reviewed retained and revised acceptance criteria.","skills":"Confirmed the selected Task Skills.","hierarchy":"Confirmed the selected Task hierarchy.","instructions":"Confirmed current instructions and references."}))).collect();
+    let reviews: serde_json::Map<String, Value> = previous["tasks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|task| {
+            (
+                task["id"].as_str().unwrap().to_owned(),
+                serde_json::from_str(include_str!(
+                    "../fixtures/shared/source-task/source-confirmation-review.json"
+                ))
+                .expect("fixed fixture JSON"),
+            )
+        })
+        .collect();
     serde_json::json!({"previous_planning_sha256":work_operations::derivation::fingerprint::structured(previous).unwrap(),"new_source_sha256":work_operations::derivation::fingerprint::structured(source).unwrap(),"requirement_sha256":source["snapshot"]["content"]["sha256"],"complete_requirement_review":true,"retained_acceptance_ids":old.intersection(&new).collect::<Vec<_>>(),"removed_acceptance":old.difference(&new).map(|id|serde_json::json!({"id":id,"reason":"The reviewed replacement explicitly retires this requirement."})).collect::<Vec<_>>(),"added_acceptance_ids":new.difference(&old).collect::<Vec<_>>(),"task_reviews":reviews})
 }
 
@@ -844,7 +857,10 @@ fn file_transaction_fixture_configured(
         second.commands.clear();
         second.operations.clear();
         second.files = serde_json::from_value(
-            json!([{"key":"independent","action":"create","path":"independent.txt"}]),
+            serde_json::from_str(include_str!(
+                "../fixtures/shared/source-task/independent-file.json"
+            ))
+            .expect("fixed fixture JSON"),
         )
         .map_err(|e| e.to_string())?;
         second.steps = serde_json::from_value(json!([{"key":"independent","action":"Verify the independent output",
@@ -863,7 +879,10 @@ fn file_transaction_fixture_configured(
         independent.commands.clear();
         independent.operations.clear();
         independent.files = serde_json::from_value(
-            json!([{"key":"independent","action":"create","path":"independent.txt"}]),
+            serde_json::from_str(include_str!(
+                "../fixtures/shared/source-task/independent-file.json"
+            ))
+            .expect("fixed fixture JSON"),
         )
         .map_err(|e| e.to_string())?;
         independent.steps=serde_json::from_value(json!([{"key":"independent","action":"Verify the independent output",
@@ -883,19 +902,22 @@ fn file_transaction_fixture_configured(
             }
         }
     }
-    session.tasks[0].files = serde_json::from_value(json!([
-        {"key":"moved","action":"move","source":"a-old.txt","destination":"b-moved.txt"},
-        {"key":"modified","action":"modify","path":"c-existing.txt"},
-        {"key":"created","action":"create","path":"d-new.txt"}
-    ]))
+    session.tasks[0].files = serde_json::from_value(
+        serde_json::from_str(include_str!(
+            "../fixtures/shared/source-task/default-files.json"
+        ))
+        .expect("fixed fixture JSON"),
+    )
     .map_err(|e| e.to_string())?;
     match scenario {
         Some(FileFixtureScenario::Swap) => {
-            session.tasks[0].files = serde_json::from_value(json!([
-                {"key":"moved","action":"move","source":"a-old.txt","destination":"c-existing.txt"},
-                {"key":"modified","action":"move","source":"c-existing.txt","destination":"a-old.txt"},
-                {"key":"created","action":"create","path":"d-new.txt"}
-            ])).map_err(|e|e.to_string())?;
+            session.tasks[0].files = serde_json::from_value(
+                serde_json::from_str(include_str!(
+                    "../fixtures/shared/source-task/swap-files.json"
+                ))
+                .expect("fixed fixture JSON"),
+            )
+            .map_err(|e| e.to_string())?;
         }
         Some(FileFixtureScenario::Replacement) => {
             session.tasks[0].files[2] = serde_json::from_value(
@@ -904,11 +926,12 @@ fn file_transaction_fixture_configured(
             .map_err(|e| e.to_string())?;
         }
         Some(FileFixtureScenario::Intermediate) => {
-            session.tasks[0].files = serde_json::from_value(json!([
-                {"key":"created","action":"create","path":"d-new.txt"},
-                {"key":"moved","action":"move","source":"d-new.txt","destination":"b-moved.txt"},
-                {"key":"modified","action":"modify","path":"c-existing.txt"}
-            ]))
+            session.tasks[0].files = serde_json::from_value(
+                serde_json::from_str(include_str!(
+                    "../fixtures/shared/source-task/intermediate-files.json"
+                ))
+                .expect("fixed fixture JSON"),
+            )
             .map_err(|e| e.to_string())?;
         }
         _ => {}
@@ -944,12 +967,14 @@ fn file_transaction_fixture_configured(
             ]))
             .map_err(|e| e.to_string())?;
             let acceptance_ids = session.tasks[0].validations[0].acceptance_ids.clone();
+            let verification: Value = serde_json::from_str(include_str!(
+                "../fixtures/shared/execution/command-verification.json"
+            ))
+            .expect("fixed fixture JSON");
             session.tasks[0].validations = serde_json::from_value(json!([
                 {"key":"result","kind":"automated","command_keys":["verify"],
                     "pass_condition":"Actual verification reads the complete published output",
-                    "verification":{"kind":"all","conditions":[
-                        {"kind":"exit_code","command":"verify","equals":0},
-                        {"kind":"stdout_contains","command":"verify","text":"final modify"}]},
+                    "verification":verification,
                     "acceptance_ids":acceptance_ids}
             ]))
             .map_err(|e| e.to_string())?;
@@ -1049,7 +1074,10 @@ fn file_transaction_fixture_configured(
         skill_root: skill_root.into(),
         skill_configs: vec![],
     };
-    let mut metadata = json!({"title":"File publication","summary":"Complete output"});
+    let mut metadata: Value = serde_json::from_str(include_str!(
+        "../fixtures/shared/execution/publication-metadata.json"
+    ))
+    .expect("fixed fixture JSON");
     if native_commands {
         metadata["execution_defaults"] = json!({"os":std::env::consts::OS,"working_directory":".",
             "shell":if cfg!(windows) {"cmd"} else {"sh"}});
@@ -1124,8 +1152,10 @@ fn file_transaction_fixture_configured(
         storage: &storage,
         load_context: &load,
     };
-    let choice = json!({"command_positions":[],"validation_positions":[1],"modifiable_files":["a-old.txt","b-moved.txt","c-existing.txt","d-new.txt"],
-        "external_operation_positions":[],"allowed_deviations":[],"authorization_evidence":"Fixture user authorized complete file publication and manual acceptance"});
+    let choice: Value = serde_json::from_str(include_str!(
+        "../fixtures/shared/execution/attempt-choice.json"
+    ))
+    .expect("fixed fixture JSON");
     let choice = if native_commands {
         let mut choice = choice;
         choice["command_positions"] = json!([1, 2]);

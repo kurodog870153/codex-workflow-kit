@@ -1,0 +1,55 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "files",
+      "bundle_sha256"
+    ],
+    "example": {
+      "bundle_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "files": [],
+      "schema": "work-skill-bundle"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "files",
+        "reference": null,
+        "required": true,
+        "type": "array<object<string>>"
+      },
+      {
+        "constraints": {},
+        "name": "bundle_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      }
+    ],
+    "id": "work-skill-bundle",
+    "kind": "artifact",
+    "optional": [],
+    "required": [
+      "schema",
+      "files",
+      "bundle_sha256"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-skill-bundle",
+      "kind": "artifact"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

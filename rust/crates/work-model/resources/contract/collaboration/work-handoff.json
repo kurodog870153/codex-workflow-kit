@@ -1,0 +1,172 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "marker",
+      "direction",
+      "requirement_id",
+      "artifacts",
+      "source",
+      "target",
+      "summary",
+      "confirmed_approach",
+      "requested_changes",
+      "preserve",
+      "affected_ids",
+      "validation_requirements"
+    ],
+    "example": {
+      "artifacts": {
+        "execution": "outputs/work/executions/example",
+        "source": "outputs/work/sources/example",
+        "task": "outputs/work/tasks/example/index.json"
+      },
+      "direction": "task_to_execute",
+      "marker": "WORK-HANDOFF",
+      "requirement_id": "example",
+      "schema": "work-handoff",
+      "source": {
+        "skill_id": null,
+        "skill_selection_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "stage": "task",
+        "task_collection_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "task_id": "TASK-001",
+        "task_index_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "task_instructions_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "task_item_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "task_spec_id": "TASK-SPEC-001"
+      },
+      "summary": "Continue.",
+      "target": {
+        "stage": "execute"
+      }
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "marker",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {
+          "values": [
+            "task_to_execute",
+            "execute_to_task"
+          ]
+        },
+        "name": "direction",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "requirement_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "artifacts",
+        "reference": null,
+        "required": true,
+        "type": "object<string>"
+      },
+      {
+        "constraints": {},
+        "name": "source",
+        "reference": null,
+        "required": true,
+        "type": "object<any>"
+      },
+      {
+        "constraints": {},
+        "name": "target",
+        "reference": null,
+        "required": true,
+        "type": "object<any>"
+      },
+      {
+        "constraints": {},
+        "name": "summary",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "confirmed_approach",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "requested_changes",
+        "reference": null,
+        "required": false,
+        "type": "array<string> | null"
+      },
+      {
+        "constraints": {},
+        "name": "preserve",
+        "reference": null,
+        "required": false,
+        "type": "array<string> | null"
+      },
+      {
+        "constraints": {},
+        "name": "affected_ids",
+        "reference": null,
+        "required": false,
+        "type": "array<string> | null"
+      },
+      {
+        "constraints": {},
+        "name": "validation_requirements",
+        "reference": null,
+        "required": false,
+        "type": "array<string> | null"
+      }
+    ],
+    "id": "work-handoff",
+    "kind": "artifact",
+    "optional": [
+      "confirmed_approach",
+      "requested_changes",
+      "preserve",
+      "affected_ids",
+      "validation_requirements"
+    ],
+    "required": [
+      "schema",
+      "marker",
+      "direction",
+      "requirement_id",
+      "artifacts",
+      "source",
+      "target",
+      "summary"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-handoff",
+      "kind": "artifact"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

@@ -1,0 +1,5 @@
+# Example
+
+```json
+{"schema":"example/v1"}
+```

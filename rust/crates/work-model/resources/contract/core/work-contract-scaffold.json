@@ -1,0 +1,90 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "id",
+      "canonical_order",
+      "scaffold",
+      "example"
+    ],
+    "example": {
+      "canonical_order": [
+        "schema",
+        "status",
+        "final_type",
+        "reason",
+        "authorization_evidence"
+      ],
+      "example": {
+        "schema": "work-attempt-close-request",
+        "status": "completed"
+      },
+      "id": "work-attempt-close-request",
+      "scaffold": {
+        "authorization_evidence": null,
+        "final_type": null,
+        "reason": null,
+        "schema": "work-attempt-close-request",
+        "status": "completed"
+      },
+      "schema": "work-contract-scaffold"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "canonical_order",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "scaffold",
+        "reference": null,
+        "required": true,
+        "type": "object<any>"
+      },
+      {
+        "constraints": {},
+        "name": "example",
+        "reference": null,
+        "required": true,
+        "type": "object<any>"
+      }
+    ],
+    "id": "work-contract-scaffold",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "id",
+      "canonical_order",
+      "scaffold",
+      "example"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-contract-scaffold",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

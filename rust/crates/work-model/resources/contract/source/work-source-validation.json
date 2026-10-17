@@ -1,0 +1,85 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "status",
+      "requirement_id",
+      "source_id",
+      "content_sha256",
+      "content_size"
+    ],
+    "example": {
+      "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "content_size": 0,
+      "requirement_id": "example",
+      "schema": "work-source-validation",
+      "source_id": "SRC-001",
+      "status": "valid"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "requirement_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "source_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "content_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "content_size",
+        "reference": null,
+        "required": true,
+        "type": "integer"
+      }
+    ],
+    "id": "work-source-validation",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "status",
+      "requirement_id",
+      "source_id",
+      "content_sha256",
+      "content_size"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-source-validation",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

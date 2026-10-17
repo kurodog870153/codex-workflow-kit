@@ -1,0 +1,176 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "status",
+      "reconciliation_fingerprint",
+      "attempt_path",
+      "attempt_sha256",
+      "selected_deviation_ids",
+      "retained_deviation_ids",
+      "ledger_path",
+      "ledger_sha256",
+      "publication",
+      "deviation_classifications"
+    ],
+    "example": {
+      "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
+      "attempt_sha256": "2ae0e20ec5913132a1fe9b6e04ac9bc0c1adecbc1db250cdd3273324f82d80d8",
+      "deviation_classifications": {
+        "DEVIATION-001": "task_only"
+      },
+      "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
+      "ledger_sha256": "bc20ee18a4292922acf34864df9fbc4afb02ffbf750a824672d5195d1f7beaee",
+      "publication": {
+        "completion_marker": "outputs/work/executions/example/.work-spec-migration-8A3356E4F4D2.json.done",
+        "documents": [
+          "outputs/work/executions/example/index.json",
+          "outputs/work/tasks/example/index.json",
+          "outputs/work/tasks/example/tasks/TASK-001.json"
+        ],
+        "fingerprint": "8a3356e4f4d21a84d58958baceaf2c6261e052bb29c1f960413e1f9f212b4d56",
+        "journal": "outputs/work/executions/example/.work-spec-migration-8A3356E4F4D2.json",
+        "publication_status": "published",
+        "relationship_results": [
+          {
+            "name": "candidate_set",
+            "status": "passed"
+          },
+          {
+            "name": "artifact_paths",
+            "status": "passed"
+          },
+          {
+            "name": "execution_binding",
+            "status": "passed"
+          }
+        ],
+        "schema": "work-spec-migration-publication",
+        "status": "updated",
+        "transaction_approval_sha256": "2c0f6b3b0f165c12267529ef488ce169fee9020d61c28c135226812b796874be",
+        "validator_results": [
+          {
+            "name": "task_collection",
+            "status": "passed"
+          },
+          {
+            "name": "execution_index",
+            "status": "passed"
+          }
+        ]
+      },
+      "reconciliation_fingerprint": "6da6b2df2033a51bfbeca059b5f66a40c1198d8b6efe8d441c9f74606c1f3b88",
+      "retained_deviation_ids": [],
+      "schema": "work-spec-reconciliation-publication",
+      "selected_deviation_ids": [
+        "DEVIATION-001"
+      ],
+      "status": "updated"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "reconciliation_fingerprint",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "attempt_path",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "attempt_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "selected_deviation_ids",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "retained_deviation_ids",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "ledger_path",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "ledger_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "publication",
+        "reference": "work-spec-migration-publication",
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "deviation_classifications",
+        "reference": null,
+        "required": true,
+        "type": "object<literal>"
+      }
+    ],
+    "id": "work-spec-reconciliation-publication",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "status",
+      "reconciliation_fingerprint",
+      "attempt_path",
+      "attempt_sha256",
+      "selected_deviation_ids",
+      "retained_deviation_ids",
+      "ledger_path",
+      "ledger_sha256",
+      "publication",
+      "deviation_classifications"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-spec-reconciliation-publication",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

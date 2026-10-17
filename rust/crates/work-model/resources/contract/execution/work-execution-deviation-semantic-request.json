@@ -1,0 +1,161 @@
+{
+  "description": {
+    "caller_constructible": true,
+    "canonical_order": [
+      "gap",
+      "action",
+      "modifiable_files",
+      "impact",
+      "side_effects"
+    ],
+    "example": {
+      "action": {
+        "kind": "replace_command",
+        "replacement": {
+          "argv": [
+            "C:/tools/tool.cmd",
+            "test"
+          ],
+          "mode": "argv"
+        }
+      },
+      "gap": "The executable is not available through PATH.",
+      "impact": {
+        "acceptance_criteria_changed": false,
+        "deliverables_changed": false,
+        "external_side_effect_boundary_changed": false,
+        "requirement_changed": false,
+        "safety_boundary_changed": false,
+        "scope_changed": false,
+        "summary": "Use the absolute executable path without changing command effects."
+      },
+      "modifiable_files": [],
+      "side_effects": [
+        "Runs the existing validation command."
+      ]
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "gap",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {
+          "add_files": {
+            "anchor": "idle Task; no CMD/VAL reservation or adjustment",
+            "modification_types": "nonempty distinct subset of authorized create, modify, move",
+            "modifiable_files": "nonempty exact project paths; register before writing; module, exact file restrictions and complete cross-Task dependencies checked",
+            "authorization": "existing scope.additional_files only; cannot expand scope"
+          }
+        },
+        "name": "action",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "modifiable_files",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "impact",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "side_effects",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      }
+    ],
+    "id": "work-execution-deviation-semantic-request",
+    "kind": "semantic_request",
+    "optional": [],
+    "required": [
+      "gap",
+      "action",
+      "modifiable_files",
+      "impact",
+      "side_effects"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold": {
+    "canonical_order": [
+      "gap",
+      "action",
+      "modifiable_files",
+      "impact",
+      "side_effects"
+    ],
+    "example": {
+      "action": {
+        "kind": "replace_command",
+        "replacement": {
+          "argv": [
+            "C:/tools/tool.cmd",
+            "test"
+          ],
+          "mode": "argv"
+        }
+      },
+      "gap": "The executable is not available through PATH.",
+      "impact": {
+        "acceptance_criteria_changed": false,
+        "deliverables_changed": false,
+        "external_side_effect_boundary_changed": false,
+        "requirement_changed": false,
+        "safety_boundary_changed": false,
+        "scope_changed": false,
+        "summary": "Use the absolute executable path without changing command effects."
+      },
+      "modifiable_files": [],
+      "side_effects": [
+        "Runs the existing validation command."
+      ]
+    },
+    "id": "work-execution-deviation-semantic-request",
+    "scaffold": {
+      "action": {
+        "kind": "replace_command",
+        "replacement": {
+          "argv": [
+            "C:/tools/tool.cmd"
+          ],
+          "execution": {
+            "os": null,
+            "shell": null,
+            "working_directory": null
+          },
+          "mode": "argv",
+          "script": null
+        }
+      },
+      "gap": null,
+      "impact": {
+        "acceptance_criteria_changed": null,
+        "deliverables_changed": null,
+        "external_side_effect_boundary_changed": null,
+        "requirement_changed": null,
+        "safety_boundary_changed": null,
+        "scope_changed": null,
+        "summary": null
+      },
+      "modifiable_files": [],
+      "side_effects": [
+        "Runs the existing validation command."
+      ]
+    },
+    "schema": "work-contract-scaffold"
+  }
+}

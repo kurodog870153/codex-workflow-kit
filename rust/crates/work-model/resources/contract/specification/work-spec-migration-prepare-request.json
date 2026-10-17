@@ -1,0 +1,451 @@
+{
+  "description": {
+    "caller_constructible": true,
+    "canonical_order": [
+      "schema",
+      "mode",
+      "requirement_id",
+      "sources",
+      "reason",
+      "edits",
+      "task_context",
+      "task_title",
+      "task_summary",
+      "execution_defaults",
+      "tasks",
+      "semantic_decisions"
+    ],
+    "example": {
+      "execution_defaults": {
+        "os": "windows",
+        "shell": "powershell",
+        "working_directory": "."
+      },
+      "mode": "reconstruction",
+      "requirement_id": "example",
+      "schema": "work-spec-migration-prepare-request",
+      "semantic_decisions": [],
+      "sources": [
+        {
+          "path": "outputs/work/plans/example.json",
+          "raw_sha256": "06159f62f16157a896a81d7211baf91d7be55cb8fd8e776dda0a9656fd2fac16"
+        },
+        {
+          "path": "outputs/work/tasks/example/index.json",
+          "raw_sha256": "06159f62f16157a896a81d7211baf91d7be55cb8fd8e776dda0a9656fd2fac16"
+        },
+        {
+          "path": "outputs/work/tasks/example/tasks/TASK-001.json",
+          "raw_sha256": "06159f62f16157a896a81d7211baf91d7be55cb8fd8e776dda0a9656fd2fac16"
+        }
+      ],
+      "task_context": {
+        "acceptance_criteria": [
+          {
+            "criterion": "The result is observable.",
+            "id": "ACCEPTANCE-001"
+          }
+        ],
+        "artifacts": {
+          "execution": "outputs/work/executions/example",
+          "source": "outputs/work/sources/example",
+          "task": "outputs/work/tasks/example/index.json"
+        },
+        "hierarchy_selection": {
+          "catalog_sha256": "c39e2ade6cf58b16dd4e76a0606c7693792d3b57f5d5319392346a5ed9c456aa",
+          "decision": "general_only",
+          "entries": [],
+          "schema": "work-hierarchy-selection",
+          "selected_paths": [],
+          "selection_sha256": "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404"
+        },
+        "skill_selection": {
+          "decision": "base_only",
+          "schema": "work-skill-selection",
+          "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
+          "skills": []
+        }
+      },
+      "task_summary": "Task summary.",
+      "task_title": "Example TASK",
+      "tasks": [
+        {
+          "candidate": {
+            "acceptance_criteria": [
+              {
+                "criterion": "The modified source passes its validation.",
+                "id": "TASK-001-ACCEPTANCE-001"
+              }
+            ],
+            "acceptance_ids": [
+              "ACCEPTANCE-001"
+            ],
+            "commands": [
+              {
+                "argv": [
+                  "python",
+                  "--version"
+                ],
+                "key": "check",
+                "mode": "argv"
+              }
+            ],
+            "files": [
+              {
+                "action": "modify",
+                "key": "source",
+                "path": "src.txt"
+              }
+            ],
+            "steps": [
+              {
+                "action": "Modify the source.",
+                "key": "modify",
+                "references": [
+                  {
+                    "key": "source",
+                    "kind": "files"
+                  }
+                ]
+              },
+              {
+                "action": "Run validation.",
+                "key": "verify",
+                "references": [
+                  {
+                    "key": "check",
+                    "kind": "commands"
+                  },
+                  {
+                    "key": "pass",
+                    "kind": "validations"
+                  }
+                ]
+              }
+            ],
+            "validations": [
+              {
+                "acceptance_ids": [
+                  "ACCEPTANCE-001",
+                  "TASK-001-ACCEPTANCE-001"
+                ],
+                "command_keys": [
+                  "check"
+                ],
+                "key": "pass",
+                "kind": "automated",
+                "pass_condition": "Exit code is zero."
+              }
+            ]
+          },
+          "dependency_positions": [],
+          "goal": "Modify the source and validate it.",
+          "references": [
+            "task.general.task-records"
+          ],
+          "selected_paths": [],
+          "skill_id": null,
+          "title": "Modify source"
+        }
+      ]
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "mode",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "requirement_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {
+          "exact_raw_sha256": true,
+          "nonempty": true
+        },
+        "name": "sources",
+        "reference": null,
+        "required": true,
+        "type": "array"
+      },
+      {
+        "constraints": {},
+        "name": "reason",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "edits",
+        "reference": null,
+        "required": false,
+        "type": "array<object> | null"
+      },
+      {
+        "constraints": {
+          "mode": "reconstruction",
+          "ownership": "Task"
+        },
+        "name": "task_context",
+        "reference": null,
+        "required": false,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "task_title",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "task_summary",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "execution_defaults",
+        "reference": null,
+        "required": false,
+        "type": "null | object<string>"
+      },
+      {
+        "constraints": {},
+        "name": "tasks",
+        "reference": null,
+        "required": false,
+        "type": "array<object> | null"
+      },
+      {
+        "constraints": {},
+        "name": "semantic_decisions",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      }
+    ],
+    "id": "work-spec-migration-prepare-request",
+    "kind": "semantic_request",
+    "optional": [
+      "reason",
+      "edits",
+      "task_title",
+      "task_summary",
+      "execution_defaults",
+      "tasks",
+      "task_context"
+    ],
+    "required": [
+      "schema",
+      "mode",
+      "requirement_id",
+      "sources",
+      "semantic_decisions"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold": {
+    "canonical_order": [
+      "schema",
+      "mode",
+      "requirement_id",
+      "sources",
+      "reason",
+      "edits",
+      "task_context",
+      "task_title",
+      "task_summary",
+      "execution_defaults",
+      "tasks",
+      "semantic_decisions"
+    ],
+    "example": {
+      "execution_defaults": {
+        "os": "windows",
+        "shell": "powershell",
+        "working_directory": "."
+      },
+      "mode": "reconstruction",
+      "requirement_id": "example",
+      "schema": "work-spec-migration-prepare-request",
+      "semantic_decisions": [],
+      "sources": [
+        {
+          "path": "outputs/work/plans/example.json",
+          "raw_sha256": "06159f62f16157a896a81d7211baf91d7be55cb8fd8e776dda0a9656fd2fac16"
+        },
+        {
+          "path": "outputs/work/tasks/example/index.json",
+          "raw_sha256": "06159f62f16157a896a81d7211baf91d7be55cb8fd8e776dda0a9656fd2fac16"
+        },
+        {
+          "path": "outputs/work/tasks/example/tasks/TASK-001.json",
+          "raw_sha256": "06159f62f16157a896a81d7211baf91d7be55cb8fd8e776dda0a9656fd2fac16"
+        }
+      ],
+      "task_context": {
+        "acceptance_criteria": [
+          {
+            "criterion": "The result is observable.",
+            "id": "ACCEPTANCE-001"
+          }
+        ],
+        "artifacts": {
+          "execution": "outputs/work/executions/example",
+          "source": "outputs/work/sources/example",
+          "task": "outputs/work/tasks/example/index.json"
+        },
+        "hierarchy_selection": {
+          "catalog_sha256": "c39e2ade6cf58b16dd4e76a0606c7693792d3b57f5d5319392346a5ed9c456aa",
+          "decision": "general_only",
+          "entries": [],
+          "schema": "work-hierarchy-selection",
+          "selected_paths": [],
+          "selection_sha256": "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404"
+        },
+        "skill_selection": {
+          "decision": "base_only",
+          "schema": "work-skill-selection",
+          "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
+          "skills": []
+        }
+      },
+      "task_summary": "Task summary.",
+      "task_title": "Example TASK",
+      "tasks": [
+        {
+          "candidate": {
+            "acceptance_criteria": [
+              {
+                "criterion": "The modified source passes its validation.",
+                "id": "TASK-001-ACCEPTANCE-001"
+              }
+            ],
+            "acceptance_ids": [
+              "ACCEPTANCE-001"
+            ],
+            "commands": [
+              {
+                "argv": [
+                  "python",
+                  "--version"
+                ],
+                "key": "check",
+                "mode": "argv"
+              }
+            ],
+            "files": [
+              {
+                "action": "modify",
+                "key": "source",
+                "path": "src.txt"
+              }
+            ],
+            "steps": [
+              {
+                "action": "Modify the source.",
+                "key": "modify",
+                "references": [
+                  {
+                    "key": "source",
+                    "kind": "files"
+                  }
+                ]
+              },
+              {
+                "action": "Run validation.",
+                "key": "verify",
+                "references": [
+                  {
+                    "key": "check",
+                    "kind": "commands"
+                  },
+                  {
+                    "key": "pass",
+                    "kind": "validations"
+                  }
+                ]
+              }
+            ],
+            "validations": [
+              {
+                "acceptance_ids": [
+                  "ACCEPTANCE-001",
+                  "TASK-001-ACCEPTANCE-001"
+                ],
+                "command_keys": [
+                  "check"
+                ],
+                "key": "pass",
+                "kind": "automated",
+                "pass_condition": "Exit code is zero."
+              }
+            ]
+          },
+          "dependency_positions": [],
+          "goal": "Modify the source and validate it.",
+          "references": [
+            "task.general.task-records"
+          ],
+          "selected_paths": [],
+          "skill_id": null,
+          "title": "Modify source"
+        }
+      ]
+    },
+    "id": "work-spec-migration-prepare-request",
+    "scaffold": {
+      "edits": [
+        {
+          "after": null,
+          "field": null,
+          "operation": "add_task",
+          "semantic_after": null,
+          "target": {
+            "artifact": "task_item",
+            "task_id": null
+          },
+          "task": {
+            "candidate": {},
+            "dependency_positions": [],
+            "goal": null,
+            "references": [],
+            "selected_paths": [],
+            "skill_id": null,
+            "title": null
+          },
+          "task_position": null
+        }
+      ],
+      "execution_defaults": {},
+      "mode": "revision",
+      "reason": null,
+      "requirement_id": null,
+      "schema": "work-spec-migration-prepare-request",
+      "semantic_decisions": [],
+      "sources": [],
+      "task_context": {},
+      "task_summary": null,
+      "task_title": null,
+      "tasks": []
+    },
+    "schema": "work-contract-scaffold"
+  }
+}

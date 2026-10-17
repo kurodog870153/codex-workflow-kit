@@ -1,0 +1,266 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "requirement_id",
+      "spec_id",
+      "status",
+      "title",
+      "summary",
+      "artifacts",
+      "source",
+      "hierarchy_selection",
+      "skill_selection",
+      "acceptance_criteria",
+      "instruction_selection",
+      "discussion",
+      "execution_defaults",
+      "decisions",
+      "tasks",
+      "changes",
+      "readiness"
+    ],
+    "example": {
+      "acceptance_criteria": [
+        {
+          "criterion": "The result is verified.",
+          "id": "ACCEPTANCE-001"
+        }
+      ],
+      "artifacts": {
+        "execution": "outputs/work/executions/example",
+        "source": "outputs/work/sources/example",
+        "task": "outputs/work/tasks/example/index.json"
+      },
+      "hierarchy_selection": {
+        "catalog_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "decision": "general_only",
+        "entries": [],
+        "schema": "work-hierarchy-selection",
+        "selected_paths": [],
+        "selection_sha256": "5b6cb01927d653c3a02a0a4a56e010d9c98ba5aa42032e7f54686f55141a0403"
+      },
+      "instruction_selection": {
+        "instructions_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "references": [],
+        "sources": [
+          {
+            "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "kind": "instruction",
+            "logical_name": "task.general"
+          }
+        ]
+      },
+      "readiness": {
+        "spec_id": "TASK-SPEC-001",
+        "status": "passed"
+      },
+      "requirement_id": "example",
+      "schema": "work-task-collection-projection",
+      "skill_selection": {
+        "decision": "base_only",
+        "schema": "work-skill-selection",
+        "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
+        "skills": []
+      },
+      "source": {
+        "kind": "snapshot",
+        "manifest": {
+          "captured_at": "2026-10-03T00:00:00Z",
+          "content": {
+            "path": "source.txt",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "size": 0
+          },
+          "requirement_id": "example",
+          "schema": "work-source-snapshot",
+          "source": {
+            "kind": "user_text"
+          },
+          "source_id": "SRC-001"
+        }
+      },
+      "spec_id": "TASK-SPEC-001",
+      "status": "confirmed",
+      "summary": "Example tasks.",
+      "tasks": [],
+      "title": "Example"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "requirement_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "spec_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "title",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "summary",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "artifacts",
+        "reference": null,
+        "required": true,
+        "type": "object<string>"
+      },
+      {
+        "constraints": {},
+        "name": "source",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "hierarchy_selection",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "skill_selection",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "acceptance_criteria",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      },
+      {
+        "constraints": {},
+        "name": "instruction_selection",
+        "reference": null,
+        "required": true,
+        "type": "object<any>"
+      },
+      {
+        "constraints": {
+          "additional_properties": false,
+          "content_sha256": "64 lowercase hexadecimal characters",
+          "decision_versions": "D IDs map to positive question versions",
+          "required": [
+            "session_path",
+            "revision",
+            "content_sha256",
+            "decision_versions",
+            "task_decisions"
+          ],
+          "revision_minimum": 1,
+          "session_path": "outputs/work/discussions/<requirement-id>/session.json",
+          "task_decisions": "Every formal TASK maps to unique IDs in decision_versions"
+        },
+        "name": "discussion",
+        "reference": null,
+        "required": false,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "execution_defaults",
+        "reference": null,
+        "required": false,
+        "type": "null | object<any>"
+      },
+      {
+        "constraints": {},
+        "name": "decisions",
+        "reference": null,
+        "required": false,
+        "type": "array<object<any>> | null"
+      },
+      {
+        "constraints": {},
+        "name": "tasks",
+        "reference": null,
+        "required": true,
+        "type": "array<object<any>>"
+      },
+      {
+        "constraints": {},
+        "name": "changes",
+        "reference": null,
+        "required": false,
+        "type": "array<object<any>> | null"
+      },
+      {
+        "constraints": {},
+        "name": "readiness",
+        "reference": null,
+        "required": true,
+        "type": "object<any>"
+      }
+    ],
+    "id": "work-task-collection-projection",
+    "kind": "artifact",
+    "optional": [
+      "execution_defaults",
+      "decisions",
+      "changes",
+      "discussion"
+    ],
+    "required": [
+      "schema",
+      "requirement_id",
+      "spec_id",
+      "status",
+      "title",
+      "summary",
+      "artifacts",
+      "instruction_selection",
+      "tasks",
+      "readiness",
+      "source",
+      "hierarchy_selection",
+      "skill_selection",
+      "acceptance_criteria"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-task-collection-projection",
+      "kind": "artifact"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

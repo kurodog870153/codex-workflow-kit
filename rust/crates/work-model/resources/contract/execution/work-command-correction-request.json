@@ -1,0 +1,165 @@
+{
+  "description": {
+    "caller_constructible": true,
+    "canonical_order": [
+      "schema",
+      "actual_command",
+      "reason",
+      "impact"
+    ],
+    "example": {
+      "actual_command": {
+        "argv": [
+          "tool",
+          "new"
+        ],
+        "mode": "argv"
+      },
+      "reason": "Use the authorized argument.",
+      "schema": "work-command-correction-request"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {
+          "schema": {
+            "$defs": {
+              "SemanticArgvCommandModel": {
+                "additionalProperties": false,
+                "properties": {
+                  "argv": {
+                    "items": {
+                      "minLength": 1,
+                      "pattern": "\\S",
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "title": "Argv",
+                    "type": "array"
+                  },
+                  "mode": {
+                    "const": "argv",
+                    "title": "Mode",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "mode",
+                  "argv"
+                ],
+                "title": "SemanticArgvCommandModel",
+                "type": "object"
+              },
+              "SemanticShellCommandModel": {
+                "additionalProperties": false,
+                "properties": {
+                  "mode": {
+                    "const": "shell",
+                    "title": "Mode",
+                    "type": "string"
+                  },
+                  "script": {
+                    "minLength": 1,
+                    "pattern": "\\S",
+                    "title": "Script",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "mode",
+                  "script"
+                ],
+                "title": "SemanticShellCommandModel",
+                "type": "object"
+              }
+            },
+            "discriminator": {
+              "mapping": {
+                "argv": "#/$defs/SemanticArgvCommandModel",
+                "shell": "#/$defs/SemanticShellCommandModel"
+              },
+              "propertyName": "mode"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/SemanticArgvCommandModel"
+              },
+              {
+                "$ref": "#/$defs/SemanticShellCommandModel"
+              }
+            ]
+          }
+        },
+        "name": "actual_command",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "reason",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {
+          "required": "Complete current DeviationImpact review; no expanded boundary for reused authorization"
+        },
+        "name": "impact",
+        "reference": null,
+        "required": false,
+        "type": "null | object"
+      }
+    ],
+    "id": "work-command-correction-request",
+    "kind": "semantic_request",
+    "optional": [
+      "impact"
+    ],
+    "required": [
+      "schema",
+      "actual_command",
+      "reason"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold": {
+    "canonical_order": [
+      "schema",
+      "actual_command",
+      "reason",
+      "impact"
+    ],
+    "example": {
+      "actual_command": {
+        "argv": [
+          "tool",
+          "new"
+        ],
+        "mode": "argv"
+      },
+      "reason": "Use the authorized argument.",
+      "schema": "work-command-correction-request"
+    },
+    "id": "work-command-correction-request",
+    "scaffold": {
+      "actual_command": {
+        "argv": [
+          "tool"
+        ],
+        "mode": "argv"
+      },
+      "impact": null,
+      "reason": null,
+      "schema": "work-command-correction-request"
+    },
+    "schema": "work-contract-scaffold"
+  }
+}

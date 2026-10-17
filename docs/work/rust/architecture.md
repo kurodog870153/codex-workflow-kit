@@ -57,7 +57,7 @@ flowchart TB
 Model 以 Rust 型別及 `serde` 定義公開資料契約，Operations 提供契約驗證與 canonical 序列化，CLI 負責公開輸出的呈現。
 
 1. `work-model/src/` 按 Source、Task、Execution、Specification 等業務概念，定義已登錄公開 request、artifact、response 與 envelope 的 Rust `struct`／`enum` 及固定巢狀物件。契約允許任意 JSON 的欄位保留 `Value`；其餘欄位以 `serde` 表達欄名、可選、`null` 與 enum 字面值。
-2. `work-model/src/contract/mod.rs` 定義契約目錄與描述的型別；`resources/contract/data.json` 保存靜態契約描述、範例、scaffold 及欄位順序。`src/contract/data.rs` 透過 `include_str!` 編入資料，以型別解析並快取，再合併各業務模組提供的契約。CLI 的 `contract list`、`describe`、`scaffold` 從組裝後的目錄取資料，負責輸出映射與呈現；執行時不需額外交付 JSON 檔案。
+2. `work-model/src/contract/mod.rs` 定義契約目錄與描述的型別；`resources/contract/<業務領域>/<完整契約 ID>.json` 各保存一筆靜態契約描述、範例、scaffold 及欄位順序；根層的 `catalog.json` 與 `scaffold-orders.json` 保存目錄與 scaffold 順序。`build.rs` 掃描契約子目錄並產生編譯時內嵌清單，`src/contract/data.rs` 以型別解析各資源並組成公開目錄。CLI 的 `contract list`、`describe`、`scaffold` 從組裝後的目錄取資料，負責輸出映射與呈現；執行時不需額外交付 JSON 檔案。
 3. Operations 仍負責跨欄位驗證、canonical bytes、SHA 與指紋；Feature／Flow 保留 ports、功能及流程所需的暫時性輸入。已知的公開資料形狀由 Model 表達，生產路徑於邊界解析／產生對應型別。公開契約的解析與輸出集中於邊界，業務層使用對應的模型型別。
 4. `work-cli/resources/parser/commands.json` 是命令樹與 help 設定，留在 CLI；`work-operations/resources/routing_catalog.json`、`operation_effects.json` 是純規則資料，留在 Operations。測試 fixture 與 golden JSON 保持測試用途，不搬入 Model。這三份執行用設定透過 `include_str!` 編入 binary，不需要在使用者環境另外交付。
 

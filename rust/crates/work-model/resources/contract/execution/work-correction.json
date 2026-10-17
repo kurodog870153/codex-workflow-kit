@@ -1,0 +1,145 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "correction_id",
+      "created_at",
+      "target_attempt_id",
+      "task_collection_sha256",
+      "task_index_sha256",
+      "task_item_sha256",
+      "task_instructions_sha256",
+      "execute_instructions_sha256",
+      "field",
+      "correct_value",
+      "reason"
+    ],
+    "example": {
+      "correct_value": "passed",
+      "correction_id": "ATTEMPT-001-CORRECTION-001",
+      "created_at": "2026-09-01T10:05+08:00",
+      "execute_instructions_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "field": "records[0].outcome",
+      "reason": "Correct the recorded outcome.",
+      "schema": "work-correction",
+      "target_attempt_id": "ATTEMPT-001",
+      "task_collection_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "task_index_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "task_instructions_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "task_item_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "correction_id",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "created_at",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "target_attempt_id",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "task_collection_sha256",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "task_index_sha256",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "task_item_sha256",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "task_instructions_sha256",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "execute_instructions_sha256",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "field",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "correct_value",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "reason",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      }
+    ],
+    "id": "work-correction",
+    "kind": "artifact",
+    "optional": [],
+    "required": [
+      "schema",
+      "correction_id",
+      "created_at",
+      "target_attempt_id",
+      "task_collection_sha256",
+      "task_index_sha256",
+      "task_item_sha256",
+      "task_instructions_sha256",
+      "execute_instructions_sha256",
+      "field",
+      "correct_value",
+      "reason"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-correction",
+      "kind": "artifact"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

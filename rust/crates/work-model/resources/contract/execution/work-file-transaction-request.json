@@ -1,0 +1,134 @@
+{
+  "description": {
+    "schema": "work-contract-description",
+    "id": "work-file-transaction-request",
+    "kind": "semantic_request",
+    "caller_constructible": true,
+    "required": [
+      "schema",
+      "command"
+    ],
+    "optional": [],
+    "canonical_order": [
+      "schema",
+      "command"
+    ],
+    "fields": [
+      {
+        "name": "schema",
+        "type": "string",
+        "required": true,
+        "reference": null,
+        "constraints": {}
+      },
+      {
+        "name": "command",
+        "type": "object",
+        "required": true,
+        "reference": null,
+        "constraints": {
+          "discriminator": "kind",
+          "unknown_fields": "reject",
+          "variants": {
+            "apply": {
+              "authorization": "active Attempt boundary; no separate publication approval",
+              "expected_before": "Exact initial path map: SHA-256 of bytes read before composing changes, or null for absence; includes move sources and destinations",
+              "optional": [
+                "baseline_confirmation"
+              ],
+              "required": [
+                "kind",
+                "attempt_id",
+                "changes",
+                "expected_before"
+              ]
+            },
+            "prepare": {
+              "optional": [
+                "baseline_confirmation"
+              ],
+              "required": [
+                "kind",
+                "attempt_id",
+                "changes"
+              ]
+            },
+            "recovery-prepare": {
+              "required": [
+                "kind",
+                "transaction_identity"
+              ]
+            },
+            "restore": {
+              "required": [
+                "kind",
+                "transaction_identity",
+                "approved_sha256",
+                "authorization_evidence"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "example": {
+      "command": {
+        "attempt_id": "ATTEMPT-001",
+        "baseline_confirmation": null,
+        "changes": [
+          {
+            "bytes": [
+              10
+            ],
+            "kind": "write",
+            "path": "result.txt"
+          }
+        ],
+        "kind": "prepare"
+      },
+      "schema": "work-file-transaction-request"
+    }
+  },
+  "scaffold": {
+    "schema": "work-contract-scaffold",
+    "id": "work-file-transaction-request",
+    "canonical_order": [
+      "schema",
+      "command"
+    ],
+    "scaffold": {
+      "command": {
+        "attempt_id": "ATTEMPT-001",
+        "baseline_confirmation": null,
+        "changes": [
+          {
+            "bytes": [
+              10
+            ],
+            "kind": "write",
+            "path": "result.txt"
+          }
+        ],
+        "kind": "prepare"
+      },
+      "schema": "work-file-transaction-request"
+    },
+    "example": {
+      "command": {
+        "attempt_id": "ATTEMPT-001",
+        "baseline_confirmation": null,
+        "changes": [
+          {
+            "bytes": [
+              10
+            ],
+            "kind": "write",
+            "path": "result.txt"
+          }
+        ],
+        "kind": "prepare"
+      },
+      "schema": "work-file-transaction-request"
+    }
+  }
+}

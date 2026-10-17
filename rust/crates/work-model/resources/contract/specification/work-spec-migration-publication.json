@@ -1,0 +1,151 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "status",
+      "fingerprint",
+      "transaction_approval_sha256",
+      "journal",
+      "completion_marker",
+      "documents",
+      "publication_status",
+      "validator_results",
+      "relationship_results"
+    ],
+    "example": {
+      "completion_marker": "outputs/work/executions/example/.work-spec-migration-01BA244E84A7.json.done",
+      "documents": [
+        "outputs/work/executions/example/index.json",
+        "outputs/work/tasks/example/index.json",
+        "outputs/work/tasks/example/tasks/TASK-001.json"
+      ],
+      "fingerprint": "01ba244e84a7b9c538ee31672f11db38e9431c37b8294fd9b58d8f3ec31001d8",
+      "journal": "outputs/work/executions/example/.work-spec-migration-01BA244E84A7.json",
+      "publication_status": "published",
+      "relationship_results": [
+        {
+          "name": "candidate_set",
+          "status": "passed"
+        },
+        {
+          "name": "artifact_paths",
+          "status": "passed"
+        },
+        {
+          "name": "execution_binding",
+          "status": "passed"
+        }
+      ],
+      "schema": "work-spec-migration-publication",
+      "status": "updated",
+      "transaction_approval_sha256": "d9f390ad4d067cdbbfbfc5d00213edf9be6e6729c6657121b04e4ac290a34027",
+      "validator_results": [
+        {
+          "name": "task_collection",
+          "status": "passed"
+        },
+        {
+          "name": "execution_index",
+          "status": "passed"
+        }
+      ]
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "fingerprint",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "transaction_approval_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "journal",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "completion_marker",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "documents",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "publication_status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "validator_results",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      },
+      {
+        "constraints": {},
+        "name": "relationship_results",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      }
+    ],
+    "id": "work-spec-migration-publication",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "status",
+      "fingerprint",
+      "transaction_approval_sha256",
+      "journal",
+      "completion_marker",
+      "documents",
+      "publication_status",
+      "validator_results",
+      "relationship_results"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-spec-migration-publication",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

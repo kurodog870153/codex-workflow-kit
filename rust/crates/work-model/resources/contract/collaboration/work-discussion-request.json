@@ -1,0 +1,91 @@
+{
+  "description": {
+    "schema": "work-contract-description",
+    "id": "work-discussion-request",
+    "kind": "semantic_request",
+    "caller_constructible": true,
+    "required": [
+      "schema",
+      "requirement_id",
+      "command"
+    ],
+    "optional": [],
+    "canonical_order": [
+      "schema",
+      "requirement_id",
+      "command"
+    ],
+    "fields": [
+      {
+        "name": "schema",
+        "type": "string",
+        "required": true,
+        "reference": null,
+        "constraints": {}
+      },
+      {
+        "name": "requirement_id",
+        "type": "string",
+        "required": true,
+        "reference": null,
+        "constraints": {}
+      },
+      {
+        "name": "command",
+        "type": "object",
+        "required": true,
+        "reference": null,
+        "constraints": {
+          "additional_properties": false,
+          "discriminator": "kind",
+          "read_optional_fields": {
+            "decision_id": "string: return only this current decision, including options, resolution and evidence"
+          },
+          "variants": [
+            "init",
+            "read",
+            "status",
+            "update",
+            "question",
+            "answer",
+            "history",
+            "recover",
+            "preview",
+            "apply",
+            "recover-publication"
+          ]
+        }
+      }
+    ],
+    "example": {
+      "command": {
+        "kind": "read"
+      },
+      "requirement_id": "example",
+      "schema": "work-discussion-request"
+    }
+  },
+  "scaffold": {
+    "schema": "work-contract-scaffold",
+    "id": "work-discussion-request",
+    "canonical_order": [
+      "schema",
+      "requirement_id",
+      "command"
+    ],
+    "scaffold": {
+      "command": {
+        "kind": "read"
+      },
+      "requirement_id": "example",
+      "schema": "work-discussion-request"
+    },
+    "example": {
+      "command": {
+        "kind": "read"
+      },
+      "requirement_id": "example",
+      "schema": "work-discussion-request"
+    }
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "decision",
+      "selected_paths",
+      "entries",
+      "catalog_sha256",
+      "selection_sha256"
+    ],
+    "example": {
+      "catalog_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "decision": "general_only",
+      "entries": [],
+      "schema": "work-hierarchy-selection",
+      "selected_paths": [],
+      "selection_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "decision",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "selected_paths",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "entries",
+        "reference": null,
+        "required": true,
+        "type": "array<object<any>>"
+      },
+      {
+        "constraints": {},
+        "name": "catalog_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "selection_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      }
+    ],
+    "id": "work-hierarchy-selection",
+    "kind": "artifact",
+    "optional": [],
+    "required": [
+      "schema",
+      "decision",
+      "selected_paths",
+      "entries",
+      "catalog_sha256",
+      "selection_sha256"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-hierarchy-selection",
+      "kind": "artifact"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

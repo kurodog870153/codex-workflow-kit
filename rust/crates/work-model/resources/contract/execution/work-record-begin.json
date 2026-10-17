@@ -1,0 +1,131 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "task_id",
+      "attempt_id",
+      "base_record_id",
+      "record_id",
+      "record_kind",
+      "index_path",
+      "lock_status",
+      "validation_context"
+    ],
+    "example": {
+      "attempt_id": "ATTEMPT-001",
+      "base_record_id": "VAL-001",
+      "index_path": "outputs/work/executions/example/index.json",
+      "lock_status": "record_reserved",
+      "record_id": "VAL-001",
+      "record_kind": "validation",
+      "schema": "work-record-begin",
+      "task_id": "TASK-001"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "task_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "attempt_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "base_record_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "record_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "record_kind",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "index_path",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "lock_status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {
+          "producer_only": true,
+          "source": [
+            "procedure",
+            "ai_review",
+            "user_confirmation"
+          ],
+          "binding": [
+            "task_id",
+            "attempt_id",
+            "validation_id",
+            "record_id",
+            "file_version"
+          ],
+          "confirmer": "exact declared actor for ai_review or manual; never infer source from a name",
+          "criteria": "formal validation criteria or procedure pass condition"
+        },
+        "name": "validation_context",
+        "reference": null,
+        "required": false,
+        "type": "object"
+      }
+    ],
+    "id": "work-record-begin",
+    "kind": "response",
+    "optional": [
+      "validation_context"
+    ],
+    "required": [
+      "schema",
+      "task_id",
+      "attempt_id",
+      "base_record_id",
+      "record_id",
+      "record_kind",
+      "index_path",
+      "lock_status"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-record-begin",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

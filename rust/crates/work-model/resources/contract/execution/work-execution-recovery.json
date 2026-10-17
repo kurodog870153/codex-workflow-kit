@@ -1,0 +1,152 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "transaction",
+      "task_id",
+      "attempt_id",
+      "attempt_path",
+      "correction_id",
+      "correction_path",
+      "index_path",
+      "affected_task_ids",
+      "record_id",
+      "attempt_status",
+      "lock_status",
+      "status"
+    ],
+    "example": {
+      "attempt_id": "ATTEMPT-001",
+      "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
+      "index_path": "outputs/work/executions/example/index.json",
+      "lock_status": "record_reserved",
+      "record_id": "VAL-001",
+      "schema": "work-execution-recovery",
+      "status": "recovered",
+      "task_id": "TASK-001",
+      "transaction": "record_begin"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "transaction",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "task_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "attempt_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "attempt_path",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "correction_id",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "correction_path",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "index_path",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "affected_task_ids",
+        "reference": null,
+        "required": false,
+        "type": "array<string> | null"
+      },
+      {
+        "constraints": {},
+        "name": "record_id",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "attempt_status",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "lock_status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      }
+    ],
+    "id": "work-execution-recovery",
+    "kind": "response",
+    "optional": [
+      "attempt_path",
+      "correction_id",
+      "correction_path",
+      "affected_task_ids",
+      "record_id",
+      "attempt_status"
+    ],
+    "required": [
+      "schema",
+      "transaction",
+      "task_id",
+      "attempt_id",
+      "index_path",
+      "lock_status",
+      "status"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-execution-recovery",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

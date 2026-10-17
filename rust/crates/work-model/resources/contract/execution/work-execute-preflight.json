@@ -1,0 +1,266 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "requirement_id",
+      "task_spec_id",
+      "task_id",
+      "skill_id",
+      "task_path",
+      "execution_dir",
+      "index_path",
+      "task_status",
+      "dependencies",
+      "confirmed_inputs",
+      "inputs",
+      "files",
+      "task_collection_sha256",
+      "task_index_sha256",
+      "task_item_sha256",
+      "hierarchy_selection_sha256",
+      "task_instructions_sha256",
+      "execute_instructions_sha256",
+      "execute_instruction_selection",
+      "execute_skill_selection",
+      "index_sha256",
+      "eligibility"
+    ],
+    "example": {
+      "confirmed_inputs": [],
+      "dependencies": [],
+      "eligibility": "passed",
+      "execute_instruction_selection": {
+        "instructions_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "references": [],
+        "resolved_paths": [],
+        "selected_paths": [],
+        "sources": []
+      },
+      "execute_instructions_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "execute_skill_selection": {
+        "decision": "base_only",
+        "schema": "work-skill-selection",
+        "selection_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "skills": []
+      },
+      "execution_dir": "outputs/work/executions/example",
+      "files": [],
+      "hierarchy_selection_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "index_path": "outputs/work/executions/example/index.json",
+      "index_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "inputs": [],
+      "requirement_id": "example",
+      "schema": "work-execute-preflight",
+      "skill_id": null,
+      "task_collection_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "task_id": "TASK-001",
+      "task_index_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "task_instructions_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "task_item_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "task_path": "outputs/work/tasks/example/index.json",
+      "task_spec_id": "TASK-SPEC-001",
+      "task_status": "pending"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "requirement_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "task_spec_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "task_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "skill_id",
+        "reference": null,
+        "required": true,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "task_path",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "execution_dir",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "index_path",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "task_status",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "dependencies",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "confirmed_inputs",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "inputs",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      },
+      {
+        "constraints": {},
+        "name": "files",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      },
+      {
+        "constraints": {},
+        "name": "task_collection_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "task_index_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "task_item_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "hierarchy_selection_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "task_instructions_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "execute_instructions_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "execute_instruction_selection",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "execute_skill_selection",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "index_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "eligibility",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      }
+    ],
+    "id": "work-execute-preflight",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "requirement_id",
+      "task_spec_id",
+      "task_id",
+      "skill_id",
+      "task_path",
+      "execution_dir",
+      "index_path",
+      "task_status",
+      "dependencies",
+      "confirmed_inputs",
+      "inputs",
+      "files",
+      "task_collection_sha256",
+      "task_index_sha256",
+      "task_item_sha256",
+      "hierarchy_selection_sha256",
+      "task_instructions_sha256",
+      "execute_instructions_sha256",
+      "execute_instruction_selection",
+      "execute_skill_selection",
+      "index_sha256",
+      "eligibility"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-execute-preflight",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

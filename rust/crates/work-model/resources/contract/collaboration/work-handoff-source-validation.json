@@ -1,0 +1,131 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "marker",
+      "direction",
+      "requirement_id",
+      "source_stage",
+      "target_stage",
+      "status",
+      "task_path",
+      "source"
+    ],
+    "example": {
+      "direction": "task_to_execute",
+      "marker": "WORK-HANDOFF",
+      "requirement_id": "example",
+      "schema": "work-handoff-source-validation",
+      "source": {
+        "skill_id": null,
+        "skill_selection_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "stage": "task",
+        "task_collection_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "task_id": "TASK-001",
+        "task_index_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "task_instructions_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "task_item_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "task_spec_id": "TASK-SPEC-001"
+      },
+      "source_stage": "task",
+      "status": "valid",
+      "target_stage": "execute",
+      "task_path": "outputs/work/tasks/example/index.json"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "marker",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {
+          "values": [
+            "task_to_execute",
+            "execute_to_task"
+          ]
+        },
+        "name": "direction",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "requirement_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "source_stage",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "target_stage",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "task_path",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "source",
+        "reference": null,
+        "required": true,
+        "type": "object<any>"
+      }
+    ],
+    "id": "work-handoff-source-validation",
+    "kind": "response",
+    "optional": [
+      "task_path"
+    ],
+    "required": [
+      "schema",
+      "marker",
+      "direction",
+      "requirement_id",
+      "source_stage",
+      "target_stage",
+      "status",
+      "source"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-handoff-source-validation",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

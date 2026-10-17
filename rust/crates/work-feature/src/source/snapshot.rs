@@ -344,7 +344,7 @@ mod tests {
             url: "https://github.com/owner/repo/issues/68".into(),
         });
         issue.issue_comment_count = Some(2);
-        let issue_bytes = br#"{ "title":"Issue", "body":"[attachment](https://example.com/raw.pdf)", "comments":[{"id":1,"body":"First link https://example.com/a"},{"id":2,"body":"Second comment"}], "extra":"preserved" }"#;
+        let issue_bytes = include_bytes!("../../fixtures/source/github-issue-with-links.json");
         assert_eq!(
             capture(&repository, &issue, issue_bytes).unwrap().bytes,
             issue_bytes
@@ -414,7 +414,7 @@ mod tests {
             capture(
                 &repository,
                 &issue,
-                br#"{"title":"Issue","body":"body","comments":[]}"#
+                include_bytes!("../../fixtures/source/github-issue-incomplete-comments.json")
             )
             .unwrap_err()
             .reason_code,

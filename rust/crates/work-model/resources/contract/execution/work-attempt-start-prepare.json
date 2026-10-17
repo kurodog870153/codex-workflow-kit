@@ -1,0 +1,87 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "status",
+      "request",
+      "authorization_sha256"
+    ],
+    "example": {
+      "authorization_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "request": {
+        "authorization": {
+          "allowed_deviations": [],
+          "authorization_evidence": "User approved this exact Attempt scope.",
+          "commands": [],
+          "external_operations": [],
+          "modifiable_files": [],
+          "reapproval_conditions": [
+            "scope_expansion",
+            "source_or_worktree_drift",
+            "failure_divergence",
+            "retry",
+            "recovery",
+            "unknown_result"
+          ],
+          "schema": "work-attempt-authorization",
+          "task_id": "TASK-001",
+          "validations": [],
+          "working_directories": []
+        },
+        "schema": "work-attempt-start-request",
+        "worktree_snapshot_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "schema": "work-attempt-start-prepare",
+      "status": "prepared"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "request",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "authorization_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      }
+    ],
+    "id": "work-attempt-start-prepare",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "status",
+      "request",
+      "authorization_sha256"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-attempt-start-prepare",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

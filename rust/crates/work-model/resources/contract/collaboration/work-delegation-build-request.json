@@ -1,0 +1,259 @@
+{
+  "description": {
+    "caller_constructible": true,
+    "canonical_order": [
+      "schema",
+      "role",
+      "mode",
+      "request",
+      "planning_source",
+      "task_path",
+      "task_id",
+      "confirmed_request",
+      "decisions",
+      "affected_task_ids",
+      "repository_evidence",
+      "saved_discussion",
+      "continuation_point"
+    ],
+    "example": {
+      "planning_source": {
+        "acceptance_criteria": [
+          {
+            "criterion": "The result is observable.",
+            "id": "ACCEPTANCE-001"
+          }
+        ],
+        "artifacts": {
+          "execution": "outputs/work/executions/example",
+          "source": "outputs/work/sources/example",
+          "task": "outputs/work/tasks/example/index.json"
+        },
+        "hierarchy_selection": {
+          "catalog_sha256": "c39e2ade6cf58b16dd4e76a0606c7693792d3b57f5d5319392346a5ed9c456aa",
+          "decision": "general_only",
+          "entries": [],
+          "schema": "work-hierarchy-selection",
+          "selected_paths": [],
+          "selection_sha256": "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404"
+        },
+        "skill_selection": {
+          "decision": "base_only",
+          "schema": "work-skill-selection",
+          "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
+          "skills": []
+        },
+        "snapshot": {
+          "captured_at": "2026-10-03T00:00:00Z",
+          "content": {
+            "path": "source.txt",
+            "sha256": "c0025641ad55f45e002ef3307cbe976060548cd4f3a0f068f1bf4d614ea7a9a8",
+            "size": 753
+          },
+          "requirement_id": "example",
+          "schema": "work-source-snapshot",
+          "source": {
+            "kind": "user_text"
+          },
+          "source_id": "SRC-001"
+        }
+      },
+      "request": "Coordinate confirmed work.",
+      "role": "task-coordinator",
+      "schema": "work-delegation-build-request"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "role",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "mode",
+        "reference": null,
+        "required": false,
+        "type": "literal | null"
+      },
+      {
+        "constraints": {},
+        "name": "request",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "planning_source",
+        "reference": null,
+        "required": false,
+        "type": "null | object<any>"
+      },
+      {
+        "constraints": {},
+        "name": "task_path",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "task_id",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "confirmed_request",
+        "reference": "work-spec-prepare-request",
+        "required": false,
+        "type": "null | object"
+      },
+      {
+        "constraints": {},
+        "name": "decisions",
+        "reference": null,
+        "required": false,
+        "type": "array<any> | null"
+      },
+      {
+        "constraints": {},
+        "name": "affected_task_ids",
+        "reference": null,
+        "required": false,
+        "type": "array<string> | null"
+      },
+      {
+        "constraints": {},
+        "name": "repository_evidence",
+        "reference": null,
+        "required": false,
+        "type": "array<string> | null"
+      },
+      {
+        "constraints": {},
+        "name": "saved_discussion",
+        "reference": null,
+        "required": false,
+        "type": "array<string> | null"
+      },
+      {
+        "constraints": {},
+        "name": "continuation_point",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      }
+    ],
+    "id": "work-delegation-build-request",
+    "kind": "semantic_request",
+    "optional": [
+      "mode",
+      "task_id",
+      "confirmed_request",
+      "decisions",
+      "affected_task_ids",
+      "repository_evidence",
+      "saved_discussion",
+      "continuation_point",
+      "planning_source",
+      "task_path"
+    ],
+    "required": [
+      "schema",
+      "role",
+      "request"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold": {
+    "canonical_order": [
+      "schema",
+      "role",
+      "mode",
+      "request",
+      "planning_source",
+      "task_path",
+      "task_id",
+      "confirmed_request",
+      "decisions",
+      "affected_task_ids",
+      "repository_evidence",
+      "saved_discussion",
+      "continuation_point"
+    ],
+    "example": {
+      "planning_source": {
+        "acceptance_criteria": [
+          {
+            "criterion": "The result is observable.",
+            "id": "ACCEPTANCE-001"
+          }
+        ],
+        "artifacts": {
+          "execution": "outputs/work/executions/example",
+          "source": "outputs/work/sources/example",
+          "task": "outputs/work/tasks/example/index.json"
+        },
+        "hierarchy_selection": {
+          "catalog_sha256": "c39e2ade6cf58b16dd4e76a0606c7693792d3b57f5d5319392346a5ed9c456aa",
+          "decision": "general_only",
+          "entries": [],
+          "schema": "work-hierarchy-selection",
+          "selected_paths": [],
+          "selection_sha256": "1a9bd13edf50a558e80c88f5e0e0da44f237c4eb11bd654a28d28a1e66747404"
+        },
+        "skill_selection": {
+          "decision": "base_only",
+          "schema": "work-skill-selection",
+          "selection_sha256": "a09357ef9f22c43dca16b489da61b287838bf64963a5956bf52ae0327e04a959",
+          "skills": []
+        },
+        "snapshot": {
+          "captured_at": "2026-10-03T00:00:00Z",
+          "content": {
+            "path": "source.txt",
+            "sha256": "c0025641ad55f45e002ef3307cbe976060548cd4f3a0f068f1bf4d614ea7a9a8",
+            "size": 753
+          },
+          "requirement_id": "example",
+          "schema": "work-source-snapshot",
+          "source": {
+            "kind": "user_text"
+          },
+          "source_id": "SRC-001"
+        }
+      },
+      "request": "Coordinate confirmed work.",
+      "role": "task-coordinator",
+      "schema": "work-delegation-build-request"
+    },
+    "id": "work-delegation-build-request",
+    "scaffold": {
+      "affected_task_ids": [],
+      "confirmed_request": null,
+      "continuation_point": null,
+      "decisions": [],
+      "mode": "task",
+      "planning_source": null,
+      "repository_evidence": [],
+      "request": null,
+      "role": "task-coordinator",
+      "saved_discussion": [],
+      "schema": "work-delegation-build-request",
+      "task_id": null,
+      "task_path": null
+    },
+    "schema": "work-contract-scaffold"
+  }
+}

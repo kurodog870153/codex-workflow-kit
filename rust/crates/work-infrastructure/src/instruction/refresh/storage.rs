@@ -136,7 +136,11 @@ mod tests {
         let root = root();
         let path = root.join("outputs/work/custom/tasks/index.json");
         fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(&path, b"{\"schema\":\"work-task-index\",\"requirement_id\":\"custom\",\"artifacts\":{\"source\":\"outputs/work/custom/sources\",\"task\":\"outputs/work/custom/tasks/index.json\",\"execution\":\"outputs/work/custom/execution\"}}\n").unwrap();
+        fs::write(
+            &path,
+            include_bytes!("../../../fixtures/instruction/refresh/custom-task-index.json"),
+        )
+        .unwrap();
         let found = discover_requirements(&root).unwrap();
         assert_eq!(
             found["custom"]["task"],
@@ -162,7 +166,13 @@ mod tests {
         }
         let duplicate = root.join("outputs/work/other/index.json");
         fs::create_dir_all(duplicate.parent().unwrap()).unwrap();
-        fs::write(&duplicate, b"{\"schema\":\"work-task-index\",\"requirement_id\":\"custom\",\"artifacts\":{\"source\":\"outputs/work/other/sources\",\"task\":\"outputs/work/other/index.json\",\"execution\":\"execution\"}}\n").unwrap();
+        fs::write(
+            &duplicate,
+            include_bytes!(
+                "../../../fixtures/instruction/refresh/duplicate-requirement-index.json"
+            ),
+        )
+        .unwrap();
         assert_eq!(
             discover_requirements(&root).unwrap_err().reason_code,
             "source_impact_duplicate_requirement"

@@ -1,0 +1,109 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "status",
+      "changed_sources",
+      "affected_requirements",
+      "affected_files",
+      "blocked",
+      "requirements"
+    ],
+    "example": {
+      "affected_files": 1,
+      "affected_requirements": 1,
+      "blocked": 0,
+      "changed_sources": 1,
+      "requirements": [
+        {
+          "blocked": [],
+          "changed_sources": 1,
+          "files": [
+            {
+              "path": "outputs/work/tasks/example/index.json",
+              "required_action": "revise",
+              "status": "stale"
+            }
+          ],
+          "requirement_id": "example",
+          "status": "stale"
+        }
+      ],
+      "schema": "work-source-impact",
+      "status": "stale"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "changed_sources",
+        "reference": null,
+        "required": true,
+        "type": "integer"
+      },
+      {
+        "constraints": {},
+        "name": "affected_requirements",
+        "reference": null,
+        "required": true,
+        "type": "integer"
+      },
+      {
+        "constraints": {},
+        "name": "affected_files",
+        "reference": null,
+        "required": true,
+        "type": "integer"
+      },
+      {
+        "constraints": {},
+        "name": "blocked",
+        "reference": null,
+        "required": true,
+        "type": "integer"
+      },
+      {
+        "constraints": {},
+        "name": "requirements",
+        "reference": null,
+        "required": true,
+        "type": "array<object<any>>"
+      }
+    ],
+    "id": "work-source-impact",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "status",
+      "changed_sources",
+      "affected_requirements",
+      "affected_files",
+      "blocked",
+      "requirements"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-source-impact",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

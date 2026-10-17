@@ -1805,7 +1805,11 @@ mod tests {
         .unwrap();
         let unchanged = operation_artifacts(&parsed, &root, Some(&input), false).unwrap();
         validate_operation_context(&envelope, &selection, &unchanged).unwrap();
-        fs::write(&input_path, b"{\"changed\":true}\n").unwrap();
+        fs::write(
+            &input_path,
+            include_bytes!("../fixtures/runtime/changed-input.json"),
+        )
+        .unwrap();
         let drifted = operation_artifacts(&parsed, &root, Some(&input), false).unwrap();
         assert_eq!(
             validate_operation_context(&envelope, &selection, &drifted)
@@ -2039,7 +2043,10 @@ mod tests {
             ),
             (b"".as_slice(), "invalid_json_contract"),
             (b"{".as_slice(), "invalid_json_contract"),
-            (b"{\"x\":1,\"x\":2}".as_slice(), "duplicate_json_key"),
+            (
+                include_bytes!("../fixtures/runtime/duplicate-key.json.invalid").as_slice(),
+                "duplicate_json_key",
+            ),
         ] {
             fs::write(&input, raw).unwrap();
             let (exit, response) = invoke();
@@ -2047,7 +2054,7 @@ mod tests {
             assert_eq!(response.reason_code, reason);
             assert_eq!(fs::read_dir(&project).unwrap().count(), 0);
         }
-        let selection = b"{\"decision\":\"general_only\",\"selections\":[]}";
+        let selection = include_bytes!("../fixtures/runtime/selection-general-only.json");
         let selection_args = prefix
             .iter()
             .cloned()
@@ -2337,7 +2344,11 @@ mod tests {
                 &repo.join("../skills/work"),
             )
         };
-        fs::write(&request, r#"{"decision":"base_only","skills":[]}"#).unwrap();
+        fs::write(
+            &request,
+            include_str!("../fixtures/runtime/skill-base-only.json"),
+        )
+        .unwrap();
         let (exit, built) = invoke("selection-build");
         assert_eq!(exit, 0);
         assert_eq!(built.data["schema"], "work-skill-selection");
@@ -2352,7 +2363,7 @@ mod tests {
         assert_eq!(validated.data["status"], "valid");
         fs::write(
             &request,
-            r#"{"decision":"base_only","decision":"external_skills","skills":[]}"#,
+            include_str!("../fixtures/runtime/skill-duplicate-decision.json.invalid"),
         )
         .unwrap();
         let (exit, duplicate) = invoke("selection-build");
@@ -2578,7 +2589,7 @@ mod tests {
             ("invalid.json", "{", "invalid_json_contract"),
             (
                 "duplicate.json",
-                r#"{"requirement_id":"one","requirement_id":"two"}"#,
+                include_str!("../fixtures/runtime/duplicate-requirement.json.invalid"),
                 "duplicate_json_key",
             ),
         ] {
@@ -2794,7 +2805,7 @@ mod tests {
         ));
         fs::write(
             &request,
-            b"{\"decision\":\"general_only\",\"selections\":[]}",
+            include_bytes!("../fixtures/runtime/selection-general-only.json"),
         )
         .unwrap();
         let (exit, response) = run_with_skill_root(

@@ -43,6 +43,18 @@ const RETIRED_SCHEMAS: &[&str] = &[
 ];
 const RETIRED_EVIDENCE: &[(&str, &str)] = &[
     (
+        "rust/crates/work-cli/fixtures/process/legacy-plan.json",
+        "6bf49a6521bc9c1bfce0e85023f192b0095018cd408448092632df3905d8ab8e",
+    ),
+    (
+        "rust/crates/work-cli/fixtures/process/legacy-task-index.json",
+        "e67d8ed36e6164df446bc4968e69031aef1018af95a701a1603778293df0d814",
+    ),
+    (
+        "rust/crates/work-feature/fixtures/specification/migration/legacy-plan.json",
+        "0bf76ceb47e7f681fab42b0cf8890ee913131c830baf803264ef4fde964594f2",
+    ),
+    (
         "rust/crates/work-infrastructure/fixtures/historical/delegation/progress-saver/expected/result.json",
         "7227c8da01d21946ee677b7c07d034f569d2855724add9e878ee60cbe0827166",
     ),

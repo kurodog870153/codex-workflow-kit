@@ -1,0 +1,140 @@
+{
+  "description": {
+    "caller_constructible": true,
+    "canonical_order": [
+      "schema",
+      "direction",
+      "requirement_id",
+      "summary",
+      "confirmed_approach",
+      "requested_changes",
+      "preserve",
+      "affected_ids",
+      "validation_requirements"
+    ],
+    "example": {
+      "direction": "task_to_execute",
+      "requirement_id": "example",
+      "schema": "work-discussion-handoff-request",
+      "summary": "Review the unfinished discussion."
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {
+          "values": [
+            "task_to_execute",
+            "execute_to_task"
+          ]
+        },
+        "name": "direction",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "requirement_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "summary",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "confirmed_approach",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "requested_changes",
+        "reference": null,
+        "required": false,
+        "type": "array<string> | null"
+      },
+      {
+        "constraints": {},
+        "name": "preserve",
+        "reference": null,
+        "required": false,
+        "type": "array<string> | null"
+      },
+      {
+        "constraints": {},
+        "name": "affected_ids",
+        "reference": null,
+        "required": false,
+        "type": "array<string> | null"
+      },
+      {
+        "constraints": {},
+        "name": "validation_requirements",
+        "reference": null,
+        "required": false,
+        "type": "array<string> | null"
+      }
+    ],
+    "id": "work-discussion-handoff-request",
+    "kind": "semantic_request",
+    "optional": [
+      "confirmed_approach",
+      "requested_changes",
+      "preserve",
+      "affected_ids",
+      "validation_requirements"
+    ],
+    "required": [
+      "schema",
+      "direction",
+      "requirement_id",
+      "summary"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold": {
+    "canonical_order": [
+      "schema",
+      "direction",
+      "requirement_id",
+      "summary",
+      "confirmed_approach",
+      "requested_changes",
+      "preserve",
+      "affected_ids",
+      "validation_requirements"
+    ],
+    "example": {
+      "direction": "task_to_execute",
+      "requirement_id": "example",
+      "schema": "work-discussion-handoff-request",
+      "summary": "Review the unfinished discussion."
+    },
+    "id": "work-discussion-handoff-request",
+    "scaffold": {
+      "affected_ids": [],
+      "confirmed_approach": null,
+      "direction": "task_to_execute",
+      "preserve": [],
+      "requested_changes": [],
+      "requirement_id": null,
+      "schema": "work-discussion-handoff-request",
+      "summary": null,
+      "validation_requirements": []
+    },
+    "schema": "work-contract-scaffold"
+  }
+}

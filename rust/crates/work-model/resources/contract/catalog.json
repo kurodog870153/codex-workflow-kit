@@ -1,0 +1,473 @@
+{
+  "schema": "work-contract-registry-snapshot",
+  "catalog": {
+    "contracts": [
+      {
+        "caller_constructible": false,
+        "id": "work-artifact-migration-analysis",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-artifact-migration-request",
+        "kind": "generated_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-attempt",
+        "kind": "artifact"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-attempt-authorization",
+        "kind": "artifact"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-attempt-close",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": true,
+        "id": "work-attempt-close-request",
+        "kind": "semantic_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-attempt-start",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-attempt-start-prepare",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": true,
+        "id": "work-attempt-start-prepare-request",
+        "kind": "semantic_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-attempt-start-recovery",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-attempt-start-request",
+        "kind": "generated_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-attempt-validation",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-cli-result",
+        "kind": "envelope"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-command-correction",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": true,
+        "id": "work-command-correction-request",
+        "kind": "semantic_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-command-preview",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-command-result",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": true,
+        "id": "work-command-run-request",
+        "kind": "semantic_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-command-started",
+        "kind": "artifact"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-contract-catalog",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-contract-description",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-contract-scaffold",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-correction",
+        "kind": "artifact"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-correction-create",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": true,
+        "id": "work-correction-create-request",
+        "kind": "semantic_request"
+      },
+      {
+        "caller_constructible": true,
+        "id": "work-delegation-build-request",
+        "kind": "semantic_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-delegation-envelope",
+        "kind": "generated_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-delegation-validation",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-discussion-handoff",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": true,
+        "id": "work-discussion-handoff-request",
+        "kind": "semantic_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-error",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-execute-preflight",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-execute-worktree",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-execute-worktree-snapshot",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-execution-deviation",
+        "kind": "artifact"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-execution-deviation-preview",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-execution-deviation-proposal",
+        "kind": "generated_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-execution-deviation-record",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": true,
+        "id": "work-execution-deviation-semantic-request",
+        "kind": "semantic_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-execution-index",
+        "kind": "artifact"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-execution-recovery",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-execution-recovery-evidence",
+        "kind": "artifact"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-execution-recovery-prepare",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": true,
+        "id": "work-execution-recovery-prepare-request",
+        "kind": "semantic_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-execution-recovery-request",
+        "kind": "generated_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-handoff",
+        "kind": "artifact"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-handoff-source-validation",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-handoff-validation",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-hierarchy",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-hierarchy-selection",
+        "kind": "artifact"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-hierarchy-selection-validation",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-instruction-catalog",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-instruction-selection",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-instruction-selection-manifest",
+        "kind": "artifact"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-instructions",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": true,
+        "id": "work-invocation",
+        "kind": "semantic_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-operation-envelope",
+        "kind": "generated_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-operation-result",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-record-begin",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-record-finish",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": true,
+        "id": "work-record-finish-request",
+        "kind": "semantic_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-skill-bundle",
+        "kind": "artifact"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-skill-catalog",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-skill-selection",
+        "kind": "artifact"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-skill-selection-validation",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-skill-snapshot",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-source-impact",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-source-read",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-source-snapshot",
+        "kind": "artifact"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-source-validation",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": true,
+        "id": "work-spec-migration-prepare-request",
+        "kind": "semantic_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-spec-migration-preview",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-spec-migration-preview-request",
+        "kind": "generated_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-spec-migration-publication",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-spec-prepare",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": true,
+        "id": "work-spec-prepare-request",
+        "kind": "semantic_request"
+      },
+      {
+        "caller_constructible": true,
+        "id": "work-spec-reconciliation-prepare-request",
+        "kind": "semantic_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-spec-reconciliation-preview",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-spec-reconciliation-preview-request",
+        "kind": "generated_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-spec-reconciliation-publication",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-spec-transaction",
+        "kind": "artifact"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-spec-update",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-spec-update-request",
+        "kind": "generated_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-spec-verification",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-spec-verification-request",
+        "kind": "generated_request"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-task-collection-fingerprint",
+        "kind": "artifact"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-task-collection-projection",
+        "kind": "artifact"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-task-collection-validation",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-task-index",
+        "kind": "artifact"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-task-index-validation",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-task-item",
+        "kind": "artifact"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-task-item-validation",
+        "kind": "response"
+      },
+      {
+        "caller_constructible": false,
+        "id": "work-workflow-state",
+        "kind": "response"
+      }
+    ],
+    "schema": "work-contract-catalog"
+  }
+}

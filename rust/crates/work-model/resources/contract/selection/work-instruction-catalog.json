@@ -1,0 +1,89 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "mode",
+      "paths",
+      "children",
+      "metadata",
+      "catalog_sha256"
+    ],
+    "example": {
+      "catalog_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "children": {
+        "general": []
+      },
+      "metadata": {},
+      "mode": "task",
+      "paths": [
+        "general"
+      ],
+      "schema": "work-instruction-catalog"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "mode",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "paths",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "children",
+        "reference": null,
+        "required": true,
+        "type": "object<array<string>>"
+      },
+      {
+        "constraints": {},
+        "name": "metadata",
+        "reference": null,
+        "required": true,
+        "type": "object<any>"
+      },
+      {
+        "constraints": {},
+        "name": "catalog_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      }
+    ],
+    "id": "work-instruction-catalog",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "mode",
+      "paths",
+      "children",
+      "metadata",
+      "catalog_sha256"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-instruction-catalog",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

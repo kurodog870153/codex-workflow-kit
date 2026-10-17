@@ -1,0 +1,55 @@
+{
+  "description": {
+    "schema": "work-contract-description",
+    "id": "work-file-transaction-result",
+    "kind": "response",
+    "caller_constructible": false,
+    "required": [
+      "schema",
+      "transaction_identity",
+      "phase"
+    ],
+    "optional": [],
+    "canonical_order": [
+      "schema",
+      "transaction_identity",
+      "phase"
+    ],
+    "fields": [
+      {
+        "name": "schema",
+        "type": "string",
+        "required": true,
+        "reference": null,
+        "constraints": {}
+      },
+      {
+        "name": "transaction_identity",
+        "type": "string",
+        "required": true,
+        "reference": null,
+        "constraints": {}
+      },
+      {
+        "name": "phase",
+        "type": "string",
+        "required": true,
+        "reference": null,
+        "constraints": {}
+      }
+    ],
+    "example": {
+      "phase": "published-verified",
+      "schema": "work-file-transaction-result",
+      "transaction_identity": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "scaffold_error": {
+    "reason_code": "contract_scaffold_requires_request",
+    "message": "Only semantic requests are caller constructible.",
+    "details": {
+      "contract_id": "work-file-transaction-result",
+      "kind": "response"
+    }
+  }
+}

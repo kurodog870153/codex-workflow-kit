@@ -1,0 +1,89 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "work_directory",
+      "selected_paths",
+      "resolved_paths",
+      "required_paths",
+      "optional_paths"
+    ],
+    "example": {
+      "optional_paths": [],
+      "required_paths": [
+        "general"
+      ],
+      "resolved_paths": [
+        "general"
+      ],
+      "schema": "work-hierarchy",
+      "selected_paths": [],
+      "work_directory": "task"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "work_directory",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "selected_paths",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "resolved_paths",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "required_paths",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "optional_paths",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      }
+    ],
+    "id": "work-hierarchy",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "work_directory",
+      "selected_paths",
+      "resolved_paths",
+      "required_paths",
+      "optional_paths"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-hierarchy",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

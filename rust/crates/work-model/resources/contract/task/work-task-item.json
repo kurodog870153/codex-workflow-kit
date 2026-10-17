@@ -1,0 +1,269 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "id",
+      "title",
+      "skill_id",
+      "instruction_selection",
+      "traceability",
+      "acceptance_criteria",
+      "goal",
+      "dependencies",
+      "inputs",
+      "decisions",
+      "files",
+      "risks",
+      "steps",
+      "commands",
+      "operations",
+      "validations"
+    ],
+    "example": {
+      "acceptance_criteria": [
+        {
+          "criterion": "The result is verified.",
+          "id": "TASK-001-ACCEPTANCE-001"
+        }
+      ],
+      "goal": "Produce the result.",
+      "id": "TASK-001",
+      "instruction_selection": {
+        "instructions_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "references": [],
+        "resolved_paths": [
+          "general"
+        ],
+        "selected_paths": [],
+        "sources": [
+          {
+            "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "kind": "instruction",
+            "logical_name": "task.general"
+          }
+        ]
+      },
+      "schema": "work-task-item",
+      "skill_id": null,
+      "steps": [
+        {
+          "action": "Validate.",
+          "id": "STEP-001",
+          "references": [
+            "VAL-001"
+          ]
+        }
+      ],
+      "title": "Example",
+      "traceability": {
+        "acceptance_ids": [
+          "ACCEPTANCE-001"
+        ]
+      },
+      "validations": [
+        {
+          "acceptance_ids": [
+            "ACCEPTANCE-001",
+            "TASK-001-ACCEPTANCE-001"
+          ],
+          "confirmer": "user",
+          "criteria": "Approved.",
+          "id": "VAL-001",
+          "kind": "manual"
+        }
+      ]
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "title",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "skill_id",
+        "reference": null,
+        "required": true,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "instruction_selection",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "traceability",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "acceptance_criteria",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      },
+      {
+        "constraints": {},
+        "name": "goal",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "dependencies",
+        "reference": null,
+        "required": false,
+        "type": "array<string> | null"
+      },
+      {
+        "constraints": {},
+        "name": "inputs",
+        "reference": null,
+        "required": false,
+        "type": "array<object> | null"
+      },
+      {
+        "constraints": {},
+        "name": "decisions",
+        "reference": null,
+        "required": false,
+        "type": "array<object> | null"
+      },
+      {
+        "constraints": {},
+        "name": "files",
+        "reference": null,
+        "required": false,
+        "type": "array<object> | null"
+      },
+      {
+        "constraints": {},
+        "name": "risks",
+        "reference": null,
+        "required": false,
+        "type": "array<object> | null"
+      },
+      {
+        "constraints": {},
+        "name": "steps",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      },
+      {
+        "constraints": {},
+        "name": "commands",
+        "reference": null,
+        "required": false,
+        "type": "array<object> | null"
+      },
+      {
+        "constraints": {},
+        "name": "operations",
+        "reference": null,
+        "required": false,
+        "type": "array<object> | null"
+      },
+      {
+        "constraints": {
+          "verification": {
+            "additional_properties": false,
+            "automated_only": true,
+            "command": "exact declared command_ids; candidate keys and semantic positions are formally resolved",
+            "composition": [
+              "all",
+              "any",
+              "not"
+            ],
+            "evidence": "only actual CMD results through existing Attempt, Record and Acceptance",
+            "leaves": [
+              "exit_code",
+              "stdout_equals",
+              "stdout_contains",
+              "stderr_equals",
+              "stderr_contains",
+              "stdout_sha256",
+              "stderr_sha256",
+              "report_sha256",
+              "json_report_equals"
+            ],
+            "legacy": "no explicit verification uses actual zero exit for every declared command; unknown evidence never passes",
+            "limits": {
+              "depth": 32,
+              "encoded_bytes": 1048576,
+              "nodes": 1024,
+              "text_or_json_bytes": 65536
+            },
+            "optional": true,
+            "reports": "canonical cwd-relative report path; JSON pointer follows RFC 6901",
+            "unknown": "missing, truncated, over-limit or unknown evidence remains unknown through every composition"
+          },
+          "sources": {
+            "automated": "procedure: actual CMD evidence; optional explicit verification, otherwise all declared exit codes equal zero",
+            "ai_review": "AI review: exact confirmer, criteria, concrete references and rationale",
+            "manual": "user confirmation: exact designated confirmer, criteria, actual contextualized user evidence"
+          }
+        },
+        "name": "validations",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      }
+    ],
+    "id": "work-task-item",
+    "kind": "artifact",
+    "optional": [
+      "dependencies",
+      "inputs",
+      "decisions",
+      "files",
+      "risks",
+      "commands",
+      "operations"
+    ],
+    "required": [
+      "schema",
+      "id",
+      "title",
+      "skill_id",
+      "instruction_selection",
+      "traceability",
+      "goal",
+      "steps",
+      "validations",
+      "acceptance_criteria"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-task-item",
+      "kind": "artifact"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

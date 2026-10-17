@@ -1,0 +1,155 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "workflow",
+      "operation",
+      "verified_state_sha256",
+      "selection_sha256",
+      "artifacts",
+      "approval_sha256",
+      "authorization_state",
+      "side_effect_boundary",
+      "transaction_workspace",
+      "role",
+      "expected_result_contract",
+      "context_sha256"
+    ],
+    "example": {
+      "approval_sha256": null,
+      "artifacts": {},
+      "authorization_state": "read_only",
+      "context_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "expected_result_contract": "work-operation-result",
+      "operation": "capture_source",
+      "role": "main",
+      "schema": "work-operation-envelope",
+      "selection_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "side_effect_boundary": "read_only",
+      "transaction_workspace": null,
+      "verified_state_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "workflow": "task"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "workflow",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "operation",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "verified_state_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "selection_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "artifacts",
+        "reference": null,
+        "required": true,
+        "type": "object<object<string>>"
+      },
+      {
+        "constraints": {},
+        "name": "approval_sha256",
+        "reference": null,
+        "required": true,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "authorization_state",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "side_effect_boundary",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "transaction_workspace",
+        "reference": null,
+        "required": true,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "role",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "expected_result_contract",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "context_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      }
+    ],
+    "id": "work-operation-envelope",
+    "kind": "generated_request",
+    "optional": [],
+    "required": [
+      "schema",
+      "workflow",
+      "operation",
+      "verified_state_sha256",
+      "selection_sha256",
+      "artifacts",
+      "approval_sha256",
+      "authorization_state",
+      "side_effect_boundary",
+      "transaction_workspace",
+      "role",
+      "expected_result_contract",
+      "context_sha256"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-operation-envelope",
+      "kind": "generated_request"
+    },
+    "message": "Generated requests cannot be scaffolded as caller input.",
+    "reason_code": "generated_request_not_caller_constructible"
+  }
+}

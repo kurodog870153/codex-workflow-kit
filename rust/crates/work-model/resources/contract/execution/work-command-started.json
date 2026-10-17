@@ -1,0 +1,82 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "preview",
+      "authorization_evidence"
+    ],
+    "example": {
+      "authorization_evidence": "User approved this command.",
+      "preview": {
+        "approved_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "attempt_id": "ATTEMPT-001",
+        "execution": {
+          "os": "linux"
+        },
+        "invocation": {
+          "argv": [
+            "tool",
+            "--version"
+          ],
+          "executable": "/usr/bin/tool",
+          "executable_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "kind": "direct"
+        },
+        "receipt_dir": "outputs/work/executions/example/TASK-001/ATTEMPT-001/receipts/CMD-001",
+        "record_id": "CMD-001",
+        "request": {
+          "schema": "work-command-run-request",
+          "timeout_seconds": 60
+        },
+        "schema": "work-command-preview",
+        "sources": {
+          "outputs/work/tasks/example/index.json": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "task_id": "TASK-001",
+        "working_directory": "/project"
+      },
+      "schema": "work-command-started"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "preview",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "authorization_evidence",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      }
+    ],
+    "id": "work-command-started",
+    "kind": "artifact",
+    "optional": [],
+    "required": [
+      "schema",
+      "preview",
+      "authorization_evidence"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-command-started",
+      "kind": "artifact"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

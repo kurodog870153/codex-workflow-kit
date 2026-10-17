@@ -1,0 +1,193 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "task_id",
+      "scope",
+      "commands",
+      "validations",
+      "modifiable_files",
+      "working_directories",
+      "external_operations",
+      "allowed_deviations",
+      "reapproval_conditions",
+      "authorization_evidence"
+    ],
+    "example": {
+      "allowed_deviations": [],
+      "authorization_evidence": "User approved this exact Attempt scope.",
+      "commands": [],
+      "external_operations": [],
+      "modifiable_files": [],
+      "reapproval_conditions": [
+        "scope_expansion",
+        "source_or_worktree_drift",
+        "failure_divergence",
+        "retry",
+        "recovery",
+        "unknown_result"
+      ],
+      "schema": "work-attempt-authorization",
+      "task_id": "TASK-001",
+      "validations": [],
+      "working_directories": []
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "task_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {
+          "adjustments": [
+            "command_adjustment",
+            "validation_adjustment",
+            "additional_files",
+            "retry"
+          ],
+          "canonical_order": [
+            "project_root",
+            "requirement_id",
+            "goal",
+            "module_paths",
+            "modification_types",
+            "risk_boundary",
+            "validation_scope",
+            "task_ids",
+            "adjustments",
+            "exact_files",
+            "revoked_reason",
+            "rollback_on_write_failure"
+          ],
+          "modification_types": [
+            "create",
+            "modify",
+            "move"
+          ],
+          "optional": [
+            "exact_files",
+            "rollback_on_write_failure"
+          ],
+          "required": [
+            "project_root",
+            "requirement_id",
+            "goal",
+            "module_paths",
+            "modification_types",
+            "risk_boundary",
+            "validation_scope",
+            "task_ids",
+            "adjustments",
+            "revoked_reason"
+          ],
+          "semantic_review": "AI reviews goal, risk and validation bounds; Work validates declared structural boundaries",
+          "without_scope": "Explicit exact operation and file lists remain restrictive",
+          "rollback_on_write_failure": "Only a known failed write in the active invocation may restore its own verified frontier; absence or false grants no automatic restoration"
+        },
+        "name": "scope",
+        "reference": null,
+        "required": false,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "commands",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      },
+      {
+        "constraints": {
+          "sources": {
+            "automated": "procedure: actual CMD evidence; optional explicit verification, otherwise all declared exit codes equal zero",
+            "ai_review": "AI review: exact confirmer, criteria, concrete references and rationale",
+            "manual": "user confirmation: exact designated confirmer, criteria, actual contextualized user evidence"
+          }
+        },
+        "name": "validations",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      },
+      {
+        "constraints": {},
+        "name": "modifiable_files",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "working_directories",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "external_operations",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      },
+      {
+        "constraints": {},
+        "name": "allowed_deviations",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      },
+      {
+        "constraints": {},
+        "name": "reapproval_conditions",
+        "reference": null,
+        "required": true,
+        "type": "array<literal>"
+      },
+      {
+        "constraints": {},
+        "name": "authorization_evidence",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      }
+    ],
+    "id": "work-attempt-authorization",
+    "kind": "artifact",
+    "optional": [
+      "scope"
+    ],
+    "required": [
+      "schema",
+      "task_id",
+      "commands",
+      "validations",
+      "modifiable_files",
+      "working_directories",
+      "external_operations",
+      "allowed_deviations",
+      "reapproval_conditions",
+      "authorization_evidence"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-attempt-authorization",
+      "kind": "artifact"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

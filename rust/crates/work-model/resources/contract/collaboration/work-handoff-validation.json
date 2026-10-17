@@ -1,0 +1,100 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "marker",
+      "direction",
+      "requirement_id",
+      "source_stage",
+      "target_stage",
+      "status"
+    ],
+    "example": {
+      "direction": "task_to_execute",
+      "marker": "WORK-HANDOFF",
+      "requirement_id": "example",
+      "schema": "work-handoff-validation",
+      "source_stage": "task",
+      "status": "valid",
+      "target_stage": "execute"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "marker",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {
+          "values": [
+            "task_to_execute",
+            "execute_to_task"
+          ]
+        },
+        "name": "direction",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "requirement_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "source_stage",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "target_stage",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      }
+    ],
+    "id": "work-handoff-validation",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "marker",
+      "direction",
+      "requirement_id",
+      "source_stage",
+      "target_stage",
+      "status"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-handoff-validation",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

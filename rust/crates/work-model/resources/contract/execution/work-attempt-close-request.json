@@ -1,0 +1,87 @@
+{
+  "description": {
+    "caller_constructible": true,
+    "canonical_order": [
+      "schema",
+      "status",
+      "final_type",
+      "reason",
+      "authorization_evidence"
+    ],
+    "example": {
+      "schema": "work-attempt-close-request",
+      "status": "completed"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "final_type",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "reason",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "authorization_evidence",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      }
+    ],
+    "id": "work-attempt-close-request",
+    "kind": "semantic_request",
+    "optional": [
+      "final_type",
+      "reason",
+      "authorization_evidence"
+    ],
+    "required": [
+      "schema",
+      "status"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold": {
+    "canonical_order": [
+      "schema",
+      "status",
+      "final_type",
+      "reason",
+      "authorization_evidence"
+    ],
+    "example": {
+      "schema": "work-attempt-close-request",
+      "status": "completed"
+    },
+    "id": "work-attempt-close-request",
+    "scaffold": {
+      "authorization_evidence": null,
+      "final_type": null,
+      "reason": null,
+      "schema": "work-attempt-close-request",
+      "status": "completed"
+    },
+    "schema": "work-contract-scaffold"
+  }
+}

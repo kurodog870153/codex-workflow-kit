@@ -1,0 +1,229 @@
+{
+  "description": {
+    "schema": "work-contract-description",
+    "id": "work-discussion-session",
+    "kind": "artifact",
+    "caller_constructible": false,
+    "required": [
+      "schema",
+      "requirement_id",
+      "revision",
+      "context",
+      "authorization",
+      "tasks",
+      "retired_task_ids",
+      "decisions",
+      "next_task_number",
+      "next_decision_number",
+      "continuation",
+      "commit"
+    ],
+    "optional": [],
+    "canonical_order": [
+      "schema",
+      "requirement_id",
+      "revision",
+      "context",
+      "authorization",
+      "tasks",
+      "retired_task_ids",
+      "decisions",
+      "next_task_number",
+      "next_decision_number",
+      "continuation",
+      "commit"
+    ],
+    "fields": [
+      {
+        "name": "schema",
+        "type": "string",
+        "required": true,
+        "reference": null,
+        "constraints": {}
+      },
+      {
+        "name": "requirement_id",
+        "type": "string",
+        "required": true,
+        "reference": null,
+        "constraints": {}
+      },
+      {
+        "name": "revision",
+        "type": "integer",
+        "required": true,
+        "reference": null,
+        "constraints": {
+          "minimum": 1
+        }
+      },
+      {
+        "name": "context",
+        "type": "object",
+        "required": true,
+        "reference": null,
+        "constraints": {}
+      },
+      {
+        "name": "authorization",
+        "type": "object",
+        "required": true,
+        "reference": null,
+        "constraints": {
+          "bounded_requirement": true,
+          "canonical_project_root": true,
+          "evidence_required": true,
+          "exact_directory": "outputs/work/discussions/<requirement-id>",
+          "execute_authorized": false,
+          "publication_authorized": false
+        }
+      },
+      {
+        "name": "tasks",
+        "type": "array<object>",
+        "required": true,
+        "reference": null,
+        "constraints": {
+          "domain_records": true,
+          "review": {
+            "context_revision": "current confirmed context",
+            "decision_versions": "current linked confirmed decisions",
+            "needs_review": false,
+            "semantic_consistency_evidence": "AI review of one verifiable outcome and indivisibility rationale where needed",
+            "unknown_fields": "reject"
+          },
+          "stable_id": "TASK-001",
+          "task_candidate": "forbidden"
+        }
+      },
+      {
+        "name": "retired_task_ids",
+        "type": "array<string>",
+        "required": true,
+        "reference": null,
+        "constraints": {}
+      },
+      {
+        "name": "decisions",
+        "type": "array<object>",
+        "required": true,
+        "reference": null,
+        "constraints": {
+          "stable_id": "D001",
+          "statuses": [
+            "pending",
+            "confirmed",
+            "deferred",
+            "blocked",
+            "needs_review",
+            "withdrawn"
+          ],
+          "unknown_fields": "reject"
+        }
+      },
+      {
+        "name": "next_task_number",
+        "type": "integer",
+        "required": true,
+        "reference": null,
+        "constraints": {
+          "minimum": 1
+        }
+      },
+      {
+        "name": "next_decision_number",
+        "type": "integer",
+        "required": true,
+        "reference": null,
+        "constraints": {
+          "minimum": 1
+        }
+      },
+      {
+        "name": "continuation",
+        "type": "object",
+        "required": true,
+        "reference": null,
+        "constraints": {
+          "question_mapping_saved_before_asking": true,
+          "required_nullable": [
+            "current_task_id",
+            "question"
+          ]
+        }
+      },
+      {
+        "name": "commit",
+        "type": "object",
+        "required": true,
+        "reference": null,
+        "constraints": {
+          "content_sha256": "excludes only itself",
+          "immutable_revision": true,
+          "required_nullable": [
+            "previous_sha256"
+          ],
+          "sole_commit_point": "current session.json"
+        }
+      }
+    ],
+    "example": {
+      "authorization": {
+        "allowed_actions": [
+          "add_decision",
+          "update_decision",
+          "update_planning",
+          "prepare_question",
+          "answer_question",
+          "update_context",
+          "update_continuation"
+        ],
+        "directory": "outputs/work/discussions/example",
+        "evidence": "User authorized saves within this requirement",
+        "project_root": "/project",
+        "requirement_id": "example",
+        "revoked_reason": null
+      },
+      "commit": {
+        "content_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "operation_id": "init",
+        "operation_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "previous_sha256": null
+      },
+      "context": {
+        "acceptance_criteria": [],
+        "confirmed_source": null,
+        "constraints": [],
+        "goal": "Deliver the requirement",
+        "original_references": [
+          "source.txt"
+        ],
+        "revision": 1,
+        "scope": [
+          "Confirmed scope"
+        ],
+        "work_type": "task"
+      },
+      "continuation": {
+        "current_task_id": null,
+        "question": null
+      },
+      "decisions": [],
+      "next_decision_number": 1,
+      "next_task_number": 1,
+      "requirement_id": "example",
+      "retired_task_ids": [],
+      "revision": 1,
+      "schema": "work-discussion-session",
+      "tasks": []
+    }
+  },
+  "scaffold_error": {
+    "reason_code": "contract_scaffold_requires_request",
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "details": {
+      "contract_id": "work-discussion-session",
+      "kind": "artifact"
+    }
+  }
+}

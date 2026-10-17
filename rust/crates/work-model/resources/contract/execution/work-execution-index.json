@@ -1,0 +1,197 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "requirement_id",
+      "title",
+      "task_spec_id",
+      "task_collection_sha256",
+      "task_index_sha256",
+      "task_instructions_sha256",
+      "hierarchy_selection_sha256",
+      "skill_selection_sha256",
+      "instruction_selection_manifest",
+      "latest_task_instruction_audit",
+      "lock",
+      "overall_status",
+      "acceptance_results",
+      "tasks"
+    ],
+    "example": {
+      "acceptance_results": [],
+      "hierarchy_selection_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "overall_status": "pending",
+      "requirement_id": "example",
+      "schema": "work-execution-index",
+      "skill_selection_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "task_collection_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "task_index_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "task_instructions_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "task_spec_id": "TASK-SPEC-001",
+      "tasks": [
+        {
+          "acceptance_results": [],
+          "id": "TASK-001",
+          "instructions_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "skill_id": null,
+          "status": "pending",
+          "task_item_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        }
+      ],
+      "title": "Execution"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "requirement_id",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "title",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "task_spec_id",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "task_collection_sha256",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "task_index_sha256",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "task_instructions_sha256",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "hierarchy_selection_sha256",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "skill_selection_sha256",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "instruction_selection_manifest",
+        "reference": null,
+        "required": false,
+        "type": "any | null"
+      },
+      {
+        "constraints": {},
+        "name": "latest_task_instruction_audit",
+        "reference": null,
+        "required": false,
+        "type": "any | null"
+      },
+      {
+        "constraints": {},
+        "name": "lock",
+        "reference": null,
+        "required": false,
+        "type": "any | null"
+      },
+      {
+        "constraints": {},
+        "name": "overall_status",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {
+          "evidence_binding": [
+            "task_id",
+            "attempt_id",
+            "validation_id",
+            "record_id",
+            "task_item_sha256",
+            "task_instructions_sha256"
+          ],
+          "initial": "pending_without_evidence",
+          "states": [
+            "pending",
+            "completed"
+          ],
+          "source_and_version": "each evidence preserves the actual VAL source and file_version; every necessary formal validation must pass with current evidence before completion"
+        },
+        "name": "acceptance_results",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      },
+      {
+        "constraints": {},
+        "name": "tasks",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      }
+    ],
+    "id": "work-execution-index",
+    "kind": "artifact",
+    "optional": [
+      "instruction_selection_manifest",
+      "latest_task_instruction_audit",
+      "lock"
+    ],
+    "required": [
+      "schema",
+      "requirement_id",
+      "title",
+      "task_spec_id",
+      "task_collection_sha256",
+      "task_index_sha256",
+      "task_instructions_sha256",
+      "hierarchy_selection_sha256",
+      "skill_selection_sha256",
+      "overall_status",
+      "tasks",
+      "acceptance_results"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-execution-index",
+      "kind": "artifact"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

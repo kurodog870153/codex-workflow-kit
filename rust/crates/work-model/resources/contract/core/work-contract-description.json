@@ -1,0 +1,124 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "id",
+      "kind",
+      "caller_constructible",
+      "required",
+      "optional",
+      "canonical_order",
+      "fields",
+      "example"
+    ],
+    "example": {
+      "caller_constructible": false,
+      "canonical_order": [
+        "schema",
+        "contracts"
+      ],
+      "example": {
+        "contracts": [],
+        "schema": "work-contract-catalog"
+      },
+      "fields": [],
+      "id": "work-contract-catalog",
+      "kind": "response",
+      "optional": [],
+      "required": [
+        "schema",
+        "contracts"
+      ],
+      "schema": "work-contract-description"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "kind",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "caller_constructible",
+        "reference": null,
+        "required": true,
+        "type": "boolean"
+      },
+      {
+        "constraints": {},
+        "name": "required",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "optional",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "canonical_order",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "fields",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      },
+      {
+        "constraints": {},
+        "name": "example",
+        "reference": null,
+        "required": true,
+        "type": "object<any>"
+      }
+    ],
+    "id": "work-contract-description",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "id",
+      "kind",
+      "caller_constructible",
+      "required",
+      "optional",
+      "canonical_order",
+      "fields",
+      "example"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-contract-description",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

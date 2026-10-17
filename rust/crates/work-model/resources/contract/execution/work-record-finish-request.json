@@ -1,0 +1,140 @@
+{
+  "description": {
+    "caller_constructible": true,
+    "canonical_order": [
+      "schema",
+      "record",
+      "modified_files",
+      "authorization_evidence"
+    ],
+    "example": {
+      "schema": "work-record-finish-request",
+      "record": {
+        "outcome": "passed",
+        "confirmation": {
+          "path": "approvals/VAL-001.json",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      }
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {
+          "trusted_execution": {
+            "automated_validation": "actual complete owned CMD results; default all declared command exits equal zero, or explicit structured conditions including expected nonzero",
+            "caller_forbidden": [
+              "execution_evidence",
+              "verification_evidence",
+              "file_version",
+              "source",
+              "review_evidence",
+              "confirmation_evidence"
+            ],
+            "command": "actual owned receipt and exit code authenticate historical results even when declared input contents have changed; current VAL separately rechecks current inputs",
+            "modified_files": "actual modified project files must be recorded and verified",
+            "file_version": "producer-owned ordered publication lineage plus declared concrete input fingerprints; changed content requires revalidation",
+            "ai_review": {
+              "input": "review: reviewer, rationale, references",
+              "reviewer": "exact formal confirmer",
+              "references": "1..64 concrete artifact path/hash/detail, owned command record_id/finished_sha256/detail, or retained change transaction_identity/path/before_sha256/after_sha256/detail",
+              "verification": "recheck actual source bytes, receipt ownership and retained complete publication; empty labels do not pass"
+            },
+            "manual": {
+              "input": "confirmation: project-relative path and sha256 of the actual user JSON document",
+              "document_fields": [
+                "source",
+                "source_reference",
+                "confirmer",
+                "task_id",
+                "attempt_id",
+                "validation_id",
+                "record_id",
+                "file_version",
+                "outcome",
+                "statement"
+              ],
+              "source": [
+                "user_message",
+                "user_document"
+              ],
+              "binding": "exact designated user and record-begin validation_context; frozen raw bytes and document retained",
+              "identity": "source provenance is explicit; does not authenticate same-user peers cryptographically; AI must not invent user statements"
+            },
+            "source": "assigned from formal kind: automated=procedure, ai_review=ai_review, manual=user_confirmation"
+          },
+          "skipped": {
+            "fields": [
+              "status",
+              "reason",
+              "deviation_id"
+            ],
+            "status": "skipped",
+            "binding": "exact approved non-blocking skip_record; no fabricated result; never satisfies necessary validation"
+          }
+        },
+        "name": "record",
+        "reference": null,
+        "required": true,
+        "type": "object<any>"
+      },
+      {
+        "constraints": {},
+        "name": "modified_files",
+        "reference": null,
+        "required": false,
+        "type": "array<string> | null"
+      },
+      {
+        "constraints": {},
+        "name": "authorization_evidence",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      }
+    ],
+    "id": "work-record-finish-request",
+    "kind": "semantic_request",
+    "optional": [
+      "modified_files",
+      "authorization_evidence"
+    ],
+    "required": [
+      "schema",
+      "record"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold": {
+    "canonical_order": [
+      "schema",
+      "record",
+      "modified_files",
+      "authorization_evidence"
+    ],
+    "example": {
+      "schema": "work-record-finish-request",
+      "record": {
+        "outcome": "passed",
+        "confirmation": {
+          "path": "approvals/VAL-001.json",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      }
+    },
+    "id": "work-record-finish-request",
+    "scaffold": {
+      "authorization_evidence": null,
+      "modified_files": [],
+      "record": {},
+      "schema": "work-record-finish-request"
+    },
+    "schema": "work-contract-scaffold"
+  }
+}

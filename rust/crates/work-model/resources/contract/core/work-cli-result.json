@@ -1,0 +1,75 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "status",
+      "reason_code",
+      "message",
+      "data"
+    ],
+    "example": {
+      "data": {},
+      "message": "The command completed successfully.",
+      "reason_code": "ok",
+      "schema": "work-cli-result",
+      "status": "success"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "reason_code",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "message",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "data",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      }
+    ],
+    "id": "work-cli-result",
+    "kind": "envelope",
+    "optional": [],
+    "required": [
+      "schema",
+      "status",
+      "reason_code",
+      "message",
+      "data"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-cli-result",
+      "kind": "envelope"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "kind": "all",
+  "conditions": [
+    {
+      "kind": "exit_code",
+      "command": "verify",
+      "equals": 0
+    },
+    {
+      "kind": "stdout_contains",
+      "command": "verify",
+      "text": "final modify"
+    }
+  ]
+}

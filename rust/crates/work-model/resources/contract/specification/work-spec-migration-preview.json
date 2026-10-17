@@ -1,0 +1,141 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "status",
+      "documents",
+      "diffs",
+      "validator_results",
+      "relationship_results",
+      "unresolved_items",
+      "fingerprint",
+      "writable_ready"
+    ],
+    "example": {
+      "diffs": [
+        {
+          "operation": "replace",
+          "path": "outputs/work/plans/example.json",
+          "unified_diff": ""
+        }
+      ],
+      "documents": [
+        "outputs/work/plans/example.json"
+      ],
+      "fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+      "relationship_results": [
+        {
+          "name": "candidate_set",
+          "status": "passed"
+        }
+      ],
+      "schema": "work-spec-migration-preview",
+      "status": "ready",
+      "unresolved_items": [],
+      "validator_results": [
+        {
+          "name": "task_index",
+          "status": "passed"
+        },
+        {
+          "name": "task_items",
+          "status": "passed"
+        },
+        {
+          "name": "execution_index",
+          "status": "passed"
+        }
+      ],
+      "writable_ready": true
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "documents",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "diffs",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      },
+      {
+        "constraints": {},
+        "name": "validator_results",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      },
+      {
+        "constraints": {},
+        "name": "relationship_results",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      },
+      {
+        "constraints": {},
+        "name": "unresolved_items",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "fingerprint",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "writable_ready",
+        "reference": null,
+        "required": true,
+        "type": "boolean"
+      }
+    ],
+    "id": "work-spec-migration-preview",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "status",
+      "documents",
+      "diffs",
+      "validator_results",
+      "relationship_results",
+      "unresolved_items",
+      "fingerprint",
+      "writable_ready"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-spec-migration-preview",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

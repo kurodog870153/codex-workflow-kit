@@ -419,12 +419,14 @@ mod tests {
     }
     #[test]
     fn legacy_and_partial_ownership_evidence_is_never_inferred() {
-        let mut snapshot: FileMetadata =
-            serde_json::from_str(r#"{"readonly":false,"unix_mode":33188}"#).unwrap();
+        let mut snapshot: FileMetadata = serde_json::from_str(include_str!(
+            "../../../fixtures/file-transaction/legacy-file-metadata.json"
+        ))
+        .unwrap();
         assert!(ownership(&snapshot).is_err());
         assert_eq!(
             serde_json::to_string(&snapshot).unwrap(),
-            r#"{"readonly":false,"unix_mode":33188}"#
+            include_str!("../../../fixtures/file-transaction/legacy-file-metadata.json")
         );
         snapshot.unix_uid = Some(501);
         assert!(ownership(&snapshot).is_err());

@@ -1,0 +1,133 @@
+{
+  "description": {
+    "caller_constructible": true,
+    "canonical_order": [
+      "schema",
+      "mode",
+      "origin",
+      "request",
+      "confirmation",
+      "entry"
+    ],
+    "example": {
+      "entry": {
+        "kind": "workflow"
+      },
+      "mode": "task",
+      "origin": "explicit",
+      "request": "Describe the requested change.",
+      "schema": "work-invocation"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {
+          "values": [
+            "task",
+            "revise",
+            "migration",
+            "execute"
+          ]
+        },
+        "name": "mode",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {
+          "producer": "literal_parser_or_exact_user_confirmation",
+          "values": [
+            "explicit",
+            "implicit_confirmed"
+          ]
+        },
+        "name": "origin",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "request",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {
+          "confirmed": true,
+          "exact_mode_request_binding": true,
+          "fields": [
+            "mode",
+            "request",
+            "confirmed",
+            "evidence"
+          ],
+          "required_for": "implicit_confirmed"
+        },
+        "name": "confirmation",
+        "reference": null,
+        "required": false,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "entry",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      }
+    ],
+    "id": "work-invocation",
+    "kind": "semantic_request",
+    "optional": [
+      "confirmation"
+    ],
+    "required": [
+      "schema",
+      "mode",
+      "origin",
+      "request",
+      "entry"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold": {
+    "canonical_order": [
+      "schema",
+      "mode",
+      "origin",
+      "request",
+      "confirmation",
+      "entry"
+    ],
+    "example": {
+      "entry": {
+        "kind": "workflow"
+      },
+      "mode": "task",
+      "origin": "explicit",
+      "request": "Describe the requested change.",
+      "schema": "work-invocation"
+    },
+    "id": "work-invocation",
+    "scaffold": {
+      "confirmation": null,
+      "entry": {
+        "kind": "workflow"
+      },
+      "mode": "task",
+      "origin": "explicit",
+      "request": null,
+      "schema": "work-invocation"
+    },
+    "schema": "work-contract-scaffold"
+  }
+}

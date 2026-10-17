@@ -366,14 +366,16 @@ mod tests {
     #[test]
     fn json_contract_parser_rejects_current_contract_invalid_inputs() {
         assert_eq!(
-            parse_json_contract(br#"{"schema":"one","schema":"two"}"#),
+            parse_json_contract(include_bytes!(
+                "../fixtures/canonical/duplicate-schema.json.invalid"
+            )),
             Err(JsonContractIssue::DuplicateKey("schema".into()))
         );
         for raw in [
-            b"# Example\n\n```json\n{\"schema\":\"example/v1\"}\n```\n".as_slice(),
-            b"```json\n{\"schema\":\"example/v1\"}\n```\n",
-            b"{\"schema\":\"example/v1\"}\nExtra",
-            b"{\"schema\":\"example/v1\"}\n{}",
+            include_bytes!("../fixtures/canonical/markdown-wrapper.txt").as_slice(),
+            include_bytes!("../fixtures/canonical/fenced-json.txt"),
+            include_bytes!("../fixtures/canonical/trailing-text.json.invalid"),
+            include_bytes!("../fixtures/canonical/second-object.json.invalid"),
         ] {
             assert!(matches!(
                 parse_json_contract(raw),
@@ -381,8 +383,14 @@ mod tests {
             ));
         }
         for (raw, constant) in [
-            (br#"{"value": NaN}"#.as_slice(), "NaN"),
-            (br#"{"value": Infinity}"#.as_slice(), "Infinity"),
+            (
+                include_bytes!("../fixtures/canonical/nan-value.json.invalid").as_slice(),
+                "NaN",
+            ),
+            (
+                include_bytes!("../fixtures/canonical/infinity-value.json.invalid").as_slice(),
+                "Infinity",
+            ),
         ] {
             assert_eq!(
                 parse_json_contract(raw),
@@ -499,7 +507,9 @@ mod tests {
     #[test]
     fn strict_json_rejects_nested_duplicate_keys_and_multiple_bom() {
         assert_eq!(
-            parse_json_contract(b"{\"a\": {\"x\": 1, \"x\": 2}}"),
+            parse_json_contract(include_bytes!(
+                "../fixtures/canonical/nested-duplicate-key.json.invalid"
+            )),
             Err(JsonContractIssue::DuplicateKey("x".into()))
         );
         assert_eq!(
@@ -520,9 +530,19 @@ mod tests {
     #[test]
     fn strict_json_reports_nonstandard_constants_only_in_value_position() {
         for (raw, constant) in [
-            (br#"{"value": NaN}"#.as_slice(), "NaN"),
-            (br#"{"value": Infinity}"#.as_slice(), "Infinity"),
-            (br#"{"value": -Infinity}"#.as_slice(), "-Infinity"),
+            (
+                include_bytes!("../fixtures/canonical/nan-value.json.invalid").as_slice(),
+                "NaN",
+            ),
+            (
+                include_bytes!("../fixtures/canonical/infinity-value.json.invalid").as_slice(),
+                "Infinity",
+            ),
+            (
+                include_bytes!("../fixtures/canonical/negative-infinity-value.json.invalid")
+                    .as_slice(),
+                "-Infinity",
+            ),
         ] {
             assert_eq!(
                 parse_json_contract(raw),
@@ -530,11 +550,15 @@ mod tests {
             );
         }
         assert!(matches!(
-            parse_json_contract(br#"{"value": 1}NaN"#),
+            parse_json_contract(include_bytes!(
+                "../fixtures/canonical/trailing-nan.json.invalid"
+            )),
             Err(JsonContractIssue::InvalidJson { .. })
         ));
         assert!(matches!(
-            parse_json_contract(br#"{NaN: 1}"#),
+            parse_json_contract(include_bytes!(
+                "../fixtures/canonical/invalid-key.json.invalid"
+            )),
             Err(JsonContractIssue::InvalidJson { .. })
         ));
     }

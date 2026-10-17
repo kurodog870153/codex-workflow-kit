@@ -1,0 +1,105 @@
+{
+  "description": {
+    "caller_constructible": true,
+    "canonical_order": [
+      "schema",
+      "target_attempt_id",
+      "field",
+      "correct_value",
+      "reason",
+      "invalidates_completion"
+    ],
+    "example": {
+      "correct_value": "passed",
+      "field": "records[0].outcome",
+      "invalidates_completion": true,
+      "reason": "Correct the recorded outcome.",
+      "schema": "work-correction-create-request",
+      "target_attempt_id": "ATTEMPT-001"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "target_attempt_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "field",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "correct_value",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "reason",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "invalidates_completion",
+        "reference": null,
+        "required": true,
+        "type": "boolean"
+      }
+    ],
+    "id": "work-correction-create-request",
+    "kind": "semantic_request",
+    "optional": [],
+    "required": [
+      "schema",
+      "target_attempt_id",
+      "field",
+      "correct_value",
+      "reason",
+      "invalidates_completion"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold": {
+    "canonical_order": [
+      "schema",
+      "target_attempt_id",
+      "field",
+      "correct_value",
+      "reason",
+      "invalidates_completion"
+    ],
+    "example": {
+      "correct_value": "passed",
+      "field": "records[0].outcome",
+      "invalidates_completion": true,
+      "reason": "Correct the recorded outcome.",
+      "schema": "work-correction-create-request",
+      "target_attempt_id": "ATTEMPT-001"
+    },
+    "id": "work-correction-create-request",
+    "scaffold": {
+      "correct_value": null,
+      "field": null,
+      "invalidates_completion": null,
+      "reason": null,
+      "schema": "work-correction-create-request",
+      "target_attempt_id": null
+    },
+    "schema": "work-contract-scaffold"
+  }
+}

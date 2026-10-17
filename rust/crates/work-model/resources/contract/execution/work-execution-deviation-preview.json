@@ -1,0 +1,158 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "proposal",
+      "record_kind",
+      "action_validation",
+      "semantic_review",
+      "classification",
+      "blocking",
+      "sources",
+      "preview_sha256"
+    ],
+    "example": {
+      "action_validation": "passed",
+      "blocking": false,
+      "classification": "task_only",
+      "preview_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "proposal": {
+        "action": {
+          "kind": "replace_command",
+          "record_id": "CMD-001",
+          "replacement": {
+            "argv": [
+              "C:/tools/tool.cmd",
+              "test"
+            ],
+            "mode": "argv"
+          }
+        },
+        "anchor_record_id": "CMD-001",
+        "attempt_id": "ATTEMPT-001",
+        "gap": "The executable is not available through PATH.",
+        "impact": {
+          "acceptance_criteria_changed": false,
+          "deliverables_changed": false,
+          "external_side_effect_boundary_changed": false,
+          "requirement_changed": false,
+          "safety_boundary_changed": false,
+          "scope_changed": false,
+          "summary": "Use the absolute executable path without changing command effects."
+        },
+        "modifiable_files": [],
+        "schema": "work-execution-deviation-proposal",
+        "side_effects": [
+          "Runs the existing validation command."
+        ],
+        "task_basis": [
+          "CMD-001",
+          "STEP-001"
+        ],
+        "task_id": "TASK-001"
+      },
+      "record_kind": "command",
+      "schema": "work-execution-deviation-preview",
+      "semantic_review": "required",
+      "sources": {
+        "outputs/work/tasks/example/index.json": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "proposal",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {
+          "values": [
+            "task",
+            "command",
+            "operation",
+            "validation"
+          ]
+        },
+        "name": "record_kind",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "action_validation",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "semantic_review",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "classification",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "blocking",
+        "reference": null,
+        "required": true,
+        "type": "boolean"
+      },
+      {
+        "constraints": {},
+        "name": "sources",
+        "reference": null,
+        "required": true,
+        "type": "object<string>"
+      },
+      {
+        "constraints": {},
+        "name": "preview_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      }
+    ],
+    "id": "work-execution-deviation-preview",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "proposal",
+      "record_kind",
+      "action_validation",
+      "semantic_review",
+      "classification",
+      "blocking",
+      "sources",
+      "preview_sha256"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-execution-deviation-preview",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

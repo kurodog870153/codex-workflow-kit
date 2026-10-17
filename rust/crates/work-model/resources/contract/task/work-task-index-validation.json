@@ -1,0 +1,101 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "requirement_id",
+      "spec_id",
+      "task_ids",
+      "task_paths",
+      "task_item_sha256",
+      "task_index_sha256"
+    ],
+    "example": {
+      "requirement_id": "example",
+      "schema": "work-task-index-validation",
+      "spec_id": "TASK-SPEC-001",
+      "task_ids": [
+        "TASK-001"
+      ],
+      "task_index_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "task_item_sha256": {
+        "TASK-001": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "task_paths": {
+        "TASK-001": "tasks/TASK-001.json"
+      }
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "requirement_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "spec_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "task_ids",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "task_paths",
+        "reference": null,
+        "required": true,
+        "type": "object<string>"
+      },
+      {
+        "constraints": {},
+        "name": "task_item_sha256",
+        "reference": null,
+        "required": true,
+        "type": "object<string>"
+      },
+      {
+        "constraints": {},
+        "name": "task_index_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      }
+    ],
+    "id": "work-task-index-validation",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "requirement_id",
+      "spec_id",
+      "task_ids",
+      "task_paths",
+      "task_item_sha256",
+      "task_index_sha256"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-task-index-validation",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

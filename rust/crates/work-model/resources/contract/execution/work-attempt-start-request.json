@@ -1,0 +1,83 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "worktree_snapshot_sha256",
+      "authorization",
+      "continuation"
+    ],
+    "example": {
+      "authorization": {
+        "allowed_deviations": [],
+        "authorization_evidence": "User approved this exact Attempt scope.",
+        "commands": [],
+        "external_operations": [],
+        "modifiable_files": [],
+        "reapproval_conditions": [
+          "scope_expansion",
+          "source_or_worktree_drift",
+          "failure_divergence",
+          "retry",
+          "recovery",
+          "unknown_result"
+        ],
+        "schema": "work-attempt-authorization",
+        "task_id": "TASK-001",
+        "validations": [],
+        "working_directories": []
+      },
+      "schema": "work-attempt-start-request",
+      "worktree_snapshot_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "worktree_snapshot_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "authorization",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "continuation",
+        "reference": null,
+        "required": false,
+        "type": "null | object"
+      }
+    ],
+    "id": "work-attempt-start-request",
+    "kind": "generated_request",
+    "optional": [
+      "continuation"
+    ],
+    "required": [
+      "schema",
+      "worktree_snapshot_sha256",
+      "authorization"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-attempt-start-request",
+      "kind": "generated_request"
+    },
+    "message": "Generated requests cannot be scaffolded as caller input.",
+    "reason_code": "generated_request_not_caller_constructible"
+  }
+}

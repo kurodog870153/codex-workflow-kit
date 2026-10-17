@@ -1,0 +1,15 @@
+{
+  "command_positions": [],
+  "validation_positions": [
+    1
+  ],
+  "modifiable_files": [
+    "a-old.txt",
+    "b-moved.txt",
+    "c-existing.txt",
+    "d-new.txt"
+  ],
+  "external_operation_positions": [],
+  "allowed_deviations": [],
+  "authorization_evidence": "Fixture user authorized complete file publication and manual acceptance"
+}

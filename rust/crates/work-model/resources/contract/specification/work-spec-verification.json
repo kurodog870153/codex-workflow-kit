@@ -1,0 +1,139 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "status",
+      "verified",
+      "record_id",
+      "requirement_id",
+      "artifacts",
+      "task_collection_sha256",
+      "journal_sha256",
+      "verification_scope",
+      "execution_authorized",
+      "next_step"
+    ],
+    "example": {
+      "artifacts": {
+        "execution": "outputs/work/executions/example",
+        "source": "outputs/work/sources/example",
+        "task": "outputs/work/tasks/example/index.json"
+      },
+      "execution_authorized": false,
+      "journal_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "next_step": "normal_execute_preflight",
+      "record_id": "SPEC-UPDATE-655C3708CEA3",
+      "requirement_id": "example",
+      "schema": "work-spec-verification",
+      "status": "verified",
+      "task_collection_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "verification_scope": "exact_specification_result",
+      "verified": true
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "verified",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "record_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "requirement_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "artifacts",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "task_collection_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "journal_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "verification_scope",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "execution_authorized",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "next_step",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      }
+    ],
+    "id": "work-spec-verification",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "status",
+      "verified",
+      "record_id",
+      "requirement_id",
+      "artifacts",
+      "task_collection_sha256",
+      "journal_sha256",
+      "verification_scope",
+      "execution_authorized",
+      "next_step"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-spec-verification",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

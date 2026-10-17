@@ -1,0 +1,53 @@
+{
+  "description": {
+    "caller_constructible": true,
+    "canonical_order": [
+      "schema",
+      "timeout_seconds"
+    ],
+    "example": {
+      "schema": "work-command-run-request",
+      "timeout_seconds": 60
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "timeout_seconds",
+        "reference": null,
+        "required": true,
+        "type": "integer"
+      }
+    ],
+    "id": "work-command-run-request",
+    "kind": "semantic_request",
+    "optional": [],
+    "required": [
+      "schema",
+      "timeout_seconds"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold": {
+    "canonical_order": [
+      "schema",
+      "timeout_seconds"
+    ],
+    "example": {
+      "schema": "work-command-run-request",
+      "timeout_seconds": 60
+    },
+    "id": "work-command-run-request",
+    "scaffold": {
+      "schema": "work-command-run-request",
+      "timeout_seconds": null
+    },
+    "schema": "work-contract-scaffold"
+  }
+}

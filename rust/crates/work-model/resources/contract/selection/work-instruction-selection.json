@@ -1,0 +1,63 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "mode",
+      "instruction_selection"
+    ],
+    "example": {
+      "instruction_selection": {
+        "instructions_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "references": [],
+        "resolved_paths": [
+          "general"
+        ],
+        "selected_paths": [],
+        "sources": []
+      },
+      "mode": "task",
+      "schema": "work-instruction-selection"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "mode",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "instruction_selection",
+        "reference": null,
+        "required": true,
+        "type": "object<any>"
+      }
+    ],
+    "id": "work-instruction-selection",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "mode",
+      "instruction_selection"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-instruction-selection",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

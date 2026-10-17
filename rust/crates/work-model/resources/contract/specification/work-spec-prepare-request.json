@@ -1,0 +1,130 @@
+{
+  "description": {
+    "caller_constructible": true,
+    "canonical_order": [
+      "schema",
+      "requirement_id",
+      "reason",
+      "edits",
+      "source_update"
+    ],
+    "example": {
+      "edits": [
+        {
+          "after": "Reviewed goal",
+          "field": "goal",
+          "target": {
+            "artifact": "task_item",
+            "task_id": "TASK-001"
+          }
+        }
+      ],
+      "reason": "Confirmed goal revision",
+      "requirement_id": "example",
+      "schema": "work-spec-prepare-request"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "requirement_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "reason",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "edits",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      },
+      {
+        "constraints": {},
+        "name": "source_update",
+        "reference": null,
+        "required": false,
+        "type": "null | object"
+      }
+    ],
+    "id": "work-spec-prepare-request",
+    "kind": "semantic_request",
+    "optional": [
+      "source_update"
+    ],
+    "required": [
+      "schema",
+      "requirement_id",
+      "reason",
+      "edits"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold": {
+    "canonical_order": [
+      "schema",
+      "requirement_id",
+      "reason",
+      "edits",
+      "source_update"
+    ],
+    "example": {
+      "edits": [
+        {
+          "after": "Reviewed goal",
+          "field": "goal",
+          "target": {
+            "artifact": "task_item",
+            "task_id": "TASK-001"
+          }
+        }
+      ],
+      "reason": "Confirmed goal revision",
+      "requirement_id": "example",
+      "schema": "work-spec-prepare-request"
+    },
+    "id": "work-spec-prepare-request",
+    "scaffold": {
+      "edits": [
+        {
+          "after": null,
+          "field": null,
+          "operation": "add_task",
+          "semantic_after": null,
+          "target": {
+            "artifact": "task_index",
+            "task_id": null
+          },
+          "task": {
+            "candidate": {},
+            "dependency_positions": [],
+            "goal": null,
+            "references": [],
+            "selected_paths": [],
+            "skill_id": null,
+            "title": null
+          },
+          "task_position": null
+        }
+      ],
+      "reason": null,
+      "requirement_id": null,
+      "schema": "work-spec-prepare-request",
+      "source_update": null
+    },
+    "schema": "work-contract-scaffold"
+  }
+}

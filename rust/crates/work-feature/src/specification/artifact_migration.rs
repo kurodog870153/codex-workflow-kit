@@ -156,7 +156,7 @@ mod tests {
         for raw in [
             b"broken".as_slice(),
             b"%PDF-1.7\n\xff\x00".as_slice(),
-            b"{\"schema\":\"work-plan/v0\",\"unknown\":true}".as_slice(),
+            include_bytes!("../../fixtures/specification/migration/legacy-plan.json").as_slice(),
         ] {
             let item = analyze_artifact("task_index", "legacy/source.pdf", raw);
             assert_eq!(item.raw, raw);

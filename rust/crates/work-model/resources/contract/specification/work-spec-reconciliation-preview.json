@@ -1,0 +1,204 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "status",
+      "attempt_path",
+      "attempt_sha256",
+      "choice",
+      "pending_deviation_ids",
+      "selected_deviation_ids",
+      "retained_deviation_ids",
+      "deviation_classifications",
+      "ledger_path",
+      "ledger",
+      "migration_preview",
+      "fingerprint",
+      "publication_required",
+      "publication_ready"
+    ],
+    "example": {
+      "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
+      "attempt_sha256": "71042b5efa4b03e2ebfdd94c92d61d132439ea9e7ae722110013c0406c85c5c5",
+      "choice": "all",
+      "deviation_classifications": {
+        "DEVIATION-001": "task_and_execution"
+      },
+      "fingerprint": "1e8b955119dc9792a958b42115467d6cd3bdf948b04a0cc77cb10251429e7766",
+      "ledger": {
+        "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
+        "entries": [
+          {
+            "attempt_sha256": "71042b5efa4b03e2ebfdd94c92d61d132439ea9e7ae722110013c0406c85c5c5",
+            "deviation_id": "DEVIATION-001",
+            "outcome": "incorporated",
+            "reconciliation_fingerprint": "1e8b955119dc9792a958b42115467d6cd3bdf948b04a0cc77cb10251429e7766",
+            "target": "task_and_execution"
+          }
+        ],
+        "schema": "work-spec-reconciliation-ledger"
+      },
+      "ledger_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/reconciliation.json",
+      "migration_preview": {
+        "diffs": [],
+        "documents": [],
+        "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "relationship_results": [],
+        "schema": "work-spec-migration-preview",
+        "status": "ready",
+        "unresolved_items": [],
+        "validator_results": [],
+        "writable_ready": true
+      },
+      "pending_deviation_ids": [
+        "DEVIATION-001"
+      ],
+      "publication_ready": true,
+      "publication_required": true,
+      "retained_deviation_ids": [],
+      "schema": "work-spec-reconciliation-preview",
+      "selected_deviation_ids": [
+        "DEVIATION-001"
+      ],
+      "status": "ready"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "attempt_path",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "attempt_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "choice",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "pending_deviation_ids",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "selected_deviation_ids",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "retained_deviation_ids",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "deviation_classifications",
+        "reference": null,
+        "required": true,
+        "type": "object<literal>"
+      },
+      {
+        "constraints": {},
+        "name": "ledger_path",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "ledger",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "migration_preview",
+        "reference": "work-spec-migration-preview",
+        "required": false,
+        "type": "null | object"
+      },
+      {
+        "constraints": {},
+        "name": "fingerprint",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "publication_required",
+        "reference": null,
+        "required": true,
+        "type": "boolean"
+      },
+      {
+        "constraints": {},
+        "name": "publication_ready",
+        "reference": null,
+        "required": true,
+        "type": "boolean"
+      }
+    ],
+    "id": "work-spec-reconciliation-preview",
+    "kind": "response",
+    "optional": [
+      "migration_preview"
+    ],
+    "required": [
+      "schema",
+      "status",
+      "attempt_path",
+      "attempt_sha256",
+      "choice",
+      "pending_deviation_ids",
+      "selected_deviation_ids",
+      "retained_deviation_ids",
+      "deviation_classifications",
+      "ledger_path",
+      "ledger",
+      "fingerprint",
+      "publication_required",
+      "publication_ready"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-spec-reconciliation-preview",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

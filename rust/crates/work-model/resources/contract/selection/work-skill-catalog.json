@@ -1,0 +1,55 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "skills",
+      "unavailable"
+    ],
+    "example": {
+      "schema": "work-skill-catalog",
+      "skills": [],
+      "unavailable": []
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "skills",
+        "reference": null,
+        "required": true,
+        "type": "array<object<any>>"
+      },
+      {
+        "constraints": {},
+        "name": "unavailable",
+        "reference": null,
+        "required": true,
+        "type": "array<object<any>>"
+      }
+    ],
+    "id": "work-skill-catalog",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "skills",
+      "unavailable"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-skill-catalog",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

@@ -1,0 +1,497 @@
+{
+  "work-attempt-close-request": {
+    "": [
+      "schema",
+      "id",
+      "canonical_order",
+      "scaffold",
+      "example"
+    ],
+    "/example": [
+      "schema",
+      "status"
+    ],
+    "/scaffold": [
+      "schema",
+      "status",
+      "final_type",
+      "reason",
+      "authorization_evidence"
+    ]
+  },
+  "work-attempt-start-prepare-request": {
+    "": [
+      "schema",
+      "id",
+      "canonical_order",
+      "scaffold",
+      "example"
+    ],
+    "/example": [
+      "command_positions",
+      "validation_positions",
+      "modifiable_files",
+      "external_operation_positions",
+      "allowed_deviations",
+      "authorization_evidence",
+      "carried_records"
+    ],
+    "/scaffold": [
+      "command_positions",
+      "validation_positions",
+      "modifiable_files",
+      "external_operation_positions",
+      "allowed_deviations",
+      "authorization_evidence",
+      "carried_records",
+      "scope"
+    ]
+  },
+  "work-command-correction-request": {
+    "": [
+      "schema",
+      "id",
+      "canonical_order",
+      "scaffold",
+      "example"
+    ],
+    "/example": [
+      "schema",
+      "actual_command",
+      "reason"
+    ],
+    "/example/actual_command": [
+      "mode",
+      "argv"
+    ],
+    "/scaffold": [
+      "schema",
+      "actual_command",
+      "reason",
+      "impact"
+    ],
+    "/scaffold/actual_command": [
+      "mode",
+      "argv"
+    ]
+  },
+  "work-command-run-request": {
+    "": [
+      "schema",
+      "id",
+      "canonical_order",
+      "scaffold",
+      "example"
+    ],
+    "/example": [
+      "schema",
+      "timeout_seconds"
+    ],
+    "/scaffold": [
+      "schema",
+      "timeout_seconds"
+    ]
+  },
+  "work-correction-create-request": {
+    "": [
+      "schema",
+      "id",
+      "canonical_order",
+      "scaffold",
+      "example"
+    ],
+    "/example": [
+      "schema",
+      "target_attempt_id",
+      "field",
+      "correct_value",
+      "reason",
+      "invalidates_completion"
+    ],
+    "/scaffold": [
+      "schema",
+      "target_attempt_id",
+      "field",
+      "correct_value",
+      "reason",
+      "invalidates_completion"
+    ]
+  },
+  "work-delegation-build-request": {
+    "": [
+      "schema",
+      "id",
+      "canonical_order",
+      "scaffold",
+      "example"
+    ],
+    "/example": [
+      "schema",
+      "role",
+      "request",
+      "planning_source",
+      "continuation_point"
+    ],
+    "/scaffold": [
+      "schema",
+      "role",
+      "mode",
+      "request",
+      "planning_source",
+      "task_path",
+      "task_id",
+      "confirmed_request",
+      "decisions",
+      "affected_task_ids",
+      "repository_evidence",
+      "saved_discussion",
+      "continuation_point"
+    ],
+    "/scaffold/confirmed_request": []
+  },
+  "work-discussion-handoff-request": {
+    "": [
+      "schema",
+      "id",
+      "canonical_order",
+      "scaffold",
+      "example"
+    ],
+    "/example": [
+      "schema",
+      "direction",
+      "requirement_id",
+      "summary"
+    ],
+    "/scaffold": [
+      "schema",
+      "direction",
+      "requirement_id",
+      "summary",
+      "confirmed_approach",
+      "requested_changes",
+      "preserve",
+      "affected_ids",
+      "validation_requirements"
+    ]
+  },
+  "work-execution-deviation-semantic-request": {
+    "": [
+      "schema",
+      "id",
+      "canonical_order",
+      "scaffold",
+      "example"
+    ],
+    "/example": [
+      "gap",
+      "action",
+      "modifiable_files",
+      "impact",
+      "side_effects"
+    ],
+    "/example/action": [
+      "kind",
+      "replacement"
+    ],
+    "/example/action/replacement": [
+      "mode",
+      "argv"
+    ],
+    "/example/impact": [
+      "summary",
+      "requirement_changed",
+      "scope_changed",
+      "acceptance_criteria_changed",
+      "deliverables_changed",
+      "safety_boundary_changed",
+      "external_side_effect_boundary_changed"
+    ],
+    "/scaffold": [
+      "gap",
+      "action",
+      "modifiable_files",
+      "impact",
+      "side_effects"
+    ],
+    "/scaffold/action": [
+      "kind",
+      "replacement"
+    ],
+    "/scaffold/action/replacement": [
+      "mode",
+      "argv",
+      "script",
+      "execution"
+    ],
+    "/scaffold/action/replacement/execution": [
+      "working_directory",
+      "os",
+      "shell"
+    ],
+    "/scaffold/impact": [
+      "summary",
+      "requirement_changed",
+      "scope_changed",
+      "acceptance_criteria_changed",
+      "deliverables_changed",
+      "safety_boundary_changed",
+      "external_side_effect_boundary_changed"
+    ]
+  },
+  "work-execution-recovery-prepare-request": {
+    "": [
+      "schema",
+      "id",
+      "canonical_order",
+      "scaffold",
+      "example"
+    ],
+    "/example": [
+      "schema",
+      "transaction",
+      "attempt_id"
+    ],
+    "/scaffold": [
+      "schema",
+      "transaction",
+      "attempt_id"
+    ]
+  },
+  "work-invocation": {
+    "": [
+      "schema",
+      "id",
+      "canonical_order",
+      "scaffold",
+      "example"
+    ],
+    "/example": [
+      "schema",
+      "mode",
+      "origin",
+      "request",
+      "confirmation",
+      "entry"
+    ],
+    "/example/entry": [
+      "kind"
+    ],
+    "/scaffold": [
+      "schema",
+      "mode",
+      "origin",
+      "request",
+      "confirmation",
+      "entry"
+    ],
+    "/scaffold/entry": [
+      "kind"
+    ]
+  },
+  "work-record-finish-request": {
+    "": [
+      "schema",
+      "id",
+      "canonical_order",
+      "scaffold",
+      "example"
+    ],
+    "/example": [
+      "schema",
+      "record"
+    ],
+    "/example/record": [
+      "outcome",
+      "confirmation"
+    ],
+    "/scaffold": [
+      "schema",
+      "record",
+      "modified_files",
+      "authorization_evidence"
+    ],
+    "/scaffold/record": [],
+    "/example/record/confirmation": [
+      "path",
+      "sha256"
+    ]
+  },
+  "work-spec-migration-prepare-request": {
+    "": [
+      "schema",
+      "id",
+      "canonical_order",
+      "scaffold",
+      "example"
+    ],
+    "/example": [
+      "schema",
+      "mode",
+      "requirement_id",
+      "sources",
+      "task_context",
+      "task_title",
+      "task_summary",
+      "execution_defaults",
+      "tasks",
+      "semantic_decisions"
+    ],
+    "/scaffold": [
+      "schema",
+      "mode",
+      "requirement_id",
+      "sources",
+      "reason",
+      "edits",
+      "task_context",
+      "task_title",
+      "task_summary",
+      "execution_defaults",
+      "tasks",
+      "semantic_decisions"
+    ],
+    "/scaffold/edits/0": [
+      "target",
+      "field",
+      "after",
+      "semantic_after",
+      "operation",
+      "task",
+      "task_position"
+    ],
+    "/scaffold/edits/0/target": [
+      "artifact",
+      "task_id"
+    ],
+    "/scaffold/edits/0/task": [
+      "title",
+      "goal",
+      "skill_id",
+      "selected_paths",
+      "references",
+      "dependency_positions",
+      "candidate"
+    ],
+    "/scaffold/edits/0/task/candidate": [],
+    "/scaffold/execution_defaults": [],
+    "/scaffold/sources": [],
+    "/scaffold/task_context": []
+  },
+  "work-spec-prepare-request": {
+    "": [
+      "schema",
+      "id",
+      "canonical_order",
+      "scaffold",
+      "example"
+    ],
+    "/example": [
+      "schema",
+      "requirement_id",
+      "reason",
+      "edits"
+    ],
+    "/example/edits/0": [
+      "target",
+      "field",
+      "after"
+    ],
+    "/example/edits/0/target": [
+      "artifact",
+      "task_id"
+    ],
+    "/scaffold": [
+      "schema",
+      "requirement_id",
+      "reason",
+      "edits",
+      "source_update"
+    ],
+    "/scaffold/edits/0": [
+      "target",
+      "field",
+      "after",
+      "semantic_after",
+      "operation",
+      "task",
+      "task_position"
+    ],
+    "/scaffold/edits/0/target": [
+      "artifact",
+      "task_id"
+    ],
+    "/scaffold/edits/0/task": [
+      "title",
+      "goal",
+      "skill_id",
+      "selected_paths",
+      "references",
+      "dependency_positions",
+      "candidate"
+    ],
+    "/scaffold/edits/0/task/candidate": []
+  },
+  "work-spec-reconciliation-prepare-request": {
+    "": [
+      "schema",
+      "id",
+      "canonical_order",
+      "scaffold",
+      "example"
+    ],
+    "/example": [
+      "schema",
+      "requirement_id",
+      "task_position",
+      "attempt_position",
+      "choice",
+      "reason",
+      "edits",
+      "semantic_decisions"
+    ],
+    "/example/edits/0": [
+      "target",
+      "field",
+      "after"
+    ],
+    "/example/edits/0/target": [
+      "artifact",
+      "task_id"
+    ],
+    "/scaffold": [
+      "schema",
+      "requirement_id",
+      "task_position",
+      "attempt_position",
+      "choice",
+      "deviation_positions",
+      "reason",
+      "edits",
+      "semantic_decisions"
+    ],
+    "/scaffold/edits/0": [
+      "target",
+      "field",
+      "after",
+      "semantic_after",
+      "operation",
+      "task",
+      "task_position"
+    ],
+    "/scaffold/edits/0/target": [
+      "artifact",
+      "task_id"
+    ],
+    "/scaffold/edits/0/task": [
+      "title",
+      "goal",
+      "skill_id",
+      "selected_paths",
+      "references",
+      "dependency_positions",
+      "candidate"
+    ],
+    "/scaffold/edits/0/task/candidate": []
+  }
+}

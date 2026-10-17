@@ -151,7 +151,7 @@ mod tests {
     }
     #[test]
     fn legacy_metadata_bytes_remain_unchanged_and_unknown_xattrs_are_distinct_from_absence() {
-        let legacy = r#"{"readonly":false,"unix_mode":33188}"#;
+        let legacy = include_str!("../../../fixtures/file-transaction/legacy-file-metadata.json");
         let snapshot: FileMetadata = serde_json::from_str(legacy).unwrap();
         assert!(snapshot.macos_xattrs.is_none());
         assert_eq!(serde_json::to_string(&snapshot).unwrap(), legacy);

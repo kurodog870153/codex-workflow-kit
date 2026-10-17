@@ -1,0 +1,98 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "transaction",
+      "attempt_id",
+      "transaction_dir",
+      "transaction_files",
+      "transaction_evidence_sha256",
+      "authorization_evidence"
+    ],
+    "example": {
+      "attempt_id": "ATTEMPT-001",
+      "schema": "work-execution-recovery-request",
+      "transaction": "record_begin",
+      "transaction_dir": "outputs/work/runtime/staging/example/record-begin/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "transaction_evidence_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "transaction_files": [
+        "index.json.tmp",
+        "transaction.json"
+      ]
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "transaction",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "attempt_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "transaction_dir",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "transaction_files",
+        "reference": null,
+        "required": true,
+        "type": "array<string>"
+      },
+      {
+        "constraints": {},
+        "name": "transaction_evidence_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "authorization_evidence",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      }
+    ],
+    "id": "work-execution-recovery-request",
+    "kind": "generated_request",
+    "optional": [
+      "authorization_evidence"
+    ],
+    "required": [
+      "schema",
+      "transaction",
+      "attempt_id",
+      "transaction_dir",
+      "transaction_files",
+      "transaction_evidence_sha256"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-execution-recovery-request",
+      "kind": "generated_request"
+    },
+    "message": "Generated requests cannot be scaffolded as caller input.",
+    "reason_code": "generated_request_not_caller_constructible"
+  }
+}

@@ -1,0 +1,19 @@
+[
+  {
+    "key": "moved",
+    "action": "move",
+    "source": "a-old.txt",
+    "destination": "c-existing.txt"
+  },
+  {
+    "key": "modified",
+    "action": "move",
+    "source": "c-existing.txt",
+    "destination": "a-old.txt"
+  },
+  {
+    "key": "created",
+    "action": "create",
+    "path": "d-new.txt"
+  }
+]

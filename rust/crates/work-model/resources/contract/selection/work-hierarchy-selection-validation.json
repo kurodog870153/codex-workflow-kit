@@ -1,0 +1,62 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "status",
+      "hierarchy_selection"
+    ],
+    "example": {
+      "hierarchy_selection": {
+        "catalog_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "decision": "general_only",
+        "entries": [],
+        "schema": "work-hierarchy-selection",
+        "selected_paths": [],
+        "selection_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "schema": "work-hierarchy-selection-validation",
+      "status": "valid"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "hierarchy_selection",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      }
+    ],
+    "id": "work-hierarchy-selection-validation",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "status",
+      "hierarchy_selection"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-hierarchy-selection-validation",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

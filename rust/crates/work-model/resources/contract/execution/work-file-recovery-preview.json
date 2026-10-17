@@ -1,0 +1,136 @@
+{
+  "description": {
+    "schema": "work-contract-description",
+    "id": "work-file-recovery-preview",
+    "kind": "response",
+    "caller_constructible": false,
+    "required": [
+      "schema",
+      "manifest",
+      "observed",
+      "observed_identities",
+      "approval_sha256"
+    ],
+    "optional": [],
+    "canonical_order": [
+      "schema",
+      "manifest",
+      "observed",
+      "observed_identities",
+      "approval_sha256"
+    ],
+    "fields": [
+      {
+        "name": "schema",
+        "type": "string",
+        "required": true,
+        "reference": null,
+        "constraints": {}
+      },
+      {
+        "name": "manifest",
+        "type": "object",
+        "required": true,
+        "reference": null,
+        "constraints": {}
+      },
+      {
+        "name": "observed",
+        "type": "object",
+        "required": true,
+        "reference": null,
+        "constraints": {}
+      },
+      {
+        "name": "observed_identities",
+        "type": "object",
+        "required": true,
+        "reference": null,
+        "constraints": {}
+      },
+      {
+        "name": "approval_sha256",
+        "type": "string",
+        "required": true,
+        "reference": null,
+        "constraints": {}
+      }
+    ],
+    "example": {
+      "approval_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "manifest": {
+        "approval_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "business_identity": {
+          "after_metadata": {
+            "result.txt": {
+              "readonly": false,
+              "unix_mode": null
+            }
+          },
+          "attempt_id": "ATTEMPT-001",
+          "baseline_confirmation": null,
+          "before_metadata": {
+            "result.txt": null
+          },
+          "changes": [
+            {
+              "bytes": [
+                10
+              ],
+              "kind": "write",
+              "path": "result.txt"
+            }
+          ],
+          "path_identities": {
+            "result.txt": null
+          },
+          "previous_transaction": null,
+          "source_sha256": {},
+          "task_id": "TASK-001"
+        },
+        "canonical_root": "/project",
+        "execution_dir": "outputs/work/executions/example",
+        "inventory": [
+          {
+            "path": "candidate.json",
+            "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "size_bytes": 1
+          }
+        ],
+        "operation": "project-files",
+        "phase": "prepared",
+        "published_count": 0,
+        "requirement_id": "example",
+        "schema": "work-runtime-transaction",
+        "targets": [
+          {
+            "after": {
+              "bytes": [
+                10
+              ],
+              "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+            },
+            "before": null,
+            "path": "result.txt"
+          }
+        ],
+        "transaction_identity": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "observed": {
+        "result.txt": null
+      },
+      "observed_identities": {
+        "result.txt": null
+      },
+      "schema": "work-file-recovery-preview"
+    }
+  },
+  "scaffold_error": {
+    "reason_code": "contract_scaffold_requires_request",
+    "message": "Only semantic requests are caller constructible.",
+    "details": {
+      "contract_id": "work-file-recovery-preview",
+      "kind": "response"
+    }
+  }
+}

@@ -1,0 +1,176 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "marker",
+      "direction",
+      "requirement_id",
+      "source_stage",
+      "target_stage",
+      "source_status",
+      "source_validation",
+      "grants_authorization",
+      "summary",
+      "confirmed_approach",
+      "requested_changes",
+      "preserve",
+      "affected_ids",
+      "validation_requirements"
+    ],
+    "example": {
+      "direction": "task_to_execute",
+      "grants_authorization": false,
+      "marker": "WORK-DISCUSSION-HANDOFF",
+      "requirement_id": "example",
+      "schema": "work-discussion-handoff",
+      "source_stage": "task",
+      "source_status": "unsaved_discussion",
+      "source_validation": "not_checked",
+      "summary": "Review the unfinished discussion.",
+      "target_stage": "execute"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "marker",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {
+          "values": [
+            "task_to_execute",
+            "execute_to_task"
+          ]
+        },
+        "name": "direction",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "requirement_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "source_stage",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "target_stage",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "source_status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "source_validation",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "grants_authorization",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "summary",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "confirmed_approach",
+        "reference": null,
+        "required": false,
+        "type": "null | string"
+      },
+      {
+        "constraints": {},
+        "name": "requested_changes",
+        "reference": null,
+        "required": false,
+        "type": "array<string> | null"
+      },
+      {
+        "constraints": {},
+        "name": "preserve",
+        "reference": null,
+        "required": false,
+        "type": "array<string> | null"
+      },
+      {
+        "constraints": {},
+        "name": "affected_ids",
+        "reference": null,
+        "required": false,
+        "type": "array<string> | null"
+      },
+      {
+        "constraints": {},
+        "name": "validation_requirements",
+        "reference": null,
+        "required": false,
+        "type": "array<string> | null"
+      }
+    ],
+    "id": "work-discussion-handoff",
+    "kind": "response",
+    "optional": [
+      "confirmed_approach",
+      "requested_changes",
+      "preserve",
+      "affected_ids",
+      "validation_requirements"
+    ],
+    "required": [
+      "schema",
+      "marker",
+      "direction",
+      "requirement_id",
+      "source_stage",
+      "target_stage",
+      "source_status",
+      "source_validation",
+      "grants_authorization",
+      "summary"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-discussion-handoff",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "description": {
+    "schema": "work-contract-description",
+    "id": "work-discussion-result",
+    "kind": "response",
+    "caller_constructible": false,
+    "required": [
+      "schema",
+      "command",
+      "requirement_id",
+      "data"
+    ],
+    "optional": [],
+    "canonical_order": [
+      "schema",
+      "command",
+      "requirement_id",
+      "data"
+    ],
+    "fields": [
+      {
+        "name": "schema",
+        "type": "string",
+        "required": true,
+        "reference": null,
+        "constraints": {}
+      },
+      {
+        "name": "command",
+        "type": "string",
+        "required": true,
+        "reference": null,
+        "constraints": {}
+      },
+      {
+        "name": "requirement_id",
+        "type": "string",
+        "required": true,
+        "reference": null,
+        "constraints": {}
+      },
+      {
+        "name": "data",
+        "type": "object",
+        "required": true,
+        "reference": null,
+        "constraints": {}
+      }
+    ],
+    "example": {
+      "command": "read",
+      "data": {
+        "revision": 1
+      },
+      "requirement_id": "example",
+      "schema": "work-discussion-result"
+    }
+  },
+  "scaffold_error": {
+    "reason_code": "contract_scaffold_requires_request",
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "details": {
+      "contract_id": "work-discussion-result",
+      "kind": "response"
+    }
+  }
+}

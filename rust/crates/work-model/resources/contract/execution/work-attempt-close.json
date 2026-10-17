@@ -1,0 +1,125 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "task_id",
+      "attempt_id",
+      "attempt_path",
+      "index_path",
+      "attempt_status",
+      "task_status",
+      "overall_status",
+      "pending_deviations",
+      "lock_status"
+    ],
+    "example": {
+      "attempt_id": "ATTEMPT-001",
+      "attempt_path": "outputs/work/executions/example/TASK-001/ATTEMPT-001/attempt.json",
+      "attempt_status": "completed",
+      "index_path": "outputs/work/executions/example/index.json",
+      "lock_status": "released",
+      "overall_status": "completed",
+      "pending_deviations": [],
+      "schema": "work-attempt-close",
+      "task_id": "TASK-001",
+      "task_status": "completed"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "task_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "attempt_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "attempt_path",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "index_path",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "attempt_status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "task_status",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "overall_status",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "pending_deviations",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      },
+      {
+        "constraints": {},
+        "name": "lock_status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      }
+    ],
+    "id": "work-attempt-close",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "task_id",
+      "attempt_id",
+      "attempt_path",
+      "index_path",
+      "attempt_status",
+      "task_status",
+      "overall_status",
+      "pending_deviations",
+      "lock_status"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-attempt-close",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

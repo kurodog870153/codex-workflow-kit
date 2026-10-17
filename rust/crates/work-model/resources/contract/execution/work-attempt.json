@@ -1,0 +1,363 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "attempt_id",
+      "task_spec_id",
+      "task_id",
+      "skill_id",
+      "status",
+      "task_collection_sha256",
+      "task_index_sha256",
+      "task_item_sha256",
+      "task_instructions_sha256",
+      "execute_instructions_sha256",
+      "hierarchy_selection_sha256",
+      "execute_skill_selection_sha256",
+      "authorization",
+      "authorization_sha256",
+      "started_at",
+      "continued_from",
+      "carried_records",
+      "modified_files",
+      "execution_deviations",
+      "records",
+      "acceptance_results",
+      "overall_result",
+      "final_type",
+      "reason",
+      "closing_authorization_evidence",
+      "ended_at"
+    ],
+    "example": {
+      "acceptance_results": [],
+      "attempt_id": "ATTEMPT-001",
+      "authorization": {
+        "allowed_deviations": [],
+        "authorization_evidence": "User approved this exact Attempt scope.",
+        "commands": [],
+        "external_operations": [],
+        "modifiable_files": [],
+        "reapproval_conditions": [
+          "scope_expansion",
+          "source_or_worktree_drift",
+          "failure_divergence",
+          "retry",
+          "recovery",
+          "unknown_result"
+        ],
+        "schema": "work-attempt-authorization",
+        "task_id": "TASK-001",
+        "validations": [],
+        "working_directories": []
+      },
+      "authorization_sha256": "ccea937193965426f001ff0fe5d4a9f23a9a17ad2686d235fa9f81e0cec943e9",
+      "execute_instructions_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "execute_skill_selection_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "hierarchy_selection_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "records": [],
+      "schema": "work-attempt",
+      "skill_id": null,
+      "started_at": "2026-09-01T10:00+08:00",
+      "status": "in_progress",
+      "task_collection_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "task_id": "TASK-001",
+      "task_index_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "task_instructions_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "task_item_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "task_spec_id": "TASK-SPEC-001"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "attempt_id",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "task_spec_id",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "task_id",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "skill_id",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "status",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "task_collection_sha256",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "task_index_sha256",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "task_item_sha256",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "task_instructions_sha256",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "execute_instructions_sha256",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "hierarchy_selection_sha256",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "execute_skill_selection_sha256",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "authorization",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {},
+        "name": "authorization_sha256",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "started_at",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {},
+        "name": "continued_from",
+        "reference": null,
+        "required": false,
+        "type": "any | null"
+      },
+      {
+        "constraints": {
+          "validation_evidence": {
+            "caller_forbidden": true,
+            "eligibility": "actual source/owner bytes, receipts, current condition and engine must be reverified by the trusted writer",
+            "fields": [
+              "source_attempt_sha256",
+              "owner_attempt_id",
+              "owner_attempt_sha256",
+              "record"
+            ],
+            "legacy": "absent provenance remains readable history; no implicit automated acceptance",
+            "optional": true,
+            "producer_only": true,
+            "record": "exact existing passed automated VAL with owned verification evidence; no new VAL record"
+          }
+        },
+        "name": "carried_records",
+        "reference": null,
+        "required": false,
+        "type": "any | null"
+      },
+      {
+        "constraints": {},
+        "name": "modified_files",
+        "reference": null,
+        "required": false,
+        "type": "any | null"
+      },
+      {
+        "constraints": {},
+        "name": "execution_deviations",
+        "reference": null,
+        "required": false,
+        "type": "any | null"
+      },
+      {
+        "constraints": {
+          "execution_evidence": {
+            "command": "owned receipt hashes, approval and actual exit",
+            "legacy": "absent evidence remains readable history; does not grant new automated acceptance",
+            "optional": true,
+            "producer_only": true,
+            "verification_evidence": "Task/Attempt/VAL identity, engine/condition hashes, actual outcome and exact latest or explicitly carried commands"
+          },
+          "validation_provenance": {
+            "required": [
+              "source",
+              "file_version"
+            ],
+            "source": [
+              "procedure",
+              "ai_review",
+              "user_confirmation"
+            ],
+            "procedure": "verification_evidence derived from actual owned CMD results",
+            "ai_review": "review_evidence with exact reviewer, rationale and concrete verified references",
+            "user_confirmation": "confirmation_evidence with actual frozen raw bytes, exact supplied user document and reference hash",
+            "unknown": "absent or mixed provenance cannot satisfy current acceptance"
+          }
+        },
+        "name": "records",
+        "reference": null,
+        "required": true,
+        "type": "any"
+      },
+      {
+        "constraints": {
+          "carried_provenance": {
+            "binding": "exact producer-owned carried record, current authorized criterion mapping and reverified receipts",
+            "records": "carrying does not create a new VAL record",
+            "source_attempt_id": "optional actual VAL owner; attempt_id remains the receiving acceptance scope"
+          },
+          "evidence_binding": [
+            "task_id",
+            "attempt_id",
+            "validation_id",
+            "record_id",
+            "task_item_sha256",
+            "task_instructions_sha256"
+          ],
+          "initial": "pending_without_evidence",
+          "states": [
+            "pending",
+            "completed"
+          ],
+          "source_and_version": "each evidence preserves the actual VAL source and file_version; every necessary formal validation must pass with current evidence before completion"
+        },
+        "name": "acceptance_results",
+        "reference": null,
+        "required": true,
+        "type": "array<object>"
+      },
+      {
+        "constraints": {},
+        "name": "overall_result",
+        "reference": null,
+        "required": false,
+        "type": "any | null"
+      },
+      {
+        "constraints": {},
+        "name": "final_type",
+        "reference": null,
+        "required": false,
+        "type": "any | null"
+      },
+      {
+        "constraints": {},
+        "name": "reason",
+        "reference": null,
+        "required": false,
+        "type": "any | null"
+      },
+      {
+        "constraints": {},
+        "name": "closing_authorization_evidence",
+        "reference": null,
+        "required": false,
+        "type": "any | null"
+      },
+      {
+        "constraints": {},
+        "name": "ended_at",
+        "reference": null,
+        "required": false,
+        "type": "any | null"
+      }
+    ],
+    "id": "work-attempt",
+    "kind": "artifact",
+    "optional": [
+      "continued_from",
+      "carried_records",
+      "modified_files",
+      "execution_deviations",
+      "overall_result",
+      "final_type",
+      "reason",
+      "closing_authorization_evidence",
+      "ended_at"
+    ],
+    "required": [
+      "schema",
+      "attempt_id",
+      "task_spec_id",
+      "task_id",
+      "skill_id",
+      "status",
+      "task_collection_sha256",
+      "task_index_sha256",
+      "task_item_sha256",
+      "task_instructions_sha256",
+      "execute_instructions_sha256",
+      "hierarchy_selection_sha256",
+      "execute_skill_selection_sha256",
+      "authorization",
+      "authorization_sha256",
+      "started_at",
+      "records",
+      "acceptance_results"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-attempt",
+      "kind": "artifact"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

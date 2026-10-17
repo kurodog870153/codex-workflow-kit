@@ -1,0 +1,71 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "requirement_id",
+      "artifacts",
+      "record_id"
+    ],
+    "example": {
+      "artifacts": {
+        "execution": "outputs/work/executions/example",
+        "source": "outputs/work/sources/example",
+        "task": "outputs/work/tasks/example/index.json"
+      },
+      "record_id": "SPEC-UPDATE-655C3708CEA3",
+      "requirement_id": "example",
+      "schema": "work-spec-verification-request"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "requirement_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      },
+      {
+        "constraints": {},
+        "name": "artifacts",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      },
+      {
+        "constraints": {
+          "pattern": "^SPEC-UPDATE-[0-9A-F]{12}$"
+        },
+        "name": "record_id",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      }
+    ],
+    "id": "work-spec-verification-request",
+    "kind": "generated_request",
+    "optional": [],
+    "required": [
+      "schema",
+      "requirement_id",
+      "artifacts",
+      "record_id"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-spec-verification-request",
+      "kind": "generated_request"
+    },
+    "message": "Generated requests cannot be scaffolded as caller input.",
+    "reason_code": "generated_request_not_caller_constructible"
+  }
+}

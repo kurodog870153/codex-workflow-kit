@@ -1,0 +1,120 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "routing_input",
+      "routing_status",
+      "sources",
+      "confirmation_required",
+      "selection_sha256"
+    ],
+    "example": {
+      "confirmation_required": true,
+      "routing_input": {
+        "artifact_lifecycle": "missing",
+        "authorization_state": "confirmation_required",
+        "formal_events": [],
+        "mode": "task",
+        "operation": "capture_source",
+        "role": "main",
+        "status": "source_required",
+        "verified_state_sha256": "48813073bd33cb1b73680157492236ea01b856eab7c393e012c0fbf7c1486569"
+      },
+      "routing_status": "VALID",
+      "schema": "work-instruction-selection-manifest",
+      "selection_sha256": "593efe9bc74de9fcbf8a0b4e3bdbc677abb97145337aa79653b217992ec96d0b",
+      "sources": [
+        {
+          "canonical_sha256": "816283719f5864d235cd41c91a3164342535288dbb66edbf603f3e1073f79649",
+          "logical_name": "work.instruction-loading",
+          "path": "references/instruction-loading.md"
+        },
+        {
+          "canonical_sha256": "69f5e5493e8a48145913c699e1bdceda77b542903a57ddd490d168bdd96a340f",
+          "logical_name": "work.shared.internal-envelope",
+          "path": "references/instruction-loading/internal-envelope.md"
+        },
+        {
+          "canonical_sha256": "6f0c15ba27a369b972efb93b2e8120809c2af92165feb6850ce2266ee3646b28",
+          "logical_name": "work.shared.source-loading",
+          "path": "references/instruction-loading/source-loading.md"
+        },
+        {
+          "canonical_sha256": "73310b679b1c1059f1e99121699d80f8b0f48e97e33c64f9f4f4e37df5147624",
+          "logical_name": "work.shared.artifact-paths",
+          "path": "references/instruction-loading/artifact-paths.md"
+        },
+        {
+          "canonical_sha256": "fb41d17c58fd4a425d725c364fe6e225a2bfaee254c474dbc1198edcae611642",
+          "logical_name": "work.shared.fingerprints",
+          "path": "references/instruction-loading/fingerprints.md"
+        }
+      ]
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "routing_input",
+        "reference": null,
+        "required": true,
+        "type": "object<any>"
+      },
+      {
+        "constraints": {},
+        "name": "routing_status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "sources",
+        "reference": null,
+        "required": true,
+        "type": "array<object<any>>"
+      },
+      {
+        "constraints": {},
+        "name": "confirmation_required",
+        "reference": null,
+        "required": true,
+        "type": "boolean"
+      },
+      {
+        "constraints": {},
+        "name": "selection_sha256",
+        "reference": null,
+        "required": true,
+        "type": "string"
+      }
+    ],
+    "id": "work-instruction-selection-manifest",
+    "kind": "artifact",
+    "optional": [],
+    "required": [
+      "schema",
+      "routing_input",
+      "routing_status",
+      "sources",
+      "confirmation_required",
+      "selection_sha256"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-instruction-selection-manifest",
+      "kind": "artifact"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}

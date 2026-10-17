@@ -1,0 +1,60 @@
+{
+  "description": {
+    "caller_constructible": false,
+    "canonical_order": [
+      "schema",
+      "status",
+      "skill_selection"
+    ],
+    "example": {
+      "schema": "work-skill-selection-validation",
+      "skill_selection": {
+        "decision": "base_only",
+        "schema": "work-skill-selection",
+        "selection_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "skills": []
+      },
+      "status": "valid"
+    },
+    "fields": [
+      {
+        "constraints": {},
+        "name": "schema",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "status",
+        "reference": null,
+        "required": true,
+        "type": "literal"
+      },
+      {
+        "constraints": {},
+        "name": "skill_selection",
+        "reference": null,
+        "required": true,
+        "type": "object"
+      }
+    ],
+    "id": "work-skill-selection-validation",
+    "kind": "response",
+    "optional": [],
+    "required": [
+      "schema",
+      "status",
+      "skill_selection"
+    ],
+    "schema": "work-contract-description"
+  },
+  "scaffold_error": {
+    "details": {
+      "contract_id": "work-skill-selection-validation",
+      "kind": "response"
+    },
+    "message": "Only semantic request contracts have public input scaffolds.",
+    "reason_code": "contract_scaffold_requires_request"
+  }
+}
